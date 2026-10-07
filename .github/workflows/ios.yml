@@ -1,0 +1,163 @@
+# Builds OpenJKDF2 for iOS (arm64 device) and packages an UNSIGNED .ipa.
+#
+# The .app inside carries only an ad-hoc signature (upstream's default, see
+# cmake_modules/target_ios_all.cmake). Re-sign it yourself (e.g. Signulous)
+# before installing. No game data is bundled -- copy your own JKDF2 files into
+# the app's Documents/jk1 folder with the Files app.
+#
+# ANGLE (GLES on Metal) is not built by OpenJKDF2's CMake, so this workflow
+# builds it with depot_tools and caches the result. The first run takes a long
+# time; later runs restore ANGLE from the cache in seconds. To force a rebuild
+# (new ANGLE revision or new gn args), change ANGLE_REV or bump ANGLE_CACHE_VERSION.
+
+name: iOS IPA
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # ANGLE branch chromium/8060 (Sept 15 2026), from the github.com/google/angle mirror.
+  ANGLE_REV: 4b7308a36376199c095ccb0ab69b773daa8b9fbe
+  ANGLE_CACHE_VERSION: v1
+  # Must match between ANGLE and OpenJKDF2: dyld refuses to load a framework
+  # whose minimum iOS version is newer than the phone's.
+  IOS_DEPLOYMENT_TARGET: '18.0'
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 330
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Select newest Xcode
+        run: |
+          set -e
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -iv beta | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Restore ANGLE from cache
+        id: angle-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: angle-prebuilt
+          key: angle-ios-arm64-${{ env.ANGLE_REV }}-ios${{ env.IOS_DEPLOYMENT_TARGET }}-${{ env.ANGLE_CACHE_VERSION }}
+
+      - name: Free disk space for ANGLE checkout
+        if: steps.angle-cache.outputs.cache-hit != 'true'
+        run: |
+          df -h /
+          sudo rm -rf ~/Library/Android /usr/local/share/dotnet ~/.dotnet /usr/local/lib/node_modules || true
+          df -h /
+
+      - name: Build ANGLE (cache miss only)
+        if: steps.angle-cache.outputs.cache-hit != 'true'
+        run: |
+          set -ex
+          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$RUNNER_TEMP/depot_tools"
+          export PATH="$RUNNER_TEMP/depot_tools:$PATH"
+
+          mkdir -p "$RUNNER_TEMP/angle" && cd "$RUNNER_TEMP/angle"
+          git init -q
+          git fetch --depth 1 https://github.com/google/angle "$ANGLE_REV"
+          git checkout -q FETCH_HEAD
+
+          # Unmanaged solution rooted at this checkout (what scripts/bootstrap.py
+          # writes), plus: iOS target, and no Dawn/WebGPU deps (not needed, large).
+          cat > .gclient <<'EOF'
+          solutions = [
+            {
+              "name": ".",
+              "url": "https://chromium.googlesource.com/angle/angle.git",
+              "deps_file": "DEPS",
+              "managed": False,
+              "custom_deps": {},
+              "custom_vars": {
+                "checkout_angle_dawn_deps": False,
+              },
+            },
+          ]
+          target_os = ["ios"]
+          EOF
+
+          gclient sync --no-history --shallow -j8
+          df -h /
+
+          gn gen out/ios --args="
+            is_debug=false
+            is_component_build=false
+            symbol_level=0
+            target_os=\"ios\"
+            target_cpu=\"arm64\"
+            target_environment=\"device\"
+            ios_deployment_target=\"$IOS_DEPLOYMENT_TARGET\"
+            ios_enable_code_signing=false
+            angle_enable_vulkan=false
+            angle_enable_swiftshader=false
+            angle_enable_wgpu=false
+            angle_build_tests=false
+          "
+          autoninja -C out/ios libEGL libGLESv2
+
+          # Keep only what cmake_modules/build_angle.cmake needs:
+          #   include/  +  out/ios/lib{EGL,GLESv2}.framework
+          DEST="$GITHUB_WORKSPACE/angle-prebuilt"
+          mkdir -p "$DEST/out/ios"
+          cp -R include "$DEST/include"
+          cp -R out/ios/libEGL.framework out/ios/libGLESv2.framework "$DEST/out/ios/"
+          ls -la "$DEST/out/ios"/*.framework
+
+      - name: Save ANGLE to cache
+        # Saved right away so a later failure in the OpenJKDF2 build doesn't
+        # throw away the (slow) ANGLE build.
+        if: steps.angle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: angle-prebuilt
+          key: ${{ steps.angle-cache.outputs.cache-primary-key }}
+
+      - name: Show ANGLE framework info
+        run: |
+          for f in libEGL libGLESv2; do
+            file "angle-prebuilt/out/ios/$f.framework/$f"
+            otool -l "angle-prebuilt/out/ios/$f.framework/$f" | grep -A4 LC_BUILD_VERSION | grep -E 'platform|minos' || true
+          done
+
+      - name: Build OpenJKDF2 for iOS (arm64 device)
+        run: |
+          set -e
+          export ANGLE_ROOT="$GITHUB_WORKSPACE/angle-prebuilt"
+          ./build_ios.sh
+          test -d OpenJKDF2-iOS.app
+
+      - name: Package unsigned IPA
+        run: |
+          set -e
+          rm -rf Payload OpenJKDF2-iOS-unsigned.ipa
+          mkdir Payload
+          cp -R OpenJKDF2-iOS.app Payload/
+          zip -qry OpenJKDF2-iOS-unsigned.ipa Payload
+          ls -la OpenJKDF2-iOS-unsigned.ipa
+          plutil -p Payload/OpenJKDF2-iOS.app/Info.plist | grep -E 'CFBundleIdentifier|CFBundleExecutable|MinimumOSVersion'
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenJKDF2-iOS-unsigned-ipa
+          path: OpenJKDF2-iOS-unsigned.ipa
+          if-no-files-found: error
