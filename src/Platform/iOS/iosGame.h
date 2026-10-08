@@ -51,8 +51,16 @@ void iosGame_SetHold(int bHold);
 // world (and keeps the game clock paused meanwhile).
 int iosGame_HoldGameplay(void);
 
+// Whether gameplay is being held right now (drawing still runs: what it
+// animates on its own, like the weapon in view, should stay still too).
+int iosGame_IsHolding(void);
+
 // Opens the typing line (where cheats go), or closes it if it is open.
 void iosGame_ToggleChat(void);
+
+// How full the force meter is, 0..1 (*pbFull: as full as it gets right now),
+// or -1 when there is no player.
+float iosGame_GetForceMana(int* pbFull);
 
 #ifdef __cplusplus
 }

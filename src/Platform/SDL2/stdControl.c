@@ -1068,7 +1068,21 @@ void stdControl_ShowSystemKeyboard() {
     if (stdControl_bKeyboardBeingShown) {
         return;
     }
+#ifdef TARGET_IOS
+    // Added: SDL3 turns on autocorrect and sentence capitalization by default,
+    // and autocorrect rewrites cheat codes and console commands (e.g.
+    // "whiteflag on" -> "White flag on") before they reach the game
+    SDL_PropertiesID props = SDL_CreateProperties();
+    if (props) {
+        SDL_SetBooleanProperty(props, SDL_PROP_TEXTINPUT_AUTOCORRECT_BOOLEAN, false);
+        SDL_SetNumberProperty(props, SDL_PROP_TEXTINPUT_CAPITALIZATION_NUMBER, SDL_CAPITALIZE_NONE);
+    }
+    SDL_StartTextInputWithProperties(displayWindow, props); // SDL keeps its own copy
+    if (props)
+        SDL_DestroyProperties(props);
+#else
     SDL_StartTextInput(displayWindow);
+#endif
     if (Window_bShouldPopSteamKeyboard) {
         SDL_OpenURL("steam://open/keyboard?XPosition=0&YPosition=0&Width=0&Height=0&Mode=1");
 

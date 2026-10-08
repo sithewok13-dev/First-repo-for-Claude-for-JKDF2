@@ -11,6 +11,7 @@
 #include "Main/sithMain.h"
 #include "Gameplay/sithInventory.h"
 #include "Gameplay/sithTime.h"
+#include "Devices/sithSoundMixer.h"
 #include "Main/jkMain.h"
 #include "World/jkPlayer.h"
 #include "World/sithWorld.h"
@@ -194,12 +195,16 @@ int iosGame_HoldGameplay(void)
     int bHold = iosGame_bHoldWanted && !sithNet_isMulti;
     if (bHold && !iosGame_bHolding)
     {
+        // Sounds pause with the clock, as when the Esc menu opens
         sithTime_Pause();
+        sithSoundMixer_StopAll();
         iosGame_bHolding = 1;
     }
     else if (!bHold && iosGame_bHolding)
     {
-        // Picks the clock up where it stopped, as leaving the Esc menu does
+        // Picks the clock and the sounds up where they stopped, as leaving the
+        // Esc menu does
+        sithSoundMixer_ResumeAll();
         sithTime_Resume();
         iosGame_bHolding = 0;
     }
@@ -208,6 +213,41 @@ int iosGame_HoldGameplay(void)
     if (bHold)
         sithAdvanceRenderTick();
     return bHold;
+}
+
+// Full force meter: Jedi rank x 50, the level the game itself fills it to
+// (kyle.cog "Set Mana to full", force_well.cog, pow_mana.cog); the HUD's own
+// 0-400 scale is the meter at the top rank
+static float iosGame_GetForceManaMax(SithThing* pPlayer)
+{
+    if (Main_bMotsCompat)
+    {
+        float maxMana = (float)sithInventory_GetInventory(pPlayer, SITHBIN_MAXMANA);
+        if (maxMana > 0.0f)
+            return maxMana;
+    }
+    return (float)sithInventory_GetInventory(pPlayer, SITHBIN_JEDI_RANK) * 50.0f;
+}
+
+float iosGame_GetForceMana(int* pbFull)
+{
+    SithThing* pPlayer = iosGame_GetPlayer();
+    *pbFull = 0;
+    if (!pPlayer)
+        return -1.0f;
+    float mana = (float)sithInventory_GetInventory(pPlayer, SITHBIN_FORCEMANA);
+    float maxMana = iosGame_GetForceManaMax(pPlayer);
+    if (maxMana <= 0.0f)
+        return 0.0f;
+    if (mana >= maxMana)
+        *pbFull = 1;
+    float frac = mana / maxMana;
+    return frac < 0.0f ? 0.0f : (frac > 1.0f ? 1.0f : frac);
+}
+
+int iosGame_IsHolding(void)
+{
+    return iosGame_bHolding;
 }
 
 void iosGame_ToggleChat(void)

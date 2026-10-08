@@ -36,6 +36,9 @@
 #include "General/stdJSON.h"
 #include "Platform/std3D.h"
 #include "Main/sithCvar.h"
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosGame.h"
+#endif
 
 // DSi has *plenty* of time to read the text.
 #ifdef TARGET_RETRO_HOMEBREW
@@ -889,7 +892,15 @@ void jkPlayer_DrawPov()
     if (!playerThings[playerThingIdx].povModel.model3)
         return;
 
-    if ( playerThings[playerThingIdx].povModel.puppet )
+#ifdef TARGET_IOS
+    // Added: while the touch overlay's force wheel holds the game, the weapon
+    // in view doesn't animate or sway either
+    int bHeld = iosGame_IsHolding();
+#else
+    int bHeld = 0;
+#endif
+
+    if ( playerThings[playerThingIdx].povModel.puppet && !bHeld )
     {
         rdPuppet_UpdateTracks(playerThings[playerThingIdx].povModel.puppet, sithTime_g_frameTimeFlex);
     }
@@ -909,7 +920,11 @@ void jkPlayer_DrawPov()
             waggleAmt = 0.0;
         }
 #endif
-        if ( waggleAmt == 0.0 )
+        if ( bHeld )
+        {
+            // keep the angle it had
+        }
+        else if ( waggleAmt == 0.0 )
             jkPlayer_waggleAngle = 0.0;
         else
             jkPlayer_waggleAngle = waggleAmt + jkPlayer_waggleAngle;

@@ -133,6 +133,7 @@ typedef struct {
     CGPoint last;
     CFTimeInterval tDown; // when the touch began
     int bFired;           // QUICK LOAD: already loaded for this touch
+    int bSeen;            // KIND_KEY: the game has read the key as held at least once
     int wheelSlot;        // ROLE_WHEEL: the power slot under the finger, or -1
     int bWheelOpener;     // ROLE_WHEEL: the touch on FORCE WHEEL that opened it...
     int bLeftOpener;      // ...and it has since slid off that button
@@ -224,6 +225,9 @@ static int iosTouch_CutoutMayBeRight(UIView* v)
     UIView* wheelView;                     // dims the game; holds the wheel
     UILabel* aWheelViews[IOSTOUCH_WHEEL_MAX];
     UILabel* wheelTitle;                   // in the middle: the power under the finger, or a hint
+    CAShapeLayer* forceRing;               // around FORCE: how full the force meter is
+    float forceRingFrac;                   // what it shows (-1: not yet set)
+    int bForceRingFull;
 }
 - (void)resetAll;
 - (void)tick;
@@ -288,6 +292,27 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
         loadRing.lineWidth = 3.0;
         loadRing.strokeEnd = 0.0;
         [aButtonViews[BTN_QUICKLOAD].layer addSublayer:loadRing];
+
+        // Around FORCE: the force meter, a ring that empties as the meter does
+        // (QUICK LOAD's ring the other way round) and glows when full
+        CGFloat fr = iosTouch_aButtons[BTN_FORCE].radius;
+        forceRing = [CAShapeLayer layer];
+        forceRing.frame = CGRectMake(0, 0, fr * 2, fr * 2);
+        forceRing.path = [UIBezierPath bezierPathWithArcCenter:CGPointMake(fr, fr) radius:fr - 2.5
+                                                    startAngle:-M_PI_2 endAngle:3 * M_PI_2 clockwise:YES].CGPath;
+        forceRing.fillColor = [UIColor clearColor].CGColor;
+        forceRing.strokeColor = [UIColor colorWithRed:0.47 green:0.78 blue:1.0 alpha:0.95].CGColor;
+        forceRing.lineWidth = 3.0;
+        forceRing.lineCap = kCALineCapRound;
+        forceRing.strokeEnd = 0.0;
+        forceRing.shadowColor = [UIColor colorWithRed:0.47 green:0.78 blue:1.0 alpha:1.0].CGColor;
+        forceRing.shadowOffset = CGSizeZero;
+        forceRing.shadowRadius = 7.0;
+        forceRing.shadowOpacity = 0.0;
+        forceRing.hidden = YES;
+        [self.layer insertSublayer:forceRing above:aButtonViews[BTN_FORCE].layer];
+        forceRingFrac = -1.0f;
+        bForceRingFull = 0;
 
         // The keyboard button shows the keyboard symbol
         UIImageSymbolConfiguration* cfg = [UIImageSymbolConfiguration configurationWithPointSize:15 weight:UIImageSymbolWeightSemibold];
@@ -507,9 +532,9 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
     iosTouch_aButtons[BTN_QUICKSAVE].x = right - 156;
     iosTouch_aButtons[BTN_QUICKLOAD].x = right - 90;
     iosTouch_aButtons[BTN_MENU].x = right - 24;
-    // Top middle: the keyboard, centred on the screen but never closer than
-    // 16pt to the rows either side
-    iosTouch_aButtons[BTN_KEYBOARD].x = MIN(MAX(W * 0.5, left + 260 + 60), right - 156 - 60);
+    // The keyboard, left of QUICK SAVE: the game draws its typing line (and
+    // other messages) centred at the top, so the middle stays clear
+    iosTouch_aButtons[BTN_KEYBOARD].x = right - 216;
     const int aTopRow[] = { BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA, BTN_KEYBOARD,
                             BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU };
     for (int i = 0; i < (int)(sizeof(aTopRow) / sizeof(aTopRow[0])); i++) {
@@ -519,6 +544,10 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
     for (int i = 0; i < IOSTOUCH_NUM_BUTTONS; i++) {
         aButtonViews[i].center = CGPointMake(iosTouch_aButtons[i].x, iosTouch_aButtons[i].y);
     }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    forceRing.position = CGPointMake(iosTouch_aButtons[BTN_FORCE].x, iosTouch_aButtons[BTN_FORCE].y);
+    [CATransaction commit];
     if (iosTouch_bWheelOpen) [self layoutWheel];
 }
 
@@ -564,6 +593,10 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
                                                     : [UIColor colorWithWhite:1.0 alpha:0.4].CGColor;
         }
     }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    forceRing.opacity = bForceRingFull ? 1.0 : (iosTouch_aButtonHeld[BTN_FORCE] ? 1.0 : IOSTOUCH_IDLE_ALPHA);
+    [CATransaction commit];
 }
 
 - (void)setLoadProgress:(CGFloat)progress
@@ -739,7 +772,9 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
         s->button = [self buttonAt:p];
         if (s->button >= 0 && iosTouch_aButtons[s->button].kind == KIND_WHEEL) {
             // Opens at once; lifting on a power picks it, lifting where it
-            // started leaves the wheel open for a tap
+            // started leaves the wheel open for a tap. The typing line closes
+            // first: its keyboard would cover the lower half of the wheel.
+            if (jkHud_bChatOpen) iosGame_ToggleChat();
             [self openWheel];
             s->role = ROLE_WHEEL;
             s->bWheelOpener = 1;
@@ -821,13 +856,22 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
             else if (s->role == ROLE_BUTTON) {
                 iosTouchButton* b = &iosTouch_aButtons[s->button];
                 if (iosTouch_aButtonHeld[s->button] > 0) iosTouch_aButtonHeld[s->button]--;
+                // A tap so quick that it began and ended between two reads of
+                // the controls (a slow frame) still counts as one press
+                if (!bCancelled && !jkHud_bChatOpen && b->kind == KIND_KEY && b->scancode >= 0 && !s->bSeen) {
+                    iosTouch_QueuePress(b->scancode);
+                }
                 // These act when the finger lifts on the button, so a slip onto
-                // one can be dragged off again
-                if (!bCancelled && [self isPoint:p onButton:s->button]) {
+                // one can be dragged off again. Not while typing: the game isn't
+                // reading the controls then, so they would only go off later.
+                if (!bCancelled && !jkHud_bChatOpen && [self isPoint:p onButton:s->button]) {
                     if (b->kind == KIND_TAPKEY) {
                         iosTouch_QueuePress(b->scancode);
                     }
-                    else if (b->kind == KIND_ITEM && !aButtonViews[s->button].hidden) {
+                    else if (b->kind == KIND_ITEM && !aButtonViews[s->button].hidden
+                             // one item at a time: the use key acts on whichever item is selected when it is read
+                             && !iosTouch_aPulseQueue[b->scancode] && !iosTouch_aPulseReads[b->scancode]
+                             && !iosTouch_aPulseGap[b->scancode]) {
                         iosGame_SelectItem(b->bin);
                         iosTouch_QueuePress(b->scancode);
                     }
@@ -853,8 +897,32 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
 - (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event { [self endTouches:touches cancelled:0]; }
 - (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event { [self endTouches:touches cancelled:1]; }
 
-// Once per frame while shown: QUICK LOAD's hold, the FORCE label, which item
-// buttons show and what they say
+// A full force meter glows, gently pulsing
+- (void)setForceRingGlow:(int)bGlow
+{
+    [forceRing removeAnimationForKey:@"glow"];
+    if (bGlow) {
+        forceRing.shadowOpacity = 0.9;
+        CABasicAnimation* a = [CABasicAnimation animationWithKeyPath:@"shadowOpacity"];
+        a.fromValue = @(0.35);
+        a.toValue = @(1.0);
+        a.duration = 0.9;
+        a.autoreverses = YES;
+        a.repeatCount = HUGE_VALF;
+        a.removedOnCompletion = NO; // keep it when the app comes back from the background
+        a.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+        [forceRing addAnimation:a forKey:@"glow"];
+    }
+    else {
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        forceRing.shadowOpacity = 0.0;
+        [CATransaction commit];
+    }
+}
+
+// Once per frame while shown: QUICK LOAD's hold, the FORCE label and its force
+// meter ring, which item buttons show and what they say
 - (void)tick
 {
     CFTimeInterval now = CACurrentMediaTime();
@@ -910,11 +978,33 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
         }
     }
 
-    // The keyboard lights up while the typing line is open
+    // The keyboard lights up while the typing line is open. Presses queued
+    // while it opens or closes are dropped: the game isn't reading the
+    // controls while it is open, so they would go off much later.
     static int bChatWasOpen = 0;
     if ((jkHud_bChatOpen != 0) != bChatWasOpen) {
         bChatWasOpen = jkHud_bChatOpen != 0;
+        memset(iosTouch_aPulseQueue, 0, sizeof(iosTouch_aPulseQueue));
+        memset(iosTouch_aPulseReads, 0, sizeof(iosTouch_aPulseReads));
+        memset(iosTouch_aPulseGap, 0, sizeof(iosTouch_aPulseGap));
         bLooksChanged = 1;
+    }
+
+    // The force meter around FORCE
+    int bFull = 0;
+    float frac = iosGame_GetForceMana(&bFull);
+    if (fabsf(frac - forceRingFrac) >= 0.004f || bFull != bForceRingFull) {
+        forceRingFrac = frac;
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        forceRing.hidden = frac < 0.0f;
+        forceRing.strokeEnd = frac < 0.0f ? 0.0 : frac;
+        [CATransaction commit];
+        if (bFull != bForceRingFull) {
+            bForceRingFull = bFull;
+            [self setForceRingGlow:bFull];
+            bLooksChanged = 1;
+        }
     }
 
     if (bLooksChanged) [self refreshButtonLooks];
@@ -1025,6 +1115,13 @@ int iosTouch_IsScancodeDown(int scancode)
     if (!iosTouch_pOverlay || iosTouch_pOverlay.hidden) return 0;
 
     int bHeld = iosTouch_aKeyDown[scancode];
+    if (bHeld) {
+        for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+            iosTouchSlot* s = &iosTouch_aSlots[i];
+            if (s->touch && s->role == ROLE_BUTTON && iosTouch_aButtons[s->button].scancode == scancode)
+                s->bSeen = 1;
+        }
+    }
     if (iosTouch_aPulseReads[scancode]) {
         if (--iosTouch_aPulseReads[scancode] == 0) iosTouch_aPulseGap[scancode] = 1;
         return 1;
