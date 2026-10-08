@@ -1,9 +1,11 @@
 // Added: entire file. Safe-area margins for the in-game HUD on iOS.
 //
-// The HUD gauges sit flush against the screen corners, which on a modern
-// iPhone are rounded (and the bottom edge has the home indicator), so the
-// health/shield and ammo/force gauges got clipped. This turns the window's
-// safe area into margins, in the HUD's own (Video_format) pixel units.
+// The HUD is laid out for a rectangular screen, but a modern iPhone's corners
+// are rounded and its bottom edge has the home indicator, so HUD art in the
+// corners got clipped. This turns the window's safe area into margins, in the
+// HUD's own (Video_format) pixel units: the corner gauges are lifted by the
+// bottom one (jkHud.c), the inventory's columns pulled in by the side ones
+// (jkHudInv.c).
 
 #ifndef _PLATFORM_IOS_IOSSAFEAREA_H
 #define _PLATFORM_IOS_IOSSAFEAREA_H

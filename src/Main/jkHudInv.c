@@ -934,7 +934,7 @@ void jkHudInv_LoadItemRes()
     _memset(&jkHudInv_scroll, 0, sizeof(jkHudInvScroll));
 #ifdef TARGET_IOS
     // Added: lift the item/force strip above the home indicator, and pull the
-    // active-items column in from the rounded right edge (see jkHud_Open)
+    // active-items column in from the rounded right edge (see iosSafeArea.h)
     int marginLeft, marginRight, marginBottom;
     iosSafeArea_GetHudMargins(Video_format.width, Video_format.height, &marginLeft, &marginRight, &marginBottom);
     v7 -= marginBottom;

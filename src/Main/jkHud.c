@@ -31,8 +31,42 @@
 
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosSafeArea.h" // Added
+#include <math.h>
+#include <string.h>
 #include "Win95/Window.h"
 extern int Window_screenYSize; // (Window.h misspells it Window_screenYsSize)
+
+// Added: the health and shield numbers are drawn this much bigger than the
+// rest of the HUD (a phone shows the gauges small), re-centred in the dial's
+// black, at these offsets (gauge pixels). 1.35 is about as big as they go
+// while keeping clear of the dial's arcs and a gap between the red and the
+// green row (with super shields both rows are yellow); the ammo numbers are
+// big already, and the force meter right below them leaves no room to grow.
+#define JKHUD_IOS_DIGIT_SCALE ((flex_t)1.35)
+#define JKHUD_IOS_SHIELD_X 16.4
+#define JKHUD_IOS_SHIELD_Y 44.0
+#define JKHUD_IOS_HEALTH_X 9.6
+#define JKHUD_IOS_HEALTH_Y 33.6
+
+// Added: the corner gauges' art was drawn to sit on the screen's bottom edge,
+// so each one's bezel ring stops a few rows short of its bottom -- lifted
+// clear of the home indicator, that shows as a flat cut. When the HUD opens,
+// the missing rows are added under the art (jkHud_IosCompleteGauge): each new
+// pixel inside the ring takes the ring's colour at the same radius where that
+// circle comes out of the art, both ways round, blended by angle. The rings
+// as fitted to Jedi Knight's statusLeft16 / statusRight16 (pixel centres);
+// art that doesn't match one (another size, or a ring elsewhere) is left as
+// it is.
+typedef struct {
+    int w, h;     // the art's size
+    int extra;    // rows to add under it
+    double cx, cy, r;
+    int deg0, deg1; // an intact stretch of the ring (degrees, y down) to check it against
+} jkHudIosRing;
+static const jkHudIosRing jkHud_iosRingLeft = { 59, 60, 3, 27.08, 33.57, 29.46, -60, 5 };
+static const jkHudIosRing jkHud_iosRingRight = { 61, 59, 2, 30.11, 30.62, 29.63, 160, 200 };
+static int jkHud_iosLeftExtraRows = 0;  // rows added under each gauge's art (they don't move it)
+static int jkHud_iosRightExtraRows = 0;
 
 // Added: the right corner (ammo/force) gauge's rectangle in window points, so
 // the touch overlay can keep FIRE beside it and ALT above it (iosTouch.m
@@ -53,6 +87,129 @@ int jkHud_IosGetRightGaugeRectPt(float* pX0, float* pY0, float* pX1, float* pY1)
     *pX1 = (float)(jkHud_rightBlitX + HUD_SCALED(pGauge->format.width)) * sx;
     *pY1 = (float)(jkHud_rightBlitY + HUD_SCALED(pGauge->format.height)) * sy;
     return 1;
+}
+
+// jkHud_IosRingMatches / jkHud_IosCompleteRing work on plain 16-bit pixels
+// (pitches in pixels), so they can be checked on their own.
+// (jkHud ring completion: begin)
+
+// Whether the art (w x h, colour key `key` transparent) has the ring where
+// `ring` says: along its intact stretch, every 5 degrees, the outermost art
+// pixel is within 1.5px of the circle -- and in the middle of the art's last
+// row there is art, so the ring is cut off there.
+static int jkHud_IosRingMatches(const uint16_t* pPx, int pitch, int w, int h, uint16_t key, const jkHudIosRing* ring)
+{
+    if (w != ring->w || h != ring->h) return 0;
+    for (int a = ring->deg0; a <= ring->deg1; a += 5) {
+        double t = a * 3.14159265358979323846 / 180.0;
+        double rOut = -1.0;
+        for (int j = 0; j <= 32; j++) {
+            double r = ring->r - 8.0 + 0.5 * j;
+            int ix = (int)floor(ring->cx + r * cos(t)), iy = (int)floor(ring->cy + r * sin(t));
+            if (ix >= 0 && ix < w && iy >= 0 && iy < h && pPx[iy * pitch + ix] != key) rOut = r;
+        }
+        if (fabs(rOut - ring->r) > 1.5) return 0;
+    }
+    return pPx[(h - 1) * pitch + (int)floor(ring->cx)] != key;
+}
+
+// Fills rows h .. h+extra-1 of pDst (the art's own rows already copied above
+// them): inside the ring, each pixel gets the ring's colour at the same radius
+// where that circle comes back into the art, walking round both ways in half
+// degrees -- the two blended by how far round each is; outside it, the key.
+static void jkHud_IosCompleteRing(const uint16_t* pSrc, int srcPitch, uint16_t* pDst, int dstPitch, uint16_t key, const jkHudIosRing* ring)
+{
+    const int w = ring->w, h = ring->h;
+    const double cx = ring->cx, cy = ring->cy;
+    for (int y = h; y < h + ring->extra; y++) {
+        for (int x = 0; x < w; x++) {
+            uint16_t* pOut = &pDst[y * dstPitch + x];
+            *pOut = key;
+            double px = x + 0.5, py = y + 0.5;
+            double r = sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy));
+            if (r > ring->r + 0.35) continue;
+            double th = atan2(py - cy, px - cx);
+            double aDeg[2];
+            uint16_t aVal[2];
+            int num = 0;
+            for (int side = 0; side < 2; side++) {
+                double sgn = side ? -1.0 : 1.0;
+                for (int k = 1; k <= 150; k++) {
+                    double ts = th + sgn * (k * 0.5) * 3.14159265358979323846 / 180.0;
+                    int ix = (int)floor(cx + r * cos(ts)), iy = (int)floor(cy + r * sin(ts));
+                    if (ix >= 0 && ix < w && iy >= 0 && iy < h && pSrc[iy * srcPitch + ix] != key) {
+                        aDeg[num] = k * 0.5;
+                        aVal[num] = pSrc[iy * srcPitch + ix];
+                        num++;
+                        break;
+                    }
+                }
+            }
+            if (num == 1) {
+                *pOut = aVal[0];
+            }
+            else if (num == 2) {
+                double f = aDeg[0] / (aDeg[0] + aDeg[1]);
+                int a[3] = { (aVal[0] >> 11) & 31, (aVal[0] >> 5) & 63, aVal[0] & 31 };
+                int b[3] = { (aVal[1] >> 11) & 31, (aVal[1] >> 5) & 63, aVal[1] & 31 };
+                int c[3];
+                for (int i = 0; i < 3; i++) c[i] = (int)floor(a[i] * (1.0 - f) + b[i] * f + 0.5);
+                uint16_t v = (uint16_t)((c[0] << 11) | (c[1] << 5) | c[2]);
+                if (v == key) v ^= 1;
+                *pOut = v;
+            }
+        }
+    }
+}
+// (jkHud ring completion: end)
+
+// Gives a gauge's art the rows its ring is missing (see jkHudIosRing): a
+// taller copy replaces the loaded one, its texture made again when it is next
+// drawn. Returns how many rows were added (0: the art is left as it is).
+static int jkHud_IosCompleteGauge(stdBitmap* pBm, const jkHudIosRing* ring)
+{
+    if (!pBm || pBm->numMips < 1 || !pBm->mipSurfaces || !(pBm->palFmt & 1)) return 0;
+    tVBuffer* pOld = pBm->mipSurfaces[0];
+    if (!pOld || pOld->format.format.bpp != 16 || pOld->format.width != ring->w || pOld->format.height != ring->h) return 0;
+    const uint16_t key = (uint16_t)pOld->transparent_color;
+
+    stdDisplay_VBufferLock(pOld);
+    const uint16_t* pSrc = (const uint16_t*)pOld->surface_lock_alloc;
+    const int srcPitch = (int)(pOld->format.rowSize / 2);
+    if (!pSrc || !jkHud_IosRingMatches(pSrc, srcPitch, ring->w, ring->h, key, ring)) {
+        stdDisplay_VBufferUnlock(pOld);
+        return 0;
+    }
+    tRasterInfo fmt = pOld->format; // (stdDisplay_VBufferNew clears some of what it is given)
+    fmt.height = ring->h + ring->extra;
+    tVBuffer* pNew = stdDisplay_VBufferNew(&fmt, 0, 0, NULL);
+    if (!pNew) {
+        stdDisplay_VBufferUnlock(pOld);
+        return 0;
+    }
+    stdDisplay_VBufferLock(pNew);
+    uint16_t* pDst = (uint16_t*)pNew->surface_lock_alloc;
+    const int dstPitch = (int)(pNew->format.rowSize / 2);
+    if (pDst) {
+        for (int y = 0; y < ring->h; y++) {
+            memcpy(&pDst[y * dstPitch], &pSrc[y * srcPitch], ring->w * sizeof(uint16_t));
+        }
+        jkHud_IosCompleteRing(pSrc, srcPitch, pDst, dstPitch, key, ring);
+    }
+    stdDisplay_VBufferUnlock(pNew);
+    stdDisplay_VBufferUnlock(pOld);
+    if (!pDst) {
+        stdDisplay_VBufferFree(pNew);
+        return 0;
+    }
+    stdDisplay_VBufferSetColorKey(pNew, key);
+    pNew->palette = pOld->palette;
+#ifdef SDL2_RENDER
+    std3D_PurgeBitmapRefs(pBm); // the old texture goes; the new one is made when drawn
+#endif
+    pBm->mipSurfaces[0] = pNew;
+    stdDisplay_VBufferFree(pOld);
+    return ring->extra;
 }
 #endif
 
@@ -171,21 +328,31 @@ int jkHud_Open()
 #endif
         ++fontIter;
     }
+#ifdef TARGET_IOS
+    // Added: complete the bottom of each gauge's ring (see jkHudIosRing)
+    jkHud_iosLeftExtraRows = jkHud_IosCompleteGauge(jkHud_pStatusLeftBm, &jkHud_iosRingLeft);
+    jkHud_iosRightExtraRows = jkHud_IosCompleteGauge(jkHud_pStatusRightBm, &jkHud_iosRingRight);
+    stdPlatform_Printf("OpenJKDF2: gauge rings completed: left +%d rows, right +%d rows\n", jkHud_iosLeftExtraRows, jkHud_iosRightExtraRows);
+#endif
     jkHud_leftBlitX = 0;
     jkHud_leftBlitY = Video_format.height - HUD_SCALED((*jkHud_pStatusLeftBm->mipSurfaces)->format.height);
     v6 = *jkHud_pStatusRightBm->mipSurfaces;
     jkHud_rightBlitX = Video_format.width - HUD_SCALED(v6->format.width);
     jkHud_rightBlitY = Video_format.height - HUD_SCALED(v6->format.height);
 #ifdef TARGET_IOS
-    // Added: keep the corner gauges (and everything drawn relative to them)
-    // clear of the rounded screen corners and the home indicator
+    // Added: lift the corner gauges (and everything drawn relative to them)
+    // clear of the home indicator. Sideways they stay against the screen
+    // edges, as the art was drawn to be: the straps and bezels end in a
+    // straight cut that only the screen edge hides, so a gauge moved in from
+    // the edge looks cut off. Lifted like this, the rounded screen corner
+    // only trims the end of a strap, never the dial. (The bottom of each
+    // ring, cut the same way, is completed: jkHud_IosCompleteGauge.)
     {
         int marginLeft, marginRight, marginBottom;
         iosSafeArea_GetHudMargins(Video_format.width, Video_format.height, &marginLeft, &marginRight, &marginBottom);
-        jkHud_leftBlitX += marginLeft;
-        jkHud_leftBlitY -= marginBottom;
-        jkHud_rightBlitX -= marginRight;
-        jkHud_rightBlitY -= marginBottom;
+        // (the rows added under the art hang below where it sits)
+        jkHud_leftBlitY = Video_format.height - HUD_SCALED((*jkHud_pStatusLeftBm->mipSurfaces)->format.height - jkHud_iosLeftExtraRows) - marginBottom;
+        jkHud_rightBlitY = Video_format.height - HUD_SCALED(v6->format.height - jkHud_iosRightExtraRows) - marginBottom;
     }
 #endif
     for (v7 = 0; v7 < 5; v7++)
@@ -1174,7 +1341,27 @@ void jkHud_DrawGPU()
             if ( !playerThings[playerThingIdx].bHasSuperShields )
                 v12 = jkHud_pArmorNumSft;
             stdString_snprintf(tmp, 32, "%03d", v10); // v10
+#ifdef TARGET_IOS
+            // Added: the digit cells are opaque, so at stock size they cover
+            // the "000"s drawn into the gauge art exactly; the bigger ones sit
+            // elsewhere, so blank both out first (both before either row is
+            // drawn, or blanking one would cut into the other). Each 15x7
+            // block is sized from its scaled edges: HUD_SCALED rounds down,
+            // and its scaled size alone can come up short of the far edge.
+            {
+                rdRect rBaked = {jkHud_leftBlitX + HUD_SCALED(23), jkHud_leftBlitY + HUD_SCALED(43),
+                                 HUD_SCALED(23 + 15) - HUD_SCALED(23) + 1, HUD_SCALED(43 + 7) - HUD_SCALED(43) + 1};
+                std3D_DrawUIClearedRectRGBA(0, 0, 0, 0xFF, &rBaked);
+                rBaked.x = jkHud_leftBlitX + HUD_SCALED(13);
+                rBaked.y = jkHud_leftBlitY + HUD_SCALED(35);
+                rBaked.width = HUD_SCALED(13 + 15) - HUD_SCALED(13) + 1;
+                rBaked.height = HUD_SCALED(35 + 7) - HUD_SCALED(35) + 1;
+                std3D_DrawUIClearedRectRGBA(0, 0, 0, 0xFF, &rBaked);
+            }
+            stdFont_DrawAsciiGPU(v12, jkHud_leftBlitX + HUD_SCALED(JKHUD_IOS_SHIELD_X), jkHud_leftBlitY + HUD_SCALED(JKHUD_IOS_SHIELD_Y), 999, tmp, 0, jkPlayer_hudScale * JKHUD_IOS_DIGIT_SCALE);
+#else
             stdFont_DrawAsciiGPU(v12, jkHud_leftBlitX + HUD_SCALED(23u), jkHud_leftBlitY + HUD_SCALED(43), 999, tmp, 0, jkPlayer_hudScale);
+#endif
             /*stdDisplay_VBufferCopy(
                 *jkHud_pStatusLeftBm->mipSurfaces,
                 jkHud_pStShieldBm->mipSurfaces[(jkHud_pStShieldBm->numMips - 1) * (SITHBIN_NUMBINS - v10) / SITHBIN_NUMBINS],
@@ -1205,7 +1392,12 @@ void jkHud_DrawGPU()
             if ( !jkHud_isSuper )
                 healthFont = jkHud_pHelthNumSft;
             stdString_snprintf(tmp, 32, "%03d", v13);
+#ifdef TARGET_IOS
+            // Added: bigger (see JKHUD_IOS_DIGIT_SCALE)
+            stdFont_DrawAsciiGPU(healthFont, jkHud_leftBlitX + HUD_SCALED(JKHUD_IOS_HEALTH_X), jkHud_leftBlitY + HUD_SCALED(JKHUD_IOS_HEALTH_Y), 999, tmp, 0, jkPlayer_hudScale * JKHUD_IOS_DIGIT_SCALE);
+#else
             stdFont_DrawAsciiGPU(healthFont, jkHud_leftBlitX + HUD_SCALED(13u), jkHud_leftBlitY + HUD_SCALED(35), 999, tmp, 0, jkPlayer_hudScale);
+#endif
             /*stdDisplay_VBufferCopy(
                 *jkHud_pStatusLeftBm->mipSurfaces,
                 jkHud_pStHealthBm->mipSurfaces[(jkHud_pStHealthBm->numMips - 1) * (v15 - v13) / v15],

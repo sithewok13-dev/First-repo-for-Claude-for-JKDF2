@@ -114,39 +114,26 @@ int iosGame_QuickLoad(void)
     return 1;
 }
 
-// The order the game cycles through them in (sithInventory_aMotsForcePowerBins
-// for Mysteries of the Sith)
-static const int iosGame_aJkPowerBins[] = {
-    SITHBIN_F_JUMP, SITHBIN_F_SPEED, SITHBIN_F_SEEING, SITHBIN_F_PULL,
-    SITHBIN_F_HEALING, SITHBIN_F_PERSUASION, SITHBIN_F_BLINDING, SITHBIN_F_ABSORB, SITHBIN_F_PROTECTION,
-    SITHBIN_F_THROW, SITHBIN_F_GRIP, SITHBIN_F_LIGHTNING, SITHBIN_F_DESTRUCTION, SITHBIN_F_DEADLYSIGHT,
-};
-static const int iosGame_aMotsPowerBins[] = {
-    SITHBIN_F_JUMP, SITHBIN_F_SPEED, SITHBIN_F_SEEING, SITHBIN_F_PROJECT, SITHBIN_F_PUSH, SITHBIN_F_PULL,
-    SITHBIN_F_GRIP, SITHBIN_F_FARSIGHT, SITHBIN_F_SABERTHROW, SITHBIN_F_HEALING, SITHBIN_F_PERSUASION,
-    SITHBIN_F_BLINDING, SITHBIN_F_CHAINLIGHT, SITHBIN_F_ABSORB, SITHBIN_F_PROTECTION,
-    SITHBIN_F_DESTRUCTION, SITHBIN_F_DEADLYSIGHT,
-};
+int iosGame_IsMots(void)
+{
+    return Main_bMotsCompat ? 1 : 0;
+}
 
-int iosGame_GetForcePowers(int* aBins, int maxBins)
+int iosGame_IsPowerAvailable(int bin)
 {
     SithThing* pPlayer = iosGame_GetPlayer();
-    if (!pPlayer) return 0;
+    if (!pPlayer || bin < 0 || bin >= SITHBIN_NUMBINS)
+        return 0;
 
-    const int* aOrder = Main_bMotsCompat ? iosGame_aMotsPowerBins : iosGame_aJkPowerBins;
-    int numOrder = Main_bMotsCompat ? (int)(sizeof(iosGame_aMotsPowerBins) / sizeof(int))
-                                    : (int)(sizeof(iosGame_aJkPowerBins) / sizeof(int));
-    int num = 0;
-    for (int i = 0; i < numOrder && num < maxBins; i++)
-    {
-        // The same test the next/previous power keys make (sithInventory_FindNextTypeID)
-        int bin = aOrder[i];
-        int flags = sithInventory_g_aTypes[bin].flags;
-        if ((flags & SITHINVENTORY_TYPE_AUTOAIM) && (flags & SITHINVENTORY_TYPE_REGISTERED)
-            && (pPlayer->actorParams.pPlayer->aItems[bin].state & SITHINVENTORY_ITEM_AVAILABLE))
-            aBins[num++] = bin;
-    }
-    return num;
+    // The same test the next/previous power keys make (sithInventory_FindNextTypeID).
+    // Jedi Knight's also wants the force power flag; Mysteries of the Sith's
+    // goes by its own list of powers instead (sithInventory_aMotsForcePowerBins).
+    int flags = sithInventory_g_aTypes[bin].flags;
+    if (!(flags & SITHINVENTORY_TYPE_REGISTERED))
+        return 0;
+    if (!Main_bMotsCompat && !(flags & SITHINVENTORY_TYPE_AUTOAIM))
+        return 0;
+    return (pPlayer->actorParams.pPlayer->aItems[bin].state & SITHINVENTORY_ITEM_AVAILABLE) != 0;
 }
 
 int iosGame_GetCurPower(void)
@@ -248,6 +235,22 @@ float iosGame_GetForceMana(int* pbFull)
 int iosGame_IsHolding(void)
 {
     return iosGame_bHolding;
+}
+
+unsigned int iosGame_GetFrameCount(void)
+{
+    // Counted once per jkGame_Update, the same count the "framerate" console
+    // command divides by time
+    return (unsigned int)Video_dword_5528A0;
+}
+
+int iosGame_IsAlwaysRun(void)
+{
+    // The option's checkbox sets bit 2 (jkGuiControlOptions_Show), saved with
+    // the player's controls (sithControl_WriteConf "flags="). Both
+    // sithControl_PlayerMovement and its Mysteries of the Sith version run
+    // when it is set or INPUT_FUNC_FAST (Shift) is held.
+    return (sithWeapon_controlOptions & 2) ? 1 : 0;
 }
 
 void iosGame_ToggleChat(void)

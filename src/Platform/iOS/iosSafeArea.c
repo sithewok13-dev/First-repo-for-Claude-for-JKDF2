@@ -9,11 +9,12 @@
 extern SDL_Window* displayWindow;
 
 // In landscape the side insets (~60pt on notched/Dynamic Island iPhones) are
-// sized to clear the camera cutout, which is far more than a corner gauge
-// needs to clear the rounded corner, so only part of them is used: lifted by
-// the full bottom inset (~21pt, the home indicator strip), a gauge clears a
-// ~55-62pt corner radius with ~12-16pt of side margin. Keeping it small also
-// keeps the right gauge out from under the touch FIRE button (iosTouch.m).
+// sized to clear the camera cutout, which is far more than HUD art near a
+// side edge needs to clear the rounded corner, so only part of them is used
+// (the inventory's active-items column, jkHudInv.c). The bottom one (~21pt,
+// the home indicator strip) is used in full: it lifts the corner gauges
+// (jkHud.c), which then need no side margin -- lifted that far, a ~55-62pt
+// corner radius only trims the ends of their straps.
 #define IOSSAFEAREA_SIDE_FRACTION 0.3f
 #define IOSSAFEAREA_BOTTOM_FRACTION 1.0f
 

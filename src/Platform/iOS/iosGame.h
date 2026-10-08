@@ -22,10 +22,12 @@ const char* iosGame_GetForcePowerName(void);
 // Prints a message either way. Returns 1 if a load was started.
 int iosGame_QuickLoad(void);
 
-// Force powers the player can select right now, in the game's own order
-// (JK: Jump ... Deadly Sight). Fills up to maxBins inventory bin numbers and
-// returns how many.
-int iosGame_GetForcePowers(int* aBins, int maxBins);
+// Whether Mysteries of the Sith is running (it has its own force powers).
+int iosGame_IsMots(void);
+
+// Whether the player can select this force power (bin) right now: learned,
+// and allowed by rank and path. The test the next/previous power keys make.
+int iosGame_IsPowerAvailable(int bin);
 
 // Short name of a force power bin ("SPEED"...), or NULL if it isn't one.
 const char* iosGame_GetPowerName(int bin);
@@ -61,6 +63,15 @@ void iosGame_ToggleChat(void);
 // How full the force meter is, 0..1 (*pbFull: as full as it gets right now),
 // or -1 when there is no player.
 float iosGame_GetForceMana(int* pbFull);
+
+// Frames the game has drawn so far (it goes back to 0 when the video mode is
+// set again). For the touch overlay's FPS readout.
+unsigned int iosGame_GetFrameCount(void);
+
+// Whether the game's Always Run option (Setup > Controls > Options) is on.
+// Both games run while it is on, or while the run key (Shift) is held. It
+// can change in the options menu, so the touch overlay reads it every frame.
+int iosGame_IsAlwaysRun(void);
 
 #ifdef __cplusplus
 }
