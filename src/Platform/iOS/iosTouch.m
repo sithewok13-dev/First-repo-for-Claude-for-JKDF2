@@ -391,10 +391,10 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
 
     // FORCE: right of JUMP and above ALT, out of the way of aiming -- on the
     // circle IOSTOUCH_CLUSTER_GAP out from JUMP, as far round towards pointing
-    // right as it fits on screen, below the top row and clear of ALT, ACT,
-    // FIRE, the gauge and the cutout. Where the cutout (or, on smaller
-    // screens, ALT) takes that spot it goes higher, over JUMP; failing
-    // everything, the gaps shrink.
+    // right as it fits on screen with room to slide a power step to the right,
+    // below the top row and clear of ALT, ACT, FIRE, the gauge and the cutout.
+    // Where the cutout (or, on smaller screens, ALT) takes that spot it goes
+    // higher, over JUMP; failing that, the gaps shrink.
     {
         iosTouchButton* f = &iosTouch_aButtons[BTN_FORCE];
         iosTouchButton* j = &iosTouch_aButtons[BTN_JUMP];
@@ -402,7 +402,17 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
         iosTouchButton* c = &iosTouch_aButtons[BTN_ACT];
         const CGFloat R = f->radius;
         const CGFloat aGap[3] = { IOSTOUCH_CLUSTER_GAP, 20.0, 12.0 };
-        CGPoint best = CGPointMake(j->x, j->y - (j->radius + R + IOSTOUCH_CLUSTER_GAP));
+        // If nothing fits (a very short screen, e.g. with Display Zoom): just
+        // outside the arc, IOSTOUCH_CLUSTER_GAP from both DUCK and ACT
+        iosTouchButton* d = &iosTouch_aButtons[BTN_DUCK];
+        CGFloat dist = d->radius + R + IOSTOUCH_CLUSTER_GAP; // DUCK and ACT are the same size
+        CGFloat mx = (d->x + c->x) * 0.5, my = (d->y + c->y) * 0.5;
+        CGFloat vx = c->x - d->x, vy = c->y - d->y;
+        CGFloat L = sqrt(vx * vx + vy * vy);
+        CGFloat h = (dist > L * 0.5) ? sqrt(dist * dist - L * L * 0.25) : 0;
+        CGFloat px = vy / L, py = -vx / L; // the perpendicular pointing away from FIRE
+        if ((mx - fire.x) * px + (my - fire.y) * py < 0) { px = -px; py = -py; }
+        CGPoint best = CGPointMake(mx + px * h, my + py * h);
         int bFound = 0;
         for (int pass = 0; pass < 3 && !bFound; pass++) {
             const CGFloat gap = aGap[pass];
@@ -411,6 +421,7 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
                 CGFloat rad = deg * (CGFloat)M_PI / 180.0;
                 CGPoint p = CGPointMake(j->x + D * cos(rad), j->y - D * sin(rad));
                 if (p.x + R > W - 4 || p.y - R < top + 60) continue;                 // on screen, below the top row
+                if (p.x + R + IOSTOUCH_FORCE_STEP + 2 > W) continue;                   // room to slide a step right
                 if (hypot(p.x - a->x, p.y - a->y) < R + a->radius + gap) continue;     // clear of ALT
                 if (hypot(p.x - c->x, p.y - c->y) < R + c->radius + gap) continue;     // ACT
                 if (hypot(p.x - fire.x, p.y - fire.y) < R + FR + gap) continue;        // FIRE
