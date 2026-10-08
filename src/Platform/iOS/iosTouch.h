@@ -9,7 +9,8 @@
 //     ACT / JUMP on an arc around it, ALT above the ammo gauge (dragging on
 //     any of these also looks) and FORCE just outside the arc (tap or hold to
 //     use the power it shows, slide sideways to pick another). Top left:
-//     weapon and inventory. Top right: quick save, quick load (hold) and menu.
+//     weapon, force (NEXT/USE FORCE, for using a power while jumping) and
+//     inventory. Top right: quick save, quick load (hold) and menu.
 // In menus and cutscenes the overlay hides, so touches reach SDL as mouse
 // clicks like before. If SDL's window is recreated the overlay follows it.
 

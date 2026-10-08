@@ -84,12 +84,14 @@ typedef struct {
 // arc of DUCK / ACT / JUMP around it, ALT above the ammo gauge and FORCE just
 // outside the arc -- all IOSTOUCH_CLUSTER_GAP apart. The firing and movement
 // buttons pass drags through to looking, so a thumb that lands on one while
-// aiming keeps aiming. Top left: weapon and inventory. Top right: quick save,
-// quick load (hold) and the menu. ACT is the door/switch key; NEXT ITEM only
-// selects (the strip at the bottom shows which), USE ITEM uses it.
+// aiming keeps aiming. Top left: weapon, force and inventory -- the force
+// pair stays alongside FORCE for now so the left thumb can use a power while
+// the right one jumps (Force Jump). Top right: quick save, quick load (hold)
+// and the menu. ACT is the door/switch key; NEXT ITEM only selects (the strip
+// at the bottom shows which), USE ITEM uses it.
 enum {
     BTN_FIRE, BTN_ALT, BTN_DUCK, BTN_ACT, BTN_JUMP, BTN_FORCE,
-    BTN_NEXTWPN, BTN_NEXTITEM, BTN_USEITEM,
+    BTN_NEXTWPN, BTN_NEXTFORCE, BTN_USEFORCE, BTN_NEXTITEM, BTN_USEITEM,
     BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU,
     BTN_COUNT
 };
@@ -101,6 +103,8 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_JUMP]      = { "JUMP",        KIND_KEY,      SDL_SCANCODE_X,      31.0f, 1 },
     [BTN_FORCE]     = { "FORCE",       KIND_FORCE,    SDL_SCANCODE_F,      30.0f, 0 },
     [BTN_NEXTWPN]   = { "NEXT\nWPN",   KIND_KEY,      SDL_SCANCODE_G,      22.0f, 0 },
+    [BTN_NEXTFORCE] = { "NEXT\nFORCE", KIND_KEY,      SDL_SCANCODE_E,      22.0f, 0 },
+    [BTN_USEFORCE]  = { "USE\nFORCE",  KIND_KEY,      SDL_SCANCODE_F,      22.0f, 0 },
     [BTN_NEXTITEM]  = { "NEXT\nITEM",  KIND_KEY,      SDL_SCANCODE_R,      22.0f, 0 },
     [BTN_USEITEM]   = { "USE\nITEM",   KIND_KEY,      SDL_SCANCODE_RETURN, 22.0f, 0 },
     [BTN_QUICKSAVE] = { "QUICK\nSAVE", KIND_TAPKEY,   SDL_SCANCODE_F9,     22.0f, 0 },
@@ -370,16 +374,19 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
         f->y = my + py * h;
     }
 
-    // Top left: NEXT WPN | NEXT ITEM, USE ITEM
+    // Top left: NEXT WPN | NEXT FORCE, USE FORCE | NEXT ITEM, USE ITEM
     iosTouch_aButtons[BTN_NEXTWPN].x = left + 24;
-    iosTouch_aButtons[BTN_NEXTITEM].x = left + 90;
-    iosTouch_aButtons[BTN_USEITEM].x = left + 138;
+    iosTouch_aButtons[BTN_NEXTFORCE].x = left + 84;
+    iosTouch_aButtons[BTN_USEFORCE].x = left + 132;
+    iosTouch_aButtons[BTN_NEXTITEM].x = left + 192;
+    iosTouch_aButtons[BTN_USEITEM].x = left + 240;
     // Top right: QUICK SAVE, QUICK LOAD | MENU in the corner
     iosTouch_aButtons[BTN_QUICKSAVE].x = right - 132;
     iosTouch_aButtons[BTN_QUICKLOAD].x = right - 84;
     iosTouch_aButtons[BTN_MENU].x = right - 24;
-    const int aTopRow[6] = { BTN_NEXTWPN, BTN_NEXTITEM, BTN_USEITEM, BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU };
-    for (int i = 0; i < 6; i++) {
+    const int aTopRow[] = { BTN_NEXTWPN, BTN_NEXTFORCE, BTN_USEFORCE, BTN_NEXTITEM, BTN_USEITEM,
+                            BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU };
+    for (int i = 0; i < (int)(sizeof(aTopRow) / sizeof(aTopRow[0])); i++) {
         iosTouch_aButtons[aTopRow[i]].y = top + 26;
     }
 
