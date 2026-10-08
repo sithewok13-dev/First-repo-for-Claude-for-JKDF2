@@ -83,8 +83,8 @@ typedef struct {
 } iosTouchButton;
 
 // Layout (see layoutSubviews). Bottom right, under the right thumb: FIRE, an
-// arc of DUCK / ACT / JUMP around it, ALT above the ammo gauge and FORCE just
-// outside the arc -- all IOSTOUCH_CLUSTER_GAP apart. The firing and movement
+// arc of DUCK / ACT / JUMP around it, ALT above the ammo gauge and FORCE right
+// of JUMP, above ALT -- all IOSTOUCH_CLUSTER_GAP apart. The firing and movement
 // buttons pass drags through to looking, so a thumb that lands on one while
 // aiming keeps aiming. Top left: weapon, force and inventory -- the force
 // pair stays alongside FORCE for now: USE FORCE holds the key the moment it's
@@ -145,9 +145,10 @@ static unsigned char iosTouch_aPulseGap[IOSTOUCH_NUM_SCANCODES];
 static float iosTouch_lookX = 0.0f, iosTouch_lookY = 0.0f;
 static float iosTouch_stickX = 0.0f, iosTouch_stickY = 0.0f;
 static int iosTouch_bStickActive = 0;
-// The HUD gauge rectangle the current layout was made for
+// The HUD gauge rectangle and cutout side the current layout was made for
 static int iosTouch_bLayoutGauge = 0;
 static float iosTouch_aLayoutGauge[4];
+static int iosTouch_layoutCutoutRight = -1;
 
 static void iosTouch_QueuePress(int scancode)
 {
@@ -194,6 +195,15 @@ static CGFloat iosTouch_DistToSegment(CGPoint p, CGFloat ax, CGFloat ay, CGFloat
     if (t > 1) t = 1;
     CGFloat dx = p.x - (ax + t * vx), dy = p.y - (ay + t * vy);
     return sqrt(dx * dx + dy * dy);
+}
+
+// Whether the camera cutout may be on the right of the screen. Landscape right
+// has the bottom of the phone on the right, so the cutout (at the top) is on
+// the left; landscape left puts it on the right. Not known yet: assume it can be.
+static int iosTouch_CutoutMayBeRight(UIView* v)
+{
+    UIWindowScene* scene = v.window.windowScene;
+    return !(scene && scene.interfaceOrientation == UIInterfaceOrientationLandscapeRight);
 }
 
 // ---------------------------------------------------------------- overlay view
@@ -324,22 +334,25 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
         iosTouch_aButtons[aArcBtn[i]].y = fire.y - arc * sin(rad);
     }
 
+    // The camera cutout, when it is on the right, as a capsule along the right
+    // edge: the Dynamic Island (side inset ~59-62pt) is ~126x37pt, 11pt in
+    // from the edge; a notch (side inset ~44-50pt) is up to ~210x33pt at the
+    // edge. The landscape side insets are the same both ways round, so which
+    // side it is on comes from the screen's orientation.
+    iosTouch_layoutCutoutRight = iosTouch_CutoutMayBeRight(self);
+    int bCutout = in.right >= 40.0 && iosTouch_layoutCutoutRight;
+    CGFloat cutX = (in.right >= 55.0) ? W - 29.5 : W - 16.5;
+    CGFloat cutR = (in.right >= 55.0) ? 18.5 : 16.5;
+    CGFloat cutHalf = ((in.right >= 55.0) ? 63.0 : 105.0) - cutR;
+
     // ALT: up and to the right of FIRE, IOSTOUCH_CLUSTER_GAP from it, as low
     // as it can sit while staying above the ammo gauge, on screen, clear of
-    // JUMP and clear of the camera cutout when that is on the right (the
-    // landscape side insets are the same both ways, so assume it can be).
+    // JUMP and clear of the cutout.
     {
         iosTouchButton* a = &iosTouch_aButtons[BTN_ALT];
         iosTouchButton* j = &iosTouch_aButtons[BTN_JUMP];
         const CGFloat AR = a->radius;
         const CGFloat D = FR + AR + IOSTOUCH_CLUSTER_GAP;
-        // Cutout as a capsule along the right edge: the Dynamic Island (side
-        // inset ~59-62pt) is ~126x37pt, 11pt in from the edge; a notch (side
-        // inset ~44-50pt) is up to ~210x33pt at the edge.
-        int bCutout = in.right >= 40.0;
-        CGFloat cutX = (in.right >= 55.0) ? W - 29.5 : W - 16.5;
-        CGFloat cutR = (in.right >= 55.0) ? 18.5 : 16.5;
-        CGFloat cutHalf = ((in.right >= 55.0) ? 63.0 : 105.0) - cutR;
         // If nothing at that distance fits (a short screen with the cutout
         // between the gauge and JUMP, or an iPad's tall gauge), step outwards;
         // failing that, allow ALT closer to JUMP.
@@ -372,21 +385,44 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
         a->y = best.y;
     }
 
-    // FORCE: just outside the arc, IOSTOUCH_CLUSTER_GAP from both DUCK and ACT
+    // FORCE: right of JUMP and above ALT, out of the way of aiming -- on the
+    // circle IOSTOUCH_CLUSTER_GAP out from JUMP, as far round towards pointing
+    // right as it fits on screen, below the top row and clear of ALT, ACT,
+    // FIRE, the gauge and the cutout. Where the cutout (or, on smaller
+    // screens, ALT) takes that spot it goes higher, over JUMP; failing
+    // everything, the gaps shrink.
     {
-        iosTouchButton* d = &iosTouch_aButtons[BTN_DUCK];
-        iosTouchButton* c = &iosTouch_aButtons[BTN_ACT];
         iosTouchButton* f = &iosTouch_aButtons[BTN_FORCE];
-        CGFloat dist = d->radius + f->radius + IOSTOUCH_CLUSTER_GAP; // DUCK and ACT are the same size
-        CGFloat mx = (d->x + c->x) * 0.5, my = (d->y + c->y) * 0.5;
-        CGFloat vx = c->x - d->x, vy = c->y - d->y;
-        CGFloat L = sqrt(vx * vx + vy * vy);
-        CGFloat h = (dist > L * 0.5) ? sqrt(dist * dist - L * L * 0.25) : 0;
-        // the perpendicular pointing away from FIRE
-        CGFloat px = vy / L, py = -vx / L;
-        if ((mx - fire.x) * px + (my - fire.y) * py < 0) { px = -px; py = -py; }
-        f->x = mx + px * h;
-        f->y = my + py * h;
+        iosTouchButton* j = &iosTouch_aButtons[BTN_JUMP];
+        iosTouchButton* a = &iosTouch_aButtons[BTN_ALT];
+        iosTouchButton* c = &iosTouch_aButtons[BTN_ACT];
+        const CGFloat R = f->radius;
+        const CGFloat aGap[3] = { IOSTOUCH_CLUSTER_GAP, 20.0, 12.0 };
+        CGPoint best = CGPointMake(j->x, j->y - (j->radius + R + IOSTOUCH_CLUSTER_GAP));
+        int bFound = 0;
+        for (int pass = 0; pass < 3 && !bFound; pass++) {
+            const CGFloat gap = aGap[pass];
+            const CGFloat D = j->radius + R + gap;
+            for (int deg = 0; deg <= 135; deg++) {
+                CGFloat rad = deg * (CGFloat)M_PI / 180.0;
+                CGPoint p = CGPointMake(j->x + D * cos(rad), j->y - D * sin(rad));
+                if (p.x + R > W - 4 || p.y - R < top + 60) continue;                 // on screen, below the top row
+                if (hypot(p.x - a->x, p.y - a->y) < R + a->radius + gap) continue;     // clear of ALT
+                if (hypot(p.x - c->x, p.y - c->y) < R + c->radius + gap) continue;     // ACT
+                if (hypot(p.x - fire.x, p.y - fire.y) < R + FR + gap) continue;        // FIRE
+                if (iosTouch_bLayoutGauge) {                                           // the gauge
+                    CGFloat gx = MIN(MAX(p.x, g[0]), g[2]), gy = MIN(MAX(p.y, g[1]), g[3]);
+                    if (hypot(p.x - gx, p.y - gy) < R + 4) continue;
+                }
+                if (bCutout && iosTouch_DistToSegment(p, cutX, H * 0.5 - cutHalf, cutX, H * 0.5 + cutHalf) < R + cutR + 2)
+                    continue;                                                          // the cutout
+                best = p;
+                bFound = 1;
+                break;
+            }
+        }
+        f->x = best.x;
+        f->y = best.y;
     }
 
     // Top left: NEXT WPN | NEXT FORCE, USE FORCE | NEXT ITEM, USE ITEM
@@ -700,10 +736,13 @@ void iosTouch_Update(void)
 
     if (bWant) {
         // The HUD is laid out again on level start, resize and HUD scale
-        // changes; FIRE and ALT follow the right gauge
+        // changes; FIRE and ALT follow the right gauge. Turning the phone the
+        // other way up changes neither the size nor the insets, but moves the
+        // cutout to the other side.
         float g[4] = {0, 0, 0, 0};
         int bGauge = jkHud_IosGetRightGaugeRectPt(&g[0], &g[1], &g[2], &g[3]);
-        if (bGauge != iosTouch_bLayoutGauge || memcmp(g, iosTouch_aLayoutGauge, sizeof(g)) != 0) {
+        if (bGauge != iosTouch_bLayoutGauge || memcmp(g, iosTouch_aLayoutGauge, sizeof(g)) != 0
+            || iosTouch_CutoutMayBeRight(iosTouch_pOverlay) != iosTouch_layoutCutoutRight) {
             [iosTouch_pOverlay setNeedsLayout];
         }
 
