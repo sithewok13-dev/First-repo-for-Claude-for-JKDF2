@@ -32,16 +32,27 @@
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosSafeArea.h" // Added
 #include "Win95/Window.h"
+extern int Window_screenYSize; // (Window.h misspells it Window_screenYsSize)
 
-// Added: the left edge of the right corner gauge in window points, so the
-// touch overlay can keep FIRE off it (iosTouch.m can't include engine
-// headers). How wide the gauge is in points depends on the device -- far wider
-// on an iPad than on a phone -- so a fixed offset can't do it. -1 = no HUD.
-float jkHud_IosGetRightGaugeLeftPt()
+// Added: the right corner (ammo/force) gauge's rectangle in window points, so
+// the touch overlay can keep FIRE beside it and ALT above it (iosTouch.m
+// can't include engine headers). How big the gauge is in points depends on
+// the device -- far bigger on an iPad than on a phone -- so fixed offsets
+// can't do it. Returns 0 while there is no HUD.
+int jkHud_IosGetRightGaugeRectPt(float* pX0, float* pY0, float* pX1, float* pY1)
 {
-    if (!jkHud_bOpened || Video_format.width <= 0 || Window_screenXSize <= 0)
-        return -1.0f;
-    return (float)jkHud_rightBlitX * (float)Window_screenXSize / (float)Video_format.width;
+    if (!jkHud_bOpened || !jkHud_pStatusRightBm || Video_format.width <= 0 || Video_format.height <= 0
+        || Window_screenXSize <= 0 || Window_screenYSize <= 0)
+        return 0;
+
+    tVBuffer* pGauge = *jkHud_pStatusRightBm->mipSurfaces;
+    float sx = (float)Window_screenXSize / (float)Video_format.width;
+    float sy = (float)Window_screenYSize / (float)Video_format.height;
+    *pX0 = (float)jkHud_rightBlitX * sx;
+    *pY0 = (float)jkHud_rightBlitY * sy;
+    *pX1 = (float)(jkHud_rightBlitX + HUD_SCALED(pGauge->format.width)) * sx;
+    *pY1 = (float)(jkHud_rightBlitY + HUD_SCALED(pGauge->format.height)) * sy;
+    return 1;
 }
 #endif
 

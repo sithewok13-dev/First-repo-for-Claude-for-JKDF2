@@ -5,9 +5,11 @@
 // touches into:
 //   - a floating move stick on the left (W/A/S/D, + Shift when pushed all the way)
 //   - drag-to-look anywhere else on the right (fed in as mouse movement)
-//   - buttons that hold down the default keyboard keys: fire, alt fire, duck,
-//     use and jump in an arc in the bottom-right corner (dragging on any of
-//     them also looks), the rest in a row along the top-left
+//   - buttons on the default keyboard keys. Bottom right: FIRE, with DUCK /
+//     ACT / JUMP on an arc around it, ALT above the ammo gauge (dragging on
+//     any of these also looks) and FORCE just outside the arc (tap or hold to
+//     use the power it shows, slide sideways to pick another). Top left:
+//     weapon and inventory. Top right: quick save, quick load (hold) and menu.
 // In menus and cutscenes the overlay hides, so touches reach SDL as mouse
 // clicks like before. If SDL's window is recreated the overlay follows it.
 
