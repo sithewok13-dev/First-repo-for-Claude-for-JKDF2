@@ -224,6 +224,8 @@ if(TARGET_LINUX)
 endif()
 
 if(TARGET_IOS)
+    # Added: the touch-controls overlay (iosTouch.m) is UIKit/Objective-C
+    enable_language(OBJC)
     file(GLOB TARGET_IOS_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/iOS/*.c)
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_IOS_SRCS})
     file(GLOB TARGET_IOS_M_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/iOS/*.m)

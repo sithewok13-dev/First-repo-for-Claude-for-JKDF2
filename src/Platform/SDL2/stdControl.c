@@ -7,6 +7,10 @@
 
 #include <SDL3/SDL.h>
 
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosTouch.h" // Added
+#endif
+
 #include "jk.h"
 
 const uint8_t stdControl_aSdlToDik[256] =
@@ -845,6 +849,9 @@ void stdControl_ReadControls()
         for (int i = 0; i < 256; i++)
         {
             int s = !!state[i];
+#ifdef TARGET_IOS
+            s |= iosTouch_IsScancodeDown(i); // Added: on-screen touch buttons
+#endif
             if (s && stdControl_aDebounce[i]) {
                 continue;
             }

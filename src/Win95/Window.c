@@ -44,6 +44,7 @@
 
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosAngle.h"
+#include "Platform/iOS/iosTouch.h" // Added: on-screen touch controls
 #define SDL_GL_SwapWindow(pWindow)          iosAngle_SwapBuffers()
 #define SDL_GL_SetSwapInterval(interval)    iosAngle_SetSwapInterval(interval)
 #define SDL_GL_DestroyContext(pContext)     iosAngle_DestroyContext()
@@ -810,6 +811,11 @@ void Window_SdlUpdate()
     extern int stdControl_bControllerEscapeKey;
     extern int stdControl_bControllerEscapeKey_last;
 
+#ifdef TARGET_IOS
+    // Added: show/hide the touch overlay and pass on its look movement
+    iosTouch_Update();
+#endif
+
     while (SDL_PollEvent(&event))
     {
         int bIsOdin = 0;
@@ -1028,6 +1034,17 @@ void Window_SdlUpdate()
                 break;
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
             case SDL_EVENT_MOUSE_BUTTON_UP:
+
+#ifdef TARGET_IOS
+                // Added: a tap skips the cutscene (there is no Escape key on a phone)
+                if (jkCutscene_isRendering) {
+                    if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+                        Window_msg_main_handler(g_hWnd, WM_KEYFIRST, VK_ESCAPE, 0);
+                        Window_msg_main_handler(g_hWnd, WM_CHAR, VK_ESCAPE, 0);
+                    }
+                    break;
+                }
+#endif
 
                 mevent = (SDL_MouseButtonEvent*)&event;
                 left = 0;
