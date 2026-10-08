@@ -18,7 +18,12 @@
 //     the force meter, glowing when full); dragging on any of these also
 //     looks. Top left: next weapon, FORCE WHEEL, and a button for each
 //     usable item the player has (field light, IR goggles, bacta). Top
-//     right: quick save, quick load (hold) and menu.
+//     right: quick save, quick load and menu.
+//   - QUICK SAVE and QUICK LOAD only go off when held: a ring round the
+//     button fills while it is held, quickly for QUICK SAVE (0.3 s), slowly
+//     for QUICK LOAD (a second), and once it is full the game saves or
+//     loads -- once, with the finger still down. Lifting sooner does
+//     nothing; so does sliding off QUICK SAVE first.
 //   - the force wheel, opened by FORCE WHEEL; the game holds still while it
 //     is open. Every power has a fixed slice, learned or not (those are
 //     dimmed). Jedi Knight: light side down the left (blue), dark side down

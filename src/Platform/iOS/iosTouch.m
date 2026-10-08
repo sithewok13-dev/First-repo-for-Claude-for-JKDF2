@@ -79,7 +79,9 @@ extern int jkHud_bChatOpen;
 #define IOSTOUCH_WHEEL_HYST 4.0
 #define IOSTOUCH_WHEEL_TAP_TIME 0.35
 #define IOSTOUCH_WHEEL_CANCEL (-2) // "slice" of the gap at the bottom
-// QUICK LOAD has to be held this long, so a stray tap can't throw away progress
+// QUICK SAVE has to be held this long, so a stray tap can't save over the
+// quicksave, and QUICK LOAD this long, so one can't throw away progress
+#define IOSTOUCH_QUICKSAVE_HOLD 0.3
 #define IOSTOUCH_QUICKLOAD_HOLD 1.0
 // MENU held this long opens its tray (keyboard, FPS); a tap opens the menu as
 // it lifts, holding Escape down for this many iosTouch_Update calls
@@ -107,7 +109,7 @@ enum {
 enum {
     KIND_KEY = 0,  // holds its key while touched
     KIND_MENU,     // Escape (via stdControl_bControllerEscapeKey) when the touch lifts on it; held, opens the tray
-    KIND_TAPKEY,   // one press of its key when the touch lifts on it
+    KIND_HOLDSAVE, // hold IOSTOUCH_QUICKSAVE_HOLD seconds for one press of its key (quick save)
     KIND_HOLDLOAD, // hold IOSTOUCH_QUICKLOAD_HOLD seconds to quick load
     KIND_WHEEL,    // opens the force wheel
     KIND_ITEM,     // uses an inventory item when the touch lifts on it; only shown while the player has it
@@ -139,9 +141,10 @@ typedef struct {
 // aiming keeps aiming. Top left: next weapon, the FORCE WHEEL that picks the
 // power, and a button for each usable item while the player has it (field
 // light, IR goggles, bacta), each always in its own place. Top right: quick
-// save, quick load (hold) and the menu. Holding MENU opens a tray just under
-// it: the keyboard, for the typing line (cheats), and FPS, which shows or
-// hides a frame rate readout left of QUICK SAVE. ACT is the door/switch key.
+// save (a short hold), quick load (a long one) and the menu. Holding MENU
+// opens a tray just under it: the keyboard, for the typing line (cheats), and
+// FPS, which shows or hides a frame rate readout left of QUICK SAVE. ACT is
+// the door/switch key.
 enum {
     BTN_FIRE, BTN_ALT, BTN_DUCK, BTN_ACT, BTN_JUMP, BTN_FORCE,
     BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA,
@@ -161,7 +164,7 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_LIGHT]     = { "LIGHT",       KIND_ITEM,     SDL_SCANCODE_RETURN, 22.0f, 0, SITHBIN_FIELDLIGHT_IOS },
     [BTN_IR]        = { "IR",          KIND_ITEM,     SDL_SCANCODE_RETURN, 22.0f, 0, SITHBIN_IRGOGGLES_IOS },
     [BTN_BACTA]     = { "BACTA",       KIND_ITEM,     SDL_SCANCODE_RETURN, 22.0f, 0, SITHBIN_BACTATANK_IOS },
-    [BTN_QUICKSAVE] = { "QUICK\nSAVE", KIND_TAPKEY,   SDL_SCANCODE_F9,     22.0f, 0 },
+    [BTN_QUICKSAVE] = { "QUICK\nSAVE", KIND_HOLDSAVE, SDL_SCANCODE_F9,     22.0f, 0 },
     [BTN_QUICKLOAD] = { "QUICK\nLOAD", KIND_HOLDLOAD, -1,                  22.0f, 0 },
     [BTN_MENU]      = { "MENU",        KIND_MENU,     -1,                  22.0f, 0 },
     [BTN_TRAYFPS]   = { "FPS",         KIND_FPS,      -1,                  20.0f, 0 },
@@ -255,7 +258,7 @@ typedef struct {
     CGPoint last;
     CFTimeInterval tDown; // when the touch began reaching us (CACurrentMediaTime, as -tick counts)...
     NSTimeInterval tDownTouch; // ...and when it began, by the touch's own clock (UITouch.timestamp)
-    int bFired;           // QUICK LOAD: already loaded for this touch. MENU: the hold is over (tray opened, or slid off)
+    int bFired;           // QUICK SAVE, QUICK LOAD: the hold is over (saved / loaded; QUICK SAVE also slid off, or typing). MENU: the hold is over (tray opened, or slid off)
     int bSeen;            // KIND_KEY: the game has read the key as held at least once
     int trayButton;       // MENU, after its tray opened: the tray button under the finger, or -1
     int wheelSlot;        // ROLE_WHEEL: the slice picked (index into the map), IOSTOUCH_WHEEL_CANCEL, or -1
@@ -434,7 +437,8 @@ static int iosTouch_StickOnRunMarker(CGPoint p, CGPoint o, int bRunning)
     int bRunLit;             // what runMarker shows (-1: not yet set)
     UISelectionFeedbackGenerator* runTick;
     UILabel* aButtonViews[IOSTOUCH_NUM_BUTTONS];
-    CAShapeLayer* loadRing; // QUICK LOAD's hold progress
+    CAShapeLayer* saveRing; // QUICK SAVE's hold progress
+    CAShapeLayer* loadRing; // QUICK LOAD's
     CAShapeLayer* menuRing; // MENU's
     UIView* trayBack;       // behind MENU's tray
     UILabel* fpsLabel;      // the FPS readout...
@@ -563,7 +567,10 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
             [self addSubview:l];
         }
 
-        // Rings that fill while QUICK LOAD and MENU are held
+        // Rings that fill while QUICK SAVE, QUICK LOAD and MENU are held. QUICK
+        // SAVE's and QUICK LOAD's look the same: only how long they take differs.
+        saveRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_QUICKSAVE].radius);
+        [aButtonViews[BTN_QUICKSAVE].layer addSublayer:saveRing];
         loadRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_QUICKLOAD].radius);
         [aButtonViews[BTN_QUICKLOAD].layer addSublayer:loadRing];
         menuRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_MENU].radius);
@@ -1501,6 +1508,7 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
         iosTouchSlot* s = &iosTouch_aSlots[i];
         if (!s->touch) continue;
         if (s->role == ROLE_BUTTON && iosTouch_aButtonHeld[s->button] > 0) iosTouch_aButtonHeld[s->button]--;
+        if (s->role == ROLE_BUTTON && s->button == BTN_QUICKSAVE) [self setRing:saveRing progress:0.0];
         if (s->role == ROLE_BUTTON && s->button == BTN_QUICKLOAD) [self setRing:loadRing progress:0.0];
         if (s->role == ROLE_BUTTON && s->button == BTN_MENU) [self setRing:menuRing progress:0.0];
         if (s->role == ROLE_STICK) {
@@ -1722,10 +1730,7 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
                 // only go off later.
                 int bWhileTyping = b->kind == KIND_MENU || b->kind == KIND_CHAT || b->kind == KIND_FPS;
                 if (!bCancelled && [self isPoint:p onButton:s->button] && (!jkHud_bChatOpen || bWhileTyping)) {
-                    if (b->kind == KIND_TAPKEY) {
-                        iosTouch_QueuePress(b->scancode);
-                    }
-                    else if (b->kind == KIND_ITEM && !aButtonViews[s->button].hidden
+                    if (b->kind == KIND_ITEM && !aButtonViews[s->button].hidden
                              // one item at a time: the use key acts on whichever item is selected when it is read
                              && !iosTouch_aPulseQueue[b->scancode] && !iosTouch_aPulseReads[b->scancode]
                              && !iosTouch_aPulseGap[b->scancode]) {
@@ -1745,6 +1750,7 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
                     int tb = [self buttonAt:p];
                     if (tb == BTN_TRAYKEYS || tb == BTN_TRAYFPS) [self useTrayButton:tb];
                 }
+                if (s->button == BTN_QUICKSAVE) [self setRing:saveRing progress:0.0];
                 if (s->button == BTN_QUICKLOAD) [self setRing:loadRing progress:0.0];
                 if (s->button == BTN_MENU) [self setRing:menuRing progress:0.0];
             }
@@ -1788,9 +1794,9 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
     }
 }
 
-// Once per frame while shown: the QUICK LOAD and MENU holds, the FORCE label
-// and its force meter ring, which item buttons show and what they say, and
-// the FPS readout
+// Once per frame while shown: the QUICK SAVE, QUICK LOAD and MENU holds, the
+// FORCE label and its force meter ring, which item buttons show and what they
+// say, and the FPS readout
 - (void)tick
 {
     // The holds go off only once the finger is known to have stayed down long
@@ -1803,7 +1809,28 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
         if (!s->touch || s->role != ROLE_BUTTON) continue;
-        if (s->button == BTN_QUICKLOAD && !s->bFired) {
+        if (s->button == BTN_QUICKSAVE && !s->bFired) {
+            if (![self isPoint:s->last onButton:BTN_QUICKSAVE] || jkHud_bChatOpen) {
+                // off the button as this frame sees it (like MENU's hold), or
+                // the typing line is open (the game would only read the key
+                // once it closes): this touch doesn't save, even if it comes
+                // back on or the line closes
+                s->bFired = 1;
+                [self setRing:saveRing progress:0.0];
+                continue;
+            }
+            // saves once, when the ring is full, with the finger still on it
+            CGFloat progress = (CGFloat)((now - s->tDown) / IOSTOUCH_QUICKSAVE_HOLD);
+            if (known - s->tDown >= IOSTOUCH_QUICKSAVE_HOLD) {
+                s->bFired = 1;
+                [self setRing:saveRing progress:0.0];
+                iosTouch_QueuePress(iosTouch_aButtons[BTN_QUICKSAVE].scancode);
+            }
+            else {
+                [self setRing:saveRing progress:MIN(progress, 1.0)];
+            }
+        }
+        else if (s->button == BTN_QUICKLOAD && !s->bFired) {
             CGFloat progress = (CGFloat)((now - s->tDown) / IOSTOUCH_QUICKLOAD_HOLD);
             if (known - s->tDown >= IOSTOUCH_QUICKLOAD_HOLD) {
                 s->bFired = 1;
@@ -1960,6 +1987,7 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
     iosTouch_menuPulse = 0;
     bFpsBase = 0; // time spent in a menu doesn't count
     [self hideStick];
+    [self setRing:saveRing progress:0.0];
     [self setRing:loadRing progress:0.0];
     [self setRing:menuRing progress:0.0];
     iosTouch_RecomputeKeys();
