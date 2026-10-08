@@ -1,9 +1,17 @@
 # Builds OpenJKDF2 for iOS (arm64 device) and packages an UNSIGNED .ipa.
 #
 # The .app inside carries only an ad-hoc signature (upstream's default, see
-# cmake_modules/target_ios_all.cmake). Re-sign it yourself (e.g. Signulous)
-# before installing. No game data is bundled -- copy your own JKDF2 files into
-# the app's Documents/jk1 folder with the Files app.
+# cmake_modules/target_ios_all.cmake). Players sign and install it with a
+# sideloading tool. No game data is bundled -- they copy their own JKDF2 files
+# into the app's Documents/jk1 folder with the Files app (docs/ios/README.md).
+#
+# Where the .ipa goes (decided by the ref, so a manual run behaves like a push):
+#   - a branch: the "ios-latest" prerelease (newest build)
+#   - a v* tag (v0.1, ...): a release for that tag, with
+#     docs/ios/RELEASE_NOTES.md as its text, marked as the latest release. A tag
+#     with a '-' in it (v0.2-beta1) becomes a prerelease and isn't marked latest.
+#     The run stops before building if the notes have no "### What's in <tag>"
+#     heading line, so a release can't go out with missing or stale notes.
 #
 # ANGLE (GLES on Metal) is not built by OpenJKDF2's CMake, so this workflow
 # builds it with depot_tools and caches the result. The first run takes a long
@@ -14,14 +22,28 @@ name: iOS IPA
 
 on:
   push:
+    # Every branch, as before. (Listing tags alone would stop the workflow
+    # running for branch pushes at all, so branches are listed too; '**' is
+    # GitHub's default of matching every branch name, slashes included.)
+    branches:
+      - '**'
+    # Release tags. GitHub doesn't evaluate path filters for tag pushes, so a
+    # tag always builds, even one on a commit that only changed docs. Other
+    # tags (such as ios-latest) don't start a run.
+    tags:
+      - 'v*'
+    # Branch pushes that only change Markdown or docs/ still don't build.
     paths-ignore:
       - '**.md'
       - 'docs/**'
   workflow_dispatch:
 
 concurrency:
+  # One run at a time per branch or tag. A new push to a branch cancels that
+  # branch's older run; a release tag has a group of its own and is never
+  # cancelled halfway (pushed again, the new run waits for the old one).
   group: ios-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 env:
   # ANGLE branch chromium/8060 (Sept 15 2026), from the github.com/google/angle mirror.
@@ -44,6 +66,20 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          # The build only runs local git commands and fetches public repos, so
+          # don't leave the write token in .git/config for third-party build
+          # code (depot_tools, gclient DEPS) to read. The release steps get the
+          # token from their own input.
+          persist-credentials: false
+
+      # Before the long build: a release tag needs release notes written for it.
+      - name: Check release notes are for this tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if ! grep -qxF "### What's in ${GITHUB_REF_NAME}" docs/ios/RELEASE_NOTES.md; then
+            echo "::error file=docs/ios/RELEASE_NOTES.md::No \"### What's in ${GITHUB_REF_NAME}\" heading line. Update the release notes for ${GITHUB_REF_NAME}, commit them, and tag that commit."
+            exit 1
+          fi
 
       - name: Select newest Xcode
         run: |
@@ -165,9 +201,11 @@ jobs:
           path: OpenJKDF2-iOS-unsigned.ipa
           if-no-files-found: error
 
-      # Added: a stable direct link to the newest .ipa (no zip, works from Safari)
+      # Added: a stable direct link to the newest .ipa (no zip, works from Safari).
+      # Branches only (pushed or run by hand): a release tag gets its own
+      # release (next step) and leaves this one alone.
       - name: Publish to "ios-latest" release
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ios-latest
@@ -175,6 +213,23 @@ jobs:
           prerelease: true
           make_latest: false
           body: |
-            Unsigned OpenJKDF2 iOS build (run ${{ github.run_number }}, commit ${{ github.sha }}).
-            Sideload with Signulous. Game data goes in Files > On My iPhone > OpenJKDF2 > jk1.
+            Development build of OpenJKDF2 for iOS, rebuilt on every push (run ${{ github.run_number }}, commit ${{ github.sha }}). It can be broken; the latest stable release is at ${{ github.server_url }}/${{ github.repository }}/releases/latest
+            The .ipa is unsigned: sign and install it with a sideloading tool. Game data goes in Files > On My iPhone > OpenJKDF2 > jk1. Setup guide: ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/docs/ios/README.md
           files: OpenJKDF2-iOS-unsigned.ipa
+
+      # Added: a release tag (v0.1, ...) becomes a release, shown as the
+      # repository's latest, with the release notes from the tagged commit and
+      # the .ipa attached. Running the workflow again on the tag (re-run, or
+      # "Run workflow" with the tag selected) updates it. A tag with a '-' in
+      # it is a test or beta build: a prerelease, never marked latest.
+      - name: Publish release for the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: OpenJKDF2 for iOS ${{ github.ref_name }}
+          body_path: docs/ios/RELEASE_NOTES.md
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
+          files: OpenJKDF2-iOS-unsigned.ipa
+          fail_on_unmatched_files: true
