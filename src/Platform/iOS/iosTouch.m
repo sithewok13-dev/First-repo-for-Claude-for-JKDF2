@@ -862,9 +862,10 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
                     iosTouch_QueuePress(b->scancode);
                 }
                 // These act when the finger lifts on the button, so a slip onto
-                // one can be dragged off again. Not while typing: the game isn't
-                // reading the controls then, so they would only go off later.
-                if (!bCancelled && !jkHud_bChatOpen && [self isPoint:p onButton:s->button]) {
+                // one can be dragged off again. Not while typing (except the
+                // keyboard, which closes the line): the game isn't reading the
+                // controls then, so they would only go off later.
+                if (!bCancelled && [self isPoint:p onButton:s->button] && (!jkHud_bChatOpen || b->kind == KIND_CHAT)) {
                     if (b->kind == KIND_TAPKEY) {
                         iosTouch_QueuePress(b->scancode);
                     }
