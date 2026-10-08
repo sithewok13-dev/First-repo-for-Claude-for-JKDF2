@@ -33,6 +33,9 @@ extern int Window_lastYRel;
 #define IOSTOUCH_STICK_DEADZONE 0.30f
 #define IOSTOUCH_STICK_RUN 0.92f
 
+// Buttons show at this opacity while untouched, so they hide less of the game;
+// a touched one shows at full strength
+#define IOSTOUCH_IDLE_ALPHA 0.65
 // Edge-to-edge gap between the buttons around FIRE (the arc, ALT and FORCE)
 #define IOSTOUCH_CLUSTER_GAP 30.0f
 // FORCE: a touch that has stayed put this long starts holding the power (so
@@ -286,6 +289,7 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
         stickKnob.hidden = YES;
         [self addSubview:stickBase];
         [self addSubview:stickKnob];
+        [self refreshButtonLooks];
     }
     return self;
 }
@@ -474,8 +478,11 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
 - (void)refreshButtonLooks
 {
     for (int i = 0; i < IOSTOUCH_NUM_BUTTONS; i++) {
-        aButtonViews[i].backgroundColor = [UIColor colorWithWhite:(iosTouch_aButtonHeld[i] ? 1.0 : 0.0)
-                                                            alpha:(iosTouch_aButtonHeld[i] ? 0.30 : 0.22)];
+        int bHeld = iosTouch_aButtonHeld[i] != 0;
+        aButtonViews[i].backgroundColor = [UIColor colorWithWhite:(bHeld ? 1.0 : 0.0) alpha:(bHeld ? 0.30 : 0.22)];
+        CGFloat alpha = bHeld ? 1.0 : IOSTOUCH_IDLE_ALPHA;
+        if (i == BTN_FORCE && bForceLabelSet && !forceLabelName) alpha *= 0.45; // no power to use yet
+        aButtonViews[i].alpha = alpha;
     }
 }
 
@@ -663,7 +670,7 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
         UILabel* l = aButtonViews[BTN_FORCE];
         l.text = name ? [NSString stringWithFormat:@"FORCE\n%s", name] : @"FORCE";
         l.font = [UIFont boldSystemFontOfSize:(name ? 10 : 13)];
-        l.alpha = name ? 1.0 : 0.45;
+        [self refreshButtonLooks];
     }
 }
 
