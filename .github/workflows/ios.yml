@@ -37,15 +37,25 @@ on:
       - '**.md'
       - 'docs/**'
   workflow_dispatch:
+    inputs:
+      release:
+        description: >-
+          Publish this build as a release with this tag (for example v0.1), created
+          at the commit being built. Leave empty to update ios-latest as usual.
+        required: false
+        default: ''
 
 concurrency:
   # One run at a time per branch or tag. A new push to a branch cancels that
   # branch's older run; a release tag has a group of its own and is never
   # cancelled halfway (pushed again, the new run waits for the old one).
   group: ios-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && inputs.release == '' }}
 
 env:
+  # The release this run publishes: the pushed v* tag, or the tag a manual run
+  # was asked to create (inputs.release); empty for ordinary branch builds.
+  RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.release }}
   # ANGLE branch chromium/8060 (Sept 15 2026), from the github.com/google/angle mirror.
   ANGLE_REV: 4b7308a36376199c095ccb0ab69b773daa8b9fbe
   ANGLE_CACHE_VERSION: v1
@@ -74,10 +84,10 @@ jobs:
 
       # Before the long build: a release tag needs release notes written for it.
       - name: Check release notes are for this tag
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: env.RELEASE_TAG != ''
         run: |
-          if ! grep -qxF "### What's in ${GITHUB_REF_NAME}" docs/ios/RELEASE_NOTES.md; then
-            echo "::error file=docs/ios/RELEASE_NOTES.md::No \"### What's in ${GITHUB_REF_NAME}\" heading line. Update the release notes for ${GITHUB_REF_NAME}, commit them, and tag that commit."
+          if ! grep -qxF "### What's in ${RELEASE_TAG}" docs/ios/RELEASE_NOTES.md; then
+            echo "::error file=docs/ios/RELEASE_NOTES.md::No \"### What's in ${RELEASE_TAG}\" heading line. Update the release notes for ${RELEASE_TAG}, commit them, and tag that commit."
             exit 1
           fi
 
@@ -205,7 +215,7 @@ jobs:
       # Branches only (pushed or run by hand): a release tag gets its own
       # release (next step) and leaves this one alone.
       - name: Publish to "ios-latest" release
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && env.RELEASE_TAG == '' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ios-latest
@@ -223,13 +233,15 @@ jobs:
       # "Run workflow" with the tag selected) updates it. A tag with a '-' in
       # it is a test or beta build: a prerelease, never marked latest.
       - name: Publish release for the tag
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: env.RELEASE_TAG != ''
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: OpenJKDF2 for iOS ${{ github.ref_name }}
+          # A manual run creates the tag at the commit it built
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          name: OpenJKDF2 for iOS ${{ env.RELEASE_TAG }}
           body_path: docs/ios/RELEASE_NOTES.md
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          make_latest: ${{ !contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(env.RELEASE_TAG, '-') }}
+          make_latest: ${{ !contains(env.RELEASE_TAG, '-') }}
           files: OpenJKDF2-iOS-unsigned.ipa
           fail_on_unmatched_files: true
