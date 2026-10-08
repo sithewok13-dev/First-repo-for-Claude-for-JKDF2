@@ -22,6 +22,38 @@ const char* iosGame_GetForcePowerName(void);
 // Prints a message either way. Returns 1 if a load was started.
 int iosGame_QuickLoad(void);
 
+// Force powers the player can select right now, in the game's own order
+// (JK: Jump ... Deadly Sight). Fills up to maxBins inventory bin numbers and
+// returns how many.
+int iosGame_GetForcePowers(int* aBins, int maxBins);
+
+// Short name of a force power bin ("SPEED"...), or NULL if it isn't one.
+const char* iosGame_GetPowerName(int bin);
+
+// The selected force power's bin, or -1.
+int iosGame_GetCurPower(void);
+
+// Selects a force power, as the next/previous power keys do.
+void iosGame_SelectPower(int bin);
+
+// Whether the player has an item (bin) to use right now; also its count and
+// whether it is switched on (field light, IR goggles).
+int iosGame_GetItem(int bin, int* pAmount, int* pActive);
+
+// Makes an item the selected one, so the use-item key uses it.
+void iosGame_SelectItem(int bin);
+
+// While set, gameplay holds still (single player only): the world is drawn
+// but not updated. For the touch overlay's force wheel.
+void iosGame_SetHold(int bHold);
+
+// Called once per gameplay tick: returns 1 if this tick should not update the
+// world (and keeps the game clock paused meanwhile).
+int iosGame_HoldGameplay(void);
+
+// Opens the typing line (where cheats go), or closes it if it is open.
+void iosGame_ToggleChat(void);
+
 #ifdef __cplusplus
 }
 #endif

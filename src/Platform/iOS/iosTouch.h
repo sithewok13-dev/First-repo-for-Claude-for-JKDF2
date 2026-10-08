@@ -6,11 +6,13 @@
 //   - a floating move stick on the left (W/A/S/D, + Shift when pushed all the way)
 //   - drag-to-look anywhere else on the right (fed in as mouse movement)
 //   - buttons on the default keyboard keys. Bottom right: FIRE, with DUCK /
-//     ACT / JUMP on an arc around it, ALT above the ammo gauge (dragging on
-//     any of these also looks) and FORCE just outside the arc (tap or hold to
-//     use the power it shows, slide sideways to pick another). Top left:
-//     weapon, force (NEXT/USE FORCE, for using a power while jumping) and
-//     inventory. Top right: quick save, quick load (hold) and menu.
+//     ACT / JUMP on an arc around it, ALT above the ammo gauge and FORCE
+//     beside JUMP (tap or hold to use the power it shows); dragging on any of
+//     these also looks. Top left: next weapon, FORCE WHEEL (picks the power;
+//     the game holds still while it is open) and a button for each usable
+//     item the player has (field light, IR goggles, bacta). Top middle: the
+//     keyboard, for typing cheats. Top right: quick save, quick load (hold)
+//     and menu.
 // In menus and cutscenes the overlay hides, so touches reach SDL as mouse
 // clicks like before. If SDL's window is recreated the overlay follows it.
 
