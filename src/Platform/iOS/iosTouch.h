@@ -3,11 +3,13 @@
 // A UIKit overlay sits on top of the game view while gameplay controls are
 // active (stdControl_bControlsActive, and no cutscene playing). It turns
 // touches into:
-//   - a floating move stick on the left half (W/A/S/D, + Shift when pushed all the way)
+//   - a floating move stick on the left (W/A/S/D, + Shift when pushed all the way)
 //   - drag-to-look anywhere else on the right (fed in as mouse movement)
-//   - buttons that hold down the default keyboard keys for fire, jump, etc.
+//   - buttons that hold down the default keyboard keys: fire, alt fire, duck,
+//     use and jump in an arc in the bottom-right corner (dragging on any of
+//     them also looks), the rest in a row along the top-left
 // In menus and cutscenes the overlay hides, so touches reach SDL as mouse
-// clicks like before.
+// clicks like before. If SDL's window is recreated the overlay follows it.
 
 #ifndef _PLATFORM_IOS_IOSTOUCH_H
 #define _PLATFORM_IOS_IOSTOUCH_H

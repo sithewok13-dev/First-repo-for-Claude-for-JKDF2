@@ -45,6 +45,7 @@
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosAngle.h"
 #include "Platform/iOS/iosTouch.h" // Added: on-screen touch controls
+#include "Platform/iOS/iosAudio.h" // Added: audio session setup
 #define SDL_GL_SwapWindow(pWindow)          iosAngle_SwapBuffers()
 #define SDL_GL_SetSwapInterval(interval)    iosAngle_SetSwapInterval(interval)
 #define SDL_GL_DestroyContext(pContext)     iosAngle_DestroyContext()
@@ -82,7 +83,12 @@ void Window_SetHiDpi(int val)
     {
         Window_isHiDpi = val;
 
+        // Added: iOS windows are always native-density (see
+        // Window_RecreateSDL2Window), so recreating one gains nothing -- and it
+        // would orphan the touch overlay, which lives in the old window.
+#ifndef TARGET_IOS
         Window_needsRecreate = 1;
+#endif
     }
 
     wuRegistry_SaveBool("Window_isHiDpi", Window_isHiDpi);
@@ -90,6 +96,15 @@ void Window_SetHiDpi(int val)
 
 void Window_SetFullscreen(int val)
 {
+#ifdef TARGET_IOS
+    // Added: iOS windows are always fullscreen, so there is nothing to resize or
+    // recreate -- doing so would shrink the render size to the desktop default
+    // and orphan the touch overlay. Only remember the setting.
+    Window_isFullscreen = val;
+    wuRegistry_SaveBool("Window_isFullscreen", Window_isFullscreen);
+    return;
+#endif
+
     if (Window_isFullscreen != val)
     {
         // Reset window when exiting fullscreen
@@ -1551,6 +1566,11 @@ int Window_Main_Linux(int argc, char** argv)
 #endif
 
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD);
+
+#if defined(TARGET_IOS)
+    // Added: before OpenAL (sound effects) or SDL_mixer (music) opens a device
+    iosAudio_Startup();
+#endif
 
     
     if ((SDL_GetHintBoolean("SteamClientLaunch", 0) || SDL_GetHintBoolean("SteamOS", 0) || SDL_GetHintBoolean("SteamDeck", 0)) && SDL_GetHintBoolean("SteamGamepadUI", 0)) {

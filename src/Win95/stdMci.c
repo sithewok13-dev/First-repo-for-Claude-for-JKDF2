@@ -8,6 +8,10 @@
 #include "Main/InstallHelper.h"
 #endif
 
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosAudio.h" // Added
+#endif
+
 #ifdef FS_POSIX
 #include "external/fcaseopen/fcaseopen.h"
 #endif
@@ -653,6 +657,12 @@ int stdMci_Startup()
     if (stdMci_pTrack) {
         MIX_SetTrackStoppedCallback(stdMci_pTrack, stdMci_TrackStoppedCallback, NULL);
     }
+
+#ifdef TARGET_IOS
+    // Added: opening the music device can make SDL reconfigure the audio
+    // session, which stops OpenAL's (sound effects) output -- restart it.
+    iosAudio_RestartSfx();
+#endif
 
     // Added
     stdMci_bIsGOG = 1;

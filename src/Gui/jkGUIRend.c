@@ -1643,6 +1643,13 @@ int jkGuiRend_DrawClickableAndUpdatebool(jkGuiElement *element, jkGuiMenu *menu,
     return 0;
 }
 
+#ifdef TARGET_IOS
+// Added: the textbox the player last tapped. Menus focus their first textbox on
+// open (e.g. SSAA in Setup > Display), and on a touchscreen the system keyboard
+// that follows covers half the menu -- so it only opens for a tapped textbox.
+static jkGuiElement* jkGuiRend_pTappedTextbox = NULL;
+#endif
+
 int jkGuiRend_WindowHandler(HWND hWnd, UINT a2, WPARAM wParam, LPARAM lParam, LRESULT * unused)
 {
     int32_t ret;
@@ -1659,6 +1666,12 @@ int jkGuiRend_WindowHandler(HWND hWnd, UINT a2, WPARAM wParam, LPARAM lParam, LR
     {
         case WM_LBUTTONDOWN:
         {
+#ifdef TARGET_IOS
+            {
+                jkGuiElement* pTapped = jkGuiRend_activeMenu->lastMouseOverClickable;
+                jkGuiRend_pTappedTextbox = (pTapped && pTapped->type == ELEMENT_TEXTBOX) ? pTapped : NULL;
+            }
+#endif
             jkGuiRend_activeMenu->lastMouseDownClickable = jkGuiRend_activeMenu->lastMouseOverClickable;
             jkGuiRend_RenderFocused(jkGuiRend_activeMenu, jkGuiRend_activeMenu->lastMouseOverClickable);
             if ( jkGuiRend_activeMenu->lastMouseDownClickable )
@@ -2916,7 +2929,15 @@ void jkGuiRend_UpdateController()
         currentKeyboardFocusedElement = NULL;
     }
 
-    if (jkGuiRend_activeMenu && jkGuiRend_activeMenu->focusedElement && jkGuiRend_activeMenu->focusedElement->type == ELEMENT_TEXTBOX) {
+    int bTextboxWantsKeyboard = jkGuiRend_activeMenu && jkGuiRend_activeMenu->focusedElement && jkGuiRend_activeMenu->focusedElement->type == ELEMENT_TEXTBOX;
+#ifdef TARGET_IOS
+    if (jkGuiRend_activeMenu != jkGuiRend_lastActiveMenu) {
+        jkGuiRend_pTappedTextbox = NULL; // a tap in another menu doesn't count
+    }
+    bTextboxWantsKeyboard = bTextboxWantsKeyboard && jkGuiRend_activeMenu->focusedElement == jkGuiRend_pTappedTextbox;
+#endif
+
+    if (bTextboxWantsKeyboard) {
         stdControl_ShowSystemKeyboard();
         if (!keyboardShowedLastUpdate) {
             jkGuiRend_WindowHandler(0, WM_KEYFIRST, VK_END, 0, 0);
