@@ -64,7 +64,17 @@ int jkPlayer_bKeepCorpses = 0;
 int jkPlayer_bFastMissionText = FAST_MISSION_TEXT_DEFAULT;
 int jkPlayer_bUseOldPlayerPhysics = 0;
 int jkPlayer_bLedgeSqueeze = 0;
-flex_t jkPlayer_hudScale = 2.0;
+#ifdef TARGET_IOS
+// Added: on a phone the desktop default leaves the corner gauges tiny
+#define JKPLAYER_HUDSCALE_DEFAULT 2.5
+// Saved under its own key so a 2.0 already written by earlier iOS builds
+// doesn't override the new default
+#define JKPLAYER_HUDSCALE_JSON_KEY "hudScaleIos"
+#else
+#define JKPLAYER_HUDSCALE_DEFAULT 2.0
+#define JKPLAYER_HUDSCALE_JSON_KEY "hudScale"
+#endif
+flex_t jkPlayer_hudScale = JKPLAYER_HUDSCALE_DEFAULT;
 flex_t jkPlayer_crosshairLineWidth = 1.0;
 flex_t jkPlayer_crosshairScale = 1.0;
 flex_t jkPlayer_canonicalCogTickrate = CANONICAL_COG_TICKRATE;
@@ -189,7 +199,7 @@ void jkPlayer_StartupVars()
     sithCvar_RegisterBool("menu_bFastMissionText",      FAST_MISSION_TEXT_DEFAULT,  &jkPlayer_bFastMissionText,         CVARFLAG_LOCAL);
     sithCvar_RegisterBool("g_bUseOldPlayerPhysics",     0,                          &jkPlayer_bUseOldPlayerPhysics,     CVARFLAG_LOCAL);
     sithCvar_RegisterBool("g_bLedgeSqueeze",            0,                          &jkPlayer_bLedgeSqueeze,            CVARFLAG_LOCAL);
-    sithCvar_RegisterFlex("hud_scale",                  2.0,                        &jkPlayer_hudScale,                 CVARFLAG_LOCAL|CVARFLAG_RESETHUD);
+    sithCvar_RegisterFlex("hud_scale",                  JKPLAYER_HUDSCALE_DEFAULT,  &jkPlayer_hudScale,                 CVARFLAG_LOCAL|CVARFLAG_RESETHUD);
     sithCvar_RegisterFlex("hud_crosshairLineWidth",     1.0,                        &jkPlayer_crosshairLineWidth,       CVARFLAG_LOCAL|CVARFLAG_RESETHUD);
     sithCvar_RegisterFlex("hud_crosshairScale",         1.0,                        &jkPlayer_crosshairScale,           CVARFLAG_LOCAL|CVARFLAG_RESETHUD);
     sithCvar_RegisterBool("hud_setCrosshairOnLightsaber", 1,                        &jkPlayer_setCrosshairOnLightsaber, CVARFLAG_LOCAL);
@@ -237,7 +247,7 @@ void jkPlayer_ResetVars()
     jkPlayer_bFastMissionText = FAST_MISSION_TEXT_DEFAULT;
     jkPlayer_bUseOldPlayerPhysics = 0;
     jkPlayer_bLedgeSqueeze = 0;
-    jkPlayer_hudScale = 2.0;
+    jkPlayer_hudScale = JKPLAYER_HUDSCALE_DEFAULT;
     jkPlayer_crosshairLineWidth = 1.0;
     jkPlayer_crosshairScale = 1.0;
     jkPlayer_canonicalCogTickrate = CANONICAL_COG_TICKRATE;
@@ -582,7 +592,7 @@ void jkPlayer_WriteConf(char16_t *name)
         stdJSON_SaveBool(ext_fpath, "bEnableTexturePrecache", jkPlayer_bEnableTexturePrecache);
         stdJSON_SaveBool(ext_fpath, "bKeepCorpses", jkPlayer_bKeepCorpses);
         stdJSON_SaveBool(ext_fpath, "bFastMissionText", jkPlayer_bFastMissionText);
-        stdJSON_SaveFloat(ext_fpath, "hudScale", jkPlayer_hudScale);
+        stdJSON_SaveFloat(ext_fpath, JKPLAYER_HUDSCALE_JSON_KEY, jkPlayer_hudScale);
         stdJSON_SaveFloat(ext_fpath, "crosshairLineWidth", jkPlayer_crosshairLineWidth);
         stdJSON_SaveFloat(ext_fpath, "crosshairScale", jkPlayer_crosshairScale);
         stdJSON_SaveFloat(ext_fpath, "canonicalCogTickrate", jkPlayer_canonicalCogTickrate);
@@ -784,7 +794,7 @@ int jkPlayer_ReadConf(char16_t *name)
         // Added: RETRO always uses the fast default (no input wait at load screens)
         jkPlayer_bFastMissionText = stdJSON_GetBool(ext_fpath, "bFastMissionText", jkPlayer_bFastMissionText);
 #endif
-        jkPlayer_hudScale = stdJSON_GetFloat(ext_fpath, "hudScale", jkPlayer_hudScale);
+        jkPlayer_hudScale = stdJSON_GetFloat(ext_fpath, JKPLAYER_HUDSCALE_JSON_KEY, jkPlayer_hudScale);
         jkPlayer_crosshairLineWidth = stdJSON_GetFloat(ext_fpath, "crosshairLineWidth", jkPlayer_crosshairLineWidth);
         jkPlayer_crosshairScale = stdJSON_GetFloat(ext_fpath, "crosshairScale", jkPlayer_crosshairScale);
         jkPlayer_canonicalCogTickrate = stdJSON_GetFloat(ext_fpath, "canonicalCogTickrate", jkPlayer_canonicalCogTickrate);

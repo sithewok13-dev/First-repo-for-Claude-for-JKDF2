@@ -29,6 +29,10 @@
 #include "types.h"
 #include "types_enums.h"
 
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosSafeArea.h" // Added
+#endif
+
 //stdBitmap* jkHud_pTestbitmap = NULL;
 
 static jkHudFont jkHud_aFonts[6] = {
@@ -149,6 +153,18 @@ int jkHud_Open()
     v6 = *jkHud_pStatusRightBm->mipSurfaces;
     jkHud_rightBlitX = Video_format.width - HUD_SCALED(v6->format.width);
     jkHud_rightBlitY = Video_format.height - HUD_SCALED(v6->format.height);
+#ifdef TARGET_IOS
+    // Added: keep the corner gauges (and everything drawn relative to them)
+    // clear of the rounded screen corners and the home indicator
+    {
+        int marginLeft, marginRight, marginBottom;
+        iosSafeArea_GetHudMargins(Video_format.width, Video_format.height, &marginLeft, &marginRight, &marginBottom);
+        jkHud_leftBlitX += marginLeft;
+        jkHud_leftBlitY -= marginBottom;
+        jkHud_rightBlitX -= marginRight;
+        jkHud_rightBlitY -= marginBottom;
+    }
+#endif
     for (v7 = 0; v7 < 5; v7++)
     {
         jkHud_aTeamColors16bpp[v7] = stdColor_Indexed8ToRGB16(jkHud_aTeamColors8bpp[v7], Video_aPalette, &Video_format.format);

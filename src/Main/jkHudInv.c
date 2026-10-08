@@ -14,6 +14,10 @@
 #include "World/jkPlayer.h"
 #include "jk.h"
 
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosSafeArea.h" // Added
+#endif
+
 void jkHudInv_DrawGPU();
 
 // MOTS added
@@ -920,12 +924,19 @@ void jkHudInv_LoadItemRes()
     _memset(&jkHudInv_info, 0, sizeof(jkHudInvInfo));
     v7 = Video_format.height;
     _memset(&jkHudInv_scroll, 0, sizeof(jkHudInvScroll));
-    v8 = Video_format.height - HUD_SCALED(36);
+#ifdef TARGET_IOS
+    // Added: lift the item/force strip above the home indicator, and pull the
+    // active-items column in from the rounded right edge (see jkHud_Open)
+    int marginLeft, marginRight, marginBottom;
+    iosSafeArea_GetHudMargins(Video_format.width, Video_format.height, &marginLeft, &marginRight, &marginBottom);
+    v7 -= marginBottom;
+#endif
+    v8 = v7 - HUD_SCALED(36);
     jkHudInv_info.field_0 = (Video_format.width - HUD_SCALED(24)) >> 1;
     jkHudInv_info.drawRect.x = jkHudInv_info.field_0 - HUD_SCALED(64);
     v9 = HUD_SCALED(24);
-    jkHudInv_info.field_4 = Video_format.height - HUD_SCALED(36);
-    jkHudInv_info.drawRect.y = Video_format.height - HUD_SCALED(36);
+    jkHudInv_info.field_4 = v7 - HUD_SCALED(36);
+    jkHudInv_info.drawRect.y = v7 - HUD_SCALED(36);
     jkHudInv_info.drawRect.width = HUD_SCALED(184);
     jkHudInv_info.drawRect.height = HUD_SCALED(24);
     if ( jkHudInv_aBitmaps[0] )
@@ -958,6 +969,9 @@ void jkHudInv_LoadItemRes()
     }
     jkHudInv_info.field_3C = v9 + v8;
     jkHudInv_scroll.blitX = v6 - HUD_SCALED(32);
+#ifdef TARGET_IOS
+    jkHudInv_scroll.blitX -= marginRight;
+#endif
     jkHudInv_scroll.scroll = (v7 - HUD_SCALED(76)) / HUD_SCALED(28u);
 }
 

@@ -2804,6 +2804,14 @@ LABEL_22:
     }
 }
 
+// Added: whether a GUI menu is up and taking input (the level-start objectives
+// screen, the in-game Esc menu, dialogs...), even while gameplay controls are
+// otherwise active. Used to hide on-screen touch controls so taps reach it.
+int jkGuiRend_IsMenuActive()
+{
+    return jkGuiRend_activeMenu != NULL;
+}
+
 // Added: controller support
 // TODO: QOL ifdef?
 static jkGuiMenu* jkGuiRend_lastActiveMenu = NULL;

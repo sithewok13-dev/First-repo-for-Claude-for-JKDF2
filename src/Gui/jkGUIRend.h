@@ -156,5 +156,6 @@ void jkGuiRend_TextButtonDraw(jkGuiElement *element, jkGuiMenu *menu, tVBuffer *
 
 void jkGuiRend_FocusElementDir(jkGuiMenu *pMenu, int32_t dir);
 void jkGuiRend_UpdateController();
+int jkGuiRend_IsMenuActive(); // Added
 
 #endif // _JKGUIREND_H

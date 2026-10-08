@@ -15,6 +15,7 @@ extern SDL_Window* displayWindow;
 extern int stdControl_bControlsActive;
 extern int stdControl_bControllerEscapeKey;
 extern int jkCutscene_isRendering;
+extern int jkGuiRend_IsMenuActive(void);
 extern int Window_lastXRel;
 extern int Window_lastYRel;
 
@@ -53,18 +54,21 @@ typedef struct {
 // them pass drags through to looking -- a thumb that lands on one while aiming
 // keeps aiming. Everything used occasionally is a row of small buttons along
 // the top-left, so the right side of the screen above the arc is free to look.
+// The top row goes MENU | weapon | force pair | item pair, each pair "pick the
+// next one" then "use it": NEXT ITEM only selects (the strip at the bottom
+// shows which), USE ITEM is what actually uses it. ACT is the door/switch key.
 static iosTouchButton iosTouch_aButtons[] = {
-    { "FIRE",  SDL_SCANCODE_LCTRL,  42.0f, 1 },
-    { "ALT",   SDL_SCANCODE_Z,      27.0f, 1 },
-    { "DUCK",  SDL_SCANCODE_C,      25.0f, 1 },
-    { "USE",   SDL_SCANCODE_SPACE,  25.0f, 1 },
-    { "JUMP",  SDL_SCANCODE_X,      27.0f, 1 },
-    { "MENU",  -1,                  20.0f, 0 },
-    { "WPN",   SDL_SCANCODE_G,      20.0f, 0 },
-    { "FORCE", SDL_SCANCODE_F,      20.0f, 0 },
-    { "F+",    SDL_SCANCODE_E,      20.0f, 0 },
-    { "ITEM",  SDL_SCANCODE_RETURN, 20.0f, 0 },
-    { "INV+",  SDL_SCANCODE_R,      20.0f, 0 },
+    { "FIRE",        SDL_SCANCODE_LCTRL,  42.0f, 1 },
+    { "ALT",         SDL_SCANCODE_Z,      27.0f, 1 },
+    { "DUCK",        SDL_SCANCODE_C,      25.0f, 1 },
+    { "ACT",         SDL_SCANCODE_SPACE,  25.0f, 1 },
+    { "JUMP",        SDL_SCANCODE_X,      27.0f, 1 },
+    { "MENU",        -1,                  22.0f, 0 },
+    { "NEXT\nWPN",   SDL_SCANCODE_G,      22.0f, 0 },
+    { "NEXT\nFORCE", SDL_SCANCODE_E,      22.0f, 0 },
+    { "USE\nFORCE",  SDL_SCANCODE_F,      22.0f, 0 },
+    { "NEXT\nITEM",  SDL_SCANCODE_R,      22.0f, 0 },
+    { "USE\nITEM",   SDL_SCANCODE_RETURN, 22.0f, 0 },
 };
 #define IOSTOUCH_FIRST_TOP_BUTTON 5
 #define IOSTOUCH_NUM_BUTTONS ((int)(sizeof(iosTouch_aButtons) / sizeof(iosTouch_aButtons[0])))
@@ -142,7 +146,10 @@ static UIView* IOSTouch_MakeCircle(CGFloat radius, CGFloat alpha)
             l.text = [NSString stringWithUTF8String:b->label];
             l.textAlignment = NSTextAlignmentCenter;
             l.textColor = [UIColor colorWithWhite:1.0 alpha:0.85];
-            l.font = [UIFont boldSystemFontOfSize:(b->radius >= 40 ? 16 : (b->radius >= 25 ? 12 : 10))];
+            CGFloat fontSize = b->radius >= 40 ? 16 : (b->radius >= 25 ? 12 : 10);
+            if (strchr(b->label, '\n')) fontSize = 9; // two-line labels
+            l.font = [UIFont boldSystemFontOfSize:fontSize];
+            l.numberOfLines = 2;
             l.adjustsFontSizeToFitWidth = YES;
             l.minimumScaleFactor = 0.6;
             l.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.22];
@@ -193,10 +200,11 @@ static UIView* IOSTouch_MakeCircle(CGFloat radius, CGFloat alpha)
         iosTouch_aButtons[1 + i].y = fire.y - arc * sin(rad);
     }
 
-    // Top-left row: MENU, a gap, then weapon / force / inventory.
+    // Top-left row: MENU | NEXT WPN | NEXT/USE FORCE | NEXT/USE ITEM, with a
+    // wider gap between the groups than inside a pair.
+    const CGFloat aTopX[IOSTOUCH_NUM_BUTTONS - IOSTOUCH_FIRST_TOP_BUTTON] = { 24, 84, 144, 192, 252, 300 };
     for (int i = IOSTOUCH_FIRST_TOP_BUTTON; i < IOSTOUCH_NUM_BUTTONS; i++) {
-        int n = i - IOSTOUCH_FIRST_TOP_BUTTON;
-        iosTouch_aButtons[i].x = left + 26 + (n ? 16 : 0) + n * 46;
+        iosTouch_aButtons[i].x = left + aTopX[i - IOSTOUCH_FIRST_TOP_BUTTON];
         iosTouch_aButtons[i].y = top + 26;
     }
 
@@ -362,7 +370,9 @@ static UIView* iosTouch_GetHostView(void)
 
 void iosTouch_Update(void)
 {
-    int bWant = stdControl_bControlsActive && !jkCutscene_isRendering;
+    // Not over a GUI menu either -- e.g. the objectives screen at level start
+    // waits for Ok while gameplay controls are already active.
+    int bWant = stdControl_bControlsActive && !jkCutscene_isRendering && !jkGuiRend_IsMenuActive();
 
     if (!iosTouch_pOverlay) {
         if (!bWant) return;
