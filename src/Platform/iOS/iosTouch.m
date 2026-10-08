@@ -16,6 +16,7 @@ extern int stdControl_bControlsActive;
 extern int stdControl_bControllerEscapeKey;
 extern int jkCutscene_isRendering;
 extern int jkGuiRend_IsMenuActive(void);
+extern float jkHud_IosGetRightGaugeLeftPt(void);
 extern int Window_lastXRel;
 extern int Window_lastYRel;
 
@@ -87,6 +88,7 @@ static unsigned char iosTouch_aKeyDown[IOSTOUCH_NUM_SCANCODES];
 static float iosTouch_lookX = 0.0f, iosTouch_lookY = 0.0f;
 static float iosTouch_stickX = 0.0f, iosTouch_stickY = 0.0f;
 static int iosTouch_bStickActive = 0;
+static float iosTouch_layoutGaugeLeft = -1.0f; // HUD gauge edge the layout used
 
 static void iosTouch_RecomputeKeys(void)
 {
@@ -189,9 +191,16 @@ static UIView* IOSTouch_MakeCircle(CGFloat radius, CGFloat alpha)
     // FIRE in the corner, the other four on an arc around it (angles measured
     // counter-clockwise from pointing right, so 90 is straight up). Spacing is
     // picked so neighbours on the arc never touch.
-    // (right - 76 keeps FIRE clear of the right HUD gauge, which iosSafeArea.c
-    // pulls in from the corner, on 44pt- and 59-62pt-inset iPhones alike)
-    CGPoint fire = CGPointMake(right - 76, bottom - 58);
+    // right - 76 keeps FIRE clear of the right HUD gauge on notched iPhones;
+    // where the gauge is wider in points (no side insets: Home-button iPhones,
+    // iPads) move FIRE left of it. iosTouch_Update re-runs this if it moves.
+    CGFloat fireX = right - 76;
+    CGFloat fireRadius = iosTouch_aButtons[0].radius;
+    iosTouch_layoutGaugeLeft = jkHud_IosGetRightGaugeLeftPt();
+    if (iosTouch_layoutGaugeLeft > 0 && fireX + fireRadius + 4 > iosTouch_layoutGaugeLeft) {
+        fireX = iosTouch_layoutGaugeLeft - fireRadius - 4;
+    }
+    CGPoint fire = CGPointMake(fireX, bottom - 58);
     const CGFloat arc = 112.0;
     const CGFloat aArcDeg[4] = { 182.0f, 150.0f, 120.0f, 90.0f }; // ALT, DUCK, USE, JUMP
     iosTouch_aButtons[0].x = fire.x;
@@ -406,6 +415,12 @@ void iosTouch_Update(void)
     }
 
     if (bWant) {
+        // The HUD is laid out again on level start, resize and HUD scale
+        // changes; follow the right gauge with FIRE
+        if (jkHud_IosGetRightGaugeLeftPt() != iosTouch_layoutGaugeLeft) {
+            [iosTouch_pOverlay setNeedsLayout];
+        }
+
         int dx = (int)iosTouch_lookX;
         int dy = (int)iosTouch_lookY;
         iosTouch_lookX -= (float)dx;

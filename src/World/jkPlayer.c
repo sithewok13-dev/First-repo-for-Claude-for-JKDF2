@@ -794,7 +794,17 @@ int jkPlayer_ReadConf(char16_t *name)
         // Added: RETRO always uses the fast default (no input wait at load screens)
         jkPlayer_bFastMissionText = stdJSON_GetBool(ext_fpath, "bFastMissionText", jkPlayer_bFastMissionText);
 #endif
+#ifdef TARGET_IOS
+        // Added: first run with the iOS key -- keep a scale the player picked in
+        // an earlier build (saved under "hudScale"), but move the old 2.0
+        // default up to the iOS one
+        flex_t hudScaleLegacy = stdJSON_GetFloat(ext_fpath, "hudScale", 2.0);
+        flex_t hudScaleIos = stdJSON_GetFloat(ext_fpath, JKPLAYER_HUDSCALE_JSON_KEY,
+                                              (hudScaleLegacy == (flex_t)2.0) ? JKPLAYER_HUDSCALE_DEFAULT : hudScaleLegacy);
+        jkPlayer_hudScale = hudScaleIos;
+#else
         jkPlayer_hudScale = stdJSON_GetFloat(ext_fpath, JKPLAYER_HUDSCALE_JSON_KEY, jkPlayer_hudScale);
+#endif
         jkPlayer_crosshairLineWidth = stdJSON_GetFloat(ext_fpath, "crosshairLineWidth", jkPlayer_crosshairLineWidth);
         jkPlayer_crosshairScale = stdJSON_GetFloat(ext_fpath, "crosshairScale", jkPlayer_crosshairScale);
         jkPlayer_canonicalCogTickrate = stdJSON_GetFloat(ext_fpath, "canonicalCogTickrate", jkPlayer_canonicalCogTickrate);
@@ -817,8 +827,9 @@ int jkPlayer_ReadConf(char16_t *name)
         // Added: the per-player cvars file always holds "hud_scale" (it is
         // written on every save, default or not), so it just overwrote the
         // value read from the iOS key above with whatever an older build
-        // saved. The iOS key wins; a profile without it gets the iOS default.
-        jkPlayer_hudScale = stdJSON_GetFloat(ext_fpath, JKPLAYER_HUDSCALE_JSON_KEY, JKPLAYER_HUDSCALE_DEFAULT);
+        // saved. The iOS key wins. Set through the cvar so its own copy of
+        // the value stays in step.
+        sithCvar_SetFlex("hud_scale", hudScaleIos);
 #endif
 
         if (jkPlayer_fov < FOV_MIN)

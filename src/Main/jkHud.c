@@ -31,6 +31,18 @@
 
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosSafeArea.h" // Added
+#include "Win95/Window.h"
+
+// Added: the left edge of the right corner gauge in window points, so the
+// touch overlay can keep FIRE off it (iosTouch.m can't include engine
+// headers). How wide the gauge is in points depends on the device -- far wider
+// on an iPad than on a phone -- so a fixed offset can't do it. -1 = no HUD.
+float jkHud_IosGetRightGaugeLeftPt()
+{
+    if (!jkHud_bOpened || Video_format.width <= 0 || Window_screenXSize <= 0)
+        return -1.0f;
+    return (float)jkHud_rightBlitX * (float)Window_screenXSize / (float)Video_format.width;
+}
 #endif
 
 //stdBitmap* jkHud_pTestbitmap = NULL;
