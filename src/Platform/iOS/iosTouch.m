@@ -35,11 +35,13 @@ extern int Window_lastYRel;
 
 // Edge-to-edge gap between the buttons around FIRE (the arc, ALT and FORCE)
 #define IOSTOUCH_CLUSTER_GAP 30.0f
-// FORCE: a touch that stays put this long starts holding the power (so ones
-// like Lightning keep going); sliding sideways this far first picks the
-// previous / next power instead, one step per this many points.
+// FORCE: a touch that has stayed put this long starts holding the power (so
+// ones like Lightning keep going); sliding sideways picks the previous / next
+// power instead, one step per IOSTOUCH_FORCE_STEP points. Moving less than
+// IOSTOUCH_FORCE_STILL points counts as staying put.
 #define IOSTOUCH_FORCE_HOLD_DELAY 0.12
 #define IOSTOUCH_FORCE_STEP 30.0f
+#define IOSTOUCH_FORCE_STILL 4.0f
 // QUICK LOAD has to be held this long, so a stray tap can't throw away progress
 #define IOSTOUCH_QUICKLOAD_HOLD 1.0
 // A one-off key press is held for this many control reads, then released for one
@@ -59,7 +61,7 @@ enum {
     KIND_KEY = 0,  // holds its key while touched
     KIND_MENU,     // Escape (via stdControl_bControllerEscapeKey)
     KIND_FORCE,    // tap/hold uses the force power, slide sideways picks another
-    KIND_TAPKEY,   // one press of its key per touch
+    KIND_TAPKEY,   // one press of its key when the touch lifts on the button
     KIND_HOLDLOAD, // hold IOSTOUCH_QUICKLOAD_HOLD seconds to quick load
 };
 
@@ -85,9 +87,10 @@ typedef struct {
 // outside the arc -- all IOSTOUCH_CLUSTER_GAP apart. The firing and movement
 // buttons pass drags through to looking, so a thumb that lands on one while
 // aiming keeps aiming. Top left: weapon, force and inventory -- the force
-// pair stays alongside FORCE for now so the left thumb can use a power while
-// the right one jumps (Force Jump). Top right: quick save, quick load (hold)
-// and the menu. ACT is the door/switch key; NEXT ITEM only selects (the strip
+// pair stays alongside FORCE for now: USE FORCE holds the key the moment it's
+// touched (FORCE waits IOSTOUCH_FORCE_HOLD_DELAY to tell a hold from a slide),
+// which gets the most out of powers charged by holding, like Force Jump. Top
+// right: quick save, quick load (hold) and the menu. ACT is the door/switch key; NEXT ITEM only selects (the strip
 // at the bottom shows which), USE ITEM uses it.
 enum {
     BTN_FIRE, BTN_ALT, BTN_DUCK, BTN_ACT, BTN_JUMP, BTN_FORCE,
@@ -126,6 +129,9 @@ typedef struct {
     CGPoint last;
     int forceState;       // FORCE_*, for a touch on FORCE
     CFTimeInterval tDown; // when the touch began
+    CFTimeInterval tMove; // FORCE: when the finger last moved more than IOSTOUCH_FORCE_STILL
+    CGPoint movePoint;    // FORCE: where it was then
+    int bHoldSeen;        // FORCE: the game has read the held key at least once
     int bFired;           // QUICK LOAD: already loaded for this touch
 } iosTouchSlot;
 
@@ -335,23 +341,32 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
         CGFloat cutR = (in.right >= 55.0) ? 18.5 : 16.5;
         CGFloat cutHalf = ((in.right >= 55.0) ? 63.0 : 105.0) - cutR;
         // If nothing at that distance fits (a short screen with the cutout
-        // between the gauge and JUMP, or an iPad's tall gauge), step outwards.
+        // between the gauge and JUMP, or an iPad's tall gauge), step outwards;
+        // failing that, allow ALT closer to JUMP.
         CGPoint best = CGPointMake(fire.x + D * cos(M_PI * 35.0 / 180.0), fire.y - D * sin(M_PI * 35.0 / 180.0));
         int bFound = 0;
-        for (int extra = 0; extra <= 80 && !bFound; extra += 2) {
-            for (int deg = 10; deg <= 85; deg++) {
-                CGFloat rad = deg * (CGFloat)M_PI / 180.0;
-                CGPoint p = CGPointMake(fire.x + (D + extra) * cos(rad), fire.y - (D + extra) * sin(rad));
-                if (p.x + AR > W - 4 || p.y - AR < top + 60) continue;                    // on screen, below the top row
-                if (iosTouch_bLayoutGauge && p.y + AR > g[1] - 4) continue;               // above the gauge
-                CGFloat dj = sqrt((p.x - j->x) * (p.x - j->x) + (p.y - j->y) * (p.y - j->y));
-                if (dj < AR + j->radius + 8) continue;                                     // clear of JUMP
-                if (bCutout && iosTouch_DistToSegment(p, cutX, H * 0.5 - cutHalf, cutX, H * 0.5 + cutHalf) < AR + cutR + 2)
-                    continue;                                                              // clear of the cutout
-                best = p;
-                bFound = 1;
-                break;
+        for (int pass = 0; pass < 2 && !bFound; pass++) {
+            const CGFloat jumpGap = pass ? 2.0 : 8.0;
+            for (int extra = 0; extra <= 80 && !bFound; extra += 2) {
+                for (int deg = 10; deg <= 85; deg++) {
+                    CGFloat rad = deg * (CGFloat)M_PI / 180.0;
+                    CGPoint p = CGPointMake(fire.x + (D + extra) * cos(rad), fire.y - (D + extra) * sin(rad));
+                    if (p.x + AR > W - 4 || p.y - AR < top + 60) continue;                    // on screen, below the top row
+                    if (iosTouch_bLayoutGauge && p.y + AR > g[1] - 4) continue;               // above the gauge
+                    CGFloat dj = sqrt((p.x - j->x) * (p.x - j->x) + (p.y - j->y) * (p.y - j->y));
+                    if (dj < AR + j->radius + jumpGap) continue;                               // clear of JUMP
+                    if (bCutout && iosTouch_DistToSegment(p, cutX, H * 0.5 - cutHalf, cutX, H * 0.5 + cutHalf) < AR + cutR + 2)
+                        continue;                                                              // clear of the cutout
+                    best = p;
+                    bFound = 1;
+                    break;
+                }
             }
+        }
+        // Last resort (e.g. a very large HUD scale on an iPad): never on the
+        // gauge's numbers -- lift it above the gauge
+        if (!bFound && iosTouch_bLayoutGauge && best.y + AR > g[1] - 4) {
+            best.y = MAX(g[1] - 4 - AR, top + 60 + AR);
         }
         a->x = best.x;
         a->y = best.y;
@@ -380,9 +395,10 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
     iosTouch_aButtons[BTN_USEFORCE].x = left + 132;
     iosTouch_aButtons[BTN_NEXTITEM].x = left + 192;
     iosTouch_aButtons[BTN_USEITEM].x = left + 240;
-    // Top right: QUICK SAVE, QUICK LOAD | MENU in the corner
-    iosTouch_aButtons[BTN_QUICKSAVE].x = right - 132;
-    iosTouch_aButtons[BTN_QUICKLOAD].x = right - 84;
+    // Top right: QUICK SAVE, QUICK LOAD, MENU in the corner -- spaced well
+    // apart, so a press meant for QUICK LOAD can't land on QUICK SAVE
+    iosTouch_aButtons[BTN_QUICKSAVE].x = right - 156;
+    iosTouch_aButtons[BTN_QUICKLOAD].x = right - 90;
     iosTouch_aButtons[BTN_MENU].x = right - 24;
     const int aTopRow[] = { BTN_NEXTWPN, BTN_NEXTFORCE, BTN_USEFORCE, BTN_NEXTITEM, BTN_USEITEM,
                             BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU };
@@ -460,6 +476,8 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
         s->origin = p;
         s->last = p;
         s->tDown = CACurrentMediaTime();
+        s->tMove = s->tDown;
+        s->movePoint = p;
         s->button = [self buttonAt:p];
 
         if (s->button >= 0) {
@@ -467,7 +485,6 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
             iosTouch_aButtonHeld[s->button]++;
             iosTouchButton* b = &iosTouch_aButtons[s->button];
             if (b->kind == KIND_FORCE) s->forceState = FORCE_PENDING;
-            if (b->kind == KIND_TAPKEY) iosTouch_QueuePress(b->scancode);
         }
         else if (p.x < self.bounds.size.width * IOSTOUCH_STICK_ZONE && !iosTouch_bStickActive) {
             s->role = ROLE_STICK;
@@ -501,6 +518,11 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
                 [self updateStickVisual:s];
             }
             else if (s->role == ROLE_BUTTON && s->button == BTN_FORCE) {
+                CGFloat mx = p.x - s->movePoint.x, my = p.y - s->movePoint.y;
+                if (mx * mx + my * my > IOSTOUCH_FORCE_STILL * IOSTOUCH_FORCE_STILL) {
+                    s->tMove = CACurrentMediaTime();
+                    s->movePoint = p;
+                }
                 // Sliding sideways before the hold kicks in picks the previous
                 // / next power, one step per IOSTOUCH_FORCE_STEP points
                 if (s->forceState == FORCE_PENDING || s->forceState == FORCE_SLIDE) {
@@ -525,17 +547,29 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
     iosTouch_RecomputeKeys();
 }
 
-- (void)endTouches:(NSSet<UITouch*>*)touches
+// bCancelled: iOS took the touch away (a call, a system gesture...) -- release
+// whatever it held, but don't treat it as a finished tap
+- (void)endTouches:(NSSet<UITouch*>*)touches cancelled:(int)bCancelled
 {
     for (UITouch* t in touches) {
         for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
             iosTouchSlot* s = &iosTouch_aSlots[i];
             if (s->touch != t) continue;
             if (s->role == ROLE_BUTTON) {
+                iosTouchButton* b = &iosTouch_aButtons[s->button];
                 if (iosTouch_aButtonHeld[s->button] > 0) iosTouch_aButtonHeld[s->button]--;
-                // A quick tap on FORCE (no hold yet, no slide) still uses the power
-                if (s->button == BTN_FORCE && s->forceState == FORCE_PENDING) {
-                    iosTouch_QueuePress(iosTouch_aButtons[BTN_FORCE].scancode);
+                // A tap on FORCE (no slide) uses the power: also when it had
+                // just turned into a hold that the game never got to read
+                if (!bCancelled && s->button == BTN_FORCE &&
+                    (s->forceState == FORCE_PENDING || (s->forceState == FORCE_HOLD && !s->bHoldSeen))) {
+                    iosTouch_QueuePress(b->scancode);
+                }
+                // QUICK SAVE saves when the finger lifts on it, so a slip onto
+                // it on the way to QUICK LOAD can be dragged off again
+                if (!bCancelled && b->kind == KIND_TAPKEY) {
+                    CGPoint p = [t locationInView:self];
+                    CGFloat dx = p.x - b->x, dy = p.y - b->y;
+                    if (dx * dx + dy * dy <= (b->radius + 6.0) * (b->radius + 6.0)) iosTouch_QueuePress(b->scancode);
                 }
                 if (s->button == BTN_QUICKLOAD) [self setLoadProgress:0.0];
             }
@@ -551,8 +585,8 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
     [self refreshButtonLooks];
 }
 
-- (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event { [self endTouches:touches]; }
-- (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event { [self endTouches:touches]; }
+- (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event { [self endTouches:touches cancelled:0]; }
+- (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event { [self endTouches:touches cancelled:1]; }
 
 // Once per frame while shown: timed gestures and the FORCE label
 - (void)tick
@@ -563,8 +597,12 @@ static CGFloat IOSTouch_FontSize(const char* label, CGFloat radius)
         iosTouchSlot* s = &iosTouch_aSlots[i];
         if (!s->touch || s->role != ROLE_BUTTON) continue;
 
-        if (s->button == BTN_FORCE && s->forceState == FORCE_PENDING && now - s->tDown >= IOSTOUCH_FORCE_HOLD_DELAY) {
-            s->forceState = FORCE_HOLD; // from here on the power is held, like the F key
+        // A touch that has stayed put for IOSTOUCH_FORCE_HOLD_DELAY becomes a
+        // hold (the power is held from here on, like the F key); one that keeps
+        // moving stays undecided until it has slid a step
+        if (s->button == BTN_FORCE && s->forceState == FORCE_PENDING &&
+            now - s->tDown >= IOSTOUCH_FORCE_HOLD_DELAY && now - s->tMove >= IOSTOUCH_FORCE_HOLD_DELAY) {
+            s->forceState = FORCE_HOLD;
             bKeysChanged = 1;
         }
         if (s->button == BTN_QUICKLOAD && !s->bFired) {
@@ -690,6 +728,13 @@ int iosTouch_IsScancodeDown(int scancode)
     if (!iosTouch_pOverlay || iosTouch_pOverlay.hidden) return 0;
 
     int bHeld = iosTouch_aKeyDown[scancode];
+    if (bHeld && scancode == iosTouch_aButtons[BTN_FORCE].scancode) {
+        for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+            iosTouchSlot* s = &iosTouch_aSlots[i];
+            if (s->touch && s->role == ROLE_BUTTON && s->button == BTN_FORCE && s->forceState == FORCE_HOLD)
+                s->bHoldSeen = 1;
+        }
+    }
     if (iosTouch_aPulseReads[scancode]) {
         if (--iosTouch_aPulseReads[scancode] == 0) iosTouch_aPulseGap[scancode] = 1;
         return 1;
