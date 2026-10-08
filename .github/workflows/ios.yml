@@ -31,6 +31,9 @@ env:
   # whose minimum iOS version is newer than the phone's.
   IOS_DEPLOYMENT_TARGET: '18.0'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-15
@@ -161,3 +164,17 @@ jobs:
           name: OpenJKDF2-iOS-unsigned-ipa
           path: OpenJKDF2-iOS-unsigned.ipa
           if-no-files-found: error
+
+      # Added: a stable direct link to the newest .ipa (no zip, works from Safari)
+      - name: Publish to "ios-latest" release
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-latest
+          name: iOS latest build
+          prerelease: true
+          make_latest: false
+          body: |
+            Unsigned OpenJKDF2 iOS build (run ${{ github.run_number }}, commit ${{ github.sha }}).
+            Sideload with Signulous. Game data goes in Files > On My iPhone > OpenJKDF2 > jk1.
+          files: OpenJKDF2-iOS-unsigned.ipa
