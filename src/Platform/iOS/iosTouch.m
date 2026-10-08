@@ -23,7 +23,7 @@ extern int Window_lastYRel;
 #define IOSTOUCH_LOOK_SCALE_Y 1.3f
 // Stick: radius in points, dead zone and "run" threshold as fractions of it.
 // It appears wherever the left thumb lands in the left IOSTOUCH_STICK_ZONE of
-// the screen; a faint ring shows a resting spot while it's idle.
+// the screen, and only while that thumb is down.
 #define IOSTOUCH_STICK_ZONE 0.42f
 #define IOSTOUCH_STICK_RADIUS 60.0f
 #define IOSTOUCH_STICK_DEADZONE 0.30f
@@ -110,7 +110,6 @@ static void iosTouch_RecomputeKeys(void)
 @interface IOSTouchOverlay : UIView {
     UIView* stickBase;
     UIView* stickKnob;
-    CGPoint stickRest;
     UILabel* aButtonViews[IOSTOUCH_NUM_BUTTONS];
 }
 - (void)resetAll;
@@ -159,6 +158,8 @@ static UIView* IOSTouch_MakeCircle(CGFloat radius, CGFloat alpha)
 
         stickBase = IOSTouch_MakeCircle(IOSTOUCH_STICK_RADIUS, 0.08);
         stickKnob = IOSTouch_MakeCircle(24, 0.30);
+        stickBase.hidden = YES;
+        stickKnob.hidden = YES;
         [self addSubview:stickBase];
         [self addSubview:stickKnob];
     }
@@ -202,11 +203,6 @@ static UIView* IOSTouch_MakeCircle(CGFloat radius, CGFloat alpha)
     for (int i = 0; i < IOSTOUCH_NUM_BUTTONS; i++) {
         aButtonViews[i].center = CGPointMake(iosTouch_aButtons[i].x, iosTouch_aButtons[i].y);
     }
-
-    stickRest = CGPointMake(left + IOSTOUCH_STICK_RADIUS + 40, bottom - IOSTOUCH_STICK_RADIUS - 20);
-    if (!iosTouch_bStickActive) {
-        [self showStickAtRest];
-    }
 }
 
 // Closest button the touch is on (with a little forgiveness), so a touch in the
@@ -227,12 +223,10 @@ static UIView* IOSTouch_MakeCircle(CGFloat radius, CGFloat alpha)
     return best;
 }
 
-- (void)showStickAtRest
+- (void)hideStick
 {
-    stickBase.center = stickRest;
-    stickKnob.center = stickRest;
-    stickBase.alpha = 0.5;
-    stickKnob.alpha = 0.5;
+    stickBase.hidden = YES;
+    stickKnob.hidden = YES;
 }
 
 - (void)refreshButtonLooks
@@ -248,8 +242,8 @@ static UIView* IOSTouch_MakeCircle(CGFloat radius, CGFloat alpha)
     stickBase.center = s->origin;
     stickKnob.center = CGPointMake(s->origin.x + iosTouch_stickX * IOSTOUCH_STICK_RADIUS,
                                    s->origin.y + iosTouch_stickY * IOSTOUCH_STICK_RADIUS);
-    stickBase.alpha = 1.0;
-    stickKnob.alpha = 1.0;
+    stickBase.hidden = NO;
+    stickKnob.hidden = NO;
 }
 
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
@@ -326,7 +320,7 @@ static UIView* IOSTouch_MakeCircle(CGFloat radius, CGFloat alpha)
             if (s->role == ROLE_STICK) {
                 iosTouch_bStickActive = 0;
                 iosTouch_stickX = iosTouch_stickY = 0.0f;
-                [self showStickAtRest];
+                [self hideStick];
             }
             memset(s, 0, sizeof(*s));
         }
@@ -345,7 +339,7 @@ static UIView* IOSTouch_MakeCircle(CGFloat radius, CGFloat alpha)
     iosTouch_bStickActive = 0;
     iosTouch_stickX = iosTouch_stickY = 0.0f;
     iosTouch_lookX = iosTouch_lookY = 0.0f;
-    [self showStickAtRest];
+    [self hideStick];
     iosTouch_RecomputeKeys();
     stdControl_bControllerEscapeKey = 0;
     [self refreshButtonLooks];
