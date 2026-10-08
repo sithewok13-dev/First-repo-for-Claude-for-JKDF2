@@ -68,7 +68,7 @@ int jkPlayer_bLedgeSqueeze = 0;
 // Added: on a phone the desktop default leaves the corner gauges tiny
 #define JKPLAYER_HUDSCALE_DEFAULT 2.5
 // Saved under its own key so a 2.0 already written by earlier iOS builds
-// doesn't override the new default
+// doesn't override the new default (see the sithCvar_LoadLocals call below)
 #define JKPLAYER_HUDSCALE_JSON_KEY "hudScaleIos"
 #else
 #define JKPLAYER_HUDSCALE_DEFAULT 2.0
@@ -813,6 +813,13 @@ int jkPlayer_ReadConf(char16_t *name)
 
 #ifdef QOL_IMPROVEMENTS
         sithCvar_LoadLocals(ext_fpath_cvars);
+#ifdef TARGET_IOS
+        // Added: the per-player cvars file always holds "hud_scale" (it is
+        // written on every save, default or not), so it just overwrote the
+        // value read from the iOS key above with whatever an older build
+        // saved. The iOS key wins; a profile without it gets the iOS default.
+        jkPlayer_hudScale = stdJSON_GetFloat(ext_fpath, JKPLAYER_HUDSCALE_JSON_KEY, JKPLAYER_HUDSCALE_DEFAULT);
+#endif
 
         if (jkPlayer_fov < FOV_MIN)
             jkPlayer_fov = FOV_MIN;

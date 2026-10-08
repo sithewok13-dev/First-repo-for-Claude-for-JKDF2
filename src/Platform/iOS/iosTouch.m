@@ -189,7 +189,9 @@ static UIView* IOSTouch_MakeCircle(CGFloat radius, CGFloat alpha)
     // FIRE in the corner, the other four on an arc around it (angles measured
     // counter-clockwise from pointing right, so 90 is straight up). Spacing is
     // picked so neighbours on the arc never touch.
-    CGPoint fire = CGPointMake(right - 62, bottom - 58);
+    // (right - 76 keeps FIRE clear of the right HUD gauge, which iosSafeArea.c
+    // pulls in from the corner, on 44pt- and 59-62pt-inset iPhones alike)
+    CGPoint fire = CGPointMake(right - 76, bottom - 58);
     const CGFloat arc = 112.0;
     const CGFloat aArcDeg[4] = { 182.0f, 150.0f, 120.0f, 90.0f }; // ALT, DUCK, USE, JUMP
     iosTouch_aButtons[0].x = fire.x;

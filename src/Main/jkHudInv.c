@@ -20,6 +20,10 @@
 
 void jkHudInv_DrawGPU();
 
+#ifdef TARGET_IOS
+static int jkHudInv_iosTopMargin = 0; // Added: see jkHudInv_LoadItemRes
+#endif
+
 // MOTS added
 flex_t jkHud_aBinMaxAmt[SITHBIN_NUMBINS] = {0};
 
@@ -472,7 +476,11 @@ void jkHudInv_DrawGPU()
 
     v1 = 0;
     v2 = 0;
-    for ( i = 8; v2 < jkHudInv_numItems; ++v2 )
+    i = 8;
+#ifdef TARGET_IOS
+    i += jkHudInv_iosTopMargin; // Added: below the rounded top-right corner
+#endif
+    for ( ; v2 < jkHudInv_numItems; ++v2 )
     {
         if ( v1 >= jkHudInv_scroll.scroll )
             break;
@@ -971,6 +979,10 @@ void jkHudInv_LoadItemRes()
     jkHudInv_scroll.blitX = v6 - HUD_SCALED(32);
 #ifdef TARGET_IOS
     jkHudInv_scroll.blitX -= marginRight;
+    // The landscape top inset is 0, but the column starts in the rounded
+    // top-right corner; drop it by the corner margin used at the bottom.
+    jkHudInv_iosTopMargin = marginBottom;
+    v7 -= jkHudInv_iosTopMargin;
 #endif
     jkHudInv_scroll.scroll = (v7 - HUD_SCALED(76)) / HUD_SCALED(28u);
 }

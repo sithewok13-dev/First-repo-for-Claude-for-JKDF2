@@ -10,10 +10,11 @@ extern SDL_Window* displayWindow;
 
 // In landscape the side insets (~60pt on notched/Dynamic Island iPhones) are
 // sized to clear the camera cutout, which is far more than a corner gauge
-// needs to clear the rounded corner, so only part of them is used. The bottom
-// inset (~21pt) is the home indicator strip, which also clears the corner
-// curve, so it is used in full.
-#define IOSSAFEAREA_SIDE_FRACTION 0.5f
+// needs to clear the rounded corner, so only part of them is used: lifted by
+// the full bottom inset (~21pt, the home indicator strip), a gauge clears a
+// ~55-62pt corner radius with ~12-16pt of side margin. Keeping it small also
+// keeps the right gauge out from under the touch FIRE button (iosTouch.m).
+#define IOSSAFEAREA_SIDE_FRACTION 0.3f
 #define IOSSAFEAREA_BOTTOM_FRACTION 1.0f
 
 void iosSafeArea_GetHudMargins(int videoW, int videoH, int* pLeft, int* pRight, int* pBottom)
@@ -29,9 +30,9 @@ void iosSafeArea_GetHudMargins(int videoW, int videoH, int* pLeft, int* pRight, 
     if (!SDL_GetWindowSize(displayWindow, &winW, &winH) || winW <= 0 || winH <= 0) return;
     if (!SDL_GetWindowSafeArea(displayWindow, &safe)) return;
 
-    // Window points -> HUD pixels. Video_format is the drawable size, so this
-    // is the display scale (3x on most iPhones), but going by the ratio keeps
-    // it right whatever size the HUD is laid out at.
+    // Window points -> HUD units. In-game, Video_format is a canvas about 960
+    // units tall (see jkMain_FixRes), not the drawable, so this is ~2.4 units
+    // per point on a phone -- go by the ratio rather than the display scale.
     float scaleX = (float)videoW / (float)winW;
     float scaleY = (float)videoH / (float)winH;
 
