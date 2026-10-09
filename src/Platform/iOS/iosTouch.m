@@ -454,6 +454,10 @@ static CGFloat iosTouch_wheelR0 = 0.0, iosTouch_wheelR1 = 0.0;
 static int iosTouch_bTrayOpen = 0;
 static int iosTouch_menuPulse = 0;
 static int iosTouch_bShowFps = 0;
+// A game controller is connected: the buttons round FIRE (FIRE, ALT, DUCK,
+// ACT, JUMP, FORCE and FORCE's meter ring) are hidden, since the controller
+// does all of that; the rest stays (see -setPadActive:)
+static int iosTouch_bPadActive = 0;
 // Gyro aiming: its mode, its sensitivity (an index into iosTouch_aGyroSens),
 // the motion manager (one for the app, as Apple asks) and the queue its
 // samples are handled on, whether its updates are running, whether iOS
@@ -951,6 +955,7 @@ typedef struct {
 }
 - (void)resetAll;
 - (void)tick;
+- (void)setPadActive:(int)bActive;
 - (void)refreshGyroLabels;
 - (void)refreshButtonLooks;
 @end
@@ -2836,7 +2841,7 @@ static int iosTouch_WheelSliceHasRow(int i)
         forceRingFrac = frac;
         [CATransaction begin];
         [CATransaction setDisableActions:YES];
-        forceRing.hidden = frac < 0.005f;
+        forceRing.hidden = frac < 0.005f || iosTouch_bPadActive;
         forceRing.strokeEnd = frac < 0.0f ? 0.0 : frac;
         [CATransaction commit];
         if (bFull != bForceRingFull) {
@@ -2865,6 +2870,31 @@ static int iosTouch_WheelSliceHasRow(int i)
     }
 
     if (bLooksChanged) [self refreshButtonLooks];
+}
+
+// A controller connected or disconnected: hides or shows the buttons round
+// FIRE. A finger on one of them as it hides lets go of its key, and carries
+// on as a drag-to-look (dragging on them looked anyway).
+- (void)setPadActive:(int)bActive
+{
+    bActive = bActive != 0;
+    if (iosTouch_bPadActive == bActive) return;
+    iosTouch_bPadActive = bActive;
+    for (int i = BTN_FIRE; i <= BTN_FORCE; i++) aButtonViews[i].hidden = bActive;
+    if (bActive) {
+        for (int t = 0; t < IOSTOUCH_MAX_TOUCHES; t++) {
+            iosTouchSlot* s = &iosTouch_aSlots[t];
+            if (!s->touch || s->role != ROLE_BUTTON || s->button < BTN_FIRE || s->button > BTN_FORCE) continue;
+            if (iosTouch_aButtonHeld[s->button] > 0) iosTouch_aButtonHeld[s->button]--;
+            s->role = ROLE_LOOK;
+        }
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    forceRing.hidden = bActive || forceRingFrac < 0.005f;
+    [CATransaction commit];
+    iosTouch_RecomputeKeys();
+    [self refreshButtonLooks];
 }
 
 - (void)resetAll
@@ -2971,6 +3001,9 @@ static void iosTouch_UpdateInPool(void)
             || iosTouch_CutoutMayBeRight(iosTouch_pOverlay) != iosTouch_layoutCutoutRight) {
             [iosTouch_pOverlay setNeedsLayout];
         }
+
+        // The buttons round FIRE hide while a controller is connected
+        [iosTouch_pOverlay setPadActive:SDL_HasGamepad()];
 
         [iosTouch_pOverlay tick];
 
