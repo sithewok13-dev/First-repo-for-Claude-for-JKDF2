@@ -11,6 +11,9 @@
 #include "Main/sithMain.h"
 #include "Gameplay/sithInventory.h"
 #include "Gameplay/sithTime.h"
+#include "Cog/sithCog.h"
+#include "World/sithThing.h"
+#include "World/sithWeapon.h"
 #include "Devices/sithSoundMixer.h"
 #include "Main/jkMain.h"
 #include "World/jkPlayer.h"
@@ -19,6 +22,14 @@
 #include "jk.h"
 
 #define IOSGAME_QUICKSAVE_FNAME "quicksave.jks"
+// How long (game time) a weapon picked on the touch overlay's wheel waits for
+// the game to take it: a switch already under way and the new weapon's mount
+// take about 1.5 s (iosGame_SelectWeapon)
+#define IOSGAME_WEAPON_PICK_WAIT 3.0
+
+// Mysteries of the Sith: the weapon each number key last selected, by weapon
+// index (sithWeapon.c; not in its header)
+extern int sithWeapon_motsAConv[10];
 
 // The local player, if a level is running and it has player data
 static SithThing* iosGame_GetPlayer(void)
@@ -93,6 +104,10 @@ int iosGame_QuickLoad(void)
     header.episodeName[sizeof(header.episodeName) - 1] = 0;
     header.jklName[sizeof(header.jklName) - 1] = 0;
     header.saveName[255] = 0;
+
+    // A weapon picked on the touch overlay's wheel and still waiting belongs
+    // to the game being thrown away, not the one loaded
+    iosGame_CancelWeaponPick();
 
     // Mirrors jkGuiSaveLoad_Show's load path: a save from this level restores
     // in place; one from another level goes through the level loader.
@@ -185,6 +200,186 @@ void iosGame_SelectItem(int bin)
         sithInventory_SelectItem(pPlayer, bin);
 }
 
+// ------------------------------------------------------------ weapons
+
+const char* iosGame_GetWeaponName(int bin)
+{
+    switch (bin)
+    {
+        // Jedi Knight: the game's own names (jkstrings.uni SELECT1..SELECT0)
+        case SITHBIN_FISTS:              return "FISTS";
+        case SITHBIN_BRYARPISTOL:        return "BRYAR PISTOL";
+        case SITHBIN_STORMTROOPER_RIFLE: return "STORMTROOPER RIFLE";
+        case SITHBIN_THERMAL_DETONATOR:  return "THERMAL DETONATOR";
+        case SITHBIN_TUSKEN_PROD:        return "BOWCASTER"; // items.dat's tusken_prod
+        case SITHBIN_REPEATER:           return "REPEATER";
+        case SITHBIN_RAIL_DETONATOR:     return "RAIL DETONATOR";
+        case SITHBIN_SEQUENCER_CHARGE:   return "SEQUENCER CHARGE";
+        case SITHBIN_CONCUSSION_RIFLE:   return "CONCUSSION RIFLE";
+        case SITHBIN_LIGHTSABER:         return "LIGHTSABER";
+        // Mysteries of the Sith: from the bins' names, short enough for its
+        // 17 narrower slices with the ammo count under them
+        case SITHBIN_MOTS_FISTS:              return "FISTS";
+        case SITHBIN_MOTS_BRYARPISTOL:        return "BRYAR";
+        case SITHBIN_MOTS_STORMTROOPER_RIFLE: return "RIFLE";
+        case SITHBIN_MOTS_THERMAL_DETONATOR:  return "THERMAL";
+        case SITHBIN_MOTS_REPEATER:           return "REPEATER";
+        case SITHBIN_MOTS_RAIL_DETONATOR:     return "RAIL DET";
+        case SITHBIN_MOTS_SEQUENCER_CHARGE:   return "SEQUENCER";
+        case SITHBIN_MOTS_CONCUSSION_RIFLE:   return "CONC RIFLE";
+        case SITHBIN_MOTS_EWEB:               return "E-WEB";
+        case SITHBIN_MOTS_LIGHTSABER:         return "LIGHT- SABER"; // (one word too wide for its slice)
+        case SITHBIN_MOTS_BLASTECH:           return "BLASTECH";
+        case SITHBIN_MOTS_STORMTROOPER_SCOPE: return "SCOPE RIFLE";
+        case SITHBIN_MOTS_FLASH_BOMB:         return "FLASH BOMB";
+        case SITHBIN_MOTS_TUSKEN_PROD:        return "BOW- CASTER";
+        case SITHBIN_MOTS_RAIL_SEEKER:        return "RAIL SEEKER";
+        case SITHBIN_MOTS_MANUAL_SEQUENCER:   return "MANUAL SEQ";
+        case SITHBIN_MOTS_CARBO_GUN:          return "CARBO GUN";
+        default:                              return NULL;
+    }
+}
+
+// The bin a weapon's ammo counter shows, as the HUD's (jkHud_GetWeaponAmmo),
+// or -1 for none (fists, lightsaber)
+static int iosGame_WeaponAmmoBin(int bin)
+{
+    if (Main_bMotsCompat)
+    {
+        // By weapon index (jkHud.c, Mysteries of the Sith branch), with the
+        // same quirk: a number below 11 there is a weapon index, not a bin
+        static const int aAmmo[21] = {
+            -1, -1, SITHBIN_ENERGY, SITHBIN_ENERGY, SITHBIN_MOTS_THERMAL_DETONATOR, SITHBIN_CARBPELLETS,
+            SITHBIN_POWER, SITHBIN_RAILCHARGES, SITHBIN_MOTS_SEQUENCER_CHARGE, SITHBIN_POWER, SITHBIN_EWEB_ROUNDS,
+            -1, SITHBIN_ENERGY, SITHBIN_ENERGY, SITHBIN_MOTS_FLASH_BOMB, SITHBIN_POWER,
+            -1, SITHBIN_SEEKRAILS, SITHBIN_MOTS_SEQUENCER_CHARGE, -1, SITHBIN_CARBPELLETS
+        };
+        int idx = sithInventory_SelectWeaponPrior(bin);
+        if (idx < 0 || idx > 20)
+            return -1;
+        int ammo = aAmmo[idx];
+        return (ammo < 11) ? sithInventory_SelectWeaponFollowing(ammo) : ammo;
+    }
+    // By bin (jkHud.c, Jedi Knight branch): thermal detonators and sequencer
+    // charges are their own ammo
+    static const int aAmmo[11] = {
+        -1, -1, SITHBIN_ENERGY, SITHBIN_ENERGY, SITHBIN_THERMAL_DETONATOR, SITHBIN_POWER,
+        SITHBIN_POWER, SITHBIN_RAILCHARGES, SITHBIN_SEQUENCER_CHARGE, SITHBIN_POWER, -1
+    };
+    return (bin >= 0 && bin <= 10) ? aAmmo[bin] : -1;
+}
+
+int iosGame_GetWeapon(int bin, int* pAmmo, int* pbSelectable)
+{
+    SithThing* pPlayer = iosGame_GetPlayer();
+    *pAmmo = -1;
+    *pbSelectable = 0;
+    if (!pPlayer || bin < 0 || bin >= SITHBIN_NUMBINS || !(sithInventory_g_aTypes[bin].flags & ITEMINFO_WEAPON))
+        return 0;
+    // Every weapon is available from the start (items.dat's DEFAULT flag):
+    // the player has one once its bin isn't empty
+    if (sithInventory_GetInventory(pPlayer, bin) == 0.0 || !sithInventory_IsInventoryAvailable(pPlayer, bin))
+        return 0;
+    int ammoBin = iosGame_WeaponAmmoBin(bin);
+    if (ammoBin >= 0 && ammoBin < SITHBIN_NUMBINS)
+    {
+        int ammo = (int)sithInventory_GetInventory(pPlayer, ammoBin); // truncated, as the HUD does
+        *pAmmo = ammo < 0 ? 0 : ammo;
+    }
+    // What sithWeapon_SelectWeapon asks before it switches: the weapon cog's
+    // answer to the ammo query (sender -1), which only reads the inventory.
+    // (It turns auto-switching's bit 2 off around the question; so does this.)
+    sithCog* pCog = sithInventory_g_aTypes[bin].cog;
+    int bOk = 1;
+    if (pCog)
+    {
+        int autoSwitch = sithWeapon_bAutoSwitch & 2, multiAutoSwitch = sithWeapon_bMultiplayerAutoSwitch & 2;
+        sithWeapon_bAutoSwitch &= ~2;
+        sithWeapon_bMultiplayerAutoSwitch &= ~2u;
+        bOk = sithCog_SendMessageEx(pCog, SITH_MESSAGE_AUTOSELECT, SENDERTYPE_SYSTEM, -1, SENDERTYPE_THING, pPlayer->idx, 0, 0.0, 0.0, 0.0, 0.0) >= 0.0;
+        sithWeapon_bAutoSwitch |= autoSwitch;
+        sithWeapon_bMultiplayerAutoSwitch |= multiAutoSwitch;
+    }
+    *pbSelectable = bOk;
+    return 1;
+}
+
+// A weapon picked on the wheel, waiting for the game to take it (-1: none),
+// when it was picked and until when it waits (game time)
+static int iosGame_pendingWeapon = -1;
+static flex32_t iosGame_pendingFrom = 0.0f, iosGame_pendingUntil = 0.0f;
+
+int iosGame_GetCurWeapon(void)
+{
+    SithThing* pPlayer = iosGame_GetPlayer();
+    if (!pPlayer)
+        return -1;
+    if (iosGame_pendingWeapon >= 0)
+        return iosGame_pendingWeapon;
+    if (sithWeapon_8BD024 != -1) // a switch under way: the weapon it goes to
+        return sithWeapon_8BD024;
+    return pPlayer->actorParams.pPlayer->curWeaponID;
+}
+
+void iosGame_CancelWeaponPick(void)
+{
+    iosGame_pendingWeapon = -1;
+}
+
+// Hands the waiting pick to the game once it would take the weapon's number
+// key, as sithWeapon_ProcessWeaponControls does; until then it waits. Called
+// on picking and before every gameplay tick that isn't held.
+static void iosGame_TryPendingWeapon(void)
+{
+    int bin = iosGame_pendingWeapon;
+    if (bin < 0)
+        return;
+    SithThing* pPlayer = iosGame_GetPlayer();
+    int ammo = 0, bSelectable = 0;
+    // (The weapon in hand while a switch is under way is the one being put
+    // away: picking it waits for the switch, then switches back.)
+    if (!pPlayer || (pPlayer->flags & SITH_TF_DEAD) || !iosGame_GetWeapon(bin, &ammo, &bSelectable) || !bSelectable
+        || (bin == pPlayer->actorParams.pPlayer->curWeaponID && sithWeapon_8BD024 == -1)
+        || sithTime_g_secGameTime > iosGame_pendingUntil || sithTime_g_secGameTime < iosGame_pendingFrom)
+    {
+        // taken away, already in hand, waited long enough, or the game clock
+        // went back (a game loaded some other way than QUICK LOAD)
+        iosGame_pendingWeapon = -1;
+        return;
+    }
+    // The number keys' gates: not while the weapon fires its own targeting,
+    // a weapon mounts or holsters, or another switch is under way
+    if ((pPlayer->weaponParams.flags & SITH_WF_EMITAITARGETEDEVENT) || sithTime_g_secGameTime < sithWeapon_secMountWait
+        || sithWeapon_8BD024 != -1)
+        return;
+    iosGame_pendingWeapon = -1;
+    if (Main_bMotsCompat)
+    {
+        // As its number key: asks the level's PLAYERACTION cog (it may say no,
+        // once, as to a key press), and is remembered as that key's weapon
+        int idx = sithInventory_SelectWeaponPrior(bin);
+        if (idx <= 0)
+            return;
+        int inputFunc = INPUT_FUNC_ACTIVATE + ((idx % 10) ? (idx % 10) : 10);
+        if (!sithThing_MotsTick(7, 0, (flex_t)inputFunc))
+            return;
+        sithWeapon_motsAConv[idx % 10] = idx;
+    }
+    sithWeapon_SelectWeapon(pPlayer, bin, 0);
+}
+
+int iosGame_SelectWeapon(int bin)
+{
+    int ammo = 0, bSelectable = 0;
+    if (!iosGame_GetPlayer() || !iosGame_GetWeapon(bin, &ammo, &bSelectable) || !bSelectable)
+        return 0;
+    iosGame_pendingWeapon = bin;
+    iosGame_pendingFrom = sithTime_g_secGameTime;
+    iosGame_pendingUntil = sithTime_g_secGameTime + (flex32_t)IOSGAME_WEAPON_PICK_WAIT;
+    iosGame_TryPendingWeapon();
+    return 1;
+}
+
 static int iosGame_bHoldWanted = 0;
 static int iosGame_bHolding = 0;
 
@@ -215,6 +410,8 @@ int iosGame_HoldGameplay(void)
     // drawn this render tick -- which only the (skipped) update moves on
     if (bHold)
         sithAdvanceRenderTick();
+    else
+        iosGame_TryPendingWeapon(); // a weapon picked on the wheel, once the game would take it
     return bHold;
 }
 

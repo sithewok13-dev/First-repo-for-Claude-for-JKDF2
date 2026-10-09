@@ -63,25 +63,31 @@ extern int jkHud_bChatOpen;
 #define IOSTOUCH_CLUSTER_GAP 30.0f
 // A button takes touches up to this far outside its edge (buttonAt, isPoint)
 #define IOSTOUCH_TOUCH_SLOP 6.0
-// Force wheel (see the maps below): its outer radius, at most
+// The wheels (force and weapons, see the maps below): the outer radius, at most
 // IOSTOUCH_WHEEL_R1_MAX points; the hole in the middle, a fraction of that;
 // how far the slice pointed at pops out
 #define IOSTOUCH_WHEEL_R1_MAX 168.0
 #define IOSTOUCH_WHEEL_R0_FRAC 0.37
 #define IOSTOUCH_WHEEL_POP 10.0
-// Sliding to pick a power is measured from where the thumb went down on FORCE
-// WHEEL: it points nowhere until IOSTOUCH_WHEEL_DEAD points away (keep this
-// small: the slices pointing up only have ~30pt of screen above the button),
-// the point it is measured from trails at most IOSTOUCH_WHEEL_LEASH behind
-// the thumb (so turning back after a long slide is quick), and a slice stays
+// FORCE WHEEL and NEXT WPN each take three gestures. A quick tap (lifted
+// sooner than IOSTOUCH_WHEEL_HOLD by the touch's own clock, never
+// IOSTOUCH_WHEEL_OPEN_SLIDE from where it went down) presses the button's key:
+// the next learned power, the next weapon. Sliding that far opens the wheel
+// at once, to slide to a slice; held still for IOSTOUCH_WHEEL_HOLD (known as
+// the QUICK SAVE hold is) it opens to tap one.
+// Sliding to pick is measured from where the thumb went down on the button:
+// it points nowhere until IOSTOUCH_WHEEL_DEAD points away (keep this small:
+// the slices pointing up only have ~30pt of screen above the button), the
+// point it is measured from trails at most IOSTOUCH_WHEEL_LEASH behind the
+// thumb (so turning back after a long slide is quick), and a slice stays
 // picked until the thumb points IOSTOUCH_WHEEL_HYST degrees past its edge. On
-// the wheel itself the slice under the thumb is picked. A lift without
-// sliding, sooner than IOSTOUCH_WHEEL_TAP_TIME (by the touch's own clock),
-// leaves the wheel open to tap a power instead.
+// the wheel itself the slice under the thumb is picked. A lift that never
+// slid as far as IOSTOUCH_WHEEL_DEAD leaves the wheel open to tap a slice.
+#define IOSTOUCH_WHEEL_OPEN_SLIDE 10.0
+#define IOSTOUCH_WHEEL_HOLD 0.3
 #define IOSTOUCH_WHEEL_DEAD 14.0
 #define IOSTOUCH_WHEEL_LEASH 60.0
 #define IOSTOUCH_WHEEL_HYST 4.0
-#define IOSTOUCH_WHEEL_TAP_TIME 0.35
 #define IOSTOUCH_WHEEL_CANCEL (-2) // "slice" of the gap at the bottom
 // A learned power's level (0-4) shows under its name as a row of
 // IOSTOUCH_WHEEL_STARS star slots, the first that many filled: each in a cell
@@ -101,6 +107,21 @@ extern int jkHud_bChatOpen;
 #define IOSTOUCH_WHEEL_STAR_LINE 0.9
 #define IOSTOUCH_WHEEL_STAR_EDGE 0.2
 #define IOSTOUCH_WHEEL_STAR_MIN 0.6 // smallest scale (fitWheelLabels)
+// A weapon's ammo count shows under its name the same way, as a number in
+// the IOSTOUCH_WHEEL_AMMO_FONT pt digits font, fitted for three digits; on a
+// wheel too narrow for that, smaller, down to IOSTOUCH_WHEEL_AMMO_MIN. Its row
+// is as tall as the digits themselves (IOSTOUCH_WHEEL_AMMO_INK of the font
+// size: the system font's digits are as tall as its capitals, 1443 of its
+// 2048 units), not the whole line, so they sit the star gap under the name as
+// the stars do; the digits are about centred in their line, so the label,
+// a line tall, is centred on the row.
+#define IOSTOUCH_WHEEL_AMMO_FONT 9.0
+#define IOSTOUCH_WHEEL_AMMO_MIN 0.7
+#define IOSTOUCH_WHEEL_AMMO_INK 0.705
+// The name in the middle of the wheel shrinks to fit on one line, down to
+// IOSTOUCH_WHEEL_TITLE_MIN of its size; a weapon's name that would need to go
+// smaller ("STORMTROOPER RIFLE") goes on two lines instead
+#define IOSTOUCH_WHEEL_TITLE_MIN 0.6
 // QUICK SAVE and QUICK LOAD have to be held this long, so a stray tap can't
 // save over the quicksave or throw away progress
 #define IOSTOUCH_QUICKSAVE_HOLD 0.3
@@ -162,8 +183,8 @@ enum {
     ROLE_STICK,
     ROLE_LOOK,
     ROLE_BUTTON,
-    ROLE_WHEEL,   // a touch on the open force wheel
-    ROLE_IGNORED, // was down when the wheel opened, or only closed the MENU tray; ignored until it lifts
+    ROLE_WHEEL,   // a touch on the open wheel (force or weapons)
+    ROLE_IGNORED, // was down when the wheel opened, or only closed the MENU tray, or a second finger on FORCE WHEEL / NEXT WPN; ignored until it lifts
 };
 
 enum {
@@ -171,7 +192,7 @@ enum {
     KIND_MENU,     // Escape (via stdControl_bControllerEscapeKey) when the touch lifts on it; held, opens the tray
     KIND_HOLDSAVE, // hold IOSTOUCH_QUICKSAVE_HOLD seconds for one press of its key (quick save)
     KIND_HOLDLOAD, // hold IOSTOUCH_QUICKLOAD_HOLD seconds to quick load
-    KIND_WHEEL,    // opens the force wheel
+    KIND_WHEEL,    // tap: one press of its key; slide or hold: opens its wheel (FORCE WHEEL: force, NEXT WPN: weapons)
     KIND_ITEM,     // uses an inventory item when the touch lifts on it; only shown while the player has it
     KIND_CHAT,     // (MENU tray) opens or closes the typing line for cheats, when the touch lifts on it
     KIND_FPS,      // (MENU tray) shows or hides the FPS readout, when the touch lifts on it
@@ -207,7 +228,9 @@ typedef struct {
 // save and quick load (short holds) and the menu. Holding MENU opens a tray
 // just under it: gyro aiming's sensitivity and mode, FPS, which shows or hides
 // a frame rate readout left of QUICK SAVE, and the keyboard, for the typing
-// line (cheats). ACT is the door/switch key.
+// line (cheats). ACT is the door/switch key. NEXT WPN and FORCE WHEEL: a tap
+// is the next weapon / learned power (G, E: the game's own keys for them), a
+// slide or a hold opens the weapon / force wheel.
 enum {
     BTN_FIRE, BTN_ALT, BTN_DUCK, BTN_ACT, BTN_JUMP, BTN_FORCE,
     BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA,
@@ -223,8 +246,8 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_ACT]       = { "ACT",         KIND_KEY,      SDL_SCANCODE_SPACE,  29.0f, 1 },
     [BTN_JUMP]      = { "JUMP",        KIND_KEY,      SDL_SCANCODE_X,      31.0f, 1 },
     [BTN_FORCE]     = { "FORCE",       KIND_KEY,      SDL_SCANCODE_F,      30.0f, 1 },
-    [BTN_NEXTWPN]   = { "NEXT\nWPN",   KIND_KEY,      SDL_SCANCODE_G,      22.0f, 0 },
-    [BTN_WHEEL]     = { "FORCE\nWHEEL", KIND_WHEEL,   -1,                  22.0f, 0 },
+    [BTN_NEXTWPN]   = { "NEXT\nWPN",   KIND_WHEEL,    SDL_SCANCODE_G,      22.0f, 0 },
+    [BTN_WHEEL]     = { "FORCE\nWHEEL", KIND_WHEEL,   SDL_SCANCODE_E,      22.0f, 0 },
     [BTN_LIGHT]     = { "LIGHT",       KIND_ITEM,     SDL_SCANCODE_RETURN, 22.0f, 0, SITHBIN_FIELDLIGHT_IOS },
     [BTN_IR]        = { "IR",          KIND_ITEM,     SDL_SCANCODE_RETURN, 22.0f, 0, SITHBIN_IRGOGGLES_IOS },
     [BTN_BACTA]     = { "BACTA",       KIND_ITEM,     SDL_SCANCODE_RETURN, 22.0f, 0, SITHBIN_BACTATANK_IOS },
@@ -249,17 +272,18 @@ static int iosTouch_IsQuickHold(int button)
     return button == BTN_QUICKSAVE || button == BTN_QUICKLOAD;
 }
 
-// ------------------------------------------------------------ force wheel maps
+// ------------------------------------------------------------ wheel maps
 
-// Every power has its own fixed slice of the wheel, whether or not the player
-// has learned it yet (those are dimmed), so a power is always in the same
-// place. The slices come in coloured groups, a small gap between groups and a
-// wider one at the bottom, which cancels. Angles are the slice's middle, in
-// degrees counter-clockwise from pointing right (90 is up).
+// Every power has its own fixed slice of the force wheel, whether or not the
+// player has learned it yet (those are dimmed), so a power is always in the
+// same place; every weapon likewise on the weapon wheel. The slices come in
+// coloured groups, a small gap between groups and a wider one at the bottom,
+// which cancels. Angles are the slice's middle, in degrees counter-clockwise
+// from pointing right (90 is up).
 #define IOSTOUCH_WHEEL_MAX 17
-#define IOSTOUCH_WHEEL_MAX_GROUPS 4
+#define IOSTOUCH_WHEEL_MAX_GROUPS 5
 typedef struct {
-    int bin;   // SITHBIN_F_* (types_enums.h can't be included here)
+    int bin;   // SITHBIN_F_* or a weapon's SITHBIN_* (types_enums.h can't be included here)
     int group;
     float deg;
 } iosTouchWheelSlice;
@@ -320,9 +344,49 @@ static const iosTouchWheelMap iosTouch_motsWheel = {
     iosTouch_aMotsWheelSlices, IOSTOUCH_COUNT(iosTouch_aMotsWheelSlices),
     iosTouch_aMotsWheelGroups, IOSTOUCH_COUNT(iosTouch_aMotsWheelGroups), 18.0f, 6.0f
 };
+
+// The weapon wheels: every weapon of the game in its slot, owned or not
+// (those are dimmed), each with its ammo count under its name, in the game's
+// own order (the number keys, and NEXT WPN's), clockwise from the bottom
+// left, with the gap at the bottom to cancel. The groups are colours only,
+// by ammo: none, energy, power cells, explosives, and Mysteries of the
+// Sith's heavy weapons.
+static const iosTouchWheelGroup iosTouch_aWeaponGroups[] = {
+    { NULL, 0.0f, 255, 214, 120 }, // fists, lightsaber
+    { NULL, 0.0f, 120, 200, 255 }, // energy
+    { NULL, 0.0f, 110, 220, 170 }, // power cells
+    { NULL, 0.0f, 255, 105,  90 }, // thermals, rail charges, sequencers
+    { NULL, 0.0f, 190, 150, 255 }, // E-Web rounds, carbonite (Mysteries of the Sith)
+};
+// Jedi Knight: keys 1-9 and 0 (bins 1-10), the bowcaster and the repeater
+// either side of straight up, the fists and the lightsaber either side of the gap
+static const iosTouchWheelSlice iosTouch_aJkWeaponSlices[] = {
+    {  1, 0, 234.0f }, {  2, 1, 202.0f }, {  3, 1, 170.0f }, {  4, 3, 138.0f }, {  5, 2, 106.0f }, // Fists, Bryar, Rifle, Thermal, Bowcaster
+    {  6, 2,  74.0f }, {  7, 3,  42.0f }, {  8, 3,  10.0f }, {  9, 2, -22.0f }, { 10, 0, -54.0f }, // Repeater, Rail det, Sequencer, Concussion, Saber
+};
+// Mysteries of the Sith (bins 121-140: weapon index + 120): each key's two
+// weapons side by side, in the order NEXT WPN goes through them. 125, 136 and
+// 139 are left out: the all-weapons cheat (jkDev_CmdAllWeapons) doesn't give them.
+static const iosTouchWheelSlice iosTouch_aMotsWeaponSlices[] = {
+    { 121, 0, 242.0f }, { 131, 0, 223.0f }, { 122, 1, 204.0f }, { 132, 1, 185.0f }, { 123, 1, 166.0f }, { 133, 1, 147.0f }, // Fists, Saber, Bryar, Blastech, Rifle, Scope rifle
+    { 124, 3, 128.0f }, { 134, 3, 109.0f }, { 135, 2,  90.0f }, { 126, 2,  71.0f }, { 127, 3,  52.0f }, { 137, 3,  33.0f }, // Thermal, Flash bomb, Bowcaster, Repeater, Rail det, Rail seeker
+    { 128, 3,  14.0f }, { 138, 3,  -5.0f }, { 129, 2, -24.0f }, { 130, 4, -43.0f }, { 140, 4, -62.0f },                     // Sequencer, Manual seq, Concussion, E-Web, Carbo gun
+};
+static const iosTouchWheelMap iosTouch_jkWeaponWheel = {
+    iosTouch_aJkWeaponSlices, IOSTOUCH_COUNT(iosTouch_aJkWeaponSlices),
+    iosTouch_aWeaponGroups, IOSTOUCH_COUNT(iosTouch_aWeaponGroups), 32.0f, 0.0f
+};
+static const iosTouchWheelMap iosTouch_motsWeaponWheel = {
+    iosTouch_aMotsWeaponSlices, IOSTOUCH_COUNT(iosTouch_aMotsWeaponSlices),
+    iosTouch_aWeaponGroups, IOSTOUCH_COUNT(iosTouch_aWeaponGroups), 19.0f, 0.0f
+};
 typedef char iosTouch_assertWheelSize[(IOSTOUCH_COUNT(iosTouch_aJkWheelSlices) <= IOSTOUCH_WHEEL_MAX
                                        && IOSTOUCH_COUNT(iosTouch_aMotsWheelSlices) <= IOSTOUCH_WHEEL_MAX
-                                       && IOSTOUCH_COUNT(iosTouch_aMotsWheelGroups) <= IOSTOUCH_WHEEL_MAX_GROUPS) ? 1 : -1];
+                                       && IOSTOUCH_COUNT(iosTouch_aJkWeaponSlices) <= IOSTOUCH_WHEEL_MAX
+                                       && IOSTOUCH_COUNT(iosTouch_aMotsWeaponSlices) <= IOSTOUCH_WHEEL_MAX
+                                       && IOSTOUCH_COUNT(iosTouch_aMotsWheelGroups) <= IOSTOUCH_WHEEL_MAX_GROUPS
+                                       && IOSTOUCH_COUNT(iosTouch_aWeaponGroups) <= IOSTOUCH_WHEEL_MAX_GROUPS) ? 1 : -1];
+enum { IOSTOUCH_WHEEL_FORCE = 0, IOSTOUCH_WHEEL_WEAPONS, IOSTOUCH_WHEEL_NUM_KINDS };
 
 // ------------------------------------------------------------ state
 
@@ -338,7 +402,8 @@ typedef struct {
     int bSeen;            // KIND_KEY: the game has read the key as held at least once
     int trayButton;       // MENU, after its tray opened: the tray button under the finger, or -1
     int wheelSlot;        // ROLE_WHEEL: the slice picked (index into the map), IOSTOUCH_WHEEL_CANCEL, or -1
-    int bWheelOpener;     // ROLE_WHEEL: the touch on FORCE WHEEL that opened it...
+    int bWheelOpener;     // ROLE_WHEEL: the touch on FORCE WHEEL / NEXT WPN that opened it...
+    int bWheelHeld;       // ...by holding still: the wheel is open to tap, until it slides IOSTOUCH_WHEEL_DEAD
     int bArmed;           // ...has slid out of the dead zone
     CGPoint wheelOrigin;  // ...where its slide is measured from
     CGFloat wheelAim;     // ...which way it points (degrees, as for slices)
@@ -367,14 +432,20 @@ static int iosTouch_bStickRunning = 0;
 static int iosTouch_bLayoutGauge = 0;
 static float iosTouch_aLayoutGauge[4];
 static int iosTouch_layoutCutoutRight = -1;
-// The force wheel: open or not (and whether it was opened with a tap, so
-// powers are tapped), the map it shows, which of the map's powers the player
-// has learned, and where it is
+// The wheel: open or not (and whether it is open to tap a slice), which one
+// (force or weapons, and the button that opened it), the map it shows, which
+// of the map's slices can be picked (a learned power; a weapon the player has
+// and could switch to), and where it is. All read as it opens: the game holds
+// still while it is open.
 static int iosTouch_bWheelOpen = 0;
 static int iosTouch_bWheelTapMode = 0;
+static int iosTouch_wheelKind = IOSTOUCH_WHEEL_FORCE;
+static int iosTouch_wheelButton = BTN_WHEEL;
 static const iosTouchWheelMap* iosTouch_pWheelMap = NULL;
 static int iosTouch_aWheelEarned[IOSTOUCH_WHEEL_MAX];
-static int iosTouch_aWheelLevel[IOSTOUCH_WHEEL_MAX]; // as the wheel opened (iosGame_GetPowerLevel)
+static int iosTouch_aWheelLevel[IOSTOUCH_WHEEL_MAX]; // force: as the wheel opened (iosGame_GetPowerLevel)
+static int iosTouch_aWheelOwned[IOSTOUCH_WHEEL_MAX]; // weapons: the player has it...
+static int iosTouch_aWheelAmmo[IOSTOUCH_WHEEL_MAX];  // ...and its ammo count (-1: none to show)
 static CGPoint iosTouch_wheelCentre;
 static CGFloat iosTouch_wheelR0 = 0.0, iosTouch_wheelR1 = 0.0;
 // MENU's tray; Escape held down for a MENU tap (iosTouch_Update calls left);
@@ -419,6 +490,19 @@ static void iosTouch_QueuePress(int scancode)
 {
     if (scancode < 0 || scancode >= IOSTOUCH_NUM_SCANCODES) return;
     if (iosTouch_aPulseQueue[scancode] < 255) iosTouch_aPulseQueue[scancode]++;
+}
+
+// The name of a slice's power or weapon on the open wheel
+static const char* iosTouch_WheelSlotName(int bin)
+{
+    return (iosTouch_wheelKind == IOSTOUCH_WHEEL_WEAPONS) ? iosGame_GetWeaponName(bin) : iosGame_GetPowerName(bin);
+}
+
+// A press on FORCE WHEEL or NEXT WPN still waiting to see which gesture it
+// is: a tap, a slide or a hold
+static int iosTouch_IsWheelPress(const iosTouchSlot* s)
+{
+    return s->touch && s->role == ROLE_BUTTON && iosTouch_aButtons[s->button].kind == KIND_WHEEL;
 }
 
 static void iosTouch_RecomputeKeys(void)
@@ -805,6 +889,18 @@ static void iosTouch_GyroUpdate(int bShown, UIView* v)
 
 // ---------------------------------------------------------------- overlay view
 
+// A wheel's labels fitted to its slices (fitWheelLabels), each twice: [0]
+// alone, [1] with the row under it (a learned power's stars, a weapon's ammo
+// count). One for each wheel, kept until the screen size changes.
+typedef struct {
+    const iosTouchWheelMap* map;  // the map and size it was fitted for
+    CGFloat R1;
+    CGFloat rowScale;             // the rows' size, as a fraction of full size
+    CGFloat font[IOSTOUCH_WHEEL_MAX][2];   // the label's size (0: the row doesn't fit)...
+    CGFloat labelR[IOSTOUCH_WHEEL_MAX][2]; // ...how far out it sits (with the row: their middle)...
+    CGSize labelSize[IOSTOUCH_WHEEL_MAX][2]; // ...and how big it is
+} iosTouchWheelFit;
+
 @interface IOSTouchOverlay : UIView {
     UIView* stickBase;
     UIView* stickKnob;
@@ -817,6 +913,8 @@ static void iosTouch_GyroUpdate(int bShown, UIView* v)
     CAShapeLayer* saveRing; // QUICK SAVE's hold progress
     CAShapeLayer* loadRing; // QUICK LOAD's
     CAShapeLayer* menuRing; // MENU's
+    CAShapeLayer* wheelRing;  // FORCE WHEEL's (held still, it opens the wheel to tap)
+    CAShapeLayer* weaponRing; // NEXT WPN's
     UIView* trayBack;       // behind MENU's tray
     UILabel* fpsLabel;      // the FPS readout...
     int bFpsBase;           // ...counting frames since fpsBaseFrames, at fpsBaseTime
@@ -831,17 +929,15 @@ static void iosTouch_GyroUpdate(int bShown, UIView* v)
     CAShapeLayer* aSliceLayers[IOSTOUCH_WHEEL_MAX];
     UILabel* aSliceLabels[IOSTOUCH_WHEEL_MAX];
     int aSlicePopped[IOSTOUCH_WHEEL_MAX];  // the shape it has now (-1: none yet)
-    // Each label fitted to its slice twice: [0] alone, [1] with the star row under it
-    CGFloat aSliceFont[IOSTOUCH_WHEEL_MAX][2];   // its size (0: the stars don't fit)...
-    CGFloat aSliceLabelR[IOSTOUCH_WHEEL_MAX][2]; // ...how far out it sits (with the stars: their middle)...
-    CGSize aSliceLabelSize[IOSTOUCH_WHEEL_MAX][2]; // ...and how big it is
+    iosTouchWheelFit aWheelFit[IOSTOUCH_WHEEL_NUM_KINDS];
     CAShapeLayer* aSliceStars[IOSTOUCH_WHEEL_MAX][2]; // a learned power's level: its filled stars, its empty ones
-    CGFloat wheelStarScale;                // their size, as a fraction of full size (fitWheelLabels)
-    const iosTouchWheelMap* fitMap;        // the map and size the labels were fitted for
-    CGFloat fitR1;
+    UILabel* aSliceRows[IOSTOUCH_WHEEL_MAX];          // a weapon's ammo count
+    CGSize ammoRowSize;                    // "000" in the ammo count's font, at full size
     UILabel* aGroupLabels[IOSTOUCH_WHEEL_MAX_GROUPS];
     CAShapeLayer* wheelNeedle;             // in the middle: which way the sliding thumb points
     UILabel* wheelTitle;                   // in the middle: the power pointed at, or the selected one
+    const char* wheelTitleName;            // the name it shows (laid out for it: setWheelTitle)
+    int bWheelTitleSet;                    // (0: lay it out again)
     UILabel* wheelHint;                    // under it: what lifting does, or what to do
     UILabel* wheelCancelLabel;             // in the gap at the bottom
     int wheelLastHot;                      // the slice pointed at last (for the haptic tick)
@@ -974,6 +1070,11 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         [aButtonViews[BTN_QUICKLOAD].layer addSublayer:loadRing];
         menuRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_MENU].radius);
         [aButtonViews[BTN_MENU].layer addSublayer:menuRing];
+        // ...and FORCE WHEEL and NEXT WPN, held to open their wheels to tap
+        wheelRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_WHEEL].radius);
+        [aButtonViews[BTN_WHEEL].layer addSublayer:wheelRing];
+        weaponRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_NEXTWPN].radius);
+        [aButtonViews[BTN_NEXTWPN].layer addSublayer:weaponRing];
 
         // Around FORCE: the force meter, a ring that empties as the meter does
         // (QUICK LOAD's ring the other way round) and glows when full
@@ -1127,6 +1228,18 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             }
         }
         for (int i = 0; i < IOSTOUCH_WHEEL_MAX; i++) {
+            // a weapon's ammo count, under its name, up with the labels
+            UILabel* r = [[UILabel alloc] initWithFrame:CGRectZero];
+            r.textAlignment = NSTextAlignmentCenter;
+            r.layer.zPosition = 2.0;
+            r.hidden = YES;
+            aSliceRows[i] = r;
+            [wheelView addSubview:r];
+        }
+        aSliceRows[0].font = [UIFont monospacedDigitSystemFontOfSize:IOSTOUCH_WHEEL_AMMO_FONT weight:UIFontWeightSemibold];
+        aSliceRows[0].text = @"000";
+        ammoRowSize = [aSliceRows[0] sizeThatFits:CGSizeMake(300.0, 300.0)];
+        for (int i = 0; i < IOSTOUCH_WHEEL_MAX; i++) {
             UILabel* l = [[UILabel alloc] initWithFrame:CGRectZero];
             l.textAlignment = NSTextAlignmentCenter;
             l.numberOfLines = 2;
@@ -1151,7 +1264,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         wheelTitle.textAlignment = NSTextAlignmentCenter;
         wheelTitle.font = [UIFont boldSystemFontOfSize:17];
         wheelTitle.adjustsFontSizeToFitWidth = YES;
-        wheelTitle.minimumScaleFactor = 0.6;
+        wheelTitle.minimumScaleFactor = IOSTOUCH_WHEEL_TITLE_MIN; // (longer weapon names: two lines, setWheelTitle)
         wheelTitle.layer.zPosition = 2.0;
         [wheelView addSubview:wheelTitle];
         wheelHint = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 100, 14)];
@@ -1465,8 +1578,8 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             iosTouchSlot* s = &iosTouch_aSlots[t];
             bHeld = s->touch && s->role == ROLE_BUTTON && s->button == BTN_MENU && s->bFired && s->trayButton == i;
         }
-        // FORCE WHEEL stays lit above the dimmed screen while the wheel is open
-        int bWheel = i == BTN_WHEEL && iosTouch_bWheelOpen;
+        // FORCE WHEEL / NEXT WPN stays lit above the dimmed screen while its wheel is open
+        int bWheel = i == iosTouch_wheelButton && iosTouch_bWheelOpen;
         aButtonViews[i].backgroundColor = bWheel ? [UIColor colorWithRed:0.47 green:0.78 blue:1.0 alpha:0.55]
                                                  : [UIColor colorWithWhite:(bHeld ? 1.0 : 0.0) alpha:(bHeld ? 0.30 : 0.22)];
         // A switched-on item (field light, IR goggles), the open typing line
@@ -1660,29 +1773,49 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     else [self setTrayOpen:0];
 }
 
-// ------------------------------------------------------------ force wheel
+// ------------------------------------------------------------ the wheels
+
+// The row under a slice's name at the wheel's row scale: a learned power's
+// star row, or a weapon's ammo count (as wide as three digits, as tall as a
+// digit)
+- (CGSize)wheelRowSize
+{
+    CGFloat k = aWheelFit[iosTouch_wheelKind].rowScale;
+    if (iosTouch_wheelKind == IOSTOUCH_WHEEL_WEAPONS)
+        return CGSizeMake(ammoRowSize.width * k, IOSTOUCH_WHEEL_AMMO_FONT * IOSTOUCH_WHEEL_AMMO_INK * k);
+    return CGSizeMake(((IOSTOUCH_WHEEL_STARS - 1) * IOSTOUCH_WHEEL_STAR_STEP + IOSTOUCH_WHEEL_STAR_CELL) * k,
+                      IOSTOUCH_WHEEL_STAR_CELL * k);
+}
+
+// Whether a slice of the open wheel ever has a row under its name: every
+// power (once learned); every weapon but the ones with no ammo (group 0)
+static int iosTouch_WheelSliceHasRow(int i)
+{
+    return iosTouch_wheelKind != IOSTOUCH_WHEEL_WEAPONS || iosTouch_pWheelMap->aSlices[i].group != 0;
+}
 
 // Fits a slice's label inside it: the biggest size (11pt down to 7pt) at which
 // it fits somewhere along the slice, as near the middle of the band as it can
 // go at that size (s11: its size at 11pt; text width goes with font size). With
-// bStars, the label and the star row under it are fitted as one block, so
-// neither crosses the slice's edges. Returns whether it fitted.
-- (int)fitWheelLabel:(int)i size:(CGSize)s11 stars:(int)bStars
+// bRow, the label and the row under it (wheelRowSize) are fitted as one block,
+// so neither crosses the slice's edges. Returns whether it fitted.
+- (int)fitWheelLabel:(int)i size:(CGSize)s11 row:(int)bRow
 {
     const iosTouchWheelMap* m = iosTouch_pWheelMap;
+    iosTouchWheelFit* F = &aWheelFit[iosTouch_wheelKind];
     CGPoint c = iosTouch_wheelCentre;
     CGFloat R0 = iosTouch_wheelR0, R1 = iosTouch_wheelR1;
-    CGFloat starW = ((IOSTOUCH_WHEEL_STARS - 1) * IOSTOUCH_WHEEL_STAR_STEP + IOSTOUCH_WHEEL_STAR_CELL) * wheelStarScale;
+    CGSize row = [self wheelRowSize];
     CGFloat a = m->aSlices[i].deg * M_PI / 180.0;
-    // no room for the stars: the label goes on alone
-    aSliceFont[i][bStars] = bStars ? 0.0 : 7.0;
-    aSliceLabelR[i][bStars] = R0 + (R1 - R0) * 0.58;
-    aSliceLabelSize[i][bStars] = CGSizeMake(s11.width * 7.0 / 11.0, s11.height * 7.0 / 11.0);
+    // no room for the row: the label goes on alone
+    F->font[i][bRow] = bRow ? 0.0 : 7.0;
+    F->labelR[i][bRow] = R0 + (R1 - R0) * 0.58;
+    F->labelSize[i][bRow] = CGSizeMake(s11.width * 7.0 / 11.0, s11.height * 7.0 / 11.0);
     int bFound = 0;
     for (CGFloat size = 11.0; size >= 7.0 && !bFound; size -= 0.5) {
         CGFloat w = s11.width * size / 11.0, h = s11.height * size / 11.0;
-        CGFloat bw = bStars ? MAX(w, starW) : w;
-        CGFloat bh = bStars ? h + IOSTOUCH_WHEEL_STAR_GAP + IOSTOUCH_WHEEL_STAR_CELL * wheelStarScale : h;
+        CGFloat bw = bRow ? MAX(w, row.width) : w;
+        CGFloat bh = bRow ? h + IOSTOUCH_WHEEL_STAR_GAP + row.height : h;
         CGFloat bestOff = 0.0;
         for (int k = 0; k <= 20; k++) {
             CGFloat f = 0.30 + 0.50 * k / 20.0;
@@ -1697,51 +1830,54 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             if (bIn && (!bFound || fabs(f - 0.58) < bestOff)) {
                 bFound = 1;
                 bestOff = fabs(f - 0.58);
-                aSliceFont[i][bStars] = size;
-                aSliceLabelR[i][bStars] = rr;
-                aSliceLabelSize[i][bStars] = CGSizeMake(w, h);
+                F->font[i][bRow] = size;
+                F->labelR[i][bRow] = rr;
+                F->labelSize[i][bRow] = CGSizeMake(w, h);
             }
         }
     }
     return bFound;
 }
 
-// Fits every slice's label, alone and with its star row. The stars are one
-// size all round the wheel: the biggest, in steps of 5% down to
-// IOSTOUCH_WHEEL_STAR_MIN of full size, at which every slice's row fits (Jedi
-// Knight's slices take them full size; Mysteries of the Sith's narrower ones
-// need them smaller).
+// Fits every slice's label, alone and with its row. The row is one size all
+// round the wheel: the biggest, in steps of 5% down to IOSTOUCH_WHEEL_STAR_MIN
+// of full size for the stars (Jedi Knight's slices take them full size;
+// Mysteries of the Sith's narrower ones need them smaller), or
+// IOSTOUCH_WHEEL_AMMO_MIN for the ammo counts, at which every slice's row
+// fits. A weapon with no ammo has no row: its label is only fitted alone.
 - (void)fitWheelLabels
 {
     const iosTouchWheelMap* m = iosTouch_pWheelMap;
+    iosTouchWheelFit* F = &aWheelFit[iosTouch_wheelKind];
+    CGFloat rowMin = (iosTouch_wheelKind == IOSTOUCH_WHEEL_WEAPONS) ? IOSTOUCH_WHEEL_AMMO_MIN : IOSTOUCH_WHEEL_STAR_MIN;
     CGSize aS11[IOSTOUCH_WHEEL_MAX];
     for (int i = 0; i < m->numSlices; i++) {
-        // two-word names on two lines
-        const char* name = iosGame_GetPowerName(m->aSlices[i].bin);
-        UILabel* l = aSliceLabels[i];
-        l.text = [[NSString stringWithUTF8String:(name ? name : "?")] stringByReplacingOccurrencesOfString:@" " withString:@"\n"];
+        UILabel* l = aSliceLabels[i]; // (its name: layoutWheel)
         l.font = IOSTouch_WheelFont(11.0);
         aS11[i] = [l sizeThatFits:CGSizeMake(300.0, 300.0)];
-        [self fitWheelLabel:i size:aS11[i] stars:0];
+        [self fitWheelLabel:i size:aS11[i] row:0];
+        F->font[i][1] = 0.0; // (a slice with no row: no fit with one)
     }
     for (int n = 0; ; n++) {
         int bAll = 1;
-        wheelStarScale = 1.0 - 0.05 * n;
-        int bLast = wheelStarScale <= IOSTOUCH_WHEEL_STAR_MIN + 0.001;
+        F->rowScale = 1.0 - 0.05 * n;
+        int bLast = F->rowScale <= rowMin + 0.001;
         // (one that doesn't fit: on to the next size, but at the last, every slice)
         for (int i = 0; i < m->numSlices && (bAll || bLast); i++) {
-            if (![self fitWheelLabel:i size:aS11[i] stars:1]) bAll = 0;
+            if (iosTouch_WheelSliceHasRow(i) && ![self fitWheelLabel:i size:aS11[i] row:1]) bAll = 0;
         }
         if (bAll || bLast) break; // else the ones that don't fit go without
     }
 }
 
 // Lays the wheel out round the middle of the safe area, as big as fits with
-// room for a slice to pop out, every power in its place on the map
+// room for a slice to pop out, every power or weapon in its place on the map
 - (void)layoutWheel
 {
     const iosTouchWheelMap* m = iosTouch_pWheelMap;
     if (!m) return;
+    iosTouchWheelFit* F = &aWheelFit[iosTouch_wheelKind];
+    int bWeapons = iosTouch_wheelKind == IOSTOUCH_WHEEL_WEAPONS;
     CGRect b = self.bounds;
     UIEdgeInsets in = self.safeAreaInsets;
     CGFloat left = MAX(in.left, 8.0), right = b.size.width - MAX(in.right, 8.0);
@@ -1762,44 +1898,65 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     }
     [CATransaction commit];
 
-    if (m != fitMap || R1 != fitR1) {
-        fitMap = m;
-        fitR1 = R1;
+    // Each slice's name (two-word names on two lines; "BOW- CASTER" and
+    // Mysteries of the Sith's "LIGHT- SABER" break after their hyphen), then
+    // the fits -- kept for each wheel, until the screen size changes
+    for (int i = 0; i < m->numSlices; i++) {
+        const char* name = iosTouch_WheelSlotName(m->aSlices[i].bin);
+        aSliceLabels[i].text = [[NSString stringWithUTF8String:(name ? name : "?")] stringByReplacingOccurrencesOfString:@" " withString:@"\n"];
+    }
+    if (m != F->map || R1 != F->R1) {
+        F->map = m;
+        F->R1 = R1;
         [self fitWheelLabels];
     }
     // Each name in its slice. Under a learned power's, its level: that many
-    // filled stars, then empty ones (made again at every opening, as the
-    // levels are read then; refreshWheelLooks only colours them).
+    // filled stars, then empty ones; under a weapon's the player has, its
+    // ammo count (made again at every opening, as the levels and counts are
+    // read then; refreshWheelLooks only colours them).
+    CGSize row = [self wheelRowSize];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (int i = 0; i < IOSTOUCH_WHEEL_MAX; i++) {
         UILabel* l = aSliceLabels[i];
-        int bStars = i < m->numSlices && iosTouch_aWheelEarned[i] && aSliceFont[i][1] > 0.0;
+        int bRow = i < m->numSlices && F->font[i][1] > 0.0
+                   && (bWeapons ? iosTouch_aWheelAmmo[i] >= 0 : iosTouch_aWheelEarned[i]);
+        int bStars = bRow && !bWeapons;
         aSliceStars[i][0].hidden = !bStars;
         aSliceStars[i][1].hidden = !bStars;
+        aSliceRows[i].hidden = !(bRow && bWeapons);
         if (i >= m->numSlices) {
             l.hidden = YES;
             continue;
         }
         CGFloat a = m->aSlices[i].deg * M_PI / 180.0;
-        CGSize ts = aSliceLabelSize[i][bStars];
-        CGPoint p = CGPointMake(c.x + aSliceLabelR[i][bStars] * cos(a), c.y - aSliceLabelR[i][bStars] * sin(a));
-        l.font = IOSTouch_WheelFont(aSliceFont[i][bStars]);
+        CGSize ts = F->labelSize[i][bRow];
+        CGPoint p = CGPointMake(c.x + F->labelR[i][bRow] * cos(a), c.y - F->labelR[i][bRow] * sin(a));
+        l.font = IOSTouch_WheelFont(F->font[i][bRow]);
         l.bounds = CGRectMake(0, 0, ceil(ts.width) + 4.0, ceil(ts.height) + 2.0);
-        // with the stars, p is the middle of the name and the row under it
-        CGFloat cell = IOSTOUCH_WHEEL_STAR_CELL * wheelStarScale;
-        l.center = bStars ? CGPointMake(p.x, p.y - (IOSTOUCH_WHEEL_STAR_GAP + cell) * 0.5) : p;
+        // with the row, p is the middle of the name and the row under it
+        l.center = bRow ? CGPointMake(p.x, p.y - (IOSTOUCH_WHEEL_STAR_GAP + row.height) * 0.5) : p;
         l.hidden = NO;
+        CGPoint rc = CGPointMake(p.x, p.y + (ts.height + IOSTOUCH_WHEEL_STAR_GAP) * 0.5); // the row's middle
         if (bStars) {
+            CGFloat k = F->rowScale;
             UIBezierPath* aPath[2] = { [UIBezierPath bezierPath], [UIBezierPath bezierPath] }; // filled, empty
-            for (int k = 0; k < IOSTOUCH_WHEEL_STARS; k++) {
-                CGFloat x = p.x + (k - (IOSTOUCH_WHEEL_STARS - 1) * 0.5) * IOSTOUCH_WHEEL_STAR_STEP * wheelStarScale;
-                IOSTouch_AddStar(aPath[k >= iosTouch_aWheelLevel[i]], CGPointMake(x, p.y + (ts.height + IOSTOUCH_WHEEL_STAR_GAP) * 0.5), wheelStarScale);
+            for (int j = 0; j < IOSTOUCH_WHEEL_STARS; j++) {
+                CGFloat x = p.x + (j - (IOSTOUCH_WHEEL_STARS - 1) * 0.5) * IOSTOUCH_WHEEL_STAR_STEP * k;
+                IOSTouch_AddStar(aPath[j >= iosTouch_aWheelLevel[i]], CGPointMake(x, rc.y), k);
             }
             aSliceStars[i][0].path = aPath[0].CGPath;
             aSliceStars[i][1].path = aPath[1].CGPath;
-            aSliceStars[i][0].lineWidth = IOSTOUCH_WHEEL_STAR_EDGE * wheelStarScale;
-            aSliceStars[i][1].lineWidth = IOSTOUCH_WHEEL_STAR_LINE * wheelStarScale;
+            aSliceStars[i][0].lineWidth = IOSTOUCH_WHEEL_STAR_EDGE * k;
+            aSliceStars[i][1].lineWidth = IOSTOUCH_WHEEL_STAR_LINE * k;
+        }
+        else if (bRow) {
+            // the count, as the HUD shows it (at most three digits fit)
+            UILabel* r = aSliceRows[i];
+            r.text = [NSString stringWithFormat:@"%d", MIN(iosTouch_aWheelAmmo[i], 999)];
+            r.font = [UIFont monospacedDigitSystemFontOfSize:IOSTOUCH_WHEEL_AMMO_FONT * F->rowScale weight:UIFontWeightSemibold];
+            r.bounds = CGRectMake(0, 0, ceil(row.width) + 4.0, ceil(ammoRowSize.height * F->rowScale)); // (a whole line)
+            r.center = rc; // (the digits about centred on the row)
         }
     }
     [CATransaction commit];
@@ -1832,7 +1989,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             int bClear = 1;
             for (int j = 0; j < IOSTOUCH_NUM_BUTTONS && bClear; j++) {
                 iosTouchButton* bt = &iosTouch_aButtons[j];
-                if (aButtonViews[j].hidden || j == BTN_WHEEL) continue;
+                if (aButtonViews[j].hidden || j == iosTouch_wheelButton) continue;
                 CGFloat ex = MAX(fabs(bt->x - pos.x) - ts.width * 0.5, 0.0);
                 CGFloat ey = MAX(fabs(bt->y - pos.y) - ts.height * 0.5, 0.0);
                 bClear = sqrt(ex * ex + ey * ey) > bt->radius + 4.0;
@@ -1843,9 +2000,9 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         }
     }
 
-    // The middle: the name, what lifting does under it, "cancel" in the gap
-    wheelTitle.bounds = CGRectMake(0, 0, 2.0 * R0 * 0.8, 24.0);
-    wheelTitle.center = CGPointMake(c.x, c.y - 7.0);
+    // The middle: the name (setWheelTitle, from refreshWheelLooks), what
+    // lifting does under it, "cancel" in the gap
+    bWheelTitleSet = 0;
     wheelHint.bounds = CGRectMake(0, 0, 2.0 * R0, 14.0);
     wheelHint.center = CGPointMake(c.x, c.y + 13.0);
     wheelCancelLabel.center = CGPointMake(c.x, c.y + R1 - 22.0);
@@ -1893,25 +2050,30 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     s->wheelSlot = iosTouch_WheelSliceForAngle(s->wheelAim, s->wheelSlot);
 }
 
-// Each slice in its look: learned ones in their group's colour, the selected
-// one edged in white, the one pointed at popped out in full colour, the ones
-// not learned yet dark. The middle names what lifting would pick, or says
-// what to do.
+// Each slice in its look: the ones that can be picked in their group's
+// colour, the selected power / the weapon in hand edged in white, the one
+// pointed at popped out in full colour; the powers not learned yet and the
+// weapons not found yet dark; a weapon the player has but can't switch to
+// (no ammo for it) in a darker shade of its colour. The middle names what
+// lifting would pick, or says what to do.
 - (void)refreshWheelLooks
 {
     const iosTouchWheelMap* m = iosTouch_pWheelMap;
     if (!m) return;
+    int bWeapons = iosTouch_wheelKind == IOSTOUCH_WHEEL_WEAPONS;
     CGPoint c = iosTouch_wheelCentre;
     CGFloat R0 = iosTouch_wheelR0, R1 = iosTouch_wheelR1;
 
     // What is pointed at: by the opener once it has slid, else by the latest
     // other finger on the wheel. Off every slice (back in the middle, in the
-    // gap, or a finger off the ring), lifting cancels.
+    // gap, or a finger off the ring), lifting cancels. An opener that opened
+    // it by holding still points at nothing until it slides.
     iosTouchSlot* pSlide = NULL;
     iosTouchSlot* pFinger = NULL;
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
         if (!s->touch || s->role != ROLE_WHEEL) continue;
+        if (s->bWheelOpener && s->bWheelHeld) continue;
         if (s->bWheelOpener && !iosTouch_bWheelTapMode) pSlide = s;
         else pFinger = s;
     }
@@ -1925,7 +2087,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         bCancel = hot < 0;
     }
 
-    int cur = iosGame_GetCurPower(), curSlice = -1, bAnyEarned = 0;
+    int cur = bWeapons ? iosGame_GetCurWeapon() : iosGame_GetCurPower(), curSlice = -1, bAnyEarned = 0;
     for (int i = 0; i < m->numSlices; i++) {
         if (iosTouch_aWheelEarned[i]) bAnyEarned = 1;
         if (m->aSlices[i].bin == cur) curSlice = i;
@@ -1953,7 +2115,14 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             aSliceStars[i][1].strokeColor = [UIColor colorWithRed:sr green:sg blue:sb alpha:(bPop ? 0.47 : 0.43)].CGColor;
         }
         UIColor* text;
-        if (!bEarned) {
+        if (bWeapons && !bEarned && iosTouch_aWheelOwned[i]) {
+            // has it, can't switch to it: no ammo for it
+            L.fillColor = IOSTouch_WheelColour(g, 0.22).CGColor;
+            L.strokeColor = (i == curSlice) ? [UIColor whiteColor].CGColor : IOSTouch_WheelColour(g, bHot ? 0.8 : 0.55).CGColor;
+            L.lineWidth = (bHot || i == curSlice) ? 2.5 : 2.0;
+            text = [UIColor colorWithWhite:1.0 alpha:0.75];
+        }
+        else if (!bEarned) {
             L.fillColor = [UIColor colorWithWhite:(bHot ? 0.24 : 0.18) alpha:0.92].CGColor;
             L.strokeColor = IOSTouch_WheelColour(g, bHot ? 0.7 : 0.45).CGColor;
             L.lineWidth = bHot ? 2.5 : 2.0;
@@ -1973,6 +2142,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         }
         L.zPosition = bPop ? 1.0 : 0.0;
         aSliceLabels[i].textColor = text;
+        aSliceRows[i].textColor = text; // (shown on the weapon wheel only)
     }
 
     // A short needle at the edge of the middle, the way the sliding thumb points
@@ -1994,26 +2164,29 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     UIColor* grey = [UIColor colorWithWhite:0.6 alpha:1.0];
     const char* name = NULL;
     if (hot >= 0) {
-        name = iosGame_GetPowerName(m->aSlices[hot].bin);
+        name = iosTouch_WheelSlotName(m->aSlices[hot].bin);
         wheelTitle.textColor = iosTouch_aWheelEarned[hot] ? IOSTouch_WheelColour(&m->aGroups[m->aSlices[hot].group], 1.0) : grey;
-        wheelHint.text = iosTouch_aWheelEarned[hot] ? @"lift to select" : @"not learned yet";
+        if (iosTouch_aWheelEarned[hot]) wheelHint.text = @"lift to select";
+        else if (!bWeapons) wheelHint.text = @"not learned yet";
+        else wheelHint.text = iosTouch_aWheelOwned[hot] ? @"no ammo" : @"not found yet";
     }
     else if (bCancel) {
         name = "CANCEL";
         wheelTitle.textColor = grey;
         wheelHint.text = @"lift to cancel";
     }
-    else if (!bAnyEarned) {
+    else if (!bAnyEarned && !bWeapons) {
         name = "NO POWERS";
         wheelTitle.textColor = grey;
         wheelHint.text = @"none learned yet";
     }
     else {
-        name = (curSlice >= 0) ? iosGame_GetPowerName(cur) : "FORCE";
+        name = (curSlice >= 0) ? iosTouch_WheelSlotName(cur) : (bWeapons ? "WEAPONS" : "FORCE");
         wheelTitle.textColor = (curSlice >= 0) ? IOSTouch_WheelColour(&m->aGroups[m->aSlices[curSlice].group], 1.0) : [UIColor whiteColor];
-        wheelHint.text = iosTouch_bWheelTapMode ? @"tap a power" : @"slide toward a power";
+        if (bWeapons) wheelHint.text = iosTouch_bWheelTapMode ? @"tap a weapon" : @"slide toward a weapon";
+        else wheelHint.text = iosTouch_bWheelTapMode ? @"tap a power" : @"slide toward a power";
     }
-    wheelTitle.text = [NSString stringWithUTF8String:(name ? name : "")];
+    if (!bWheelTitleSet || name != wheelTitleName) [self setWheelTitle:name];
 
     // A light tick each time the thumb moves onto another slice (or the gap)
     if (hot != wheelLastHot) {
@@ -2022,17 +2195,71 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     }
 }
 
-// Opens the wheel, with every power of this game in its place and the ones
-// the player has learned lit, with their levels. Every other touch lets go of
-// what it was holding and is ignored until it lifts, and the game holds still
+// The name in the middle of the wheel, on one line ("BOW- CASTER" and
+// "LIGHT- SABER", which break after their hyphen in their slices, are
+// BOWCASTER and LIGHTSABER here), shrunk to fit if need be. A weapon's name
+// that would have to shrink below IOSTOUCH_WHEEL_TITLE_MIN of its size goes
+// on two lines instead, as big as they fit (17 pt at most), its foot where
+// the one line's is: above the hint, inside the hole.
+- (void)setWheelTitle:(const char*)name
+{
+    CGPoint c = iosTouch_wheelCentre;
+    CGFloat R0 = iosTouch_wheelR0, W = 2.0 * R0 * 0.8;
+    NSString* text = [[NSString stringWithUTF8String:(name ? name : "")] stringByReplacingOccurrencesOfString:@"- " withString:@""];
+    wheelTitleName = name;
+    bWheelTitleSet = 1;
+    wheelTitle.numberOfLines = 1;
+    wheelTitle.font = [UIFont boldSystemFontOfSize:17.0];
+    wheelTitle.text = text;
+    CGFloat w1 = [wheelTitle sizeThatFits:CGSizeMake(1000.0, 1000.0)].width;
+    if (iosTouch_wheelKind == IOSTOUCH_WHEEL_WEAPONS && name && strchr(name, ' ') && w1 * IOSTOUCH_WHEEL_TITLE_MIN > W) {
+        wheelTitle.numberOfLines = 2;
+        wheelTitle.text = [text stringByReplacingOccurrencesOfString:@" " withString:@"\n"];
+        CGSize s2 = [wheelTitle sizeThatFits:CGSizeMake(1000.0, 1000.0)];
+        // as wide as the one line may be, and its top corners inside the hole
+        CGFloat k = MIN(1.0, MIN(W / s2.width, (0.6 * R0 + 5.0) / s2.height));
+        CGFloat size = floor(17.0 * k * 2.0) / 2.0;
+        wheelTitle.font = [UIFont boldSystemFontOfSize:size];
+        CGFloat h = ceil(s2.height * size / 17.0);
+        wheelTitle.bounds = CGRectMake(0, 0, W, h);
+        wheelTitle.center = CGPointMake(c.x, c.y + 5.0 - h * 0.5);
+    }
+    else {
+        wheelTitle.bounds = CGRectMake(0, 0, W, 24.0);
+        wheelTitle.center = CGPointMake(c.x, c.y - 7.0);
+    }
+}
+
+// Opens a wheel (kind), for the button that opened it: every power or weapon
+// of this game in its place, the ones that can be picked lit -- a learned
+// power with its level, a weapon the player has with its ammo count. Open to
+// slide to a slice, or (bTapMode) to tap one. Every other touch lets go of
+// what it was holding and is ignored until it lifts (so a press waiting on
+// the other wheel button is dropped), and the game holds still
 // (iosGame_SetHold) until the wheel closes.
-- (void)openWheel
+- (void)openWheel:(int)kind button:(int)button tapMode:(int)bTapMode
 {
     [self setTrayOpen:0];
-    iosTouch_pWheelMap = iosGame_IsMots() ? &iosTouch_motsWheel : &iosTouch_jkWheel;
+    int bMots = iosGame_IsMots();
+    iosTouch_wheelKind = kind;
+    iosTouch_wheelButton = button;
+    if (kind == IOSTOUCH_WHEEL_WEAPONS) iosTouch_pWheelMap = bMots ? &iosTouch_motsWeaponWheel : &iosTouch_jkWeaponWheel;
+    else iosTouch_pWheelMap = bMots ? &iosTouch_motsWheel : &iosTouch_jkWheel;
     for (int i = 0; i < iosTouch_pWheelMap->numSlices; i++) {
-        iosTouch_aWheelEarned[i] = iosGame_IsPowerAvailable(iosTouch_pWheelMap->aSlices[i].bin);
-        iosTouch_aWheelLevel[i] = iosGame_GetPowerLevel(iosTouch_pWheelMap->aSlices[i].bin);
+        int bin = iosTouch_pWheelMap->aSlices[i].bin;
+        if (kind == IOSTOUCH_WHEEL_WEAPONS) {
+            int ammo = -1, bSelectable = 0;
+            iosTouch_aWheelOwned[i] = iosGame_GetWeapon(bin, &ammo, &bSelectable) != 0;
+            iosTouch_aWheelEarned[i] = iosTouch_aWheelOwned[i] && bSelectable;
+            iosTouch_aWheelAmmo[i] = iosTouch_aWheelOwned[i] ? ammo : -1;
+            iosTouch_aWheelLevel[i] = 0;
+        }
+        else {
+            iosTouch_aWheelEarned[i] = iosGame_IsPowerAvailable(bin);
+            iosTouch_aWheelLevel[i] = iosGame_GetPowerLevel(bin);
+            iosTouch_aWheelOwned[i] = iosTouch_aWheelEarned[i];
+            iosTouch_aWheelAmmo[i] = -1;
+        }
     }
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
@@ -2048,25 +2275,58 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         }
         s->role = ROLE_IGNORED;
     }
+    [self setRing:wheelRing progress:0.0];
+    [self setRing:weaponRing progress:0.0];
+    // A tap on either wheel button the game hasn't read yet (a slow frame:
+    // it is only read by a gameplay update, which the hold now skips) would
+    // go off after the wheel closes and undo its pick: the wheel is the newer
+    // choice, so the tap is dropped. (A press the game has started reading
+    // is left to finish.)
+    iosTouch_aPulseQueue[iosTouch_aButtons[BTN_WHEEL].scancode] = 0;
+    iosTouch_aPulseQueue[iosTouch_aButtons[BTN_NEXTWPN].scancode] = 0;
     iosTouch_bWheelOpen = 1;
-    iosTouch_bWheelTapMode = 0;
+    iosTouch_bWheelTapMode = bTapMode != 0;
     wheelLastHot = -1;
     iosGame_SetHold(1);
     [self layoutWheel];
     wheelView.hidden = NO;
     [self bringSubviewToFront:wheelView];
-    [self insertSubview:aButtonViews[BTN_WHEEL] aboveSubview:wheelView];
+    [self insertSubview:aButtonViews[button] aboveSubview:wheelView];
     [wheelTick prepare];
     iosTouch_RecomputeKeys();
     [self refreshButtonLooks];
     [self refreshWheelLooks];
 }
 
-// Closes the wheel, selecting the power in slice (if it is one, and learned)
+// FORCE WHEEL or NEXT WPN (the press s, still waiting to see which gesture
+// it is) opens its wheel: slid (to slide to a slice, measured from where it
+// went down) or held still (to tap one). It goes on as the wheel's opener.
+// The typing line closes first: its keyboard would cover the lower half of
+// the wheel.
+- (void)openWheelFrom:(iosTouchSlot*)s held:(int)bHeld
+{
+    int button = s->button;
+    if (jkHud_bChatOpen) iosGame_ToggleChat();
+    [self openWheel:(button == BTN_NEXTWPN ? IOSTOUCH_WHEEL_WEAPONS : IOSTOUCH_WHEEL_FORCE) button:button tapMode:bHeld];
+    s->role = ROLE_WHEEL;
+    s->button = button;
+    s->bWheelOpener = 1;
+    s->bWheelHeld = bHeld != 0;
+    s->bArmed = 0;
+    s->wheelSlot = -1;
+    s->wheelOrigin = s->origin;
+}
+
+// Closes the wheel, selecting what is in slice (if it is one that can be
+// picked): the power, or the weapon (unless it is the one in hand already)
 - (void)closeWheelSelecting:(int)slice
 {
     const iosTouchWheelMap* m = iosTouch_pWheelMap;
-    if (m && slice >= 0 && slice < m->numSlices && iosTouch_aWheelEarned[slice]) iosGame_SelectPower(m->aSlices[slice].bin);
+    if (m && slice >= 0 && slice < m->numSlices && iosTouch_aWheelEarned[slice]) {
+        int bin = m->aSlices[slice].bin;
+        if (iosTouch_wheelKind != IOSTOUCH_WHEEL_WEAPONS) iosGame_SelectPower(bin);
+        else if (bin != iosGame_GetCurWeapon()) iosGame_SelectWeapon(bin); // the game takes it once it is running again
+    }
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         // fingers still on the wheel are ignored until they lift
         if (iosTouch_aSlots[i].touch && iosTouch_aSlots[i].role == ROLE_WHEEL) iosTouch_aSlots[i].role = ROLE_IGNORED;
@@ -2127,15 +2387,21 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             }
         }
         if (s->button >= 0 && iosTouch_aButtons[s->button].kind == KIND_WHEEL) {
-            // Opens at once: sliding toward a power and lifting picks it, and
-            // a quick tap leaves it open to tap one. The typing line closes
-            // first: its keyboard would cover the lower half of the wheel.
-            if (jkHud_bChatOpen) iosGame_ToggleChat();
-            [self openWheel];
-            s->role = ROLE_WHEEL;
-            s->bWheelOpener = 1;
-            s->wheelOrigin = p;
-            break; // any other new touch would be ignored anyway
+            // FORCE WHEEL, NEXT WPN: nothing yet -- a tap, a slide or a hold
+            // (touchesMoved, -tick, endTouches). A second finger on the same
+            // button is ignored.
+            int bOther = 0;
+            for (int k = 0; k < IOSTOUCH_MAX_TOUCHES; k++) {
+                iosTouchSlot* o = &iosTouch_aSlots[k];
+                if (o != s && iosTouch_IsWheelPress(o) && o->button == s->button) bOther = 1;
+            }
+            if (bOther) {
+                s->role = ROLE_IGNORED;
+            }
+            else {
+                s->role = ROLE_BUTTON;
+                iosTouch_aButtonHeld[s->button]++;
+            }
         }
         else if (s->button >= 0) {
             s->role = ROLE_BUTTON;
@@ -2179,8 +2445,29 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
                 if (![self isPoint:p onButton:s->button]) s->bFired = 1;
             }
 
+            // FORCE WHEEL, NEXT WPN: slid IOSTOUCH_WHEEL_OPEN_SLIDE from where
+            // it went down (at any of the places UIKit merged into this move,
+            // too), the wheel opens at once, to slide to a slice
+            if (iosTouch_IsWheelPress(s)) {
+                int bOut = hypot(p.x - s->origin.x, p.y - s->origin.y) >= IOSTOUCH_WHEEL_OPEN_SLIDE;
+                for (UITouch* c in [event coalescedTouchesForTouch:t]) {
+                    CGPoint q = [c locationInView:self];
+                    if (hypot(q.x - s->origin.x, q.y - s->origin.y) >= IOSTOUCH_WHEEL_OPEN_SLIDE) bOut = 1;
+                }
+                if (bOut) [self openWheelFrom:s held:0];
+            }
+
             if (s->role == ROLE_WHEEL) {
-                if (s->bWheelOpener && !iosTouch_bWheelTapMode) [self aimWheel:s at:p];
+                if (s->bWheelOpener && s->bWheelHeld) {
+                    // Opened by holding still: open to tap, until it slides
+                    // out of the dead zone -- then it picks by sliding
+                    if (hypot(p.x - s->origin.x, p.y - s->origin.y) >= IOSTOUCH_WHEEL_DEAD) {
+                        iosTouch_bWheelTapMode = 0;
+                        s->bWheelHeld = 0;
+                        [self aimWheel:s at:p];
+                    }
+                }
+                else if (s->bWheelOpener && !iosTouch_bWheelTapMode) [self aimWheel:s at:p];
                 else s->wheelSlot = iosTouch_WheelSliceAt(p, s->wheelSlot);
             }
             else if (s->role == ROLE_BUTTON && s->button == BTN_MENU && s->bFired && iosTouch_bTrayOpen) {
@@ -2228,24 +2515,19 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
                 // the opener taken away: the wheel stays open, for tapping
                 if (s->bWheelOpener) iosTouch_bWheelTapMode = 1;
             }
+            else if (s->role == ROLE_WHEEL && iosTouch_bWheelOpen && s->bWheelOpener && s->bWheelHeld) {
+                // opened by holding still, lifted without sliding: open to tap
+            }
             else if (s->role == ROLE_WHEEL && iosTouch_bWheelOpen && s->bWheelOpener && !iosTouch_bWheelTapMode) {
                 [self aimWheel:s at:p];
-                if (!s->bArmed) {
-                    // Never slid: a quick tap leaves the wheel open to tap a
-                    // power (as tapping FORCE WHEEL always did); a long press
-                    // lets it go. Timed by the touch's own clock, so a slow
-                    // frame between the two doesn't make a tap long.
-                    if (t.timestamp - s->tDownTouch < IOSTOUCH_WHEEL_TAP_TIME) iosTouch_bWheelTapMode = 1;
-                    else [self closeWheelSelecting:-1];
-                }
-                else {
-                    [self closeWheelSelecting:s->wheelSlot]; // a learned power, or no change
-                }
+                if (!s->bArmed) iosTouch_bWheelTapMode = 1; // never slid out of the dead zone: open to tap
+                else [self closeWheelSelecting:s->wheelSlot]; // what it points at, or no change
             }
             else if (s->role == ROLE_WHEEL && iosTouch_bWheelOpen) {
-                // A tap: on a learned power picks it; on one not learned yet
-                // the wheel stays open; anywhere else (the middle, the gap,
-                // off the ring, FORCE WHEEL) it closes with no change --
+                // A tap: on a learned power or a weapon it can switch to picks
+                // it; on one it can't the wheel stays open; anywhere else (the
+                // middle, the gap, off the ring, FORCE WHEEL, NEXT WPN) it
+                // closes with no change --
                 // except off the ring while the opener is still sliding and
                 // pointing: that finger is only resting, the slide goes on
                 int slice = iosTouch_WheelSliceAt(p, s->wheelSlot);
@@ -2257,6 +2539,38 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
                 }
                 if (!(slice == -1 && bSliding) && !(slice >= 0 && !iosTouch_aWheelEarned[slice])) {
                     [self closeWheelSelecting:slice];
+                }
+            }
+            else if (iosTouch_IsWheelPress(s)) {
+                // FORCE WHEEL, NEXT WPN lifted before its wheel opened
+                iosTouchButton* b = &iosTouch_aButtons[s->button];
+                if (iosTouch_aButtonHeld[s->button] > 0) iosTouch_aButtonHeld[s->button]--;
+                [self setRing:(s->button == BTN_NEXTWPN ? weaponRing : wheelRing) progress:0.0];
+                if (bCancelled) {
+                    // iOS took it: nothing
+                }
+                else if (hypot(p.x - s->origin.x, p.y - s->origin.y) >= IOSTOUCH_WHEEL_OPEN_SLIDE) {
+                    // a flick, with no move in between: as a slide, then its lift
+                    [self openWheelFrom:s held:0];
+                    [self aimWheel:s at:p];
+                    if (s->bArmed) [self closeWheelSelecting:s->wheelSlot];
+                    else iosTouch_bWheelTapMode = 1;
+                }
+                else if (t.timestamp - s->tDownTouch < IOSTOUCH_WHEEL_HOLD) {
+                    // A quick tap (by the touch's own clock, so a slow frame
+                    // between the two doesn't make it long): the next learned
+                    // power (E) or weapon (G) -- the newer choice over a weapon
+                    // picked on the wheel still waiting. Not while typing: the
+                    // game isn't reading the controls.
+                    if (!jkHud_bChatOpen) {
+                        if (s->button == BTN_NEXTWPN) iosGame_CancelWeaponPick();
+                        iosTouch_QueuePress(b->scancode);
+                    }
+                }
+                else {
+                    // held long enough, but lifted before a frame could see it
+                    // (a slow one): the hold, the wheel open to tap
+                    [self openWheelFrom:s held:1];
                 }
             }
             else if (s->role == ROLE_BUTTON) {
@@ -2338,7 +2652,8 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     }
 }
 
-// Once per frame while shown: the QUICK SAVE, QUICK LOAD and MENU holds, the
+// Once per frame while shown: the QUICK SAVE, QUICK LOAD, MENU, FORCE WHEEL
+// and NEXT WPN holds, the
 // FORCE label and its force meter ring, which item buttons show and what they
 // say, and the FPS readout
 - (void)tick
@@ -2350,6 +2665,32 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     CFTimeInterval now = CACurrentMediaTime();
     CFTimeInterval known = lastTickTime;
     lastTickTime = now;
+    // FORCE WHEEL and NEXT WPN held still (they haven't slid, or the wheel
+    // would be open): known to be held IOSTOUCH_WHEEL_HOLD, the wheel opens to
+    // tap a slice; until then the ring fills. The first to get there opens
+    // its wheel (which drops the other). This comes before the QUICK SAVE,
+    // QUICK LOAD and MENU holds: one that completes in the same tick (touched
+    // with a wheel button at about the same time) is then dropped by the
+    // wheel opening, which ignores every other touch, rather than saving or
+    // loading under the wheel.
+    CGFloat wheelProgress = 0.0, weaponProgress = 0.0;
+    for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+        iosTouchSlot* s = &iosTouch_aSlots[i];
+        if (!iosTouch_IsWheelPress(s)) continue;
+        if (known - s->tDown >= IOSTOUCH_WHEEL_HOLD) {
+            [self openWheelFrom:s held:1];
+            wheelProgress = weaponProgress = 0.0;
+            break; // (every other touch is ignored now)
+        }
+        CGFloat progress = MIN((CGFloat)((now - s->tDown) / IOSTOUCH_WHEEL_HOLD), 1.0);
+        if (s->button == BTN_NEXTWPN) weaponProgress = progress;
+        else wheelProgress = progress;
+    }
+    if (!iosTouch_bWheelOpen) {
+        [self setRing:wheelRing progress:wheelProgress];
+        [self setRing:weaponRing progress:weaponProgress];
+    }
+
     // How far QUICK SAVE's and QUICK LOAD's rings have filled (the furthest
     // along of each one's holds), and the one whose hold completed
     CGFloat saveProgress = 0.0, loadProgress = 0.0;
@@ -2527,6 +2868,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
 
 - (void)resetAll
 {
+    iosGame_CancelWeaponPick(); // a weapon picked on the wheel, still waiting
     if (iosTouch_bWheelOpen) {
         iosTouch_bWheelOpen = 0;
         iosTouch_bWheelTapMode = 0;
@@ -2550,6 +2892,8 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     [self setRing:saveRing progress:0.0];
     [self setRing:loadRing progress:0.0];
     [self setRing:menuRing progress:0.0];
+    [self setRing:wheelRing progress:0.0];
+    [self setRing:weaponRing progress:0.0];
     iosTouch_RecomputeKeys();
     stdControl_bControllerEscapeKey = 0;
     [self refreshButtonLooks];

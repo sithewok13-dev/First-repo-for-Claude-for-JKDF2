@@ -17,6 +17,7 @@ Contents: [What this is](#what-this-is) ·
 [Touch controls](#touch-controls) ·
 [Tilt aiming](#tilt-aiming) ·
 [The Force wheel](#the-force-wheel) ·
+[The weapon wheel](#the-weapon-wheel) ·
 [Saving and loading](#saving-and-loading) ·
 [Cheats](#cheats) ·
 [Settings worth knowing](#settings-worth-knowing) ·
@@ -284,16 +285,18 @@ Buttons are slightly see-through until you touch them.
 | **JUMP** | above FIRE | Jumps. |
 | **ALT** | up and right of FIRE, just above the ammo gauge | Secondary fire (each weapon's second mode). |
 | **FORCE** | right of JUMP, or above it (a little to its left) on smaller screens with the camera cutout on the right. With Display Zoom, where there's no room there, it can sit further left, between DUCK and ACT. It always keeps a little space from the top row, so holding it can't set off QUICK SAVE or QUICK LOAD. | Uses your selected Force power, for as long as you hold it. Tap for a single use, hold for powers that charge up (Force Jump) or keep going (Lightning). The button shows the power's name, and it's dimmed until you have a power. The **blue ring** around it is your Force meter: it shrinks as you use the Force, and glows and pulses when the meter is full. |
-| **NEXT WPN** | top left | Switches to your next weapon. |
-| **FORCE WHEEL** | top left | Opens the Force wheel to choose a power: see [The Force wheel](#the-force-wheel). |
+| **NEXT WPN** | top left | **Tap:** switches to your next weapon. **Slide** or **hold:** opens the weapon wheel to choose one: see [The weapon wheel](#the-weapon-wheel). |
+| **FORCE WHEEL** | top left | **Tap:** selects your next learned Force power (FORCE shows which). **Slide** or **hold:** opens the Force wheel to choose one: see [The Force wheel](#the-force-wheel). |
 | **LIGHT**, **IR**, **BACTA** | top left, after FORCE WHEEL | Field light, IR goggles and bacta tank. Each button only appears once you have that item, and always in the same spot. LIGHT and IR turn yellow while switched on. BACTA shows how many you have when it's more than one. |
 | **QUICK SAVE** | top right | **Hold** for about a third of a second: a ring fills, then the game quick saves. See [Saving and loading](#saving-and-loading). |
 | **QUICK LOAD** | top right | **Hold** for about a third of a second: a ring fills, then your quick save loads. To cancel, lift or slide off before the ring fills. |
 | **MENU** | top right corner | **Tap** opens the game's menu (objectives, map, Jedi powers, save, load, setup and more). **Hold** opens a small tray just under it, see below. |
 
-FIRE, ALT, DUCK, ACT, JUMP, FORCE and NEXT WPN act as soon as you touch them.
+FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them.
 LIGHT, IR, BACTA, MENU and the tray buttons act when you **lift** your finger
-on them, so if you touch one by mistake, slide off before you lift.
+on them, so if you touch one by mistake, slide off before you lift. NEXT WPN
+and FORCE WHEEL act on a quick tap when you lift, or open their wheel when
+you slide or hold (see [Tap, slide or hold](#tap-slide-or-hold)).
 
 ### MENU's tray: tilt aiming, FPS and keyboard
 
@@ -350,7 +353,7 @@ Good to know:
 - Turning left and right works however far back you tip the phone, even lying
   flat on a table. It also works lying down with the screen facing you from
   above, or on your side. Tilting the top of the phone toward you looks up.
-- Tilt aiming pauses while the Force wheel, the cheat typing line or MENU's
+- Tilt aiming pauses while the Force wheel or the weapon wheel, the cheat typing line or MENU's
   tray is open, and for a moment after you turn the phone round to the other
   landscape side.
 - The game's mouse sensitivity (*Setup > Controls > Mouse*) doesn't change it.
@@ -359,7 +362,8 @@ Good to know:
 
 ## The Force wheel
 
-Touch **FORCE WHEEL** to open the wheel. **The game pauses while the wheel is
+**FORCE WHEEL** opens the Force wheel (see [Tap, slide or hold](#tap-slide-or-hold)
+for the three ways to use the button). **The game pauses while the wheel is
 open.** Every Force power always has the same slot, whether you've learned it
 yet or not (powers you haven't learned are dark):
 
@@ -370,25 +374,70 @@ yet or not (powers you haven't learned are dark):
   Destruction, Deadly Sight.
 - **The gap at the bottom** means *cancel*.
 
-There are two ways to pick a power:
-
-- **Slide (quickest):** keep your thumb down after touching FORCE WHEEL and
-  slide it towards a power. A short slide in the right direction is enough,
-  but you can also slide all the way onto it. The power pops out, its name
-  shows in the middle, and you feel a light tick. **Lift to select it.** To
-  change nothing, lift in the gap at the bottom, in the middle of the wheel,
-  or back where you started.
-- **Tap:** a quick tap on FORCE WHEEL (lift without sliding) leaves the wheel
-  open. Then tap a power to select it. Tapping a power you haven't learned does
-  nothing. Tapping anywhere else (the middle, the gap, outside the wheel, or
-  FORCE WHEEL) closes the wheel without changing anything.
-
-If you hold FORCE WHEEL without sliding and then lift, the wheel closes again
-without changing anything. Once you've picked a power, use it with **FORCE**.
-
 **Stars:** under the name of each power you've learned, a row of four stars
 shows its level, one gold star per level (a power at level 2 shows two gold
 stars and two empty ones).
+
+Once you've picked a power, use it with **FORCE**.
+
+### Tap, slide or hold
+
+FORCE WHEEL and NEXT WPN work the same way. Each has three gestures:
+
+- **Quick tap** (lift within about a third of a second, without sliding):
+  FORCE WHEEL selects your **next learned Force power**, skipping the ones you
+  haven't learned (the FORCE button shows which one you have now). NEXT WPN
+  switches to your **next weapon**. No wheel opens.
+- **Touch and slide (quickest):** as soon as your thumb slides away from the
+  button, the wheel opens. Keep sliding towards a slot. A short slide in the
+  right direction is enough, but you can also slide all the way onto it. The
+  slot pops out, its name shows in the middle, and you feel a light tick.
+  **Lift to select it.** To change nothing, lift in the gap at the bottom, in
+  the middle of the wheel, or back where you started. A slide too short to
+  point at anything leaves the wheel open for tapping.
+- **Touch and hold still** for about a third of a second: a ring fills round
+  the button, and the wheel opens and **stays open**. Lift, then tap a slot to
+  select it. (Or, without lifting, slide your thumb out from the button to
+  pick by sliding after all.)
+
+With the wheel open for tapping: tap a slot to select it. Tapping a power you
+haven't learned, or a weapon you can't switch to, does nothing. Tapping
+anywhere else (the middle, the gap, outside the wheel, or either button at the
+top left) closes the wheel without changing anything.
+
+## The weapon wheel
+
+**NEXT WPN** opens the weapon wheel when you slide or hold it (a quick tap
+switches to the next weapon, as before). It works like the Force wheel (see
+[Tap, slide or hold](#tap-slide-or-hold)), and **the game pauses while it is
+open** too.
+
+Every weapon always has the same slot, whether you've found it yet or not, in
+the order of the number keys on PC, clockwise from the bottom left: Fists,
+Bryar Pistol, Stormtrooper Rifle, Thermal Detonator, Bowcaster, Repeater,
+Rail Detonator, Sequencer Charge, Concussion Rifle, Lightsaber. The gap at the
+bottom means *cancel*. The colours show the kind of ammo: gold for the fists
+and the lightsaber (no ammo), blue for energy cells, green for power cells and
+red for explosives.
+
+- **Under each weapon you have, its ammo count** shows: the same number the
+  HUD shows with that weapon in hand (energy cells for the Bryar and the
+  rifle; power cells for the bowcaster, repeater and concussion rifle; rail
+  charges for the rail detonator; how many thermal detonators and sequencer
+  charges you're carrying). Weapons that share ammo show the same number. The
+  fists and the lightsaber show no count.
+- **Weapons you haven't found yet are dark**, with no count.
+- **A weapon you have but can't fire is greyed**, with its count (usually
+  **0**), and can't be selected. The bowcaster needs more than 1 power cell
+  and the concussion rifle more than 7, as in the game, so they can be greyed
+  at 1 or 7. Thermal detonators and sequencer charges are their own ammo: when
+  you have none left they show as not found.
+- The weapon in hand has a white edge.
+
+If you pick a weapon while the game is still switching weapons (just after a
+switch), it switches as soon as the game is ready, within a second or so. That
+includes the weapon you're putting away: pick it to switch straight back. A
+quick load drops a pick that is still waiting.
 
 ## Saving and loading
 
@@ -425,7 +474,8 @@ Cheats go into the game's typing line (on PC, that's where chat goes):
 
 While the typing line is open, most other touch buttons don't work. The
 exceptions: **MENU** (and the tray's keyboard button) close the line, and
-**FORCE WHEEL** closes it and opens the wheel. Cheats only work in single
+**FORCE WHEEL** and **NEXT WPN** close it and open their wheel when you
+slide or hold them (a quick tap does nothing while you type). Cheats only work in single
 player. Some cheats need `on` or `off` after them.
 
 | Type this | What it does |
@@ -520,8 +570,9 @@ use Setup from the main menu):
 - **No multiplayer.** The iOS build has no networking.
 - **No in-app file picker.** Game files have to be copied into `jk1` with
   the Files app (or Finder / Apple Devices).
-- **Not every PC key has a touch button.** There is no previous-weapon button and no direct
-  weapon selection: use NEXT WPN to cycle. There is no button for the
+- **Not every PC key has a touch button.** There is no previous-weapon or
+  previous-power button: use the weapon and Force wheels (NEXT WPN and FORCE
+  WHEEL). There is no button for the
   in-game map overlay (MENU > Map shows the map instead), and no button for
   inventory items other than field light, IR goggles and bacta.
 - **The run circle only runs straight ahead.** Turn on *Always Run* if you want

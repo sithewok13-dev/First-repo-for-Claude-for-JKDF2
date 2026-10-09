@@ -31,7 +31,7 @@
 //     you looks up. At 1.0x sensitivity the view turns as far as the phone
 //     does. It goes in as mouse movement scaled to the game's mouse look
 //     settings, so changing those (sensitivity, reverse) leaves it as it is.
-//     It never aims while the force wheel, the typing line or MENU's tray is
+//     It never aims while a wheel, the typing line or MENU's tray is
 //     open, nor for a moment after the screen turns round to the other
 //     landscape side (turning the phone round while it aims can still turn
 //     the view before that, if the phone is tipped back), and the gyro is
@@ -41,9 +41,9 @@
 //     ACT / JUMP on an arc around it, ALT above the ammo gauge and FORCE
 //     beside JUMP (tap or hold to use the power it shows; a ring round it is
 //     the force meter, glowing when full); dragging on any of these also
-//     looks. Top left: next weapon, FORCE WHEEL, and a button for each
-//     usable item the player has (field light, IR goggles, bacta). Top
-//     right: quick save, quick load and menu.
+//     looks. Top left: NEXT WPN, FORCE WHEEL, and a button for each usable
+//     item the player has (field light, IR goggles, bacta). Top right: quick
+//     save, quick load and menu.
 //   - QUICK SAVE and QUICK LOAD only go off when held: a ring round the
 //     button fills while it is held (0.3 s), and once it is full the game
 //     saves or loads -- once, with the finger still down. Lifting sooner
@@ -51,17 +51,33 @@
 //     two frames), or holding it while the typing line is open. Two fingers
 //     on it save or load once, and QUICK SAVE and QUICK LOAD held together
 //     do whichever fills first.
-//   - the force wheel, opened by FORCE WHEEL; the game holds still while it
-//     is open. Every power has a fixed slice, learned or not (those are
-//     dimmed). Jedi Knight: light side down the left (blue), dark side down
-//     the right (red), neutral across the top (gold). Mysteries of the Sith:
-//     its four tiers (its Force screen's columns) round from the bottom left.
-//     The gap at the bottom cancels. Slide the thumb from FORCE WHEEL toward
-//     a power, or all the way onto it -- it pops out, its name shows in the
-//     middle -- and lift to select it; lift in the gap, in the middle, or
-//     back where it started, for no change. A quick tap instead leaves the
-//     wheel open to tap a power.
+//   - FORCE WHEEL and NEXT WPN take three gestures each. A quick tap (lifted
+//     within 0.3 s, without sliding) is the next learned power (the game's
+//     own key for it, E: FORCE shows which) or the next weapon (G), as the
+//     game's own keys do. Touching and sliding opens the wheel straight away,
+//     to slide to a slice; touching and holding still for 0.3 s (a ring
+//     fills round the button) opens it to tap one -- and sliding the held
+//     thumb out from there picks by sliding again. Either wheel holds the
+//     game still while it is open (single player).
+//   - the force wheel (FORCE WHEEL). Every power has a fixed slice, learned
+//     or not (those are dimmed). Jedi Knight: light side down the left
+//     (blue), dark side down the right (red), neutral across the top (gold).
+//     Mysteries of the Sith: its four tiers (its Force screen's columns)
+//     round from the bottom left. The gap at the bottom cancels. Slide the
+//     thumb from FORCE WHEEL toward a power, or all the way onto it -- it
+//     pops out, its name shows in the middle -- and lift to select it; lift
+//     in the gap, in the middle, or back where it started, for no change. A
+//     slide too short to point anywhere leaves the wheel open to tap a power.
 //     A learned power's level shows under its name: 0-4 of four stars filled.
+//   - the weapon wheel (NEXT WPN), picked from the same way: every weapon of
+//     the game in a fixed slot, in its number key order round from the
+//     bottom left (Mysteries of the Sith: each key's two weapons side by
+//     side). A weapon not found yet is dimmed; one the player has shows its
+//     ammo count under its name (what the HUD shows with it in hand; none
+//     for the fists and the lightsaber), and with no ammo to fire it is
+//     greyed, its count 0 (the bowcaster and the concussion rifle need more
+//     than 1 and 7 power cells), and can't be picked. A pick made while a
+//     weapon is still being switched to waits until the game would take it.
 //   - MENU: a tap opens the menu (or closes the typing line). Held, it opens
 //     a tray just under it, left to right: SENS and GYRO, gyro aiming's
 //     sensitivity (1.0x, 1.5x -- the default --, 2.0x, 3.0x) and mode
