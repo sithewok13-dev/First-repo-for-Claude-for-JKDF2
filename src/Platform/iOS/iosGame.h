@@ -118,6 +118,14 @@ int iosGame_IsAlwaysRun(void);
 // the bindings can change in the menu.
 void iosGame_GetMouseLookDegrees(float* pTurn, float* pPitch);
 
+// At launch, before the data folder is chosen: picks which game to run. With
+// Jedi Knight in Documents/jk1 and Mysteries of the Sith in Documents/mots,
+// it asks (the last choice first); with only one of them, that one; with
+// neither, Jedi Knight (whose missing-files message then shows). Sets
+// Main_bMotsCompat and openjkdf2_bOrigWasDF2 to match, and makes both
+// folders, so both show in the Files app.
+void iosGame_ChooseStartupGame(void);
+
 #ifdef __cplusplus
 }
 #endif
