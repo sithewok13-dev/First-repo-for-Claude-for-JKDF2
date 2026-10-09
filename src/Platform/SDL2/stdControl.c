@@ -525,6 +525,24 @@ int stdControl_Startup()
     stdControl_RegisterAxis(AXIS_MOUSE_Y, -200, 200, 0.0);
     stdControl_RegisterAxis(AXIS_MOUSE_Z, -20, 20, 0.0);
 
+#ifdef TARGET_IOS
+    // Added: on iOS, controllers (GameController framework) connect a moment
+    // after launch, after the controls have been bound. sithControl_BindAxis
+    // drops a binding to an axis that isn't registered yet, so the sticks
+    // came out unbound (and the profile was then saved that way) while the
+    // buttons, which have no such check, worked. Register every controller
+    // axis up front, as stdControl_InitSdlJoysticks would for a gamepad; an
+    // axis with no controller behind it just reads 0.
+    for (int i = 0; i < JK_NUM_JOYSTICKS; i++) {
+        for (int j = 0; j < JK_JOYSTICK_AXIS_STRIDE; j++) {
+            int idx = (JK_JOYSTICK_AXIS_STRIDE*i) + AXIS_JOY1_X + j;
+            if (!(stdControl_aAxes[idx].flags & 1)) {
+                stdControl_RegisterAxis(idx, -0x7FFF, 0x7FFF, 0.2);
+            }
+        }
+    }
+#endif
+
     stdControl_Reset();
 
     stdControl_bStartup = 1;
