@@ -1,0 +1,131 @@
+diff --git a/src/burn/drv/capcom/qs_c.cpp b/src/burn/drv/capcom/qs_c.cpp
+index c3335b7..cc420cb 100644
+--- a/src/burn/drv/capcom/qs_c.cpp
++++ b/src/burn/drv/capcom/qs_c.cpp
+@@ -778,6 +778,14 @@ INT32 QscScan(INT32 nAction)
+ 	ba.szName	= szName;
+ 	BurnAcb(&ba);
+ 
++	if (nAction & ACB_DRIVER_DATA) {
++		// [telegram-arcade] the chip-clock accumulator decides when the chip
++		// steps (and its ready flag, read by the Z80); the interpolation
++		// history is carried between frames.
++		SCAN_VAR(nDelta);
++		SCAN_VAR(interpolate_buffer);
++	}
++
+ 	return 0;
+ }
+ 
+diff --git a/src/burn/snd/burn_ym2151.cpp b/src/burn/snd/burn_ym2151.cpp
+index 1b5c22a..a8812f7 100644
+--- a/src/burn/snd/burn_ym2151.cpp
++++ b/src/burn/snd/burn_ym2151.cpp
+@@ -378,6 +378,17 @@ void BurnYM2151Scan(INT32 nAction, INT32 *pnMin)
+ 
+ 	if (YM2151BurnTimer)
+ 		BurnTimerScan(nAction, pnMin);
++
++	// [telegram-arcade] Resampler state carried from one frame to the next. Without it a
++	// state loaded into a fresh instance renders a different number of chip
++	// samples per frame and drifts from the instance that saved it.
++	SCAN_VAR(nYM2151Position);
++	SCAN_VAR(nFractionalPosition);
++	if (pBuffer) {
++		for (INT32 b = 0; b < 4; b++) {
++			ScanVar(pBuffer + b * 4096, 64 * sizeof(INT16), (char*)"YM2151 carry");
++		}
++	}
+ }
+ 
+ void BurnYM2151Write(INT32 chip, INT32 offset, const UINT8 nData)
+diff --git a/src/burn/snd/burn_ym2610.cpp b/src/burn/snd/burn_ym2610.cpp
+index 65f3f37..b81e7ad 100644
+--- a/src/burn/snd/burn_ym2610.cpp
++++ b/src/burn/snd/burn_ym2610.cpp
+@@ -504,5 +504,15 @@ void BurnYM2610Scan(INT32 nAction, INT32* pnMin)
+ 	if (nAction & ACB_DRIVER_DATA) {
+ 		SCAN_VAR(nYM2610Position);
+ 		SCAN_VAR(nAY8910Position);
++		// [telegram-arcade] resampler phase and carried samples (see burn_ym2151.cpp)
++		SCAN_VAR(nFractionalPosition);
++		if (pBuffer) {
++			for (INT32 b = 0; b < 6; b++) {
++				ScanVar(pBuffer + b * 4096, 64 * sizeof(INT16), (char*)"YM2610 carry");
++			}
++		}
++		if (pAYBuffer) {
++			ScanVar(pAYBuffer, 64 * sizeof(INT32), (char*)"YM2610 AY carry");
++		}
+ 	}
+ }
+diff --git a/src/burn/snd/fm.c b/src/burn/snd/fm.c
+index 0bbf884..636fc57 100644
+--- a/src/burn/snd/fm.c
++++ b/src/burn/snd/fm.c
+@@ -3943,15 +3943,13 @@ static void YM2610_postload(void)
+ 		/* FM channels */
+ 		/*FM_channel_postload(F2610->CH,6);*/
+ 
+-		/* rhythm(ADPCMA) */
+-		FM_ADPCMAWrite(F2610,1,F2610->REGS[0x101]);
++		// [telegram-arcade] Rebuilding ADPCM-A channels from the REGS shadow
++		// overwrote saved channel state (IL, end, volume) with stale values,
++		// the same problem FBNeo already fixed for the YM2608. Every channel
++		// field is saved, so only the pan pointers need reconnecting.
+ 		for( r=0 ; r<6 ; r++)
+ 		{
+-			FM_ADPCMAWrite(F2610,r+0x08,F2610->REGS[r+0x108]);
+-			FM_ADPCMAWrite(F2610,r+0x10,F2610->REGS[r+0x110]);
+-			FM_ADPCMAWrite(F2610,r+0x18,F2610->REGS[r+0x118]);
+-			FM_ADPCMAWrite(F2610,r+0x20,F2610->REGS[r+0x120]);
+-			FM_ADPCMAWrite(F2610,r+0x28,F2610->REGS[r+0x128]);
++			F2610->adpcm[r].pan = &out_adpcm[F2610->adpcm[r].pan_raw&0x03];
+ 		}
+ 		/* Delta-T ADPCM unit */
+ 		YM_DELTAT_postload(&F2610->deltaT , &F2610->REGS[0x010] );
+@@ -3982,6 +3980,10 @@ static void YM2610_save_state(void)
+ 		state_save_register_UINT8 (statename, num, "addr_A1" , &F2610->addr_A1, 1);
+ 
+ 		state_save_register_UINT8 (statename, num, "arrivedFlag", &F2610->adpcm_arrivedEndAddress , 1);
++		// [telegram-arcade] ADPCM-A total level and register shadow are saved
++		// directly, because postload no longer rebuilds channels from REGS.
++		state_save_register_UINT8 (statename, num, "adpcmTL", &F2610->adpcmTL, 1);
++		state_save_register_UINT32(statename, num, "adpcmreg", F2610->adpcmreg, 0x30);
+ 		/* rythm(ADPCMA) */
+ 		FMsave_state_adpcma(statename,num,F2610->adpcm);
+ 		/* Delta-T ADPCM unit */
+diff --git a/src/burn/snd/msm6295.cpp b/src/burn/snd/msm6295.cpp
+index 99e3de3..0cae44f 100644
+--- a/src/burn/snd/msm6295.cpp
++++ b/src/burn/snd/msm6295.cpp
+@@ -157,6 +157,12 @@ void MSM6295Scan(INT32 , INT32 *)
+ 	{
+ 		ScanVar(&MSM6295[nChip], STRUCT_SIZE_HELPER(struct MSM6295Struct, nSampleInfo), "MSM6295 Chip");
+ 		SCAN_VAR(nMSM6295Status[nChip]);
++		// [telegram-arcade] the chip is clocked inside the renderer: its fractional
++		// position and interpolation samples decide when playback ends (the
++		// status the sound CPU polls), so they must travel with the state.
++		SCAN_VAR(MSM6295[nChip].nFractionalPosition);
++		SCAN_VAR(nPreviousSample[nChip]);
++		SCAN_VAR(nCurrentSample[nChip]);
+ 	}
+ }
+ 
+diff --git a/src/burn/snd/ymdeltat.c b/src/burn/snd/ymdeltat.c
+index 8e1f186..e48ff5b 100644
+--- a/src/burn/snd/ymdeltat.c
++++ b/src/burn/snd/ymdeltat.c
+@@ -453,9 +453,9 @@ void YM_DELTAT_postload(YM_DELTAT *DELTAT,UINT8 *regszz)
+ 		YM_DELTAT_ADPCM_Write(DELTAT,r,DELTAT->reg[r]);
+ 	DELTAT->reg[0] = regs[0];
+ #endif
+-	/* current rom data */
+-	if (DELTAT->memory)
+-		DELTAT->now_data = *(DELTAT->memory + (DELTAT->now_addr>>1) );
++	// [telegram-arcade] now_data is part of the savestate; re-reading it from
++	// ROM replaced CPU-written data with ROM data in a freshly loaded instance.
++	(void)DELTAT;
+ }
+ 
+ void YM_DELTAT_savestate(const char *statename,int num,YM_DELTAT *DELTAT)

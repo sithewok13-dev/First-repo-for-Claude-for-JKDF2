@@ -1,0 +1,35 @@
+{
+  "name": "telegram-arcade",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private shared retro arcade for Telegram groups: bot + Mini App with server-authoritative lockstep emulation.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/main.ts",
+    "dev": "node --disable-warning=ExperimentalWarning scripts/dev.ts",
+    "build:cores": "native/build-cores.sh && node --disable-warning=ExperimentalWarning scripts/build-catalog.ts",
+    "build:catalog": "node --disable-warning=ExperimentalWarning scripts/build-catalog.ts",
+    "build:client": "node scripts/build-client.ts",
+    "build:testroms": "native/testroms/build.sh",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 test/unit/*.test.ts",
+    "test:e2e": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 test/e2e/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "backup": "node --disable-warning=ExperimentalWarning scripts/backup.ts",
+    "restore": "node --disable-warning=ExperimentalWarning scripts/restore.ts"
+  },
+  "dependencies": {
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/ws": "8.18.2",
+    "esbuild": "0.28.2",
+    "playwright-core": "1.56.1",
+    "preact": "10.29.8",
+    "typescript": "5.9.3"
+  }
+}

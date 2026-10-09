@@ -1,0 +1,115 @@
+# Telegram Arcade: production-style deployment on one machine (cloud VPS or
+# a Mac mini / home server). See docs/OPERATIONS.md.
+#
+#   cp .env.example deploy/.env    # fill in BOT_TOKEN, BOT_USERNAME, PUBLIC_URL, PUBLIC_HOST
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#
+# Choose how the server is reached (COMPOSE_PROFILES in deploy/.env, or --profile):
+#   public         Caddy on ports 80/443 with automatic HTTPS (VPS, or a home
+#                  server with ports forwarded)
+#   tunnel         Cloudflare Tunnel, no inbound ports (home server; needs
+#                  CLOUDFLARE_TUNNEL_TOKEN, tunnel routed to http://arcade:8080)
+# Optional:
+#   local-bot-api  self-hosted Telegram Bot API server for uploads over 20 MB
+#                  (needs TELEGRAM_API_ID/TELEGRAM_API_HASH from my.telegram.org;
+#                  set BOT_API_BASE=http://bot-api:8081 BOT_API_LOCAL=1
+#                  BOT_FILE_DIR=/var/lib/telegram-bot-api). Not yet tested.
+
+name: telegram-arcade
+
+services:
+  arcade:
+    build:
+      context: ..
+    image: telegram-arcade:latest
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      PORT: "8080"
+      HOST: 0.0.0.0
+      TRUST_PROXY: "1"
+    volumes:
+      - arcade-data:/data
+      - bot-api-files:/var/lib/telegram-bot-api:ro
+    expose:
+      - "8080"
+    restart: unless-stopped
+    stop_grace_period: 30s      # rooms are checkpointed on SIGTERM
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    mem_limit: 3g
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    depends_on: [arcade]
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+    profiles: ["public"]
+
+  # Nightly online backup into ./backups (copy that directory off the machine).
+  backup:
+    image: telegram-arcade:latest
+    depends_on: [arcade]
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      BACKUP_KEEP: "14"
+    volumes:
+      - arcade-data:/data
+      - ./backups:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          node --disable-warning=ExperimentalWarning scripts/backup.ts /backups || echo "backup failed"
+          sleep 86400
+        done
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+
+  tunnel:
+    image: cloudflare/cloudflared:2026.9.0
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on: [arcade]
+    restart: unless-stopped
+    profiles: ["tunnel"]
+
+  bot-api:
+    image: aiogram/telegram-bot-api:10.3
+    environment:
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+      TELEGRAM_LOCAL: "1"
+    volumes:
+      - bot-api-files:/var/lib/telegram-bot-api
+    expose:
+      - "8081"
+    restart: unless-stopped
+    profiles: ["local-bot-api"]
+
+volumes:
+  arcade-data:
+  caddy-data:
+  caddy-config:
+  bot-api-files:

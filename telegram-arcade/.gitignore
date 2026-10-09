@@ -1,0 +1,15 @@
+node_modules/
+native/build/
+native/.src/
+native/testroms/build/*
+!native/testroms/build/atc-*.nes
+client/dist/
+data/
+.env
+*.log
+test-results/
+native/testroms/.homebrew-src/
+native/testroms/homebrew/
+data-dev/
+deploy/backups/
+deploy/.env

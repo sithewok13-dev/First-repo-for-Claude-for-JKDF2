@@ -1,0 +1,11 @@
+# TLS termination and reverse proxy (WebSockets included) for the arcade.
+# PUBLIC_HOST comes from deploy/.env, e.g. arcade.example.com; Caddy obtains
+# and renews the certificate automatically (ports 80 and 443 must reach it).
+# No access log is configured on purpose: request lines can carry launch data.
+{$PUBLIC_HOST} {
+	encode zstd gzip
+	reverse_proxy arcade:8080 {
+		# a config reload would otherwise close every game connection at once
+		stream_close_delay 5m
+	}
+}

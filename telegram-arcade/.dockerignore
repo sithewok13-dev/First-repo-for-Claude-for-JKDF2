@@ -1,0 +1,11 @@
+node_modules
+native/build
+native/.src
+native/testroms/.homebrew-src
+native/testroms/homebrew
+client/dist
+data
+test-results
+.env
+*.log
+.git
