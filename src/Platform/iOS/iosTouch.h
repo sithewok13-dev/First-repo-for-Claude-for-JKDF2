@@ -14,26 +14,29 @@
 //   - drag-to-look anywhere else on the right (fed in as mouse movement)
 //   - gyro aiming: turning the phone turns the view, on top of what the
 //     drag does. It starts OFF, until it is switched on in MENU's tray.
-//     TOUCH aims only while the right thumb is down where it aims --
-//     dragging to look, or on FIRE, ALT, DUCK, ACT, JUMP or FORCE (the
-//     buttons a drag on also looks) -- like lifting a mouse: lifting the
-//     thumb freezes the view where it is and nothing springs back, and
-//     touching again carries on from there, however the phone is held by
-//     then. ALWAYS aims with no thumb down; OFF never. Turning is measured
-//     about the way up, so it works however far back the phone is tipped,
-//     to lying flat; with the screen facing down (lying on your back under
-//     it) or the phone rolled right over (lying on your side) it is about
-//     the screen's own up axis instead, as if looking through it. Tilting
-//     the top of the phone toward you looks up. At 1.0x sensitivity the view
-//     turns as far as the phone does. It goes in as mouse movement scaled to
-//     the game's mouse look settings, so changing those (sensitivity,
-//     reverse) leaves it as it is. It never aims while the force wheel, the
-//     typing line or MENU's tray is open, nor for a moment after the screen
-//     turns round to the other landscape side (turning the phone round while
-//     it aims can still turn the view before that, if the phone is tipped
-//     back), and the gyro is only read while the overlay is up, the app in
-//     front and gyro aiming on. Should iOS ever refuse the motion data, the
-//     tray's GYRO says NO GYRO.
+//     TOUCH aims while either thumb is down on the game: the left one on the
+//     move stick (pushed or resting, or on the run marker), or the right one
+//     where it aims -- on the look area (resting or dragging), or on FIRE,
+//     ALT, DUCK, ACT, JUMP or FORCE (the buttons a drag on also looks). So
+//     with the left thumb on the stick, the right one can hop from the look
+//     area onto FIRE without the aiming stopping. The top row, the wheel and
+//     the tray don't count. Lifting both thumbs is like lifting a mouse: the
+//     view freezes where it is and nothing springs back, and touching again
+//     carries on from there, however the phone is held by then. ALWAYS aims
+//     with no thumb down; OFF never. Turning is measured about the way up, so
+//     it works however far back the phone is tipped, to lying flat; with the
+//     screen facing down (lying on your back under it) or the phone rolled
+//     right over (lying on your side) it is about the screen's own up axis
+//     instead, as if looking through it. Tilting the top of the phone toward
+//     you looks up. At 1.0x sensitivity the view turns as far as the phone
+//     does. It goes in as mouse movement scaled to the game's mouse look
+//     settings, so changing those (sensitivity, reverse) leaves it as it is.
+//     It never aims while the force wheel, the typing line or MENU's tray is
+//     open, nor for a moment after the screen turns round to the other
+//     landscape side (turning the phone round while it aims can still turn
+//     the view before that, if the phone is tipped back), and the gyro is
+//     only read while the overlay is up, the app in front and gyro aiming on.
+//     Should iOS ever refuse the motion data, the tray's GYRO says NO GYRO.
 //   - buttons on the default keyboard keys. Bottom right: FIRE, with DUCK /
 //     ACT / JUMP on an arc around it, ALT above the ammo gauge and FORCE
 //     beside JUMP (tap or hold to use the power it shows; a ring round it is

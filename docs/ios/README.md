@@ -326,11 +326,16 @@ in its tray. Each tap goes on to the next setting:
 
 - **GYRO OFF** (the default): no tilt aiming. The app doesn't read the
   motion sensor at all.
-- **GYRO TOUCH:** turning the phone aims only while your right thumb is down
-  where it aims, that is dragging to look, or on FIRE, ALT, DUCK, ACT, JUMP or
-  FORCE. Lift your thumb and the view stays exactly where it is, so you can move
-  the phone back to a comfortable position and carry on from there, like
-  lifting a mouse off the desk.
+- **GYRO TOUCH:** turning the phone aims while either thumb is touching the
+  game: your left thumb on the move stick (even resting there without moving),
+  or your right thumb on the look area (resting or dragging) or on FIRE, ALT,
+  DUCK, ACT, JUMP or FORCE. So while your left thumb is on the stick, moving
+  your right thumb from the look area to FIRE doesn't interrupt aiming, and
+  while you walk, turning the phone always aims. To move the phone back to a
+  comfortable position, lift both thumbs: the view stays exactly where it is,
+  and when you touch again it carries on from there, like lifting a mouse off
+  the desk. The buttons along the top (NEXT WPN, FORCE WHEEL, QUICK SAVE, MENU
+  and the rest) don't count.
 - **GYRO ALWAYS:** turning the phone always aims, with or without a thumb down.
 
 **SENS** sets how far the view turns: 1.0x, 1.5x (the default), 2.0x or 3.0x.
@@ -497,7 +502,11 @@ use Setup from the main menu):
   In menus, tap the menu items directly.
 - **The view turns when I move the phone:** tilt aiming is on. Hold MENU and
   tap GYRO until it says GYRO OFF, or choose GYRO TOUCH so it only aims while
-  your right thumb is down (see [Tilt aiming](#tilt-aiming)).
+  a thumb is on the move stick, on the look area or on the buttons around FIRE
+  (see [Tilt aiming](#tilt-aiming)).
+- **Tilt aiming stops for a moment when I move my right thumb to FIRE (GYRO
+  TOUCH):** keep your left thumb on the move stick. Tilt aiming then carries on
+  while your right thumb is in the air. It only stops when both thumbs are up.
 - **A touch button does nothing:** if you changed the key bindings in
   *Setup > Controls*, change them back to the defaults. Also, the typing line
   might still be open: tap MENU to close it.

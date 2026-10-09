@@ -728,16 +728,21 @@ static void iosTouch_GyroNextSens(void)
     [[NSUserDefaults standardUserDefaults] setFloat:iosTouch_aGyroSens[iosTouch_gyroSens] forKey:IOSTOUCH_GYRO_SENS_DEFAULTS_KEY];
 }
 
-// Whether a thumb that aims is down, for TOUCH: the touches that drag the
-// view -- on the look area, or on one of the buttons under the right thumb
-// that pass a drag through to looking (FIRE, ALT, DUCK, ACT, JUMP, FORCE).
-// Not the stick, the top row, the wheel, or a touch being ignored.
+// Whether either thumb is down on the game, for TOUCH: the left one on the
+// move stick (pushed or resting, on the run marker or not), or a right one
+// where it aims -- on the look area, or on one of the buttons under the
+// right thumb that pass a drag through to looking (FIRE, ALT, DUCK, ACT,
+// JUMP, FORCE). So with the left thumb on the stick, the right one can hop
+// from the look area onto FIRE (and is in the air for a moment) without the
+// aiming stopping. Not the top row, the wheel, the tray, or a touch being
+// ignored.
 static int iosTouch_GyroThumbDown(void)
 {
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
         if (!s->touch) continue;
-        if (s->role == ROLE_LOOK || (s->role == ROLE_BUTTON && iosTouch_aButtons[s->button].bLookWhileHeld)) return 1;
+        if (s->role == ROLE_STICK || s->role == ROLE_LOOK
+            || (s->role == ROLE_BUTTON && iosTouch_aButtons[s->button].bLookWhileHeld)) return 1;
     }
     return 0;
 }
@@ -747,9 +752,10 @@ static int iosTouch_GyroThumbDown(void)
 // is shown, the app is active, the gyro is on and the screen is turned either
 // landscape way. What the phone turned since the last frame goes to the mouse
 // axes, on top of the look drag's movement -- if it could aim both then and
-// now, so a lifted thumb freezes the view where it is (the frame it lifted in
-// counts for nothing) and nothing springs back, and touching again carries on
-// from there, from however the phone is held by then. Never while the force
+// now, so in TOUCH lifting the last thumb freezes the view where it is (the
+// frame it lifted in counts for nothing, as does the frame the first one
+// lands in) and nothing springs back, and touching again carries on from
+// there, from however the phone is held by then. Never while the force
 // wheel (or anything else that holds the game), the typing line or the tray
 // is open, just after the screen turned round to the other landscape side,
 // nor after a frame that took too long.
