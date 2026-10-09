@@ -44,7 +44,65 @@ Requirements:
 
 ## 3. Results
 
-RESULTS_PLACEHOLDER
+Run on 2026-10-09 in a Linux container: Intel(R) Xeon(R) Processor @ 2.80GHz (4 cores), Node v22.22.0, Chromium 141.0.7390.37 (headless).
+
+| Suite | Tests | Passed | Failed | Skipped |
+|---|---|---|---|---|
+| Type check (`tsc --noEmit`, strict) | — | clean | — | — |
+| Unit (`npm test`, 16 files) | 155 | 155 | 0 | 0 |
+| End-to-end, run 1 (`npm run test:e2e`) | 9 | 9 | 0 | 0 |
+| End-to-end, run 2 | 9 | 9 | 0 | 0 |
+
+The core tests (FBNeo determinism, lockstep, ATC adapters, homebrew) were also run against the cores built inside the Docker image (`CORE_DIR=...`): 18/18 passed.
+
+### Gameplay slice (`test/e2e/slice.test.ts`, run 2; `test-results/slice-report.json`)
+
+Two players (Ana, Ben) and a spectator (Cy) in three separate browser contexts against the real server, playing the ATC versus ROM:
+- all three run the same session; P1 and P2 move at the same time and every page agrees on the positions (RAM) — **0 desyncs**, periodic hash checks matched;
+- coins are server-controlled: pressing the local SELECT key inserts nothing, a credit cannot be banked, a verified match result is recorded (`win`, verification `verified`);
+- the spectator takes over P2's seat **without restarting** (frames continue, P1's score kept) and plays with **multi-touch** (CDP touch events);
+- the creator/host disconnects: the game keeps running (92 frames advanced while checked), the seat is held then freed, the interrupted match is recorded as not counted, and the group admin becomes acting host.
+
+**Latency** — input pressed → first rendered frame containing it, with a TCP proxy adding one-way delay (both directions):
+
+| Added delay | Median ms | p95 ms | Input round trip median ms | Samples | Desyncs |
+|---|---|---|---|---|---|
+| 0 ms (0 ms RTT) | 28.7 | 47.9 | 13.8 | 80 | 0 |
+| 25 ms (50 ms RTT) | 77.2 | 97.2 | 61.3 | 80 | 0 |
+| 50 ms (100 ms RTT) | 125.9 | 140 | 110.4 | 80 | 0 |
+
+Run 1 for comparison:
+
+| Added delay | Median ms | p95 ms | Input round trip median ms | Samples | Desyncs |
+|---|---|---|---|---|---|
+| 0 ms (0 ms RTT) | 31.5 | 47.8 | 15.2 | 80 | 0 |
+| 25 ms (50 ms RTT) | 75.4 | 92.1 | 60 | 80 | 0 |
+| 50 ms (100 ms RTT) | 126.6 | 147.1 | 112.9 | 80 | 0 |
+
+**Spectator delay** vs a player's view of the same frame: median 0.2 ms, p95 50.4 ms (n = 586; run 1: median 0.2 ms, p95 50.5 ms). Same machine, no added network delay; spectators buffer 4 frames vs 1 for players, so on real networks expect spectators ~50–70 ms behind players.
+
+**Server timing:** 9137 ticks, 11 late (max 15 ms), 0 worker restarts, 285 inputs accepted, 0 rejected.
+
+### Emulation cost (`scripts/bench-cores.ts`; `test-results/bench.json`)
+
+| Content | Core | Server ms/frame | Browser-equivalent ms/frame | State size |
+|---|---|---|---|---|
+| ATC co-op (NES, lawful) | fceumm | 0.473 | 0.571 | 13 KB |
+| sf2 (synthetic romset) | fbneo_cps12 | 1.636 | 1.856 | 263 KB |
+| ssf2t (synthetic romset) | fbneo_cps12 | 2.054 | 2.187 | 349 KB |
+| kof98 (synthetic romset) | fbneo_neogeo | 4.317 | 2.499 | 407 KB |
+
+Measured on Intel(R) Xeon(R) Processor @ 2.80GHz, Node v22.22.0. FBNeo rows use synthetic romsets whose CPUs execute random data: indicative only.
+
+### Docker image
+
+`docker build` (cores compiled from pinned sources in `emscripten/emsdk:6.0.12`) succeeded; the container started with `--read-only --cap-drop ALL --security-opt no-new-privileges`, reported `healthy`, served the Mini App, cores and licence files, and refused path traversal attempts. `docker compose config` (all profiles) and `caddy validate` passed.
+
+### Flakiness record
+
+- `test/e2e/slice.test.ts` failed 2 of 5 runs under parallel load during review, at "credit banking refused": a real race in the coin policy (a second coin accepted before the adapter reported the first). Fixed in `server/room/room.ts` (a coin counts until the adapter reports a later frame) with a deterministic unit test; 5 consecutive full e2e runs passed afterwards.
+- `test/e2e/restart.test.ts` hung once (1 of 11 runs) before per-test timeouts were added; not reproduced in 10 further runs.
+
 
 ## 4. Not tested (and why)
 
