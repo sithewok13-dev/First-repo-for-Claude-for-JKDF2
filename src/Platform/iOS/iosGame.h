@@ -29,6 +29,10 @@ int iosGame_IsMots(void);
 // and allowed by rank and path. The test the next/previous power keys make.
 int iosGame_IsPowerAvailable(int bin);
 
+// A force power's level, 0-4: its bin's amount (the stars its Force screen
+// shows), whole stars only. 0 if there is no player.
+int iosGame_GetPowerLevel(int bin);
+
 // Short name of a force power bin ("SPEED"...), or NULL if it isn't one.
 const char* iosGame_GetPowerName(int bin);
 
@@ -72,6 +76,14 @@ unsigned int iosGame_GetFrameCount(void);
 // Both games run while it is on, or while the run key (Shift) is held. It
 // can change in the options menu, so the touch overlay reads it every frame.
 int iosGame_IsAlwaysRun(void);
+
+// How far one count of mouse movement turns the view (*pTurn: degrees right
+// per count right) and tilts it (*pPitch: degrees down per count down), as
+// the game's mouse look bindings have it (Setup > Controls > Mouse:
+// sensitivity, reverse); 0 for an axis with nothing bound. Lets the touch
+// overlay's gyro aiming turn the view by an exact angle. Read every frame:
+// the bindings can change in the menu.
+void iosGame_GetMouseLookDegrees(float* pTurn, float* pPitch);
 
 #ifdef __cplusplus
 }

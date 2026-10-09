@@ -2,7 +2,7 @@
 //
 // A UIKit overlay sits on top of the game view while gameplay controls are
 // active (stdControl_bControlsActive, and no cutscene playing). It turns
-// touches into:
+// touches (and the gyro) into:
 //   - a floating move stick on the left (W/A/S/D), which walks. While the
 //     game's Always Run option is off, a run marker (a small "^^" circle,
 //     joined to the stick's ring by a line) shows above it, as in Alien:
@@ -12,6 +12,28 @@
 //     row is in the way; a thumb down right under it gets no marker. With
 //     Always Run on there is no marker: the game runs anyway.
 //   - drag-to-look anywhere else on the right (fed in as mouse movement)
+//   - gyro aiming: turning the phone turns the view, on top of what the
+//     drag does. It starts OFF, until it is switched on in MENU's tray.
+//     TOUCH aims only while the right thumb is down where it aims --
+//     dragging to look, or on FIRE, ALT, DUCK, ACT, JUMP or FORCE (the
+//     buttons a drag on also looks) -- like lifting a mouse: lifting the
+//     thumb freezes the view where it is and nothing springs back, and
+//     touching again carries on from there, however the phone is held by
+//     then. ALWAYS aims with no thumb down; OFF never. Turning is measured
+//     about the way up, so it works however far back the phone is tipped,
+//     to lying flat; with the screen facing down (lying on your back under
+//     it) or the phone rolled right over (lying on your side) it is about
+//     the screen's own up axis instead, as if looking through it. Tilting
+//     the top of the phone toward you looks up. At 1.0x sensitivity the view
+//     turns as far as the phone does. It goes in as mouse movement scaled to
+//     the game's mouse look settings, so changing those (sensitivity,
+//     reverse) leaves it as it is. It never aims while the force wheel, the
+//     typing line or MENU's tray is open, nor for a moment after the screen
+//     turns round to the other landscape side (turning the phone round while
+//     it aims can still turn the view before that, if the phone is tipped
+//     back), and the gyro is only read while the overlay is up, the app in
+//     front and gyro aiming on. Should iOS ever refuse the motion data, the
+//     tray's GYRO says NO GYRO.
 //   - buttons on the default keyboard keys. Bottom right: FIRE, with DUCK /
 //     ACT / JUMP on an arc around it, ALT above the ammo gauge and FORCE
 //     beside JUMP (tap or hold to use the power it shows; a ring round it is
@@ -20,10 +42,12 @@
 //     usable item the player has (field light, IR goggles, bacta). Top
 //     right: quick save, quick load and menu.
 //   - QUICK SAVE and QUICK LOAD only go off when held: a ring round the
-//     button fills while it is held, quickly for QUICK SAVE (0.3 s), slowly
-//     for QUICK LOAD (a second), and once it is full the game saves or
-//     loads -- once, with the finger still down. Lifting sooner does
-//     nothing; so does sliding off QUICK SAVE first.
+//     button fills while it is held (0.3 s), and once it is full the game
+//     saves or loads -- once, with the finger still down. Lifting sooner
+//     does nothing; so does sliding off first (even off and back on between
+//     two frames), or holding it while the typing line is open. Two fingers
+//     on it save or load once, and QUICK SAVE and QUICK LOAD held together
+//     do whichever fills first.
 //   - the force wheel, opened by FORCE WHEEL; the game holds still while it
 //     is open. Every power has a fixed slice, learned or not (those are
 //     dimmed). Jedi Knight: light side down the left (blue), dark side down
@@ -34,10 +58,17 @@
 //     middle -- and lift to select it; lift in the gap, in the middle, or
 //     back where it started, for no change. A quick tap instead leaves the
 //     wheel open to tap a power.
+//     A learned power's level shows under its name: 0-4 of four stars filled.
 //   - MENU: a tap opens the menu (or closes the typing line). Held, it opens
-//     a tray just under it: the keyboard, to type cheats, and FPS, which
-//     shows a frame rate readout left of QUICK SAVE (remembered between
-//     launches). The tray closes after a choice, or at a touch elsewhere.
+//     a tray just under it, left to right: SENS and GYRO, gyro aiming's
+//     sensitivity (1.0x, 1.5x -- the default --, 2.0x, 3.0x) and mode
+//     (OFF -- the default --, TOUCH, ALWAYS), each tap going on to the next;
+//     FPS, which shows a frame rate readout left of QUICK SAVE; and the
+//     keyboard, to type cheats. All three settings are remembered between
+//     launches. A touch anywhere on the tray's backing is on the nearest of
+//     its buttons.
+//     The tray closes after a choice (SENS and GYRO leave it open for another
+//     tap), or at a touch off it.
 // In menus and cutscenes the overlay hides, so touches reach SDL as mouse
 // clicks like before. If SDL's window is recreated the overlay follows it.
 
@@ -51,8 +82,13 @@ extern "C" {
 #endif
 
 // Once per frame, before events are polled: shows/hides the overlay and
-// hands accumulated look movement to the mouse axes.
+// hands accumulated look movement (the drag) to the mouse axes.
 void iosTouch_Update(void);
+
+// Once per frame, after events are polled -- so it knows which touches are
+// down by now: hands what the phone turned since the last frame (gyro
+// aiming) to the mouse axes.
+void iosTouch_UpdateGyro(void);
 
 // Whether the overlay is holding down this SDL scancode.
 int iosTouch_IsScancodeDown(int scancode);

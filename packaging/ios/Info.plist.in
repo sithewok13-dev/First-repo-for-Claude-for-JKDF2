@@ -73,5 +73,10 @@
 	<true/>
 	<key>SDL_FILESYSTEM_BASE_DIR_TYPE</key>
 	<string>bundle</string>
+	<!-- Gyro aiming (iosTouch.m) reads CoreMotion's device motion, which
+	     needs no permission today; this is the reason iOS would show if it
+	     ever starts asking for one. -->
+	<key>NSMotionUsageDescription</key>
+	<string>Turning the device aims, while gyro aiming is on (hold MENU to set it).</string>
 </dict>
 </plist>

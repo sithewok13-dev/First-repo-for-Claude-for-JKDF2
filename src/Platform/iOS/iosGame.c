@@ -136,6 +136,22 @@ int iosGame_IsPowerAvailable(int bin)
     return (pPlayer->actorParams.pPlayer->aItems[bin].state & SITHINVENTORY_ITEM_AVAILABLE) != 0;
 }
 
+int iosGame_GetPowerLevel(int bin)
+{
+    SithThing* pPlayer = iosGame_GetPlayer();
+    if (!pPlayer || bin < 0 || bin >= SITHBIN_NUMBINS)
+        return 0;
+
+    // The stars the Force screen shows (jkGuiForce_ForceStarsDraw): 1-4 in
+    // Jedi Knight once learned (none at 0), 0-4 in Mysteries of the Sith.
+    // The Force screen stops at 4 (curLevel < 4), but it, the rank-8 capstone
+    // and save loads write the bin directly (sithPlayer_SetInvItemAmount,
+    // DSS_INVENTORY), without items.dat's min/max, so it is clamped here. A
+    // float, truncated as the Force screen does.
+    int level = (int)sithInventory_GetInventory(pPlayer, bin);
+    return level < 0 ? 0 : (level > 4 ? 4 : level);
+}
+
 int iosGame_GetCurPower(void)
 {
     SithThing* pPlayer = iosGame_GetPlayer();
@@ -251,6 +267,33 @@ int iosGame_IsAlwaysRun(void)
     // sithControl_PlayerMovement and its Mysteries of the Sith version run
     // when it is set or INPUT_FUNC_FAST (Shift) is held.
     return (sithWeapon_controlOptions & 2) ? 1 : 0;
+}
+
+// What one count on a mouse axis adds to an input function's axis, summed
+// over its raw bindings to that axis: sithControl_GetAxis reverses each one
+// that is reversed and scales it by its binaryAxisVal (none if 0)
+static float iosGame_MouseAxisScale(int func, int axis)
+{
+    float scale = 0.0f;
+    stdControlKeyInfo* pInfo = &sithControl_aInputFuncToKeyinfo[func];
+    for (uint32_t i = 0; i < pInfo->numEntries; i++)
+    {
+        stdControlKeyInfoEntry* pEntry = &pInfo->aEntries[i];
+        if (pEntry->dxKeyNum != axis || !(pEntry->flags & INPUT_MAPPING_FLAG_RAW_AXIS))
+            continue;
+        float v = (pEntry->binaryAxisVal != 0.0f) ? (float)pEntry->binaryAxisVal : 1.0f;
+        scale += (pEntry->flags & INPUT_MAPPING_FLAG_AXIS_REVERSED) ? -v : v;
+    }
+    return scale;
+}
+
+void iosGame_GetMouseLookDegrees(float* pTurn, float* pPitch)
+{
+    // The turn axis is how far the player turns left in a frame (degrees:
+    // the turn rate is set to it times the frame rate), the pitch axis how
+    // far the head tilts up
+    *pTurn = -iosGame_MouseAxisScale(INPUT_FUNC_TURN, AXIS_MOUSE_X);
+    *pPitch = -iosGame_MouseAxisScale(INPUT_FUNC_PITCH, AXIS_MOUSE_Y);
 }
 
 void iosGame_ToggleChat(void)

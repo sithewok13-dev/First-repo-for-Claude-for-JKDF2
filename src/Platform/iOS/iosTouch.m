@@ -6,7 +6,9 @@
 
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
+#import <CoreMotion/CoreMotion.h>
 #include <SDL3/SDL.h>
+#include <os/lock.h>
 #include <math.h>
 #include <string.h>
 
@@ -59,6 +61,8 @@ extern int jkHud_bChatOpen;
 #define IOSTOUCH_IDLE_ALPHA 0.65
 // Edge-to-edge gap between the buttons around FIRE (the arc, ALT and FORCE)
 #define IOSTOUCH_CLUSTER_GAP 30.0f
+// A button takes touches up to this far outside its edge (buttonAt, isPoint)
+#define IOSTOUCH_TOUCH_SLOP 6.0
 // Force wheel (see the maps below): its outer radius, at most
 // IOSTOUCH_WHEEL_R1_MAX points; the hole in the middle, a fraction of that;
 // how far the slice pointed at pops out
@@ -79,18 +83,74 @@ extern int jkHud_bChatOpen;
 #define IOSTOUCH_WHEEL_HYST 4.0
 #define IOSTOUCH_WHEEL_TAP_TIME 0.35
 #define IOSTOUCH_WHEEL_CANCEL (-2) // "slice" of the gap at the bottom
-// QUICK SAVE has to be held this long, so a stray tap can't save over the
-// quicksave, and QUICK LOAD this long, so one can't throw away progress
+// A learned power's level (0-4) shows under its name as a row of
+// IOSTOUCH_WHEEL_STARS star slots, the first that many filled: each in a cell
+// IOSTOUCH_WHEEL_STAR_CELL points across, IOSTOUCH_WHEEL_STAR_STEP apart,
+// IOSTOUCH_WHEEL_STAR_GAP below the name. The star's points reach
+// IOSTOUCH_WHEEL_STAR_R from its middle, the notches between them a fraction
+// IOSTOUCH_WHEEL_STAR_INNER of that. Empty stars are outlines
+// IOSTOUCH_WHEEL_STAR_LINE wide; filled ones have an IOSTOUCH_WHEEL_STAR_EDGE
+// dark edge. All but the gap scale down together on a wheel whose slices are
+// too narrow for them.
+#define IOSTOUCH_WHEEL_STARS 4
+#define IOSTOUCH_WHEEL_STAR_CELL 8.0
+#define IOSTOUCH_WHEEL_STAR_STEP 9.0
+#define IOSTOUCH_WHEEL_STAR_GAP 2.0
+#define IOSTOUCH_WHEEL_STAR_R 4.3
+#define IOSTOUCH_WHEEL_STAR_INNER 0.45
+#define IOSTOUCH_WHEEL_STAR_LINE 0.9
+#define IOSTOUCH_WHEEL_STAR_EDGE 0.2
+#define IOSTOUCH_WHEEL_STAR_MIN 0.6 // smallest scale (fitWheelLabels)
+// QUICK SAVE and QUICK LOAD have to be held this long, so a stray tap can't
+// save over the quicksave or throw away progress
 #define IOSTOUCH_QUICKSAVE_HOLD 0.3
-#define IOSTOUCH_QUICKLOAD_HOLD 1.0
-// MENU held this long opens its tray (keyboard, FPS); a tap opens the menu as
-// it lifts, holding Escape down for this many iosTouch_Update calls
+#define IOSTOUCH_QUICKLOAD_HOLD 0.3
+// MENU held this long opens its tray (gyro, FPS, keyboard); a tap opens the
+// menu as it lifts, holding Escape down for this many iosTouch_Update calls
 #define IOSTOUCH_MENU_HOLD 0.45
 #define IOSTOUCH_MENU_PULSE_UPDATES 2
+// The tray's buttons are IOSTOUCH_TRAY_STEP apart in a row; where its backing
+// would come nearer than IOSTOUCH_TRAY_CLEAR to the buttons round FIRE, the
+// row moves left, as far as the screen allows
+#define IOSTOUCH_TRAY_STEP 50.0
+#define IOSTOUCH_TRAY_CLEAR 8.0
 // The FPS readout counts frames over at least this many seconds; whether it
 // shows is kept in the app's settings under this key
 #define IOSTOUCH_FPS_PERIOD 0.5
 #define IOSTOUCH_FPS_DEFAULTS_KEY @"iosTouchShowFps"
+// Gyro aiming (see iosTouch_GyroUpdate). CoreMotion's device motion gives the
+// rotation rate with the gyro's bias already taken out, IOSTOUCH_GYRO_HZ
+// times a second. Turning left and right is measured about the way up
+// (against gravity), so it works the same however far back the phone is
+// tipped ("player space": what the screen's yaw and roll axes turn about up
+// together -- made up by as much as IOSTOUCH_GYRO_YAW_RELAX times for a phone
+// held rolled a little to one side, but never more than the two turn in
+// all). Where up says nothing about which way the player's head is -- the
+// screen facing down at a player lying under it, or rolled over on its side
+// -- it is about the screen's own up axis instead ("local space"). Tilting
+// is about the screen's own side-to-side axis. Under
+// IOSTOUCH_GYRO_SMOOTH deg/s the motion is averaged over the last
+// IOSTOUCH_GYRO_SMOOTH_N samples (all of it under half that), and under
+// IOSTOUCH_GYRO_SOFT deg/s it is scaled down, to nothing at rest, so a phone
+// held still doesn't creep. A gap between two samples longer than
+// IOSTOUCH_GYRO_MAX_DT (a stall) is skipped, and so is what the phone did
+// between two frames more than IOSTOUCH_GYRO_MAX_FRAME apart (the game was
+// stopped: it would come all at once), or in the IOSTOUCH_GYRO_TURN_HOLD
+// after the screen turned round to the other landscape side (the phone is
+// still on its way round). The mode and the sensitivity (one of
+// iosTouch_aGyroSens: at 1.0x the view turns as far as the phone does) are
+// kept in the app's settings under these keys.
+#define IOSTOUCH_GYRO_HZ 100.0
+#define IOSTOUCH_GYRO_YAW_RELAX 1.41
+#define IOSTOUCH_GYRO_SMOOTH 4.0
+#define IOSTOUCH_GYRO_SMOOTH_N 12 // about 0.125 s
+#define IOSTOUCH_GYRO_SOFT 1.5
+#define IOSTOUCH_GYRO_MAX_DT 0.05
+#define IOSTOUCH_GYRO_MAX_FRAME 0.5
+#define IOSTOUCH_GYRO_TURN_HOLD 0.35
+#define IOSTOUCH_GYRO_DEFAULTS_KEY @"iosTouchGyroMode"
+#define IOSTOUCH_GYRO_SENS_DEFAULTS_KEY @"iosTouchGyroSens"
+#define IOSTOUCH_GYRO_DEFAULT_SENS 1 // 1.5x
 // A one-off key press is held for this many control reads, then released for one
 #define IOSTOUCH_PULSE_READS 2
 
@@ -115,6 +175,8 @@ enum {
     KIND_ITEM,     // uses an inventory item when the touch lifts on it; only shown while the player has it
     KIND_CHAT,     // (MENU tray) opens or closes the typing line for cheats, when the touch lifts on it
     KIND_FPS,      // (MENU tray) shows or hides the FPS readout, when the touch lifts on it
+    KIND_GYRO,     // (MENU tray) the next gyro aiming mode, when the touch lifts on it
+    KIND_GYROSENS, // (MENU tray) the next gyro aiming sensitivity, when the touch lifts on it
 };
 
 // Keys are the game's default keyboard bindings (sithControl_RegisterKeyboardBindings).
@@ -135,22 +197,24 @@ typedef struct {
 
 // Layout (see layoutSubviews). Bottom right, under the right thumb: FIRE, an
 // arc of DUCK / ACT / JUMP around it, ALT above the ammo gauge and FORCE right
-// of JUMP, above ALT -- all IOSTOUCH_CLUSTER_GAP apart. FORCE uses the selected
+// of JUMP, above ALT (or, where the cutout or the top row is in the way, over
+// JUMP) -- all IOSTOUCH_CLUSTER_GAP apart. FORCE uses the selected
 // power for as long as it is held (Force Jump charges, Lightning keeps going).
 // These all pass drags through to looking, so a thumb that lands on one while
 // aiming keeps aiming. Top left: next weapon, the FORCE WHEEL that picks the
 // power, and a button for each usable item while the player has it (field
 // light, IR goggles, bacta), each always in its own place. Top right: quick
-// save (a short hold), quick load (a long one) and the menu. Holding MENU
-// opens a tray just under it: the keyboard, for the typing line (cheats), and
-// FPS, which shows or hides a frame rate readout left of QUICK SAVE. ACT is
-// the door/switch key.
+// save and quick load (short holds) and the menu. Holding MENU opens a tray
+// just under it: gyro aiming's sensitivity and mode, FPS, which shows or hides
+// a frame rate readout left of QUICK SAVE, and the keyboard, for the typing
+// line (cheats). ACT is the door/switch key.
 enum {
     BTN_FIRE, BTN_ALT, BTN_DUCK, BTN_ACT, BTN_JUMP, BTN_FORCE,
     BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA,
     BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU,
-    BTN_TRAYFPS, BTN_TRAYKEYS, // MENU's tray, hidden unless it is open
-    BTN_COUNT
+    BTN_TRAYSENS, BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
+    BTN_COUNT,
+    BTN_TRAY_FIRST = BTN_TRAYSENS, BTN_TRAY_LAST = BTN_TRAYKEYS
 };
 static iosTouchButton iosTouch_aButtons[] = {
     [BTN_FIRE]      = { "FIRE",        KIND_KEY,      SDL_SCANCODE_LCTRL,  42.0f, 1 },
@@ -167,11 +231,23 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_QUICKSAVE] = { "QUICK\nSAVE", KIND_HOLDSAVE, SDL_SCANCODE_F9,     22.0f, 0 },
     [BTN_QUICKLOAD] = { "QUICK\nLOAD", KIND_HOLDLOAD, -1,                  22.0f, 0 },
     [BTN_MENU]      = { "MENU",        KIND_MENU,     -1,                  22.0f, 0 },
+    [BTN_TRAYSENS]  = { "SENS",        KIND_GYROSENS, -1,                  20.0f, 0 },
+    [BTN_TRAYGYRO]  = { "GYRO",        KIND_GYRO,     -1,                  20.0f, 0 },
     [BTN_TRAYFPS]   = { "FPS",         KIND_FPS,      -1,                  20.0f, 0 },
     [BTN_TRAYKEYS]  = { "",            KIND_CHAT,     -1,                  20.0f, 0 },
 };
 #define IOSTOUCH_NUM_BUTTONS ((int)(sizeof(iosTouch_aButtons) / sizeof(iosTouch_aButtons[0])))
 typedef char iosTouch_assertButtonCount[(IOSTOUCH_NUM_BUTTONS == BTN_COUNT) ? 1 : -1];
+
+static int iosTouch_IsTrayButton(int button)
+{
+    return button >= BTN_TRAY_FIRST && button <= BTN_TRAY_LAST;
+}
+
+static int iosTouch_IsQuickHold(int button)
+{
+    return button == BTN_QUICKSAVE || button == BTN_QUICKLOAD;
+}
 
 // ------------------------------------------------------------ force wheel maps
 
@@ -258,7 +334,7 @@ typedef struct {
     CGPoint last;
     CFTimeInterval tDown; // when the touch began reaching us (CACurrentMediaTime, as -tick counts)...
     NSTimeInterval tDownTouch; // ...and when it began, by the touch's own clock (UITouch.timestamp)
-    int bFired;           // QUICK SAVE, QUICK LOAD: the hold is over (saved / loaded; QUICK SAVE also slid off, or typing). MENU: the hold is over (tray opened, or slid off)
+    int bFired;           // QUICK SAVE, QUICK LOAD: the hold is over (a save or load went off, from this finger or another one on either button; or it slid off, or typing). MENU: the hold is over (tray opened, or slid off)
     int bSeen;            // KIND_KEY: the game has read the key as held at least once
     int trayButton;       // MENU, after its tray opened: the tray button under the finger, or -1
     int wheelSlot;        // ROLE_WHEEL: the slice picked (index into the map), IOSTOUCH_WHEEL_CANCEL, or -1
@@ -298,6 +374,7 @@ static int iosTouch_bWheelOpen = 0;
 static int iosTouch_bWheelTapMode = 0;
 static const iosTouchWheelMap* iosTouch_pWheelMap = NULL;
 static int iosTouch_aWheelEarned[IOSTOUCH_WHEEL_MAX];
+static int iosTouch_aWheelLevel[IOSTOUCH_WHEEL_MAX]; // as the wheel opened (iosGame_GetPowerLevel)
 static CGPoint iosTouch_wheelCentre;
 static CGFloat iosTouch_wheelR0 = 0.0, iosTouch_wheelR1 = 0.0;
 // MENU's tray; Escape held down for a MENU tap (iosTouch_Update calls left);
@@ -305,6 +382,38 @@ static CGFloat iosTouch_wheelR0 = 0.0, iosTouch_wheelR1 = 0.0;
 static int iosTouch_bTrayOpen = 0;
 static int iosTouch_menuPulse = 0;
 static int iosTouch_bShowFps = 0;
+// Gyro aiming: its mode, its sensitivity (an index into iosTouch_aGyroSens),
+// the motion manager (one for the app, as Apple asks) and the queue its
+// samples are handled on, whether its updates are running, whether iOS
+// refused them (no motion permission), and whether the last frame could have
+// used them (and when it was); the mouse counts it has yet to hand over (the
+// part short of a whole count); the landscape side the screen was last
+// turned and when it turned round to it. Under iosTouch_gyroLock, as the
+// samples come in on that queue: which way round the screen is (+1 landscape
+// left, -1 landscape right, 0 neither, so no aiming), how far the view is to
+// turn (degrees, + left) and tilt (+ up) for the samples since the last
+// frame, what the samples keep (the last one's time, the smoothing's), and
+// whether one came back refused.
+enum { IOSTOUCH_GYRO_OFF = 0, IOSTOUCH_GYRO_TOUCH, IOSTOUCH_GYRO_ALWAYS, IOSTOUCH_GYRO_NUM_MODES };
+static const float iosTouch_aGyroSens[] = { 1.0f, 1.5f, 2.0f, 3.0f };
+static int iosTouch_gyroMode = IOSTOUCH_GYRO_OFF; // until it is switched on in MENU's tray
+static int iosTouch_gyroSens = IOSTOUCH_GYRO_DEFAULT_SENS;
+static CMMotionManager* iosTouch_pMotion = nil;
+static NSOperationQueue* iosTouch_pMotionQueue = nil;
+static int iosTouch_bGyroRunning = 0;
+static int iosTouch_bGyroRefused = 0;
+static int iosTouch_bGyroWasOk = 0;
+static CFTimeInterval iosTouch_gyroLastFrame = 0.0;
+static float iosTouch_gyroCountX = 0.0f, iosTouch_gyroCountY = 0.0f;
+static int iosTouch_gyroLastSide = 0;
+static CFTimeInterval iosTouch_gyroTurnedRound = -1.0e9;
+static os_unfair_lock iosTouch_gyroLock = OS_UNFAIR_LOCK_INIT;
+static int iosTouch_gyroSide = 0;
+static double iosTouch_gyroYaw = 0.0, iosTouch_gyroPitch = 0.0;
+static NSTimeInterval iosTouch_gyroLastT = 0.0;
+static double iosTouch_aGyroSmooth[IOSTOUCH_GYRO_SMOOTH_N][2];
+static int iosTouch_gyroSmoothNext = 0;
+static int iosTouch_bGyroRefusedOnQueue = 0;
 
 static void iosTouch_QueuePress(int scancode)
 {
@@ -348,6 +457,47 @@ static CGFloat iosTouch_DistToSegment(CGPoint p, CGFloat ax, CGFloat ay, CGFloat
     if (t > 1) t = 1;
     CGFloat dx = p.x - (ax + t * vx), dy = p.y - (ay + t * vy);
     return sqrt(dx * dx + dy * dy);
+}
+
+// Where MENU's tray goes (see layoutSubviews), with FORCE at *pForce: a row
+// of its buttons, IOSTOUCH_TRAY_STEP apart, just under MENU, the keyboard (the
+// right end) right below it, moved left (4 pt at a time, as long as its
+// backing stays right of left, the safe area's edge) until its backing is
+// IOSTOUCH_TRAY_CLEAR from every button round FIRE (FIRE, ALT, DUCK, ACT,
+// JUMP and FORCE) -- or, if it never is, to wherever the nearest of them is
+// furthest from it. Returns the keyboard button's centre; *pClear is how far
+// the backing is from the nearest of them, *pForceClear how far from FORCE.
+// With pForce NULL, FORCE is left out (FORCE's own search: how clear the tray
+// can be without it).
+static CGPoint iosTouch_TrayKeysAt(CGPoint menu, CGFloat left, const CGPoint* pForce, CGFloat* pClear, CGFloat* pForceClear)
+{
+    const CGFloat ty = menu.y + 52;
+    const CGFloat len = IOSTOUCH_TRAY_STEP * (BTN_TRAY_LAST - BTN_TRAY_FIRST);
+    CGFloat kx = menu.x, bestClear = -1e9, bestForce = 1e9;
+    for (CGFloat x = menu.x; ; x -= 4) {
+        CGFloat clear = 1e9, forceClear = 1e9;
+        for (int i = BTN_FIRE; i <= BTN_FORCE; i++) {
+            iosTouchButton* c = &iosTouch_aButtons[i];
+            CGPoint p = CGPointMake(c->x, c->y);
+            if (i == BTN_FORCE) {
+                if (!pForce) continue;
+                p = *pForce;
+            }
+            CGFloat d = iosTouch_DistToSegment(p, x - len, ty, x, ty) - 26 - c->radius;
+            clear = MIN(clear, d);
+            if (i == BTN_FORCE) forceClear = d;
+        }
+        if (clear > bestClear) {
+            bestClear = clear;
+            bestForce = forceClear;
+            kx = x;
+        }
+        if (clear >= IOSTOUCH_TRAY_CLEAR) break;
+        if (x - 4 - len - 26 < left) break; // the next spot would go off the left
+    }
+    if (pClear) *pClear = bestClear;
+    if (pForceClear) *pForceClear = bestForce;
+    return CGPointMake(kx, ty);
 }
 
 // Whether the camera cutout may be on the right of the screen. Landscape right
@@ -426,6 +576,227 @@ static int iosTouch_StickOnRunMarker(CGPoint p, CGPoint o, int bRunning)
     return off <= (bRunning ? IOSTOUCH_RUN_CONE_OFF : IOSTOUCH_RUN_CONE);
 }
 
+// ---------------------------------------------------------------- gyro aiming
+
+// One sample of device motion, on the samples' queue: the rotation rate w
+// (rad/s) and gravity g (toward the ground) in the device's own axes (x
+// right, y up, z out of the screen, as if held upright), taken at time t.
+// Adds how far it turns and tilts the view.
+static void iosTouch_GyroSample(double wx, double wy, double wz, double gx, double gy, double gz, NSTimeInterval t)
+{
+    os_unfair_lock_lock(&iosTouch_gyroLock);
+    double dt = iosTouch_gyroLastT > 0.0 ? t - iosTouch_gyroLastT : 0.0;
+    iosTouch_gyroLastT = t;
+    double s = iosTouch_gyroSide;
+    double gn = sqrt(gx * gx + gy * gy + gz * gz);
+    if (s != 0.0 && dt > 0.0 && dt <= IOSTOUCH_GYRO_MAX_DT && gn > 0.1) {
+        // The screen's axes as the player sees it: right, up, toward them.
+        // How fast the phone turns about each (the right-hand way round: +
+        // about up turns left), and how far each points up.
+        double rx = s * wy, ry = -s * wx, rz = wz;
+        double ux = -s * gy / gn, uy = s * gx / gn, uz = -gz / gn;
+        // Not while held upside down for the way round the screen is turned
+        // (rolled more than 120 degrees either way, unless within 30 of
+        // flat): the phone is on its way round to the other landscape side
+        double tilt = sqrt(ux * ux + uy * uy);
+        if (tilt < 0.5 || uy > -0.5 * tilt) {
+            double yaw = ry, pitch = rx;
+            if (uz >= 0.0 && (tilt < 0.5 || uy > 0.5 * tilt)) {
+                // Player space, while the screen faces up and is held the way
+                // round it is turned (rolled less than 60 degrees either way)
+                // or about flat: turning is about up, from the screen's up and
+                // toward-the-player axes as far as each points up
+                yaw = uy * ry + uz * rz;
+                double mag = sqrt(ry * ry + rz * rz);
+                yaw = copysign(fmin(fabs(yaw) * IOSTOUCH_GYRO_YAW_RELAX, mag), yaw);
+            }
+            // (Otherwise local space: facing down, or rolled further over --
+            // which also leaves out the roll of a phone on its way round.)
+            yaw *= 180.0 / M_PI;
+            pitch *= 180.0 / M_PI;
+
+            // Smoothed only where it is slow
+            double m = sqrt(yaw * yaw + pitch * pitch);
+            double direct = (m - IOSTOUCH_GYRO_SMOOTH * 0.5) / (IOSTOUCH_GYRO_SMOOTH * 0.5);
+            direct = direct < 0.0 ? 0.0 : (direct > 1.0 ? 1.0 : direct);
+            iosTouch_aGyroSmooth[iosTouch_gyroSmoothNext][0] = yaw * (1.0 - direct);
+            iosTouch_aGyroSmooth[iosTouch_gyroSmoothNext][1] = pitch * (1.0 - direct);
+            iosTouch_gyroSmoothNext = (iosTouch_gyroSmoothNext + 1) % IOSTOUCH_GYRO_SMOOTH_N;
+            double sumYaw = 0.0, sumPitch = 0.0;
+            for (int i = 0; i < IOSTOUCH_GYRO_SMOOTH_N; i++) {
+                sumYaw += iosTouch_aGyroSmooth[i][0];
+                sumPitch += iosTouch_aGyroSmooth[i][1];
+            }
+            yaw = yaw * direct + sumYaw / IOSTOUCH_GYRO_SMOOTH_N;
+            pitch = pitch * direct + sumPitch / IOSTOUCH_GYRO_SMOOTH_N;
+
+            // The soft dead zone
+            m = sqrt(yaw * yaw + pitch * pitch);
+            if (m < IOSTOUCH_GYRO_SOFT) {
+                yaw *= m / IOSTOUCH_GYRO_SOFT;
+                pitch *= m / IOSTOUCH_GYRO_SOFT;
+            }
+            iosTouch_gyroYaw += yaw * dt;
+            iosTouch_gyroPitch += pitch * dt;
+        }
+    }
+    os_unfair_lock_unlock(&iosTouch_gyroLock);
+}
+
+// Whether an error the motion updates hand back is iOS refusing the motion
+// data (no permission: none is asked for today, but iOS could start to)
+static int iosTouch_GyroIsRefusal(NSError* err)
+{
+    if (![err.domain isEqualToString:CMErrorDomain]) return 0;
+    return err.code == CMErrorNotAuthorized || err.code == CMErrorNotEntitled
+           || err.code == CMErrorMotionActivityNotAuthorized || err.code == CMErrorMotionActivityNotEntitled;
+}
+
+// Starts or stops the motion updates
+static void iosTouch_GyroRun(int bRun)
+{
+    bRun = bRun != 0;
+    if (bRun == iosTouch_bGyroRunning) return;
+    iosTouch_bGyroRunning = bRun;
+    if (!bRun) {
+        [iosTouch_pMotion stopDeviceMotionUpdates];
+        return;
+    }
+    // From scratch: nothing from before it stopped, the smoothing empty
+    os_unfair_lock_lock(&iosTouch_gyroLock);
+    iosTouch_gyroLastT = 0.0;
+    iosTouch_gyroYaw = iosTouch_gyroPitch = 0.0;
+    memset(iosTouch_aGyroSmooth, 0, sizeof(iosTouch_aGyroSmooth));
+    os_unfair_lock_unlock(&iosTouch_gyroLock);
+    iosTouch_pMotion.deviceMotionUpdateInterval = 1.0 / IOSTOUCH_GYRO_HZ;
+    // (the reference frame that needs no compass: the attitude isn't used)
+    [iosTouch_pMotion startDeviceMotionUpdatesUsingReferenceFrame:CMAttitudeReferenceFrameXArbitraryZVertical
+                                                          toQueue:iosTouch_pMotionQueue
+                                                      withHandler:^(CMDeviceMotion* dm, NSError* err) {
+        if (err && iosTouch_GyroIsRefusal(err)) {
+            os_unfair_lock_lock(&iosTouch_gyroLock);
+            iosTouch_bGyroRefusedOnQueue = 1;
+            os_unfair_lock_unlock(&iosTouch_gyroLock);
+        }
+        if (!dm || err) return;
+        CMRotationRate w = dm.rotationRate;
+        CMAcceleration g = dm.gravity;
+        iosTouch_GyroSample(w.x, w.y, w.z, g.x, g.y, g.z, dm.timestamp);
+    }];
+}
+
+// Once, as the overlay is made: the motion manager and the queue for its
+// samples (nothing runs yet), and the settings -- OFF and 1.5x unless set
+static void iosTouch_GyroSetup(void)
+{
+    if (iosTouch_pMotion) return;
+    iosTouch_pMotion = [[CMMotionManager alloc] init];
+    iosTouch_pMotionQueue = [[NSOperationQueue alloc] init];
+    iosTouch_pMotionQueue.maxConcurrentOperationCount = 1; // in order, one at a time
+    iosTouch_pMotionQueue.qualityOfService = NSQualityOfServiceUserInteractive;
+
+    NSUserDefaults* d = [NSUserDefaults standardUserDefaults];
+    // (a mode that was never set, or isn't one, is off)
+    if ([d objectForKey:IOSTOUCH_GYRO_DEFAULTS_KEY]) {
+        NSInteger m = [d integerForKey:IOSTOUCH_GYRO_DEFAULTS_KEY];
+        iosTouch_gyroMode = (m >= 0 && m < IOSTOUCH_GYRO_NUM_MODES) ? (int)m : IOSTOUCH_GYRO_OFF;
+    }
+    if ([d objectForKey:IOSTOUCH_GYRO_SENS_DEFAULTS_KEY]) {
+        float k = [d floatForKey:IOSTOUCH_GYRO_SENS_DEFAULTS_KEY];
+        for (int i = 0; i < IOSTOUCH_COUNT(iosTouch_aGyroSens); i++) {
+            if (fabsf(iosTouch_aGyroSens[i] - k) < fabsf(iosTouch_aGyroSens[iosTouch_gyroSens] - k)) iosTouch_gyroSens = i;
+        }
+    }
+}
+
+// Whether this device has the gyro aiming needs (not the Simulator), and iOS
+// hasn't refused it
+static int iosTouch_GyroAvailable(void)
+{
+    return iosTouch_pMotion && iosTouch_pMotion.deviceMotionAvailable && !iosTouch_bGyroRefused;
+}
+
+// The next mode or sensitivity (MENU's tray), kept in the app's settings
+static void iosTouch_GyroNextMode(void)
+{
+    iosTouch_gyroMode = (iosTouch_gyroMode + 1) % IOSTOUCH_GYRO_NUM_MODES;
+    [[NSUserDefaults standardUserDefaults] setInteger:iosTouch_gyroMode forKey:IOSTOUCH_GYRO_DEFAULTS_KEY];
+}
+static void iosTouch_GyroNextSens(void)
+{
+    iosTouch_gyroSens = (iosTouch_gyroSens + 1) % IOSTOUCH_COUNT(iosTouch_aGyroSens);
+    [[NSUserDefaults standardUserDefaults] setFloat:iosTouch_aGyroSens[iosTouch_gyroSens] forKey:IOSTOUCH_GYRO_SENS_DEFAULTS_KEY];
+}
+
+// Whether a thumb that aims is down, for TOUCH: the touches that drag the
+// view -- on the look area, or on one of the buttons under the right thumb
+// that pass a drag through to looking (FIRE, ALT, DUCK, ACT, JUMP, FORCE).
+// Not the stick, the top row, the wheel, or a touch being ignored.
+static int iosTouch_GyroThumbDown(void)
+{
+    for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+        iosTouchSlot* s = &iosTouch_aSlots[i];
+        if (!s->touch) continue;
+        if (s->role == ROLE_LOOK || (s->role == ROLE_BUTTON && iosTouch_aButtons[s->button].bLookWhileHeld)) return 1;
+    }
+    return 0;
+}
+
+// Once per frame, from iosTouch_UpdateGyro, after the frame's touches came in
+// (bShown: whether the overlay v is up). The motion updates run only while it
+// is shown, the app is active, the gyro is on and the screen is turned either
+// landscape way. What the phone turned since the last frame goes to the mouse
+// axes, on top of the look drag's movement -- if it could aim both then and
+// now, so a lifted thumb freezes the view where it is (the frame it lifted in
+// counts for nothing) and nothing springs back, and touching again carries on
+// from there, from however the phone is held by then. Never while the force
+// wheel (or anything else that holds the game), the typing line or the tray
+// is open, just after the screen turned round to the other landscape side,
+// nor after a frame that took too long.
+static void iosTouch_GyroUpdate(int bShown, UIView* v)
+{
+    UIWindowScene* scene = v.window.windowScene;
+    UIInterfaceOrientation o = scene ? scene.interfaceOrientation : UIInterfaceOrientationUnknown;
+    int side = (o == UIInterfaceOrientationLandscapeLeft) ? 1 : ((o == UIInterfaceOrientationLandscapeRight) ? -1 : 0);
+    int bActive = [UIApplication sharedApplication].applicationState == UIApplicationStateActive;
+    CFTimeInterval now = CACurrentMediaTime();
+    if (side != 0 && iosTouch_gyroLastSide != 0 && side != iosTouch_gyroLastSide) iosTouch_gyroTurnedRound = now;
+    if (side != 0) iosTouch_gyroLastSide = side;
+    iosTouch_GyroRun(bShown && bActive && side != 0 && iosTouch_gyroMode != IOSTOUCH_GYRO_OFF && iosTouch_GyroAvailable());
+
+    os_unfair_lock_lock(&iosTouch_gyroLock);
+    iosTouch_gyroSide = side;
+    double yaw = iosTouch_gyroYaw, pitch = iosTouch_gyroPitch;
+    iosTouch_gyroYaw = iosTouch_gyroPitch = 0.0;
+    iosTouch_bGyroRefused |= iosTouch_bGyroRefusedOnQueue; // (stops it next frame)
+    os_unfair_lock_unlock(&iosTouch_gyroLock);
+
+    int bOk = iosTouch_bGyroRunning
+              && (iosTouch_gyroMode == IOSTOUCH_GYRO_ALWAYS || iosTouch_GyroThumbDown())
+              && !iosTouch_bWheelOpen && !iosGame_IsHolding() && !jkHud_bChatOpen && !iosTouch_bTrayOpen
+              && now - iosTouch_gyroTurnedRound >= IOSTOUCH_GYRO_TURN_HOLD;
+    int bUse = bOk && iosTouch_bGyroWasOk && now - iosTouch_gyroLastFrame <= IOSTOUCH_GYRO_MAX_FRAME;
+    iosTouch_bGyroWasOk = bOk;
+    iosTouch_gyroLastFrame = now;
+    if (!bUse) return;
+
+    // Into mouse counts through the game's own mouse look settings (Setup >
+    // Controls > Mouse), so the view turns by that angle whatever their
+    // sensitivity, and the same way round whether or not they are reversed.
+    // Handed on in whole counts; the rest waits for the next frame.
+    float turn = 0.0f, tilt = 0.0f; // degrees a count turns the view right / tilts it down
+    iosGame_GetMouseLookDegrees(&turn, &tilt);
+    float k = iosTouch_aGyroSens[iosTouch_gyroSens];
+    if (fabsf(turn) > 0.001f) iosTouch_gyroCountX -= (float)yaw * k / turn;
+    if (fabsf(tilt) > 0.001f) iosTouch_gyroCountY -= (float)pitch * k / tilt;
+    int dx = (int)iosTouch_gyroCountX;
+    int dy = (int)iosTouch_gyroCountY;
+    iosTouch_gyroCountX -= (float)dx;
+    iosTouch_gyroCountY -= (float)dy;
+    Window_lastXRel += dx;
+    Window_lastYRel += dy;
+}
+
 // ---------------------------------------------------------------- overlay view
 
 @interface IOSTouchOverlay : UIView {
@@ -454,9 +825,12 @@ static int iosTouch_StickOnRunMarker(CGPoint p, CGPoint o, int bRunning)
     CAShapeLayer* aSliceLayers[IOSTOUCH_WHEEL_MAX];
     UILabel* aSliceLabels[IOSTOUCH_WHEEL_MAX];
     int aSlicePopped[IOSTOUCH_WHEEL_MAX];  // the shape it has now (-1: none yet)
-    CGFloat aSliceFont[IOSTOUCH_WHEEL_MAX];   // its label's size, fitted to the slice...
-    CGFloat aSliceLabelR[IOSTOUCH_WHEEL_MAX]; // ...how far out it sits...
-    CGSize aSliceLabelSize[IOSTOUCH_WHEEL_MAX]; // ...and how big it is
+    // Each label fitted to its slice twice: [0] alone, [1] with the star row under it
+    CGFloat aSliceFont[IOSTOUCH_WHEEL_MAX][2];   // its size (0: the stars don't fit)...
+    CGFloat aSliceLabelR[IOSTOUCH_WHEEL_MAX][2]; // ...how far out it sits (with the stars: their middle)...
+    CGSize aSliceLabelSize[IOSTOUCH_WHEEL_MAX][2]; // ...and how big it is
+    CAShapeLayer* aSliceStars[IOSTOUCH_WHEEL_MAX][2]; // a learned power's level: its filled stars, its empty ones
+    CGFloat wheelStarScale;                // their size, as a fraction of full size (fitWheelLabels)
     const iosTouchWheelMap* fitMap;        // the map and size the labels were fitted for
     CGFloat fitR1;
     UILabel* aGroupLabels[IOSTOUCH_WHEEL_MAX_GROUPS];
@@ -474,6 +848,8 @@ static int iosTouch_StickOnRunMarker(CGPoint p, CGPoint o, int bRunning)
 }
 - (void)resetAll;
 - (void)tick;
+- (void)refreshGyroLabels;
+- (void)refreshButtonLooks;
 @end
 
 @implementation IOSTouchOverlay
@@ -538,6 +914,23 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
     return p;
 }
 
+// Adds a five-pointed star to p, point up, centred in its cell at c, at a
+// fraction k of full size
+static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
+{
+    // the points reach R above the middle but only R cos 36 below it: nudged
+    // down by half the difference, so the star sits in the middle of its cell
+    CGFloat R = IOSTOUCH_WHEEL_STAR_R * k, y = c.y + R * (1.0 - cos(M_PI / 5.0)) * 0.5;
+    for (int j = 0; j < 10; j++) {
+        CGFloat r = (j & 1) ? R * IOSTOUCH_WHEEL_STAR_INNER : R;
+        CGFloat a = (-90.0 + 36.0 * j) * M_PI / 180.0;
+        CGPoint q = CGPointMake(c.x + r * cos(a), y + r * sin(a));
+        if (j == 0) [p moveToPoint:q];
+        else [p addLineToPoint:q];
+    }
+    [p closePath];
+}
+
 - (instancetype)initWithFrame:(CGRect)frame
 {
     self = [super initWithFrame:frame];
@@ -568,7 +961,7 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
         }
 
         // Rings that fill while QUICK SAVE, QUICK LOAD and MENU are held. QUICK
-        // SAVE's and QUICK LOAD's look the same: only how long they take differs.
+        // SAVE's and QUICK LOAD's look the same.
         saveRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_QUICKSAVE].radius);
         [aButtonViews[BTN_QUICKSAVE].layer addSublayer:saveRing];
         loadRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_QUICKLOAD].radius);
@@ -597,8 +990,9 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
         forceRingFrac = -1.0f;
         bForceRingFull = 0;
 
-        // MENU's tray: its two buttons on a dark backing, hidden until a
-        // hold on MENU opens it. The keyboard button shows the keyboard symbol.
+        // MENU's tray: its buttons on a dark backing, hidden until a hold on
+        // MENU opens it. The gyro's two say what they are set to; the
+        // keyboard button shows the keyboard symbol.
         trayBack = [[UIView alloc] initWithFrame:CGRectZero];
         trayBack.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.55];
         trayBack.layer.cornerRadius = 26.0;
@@ -606,9 +1000,15 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
         trayBack.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.4].CGColor;
         trayBack.userInteractionEnabled = NO;
         trayBack.hidden = YES;
-        [self insertSubview:trayBack belowSubview:aButtonViews[BTN_TRAYFPS]];
-        aButtonViews[BTN_TRAYFPS].hidden = YES;
-        aButtonViews[BTN_TRAYKEYS].hidden = YES;
+        [self insertSubview:trayBack belowSubview:aButtonViews[BTN_TRAY_FIRST]];
+        for (int i = BTN_TRAY_FIRST; i <= BTN_TRAY_LAST; i++) aButtonViews[i].hidden = YES;
+        iosTouch_GyroSetup();
+        // GYRO and SENS say what they are set to on a second line: at the size
+        // of a two-line label, condensed so "ALWAYS" fits a circle this small
+        for (int i = BTN_TRAYSENS; i <= BTN_TRAYGYRO; i++) {
+            aButtonViews[i].font = IOSTouch_WheelFont(IOSTouch_FontSize("GYRO\nALWAYS", iosTouch_aButtons[i].radius));
+        }
+        [self refreshGyroLabels];
         UIImageSymbolConfiguration* cfg = [UIImageSymbolConfiguration configurationWithPointSize:14 weight:UIImageSymbolWeightSemibold];
         UIImage* kb = [UIImage systemImageNamed:@"keyboard" withConfiguration:cfg];
         if (kb) {
@@ -708,6 +1108,18 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
         wheelNeedle.fillColor = [UIColor clearColor].CGColor;
         wheelNeedle.hidden = YES;
         [wheelView.layer addSublayer:wheelNeedle];
+        for (int i = 0; i < IOSTOUCH_WHEEL_MAX; i++) {
+            for (int k = 0; k < 2; k++) {
+                // up with the labels, above a popped-out slice (line widths: layoutWheel)
+                CAShapeLayer* st = [CAShapeLayer layer];
+                st.lineJoin = kCALineJoinRound;
+                if (k) st.fillColor = [UIColor clearColor].CGColor;
+                st.zPosition = 2.0;
+                st.hidden = YES;
+                aSliceStars[i][k] = st;
+                [wheelView.layer addSublayer:st];
+            }
+        }
         for (int i = 0; i < IOSTOUCH_WHEEL_MAX; i++) {
             UILabel* l = [[UILabel alloc] initWithFrame:CGRectZero];
             l.textAlignment = NSTextAlignmentCenter;
@@ -855,21 +1267,61 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
         a->y = best.y;
     }
 
+    // Top left: NEXT WPN | FORCE WHEEL | LIGHT, IR, BACTA -- each item keeps its
+    // own place whether or not the ones before it are showing
+    iosTouch_aButtons[BTN_NEXTWPN].x = left + 24;
+    iosTouch_aButtons[BTN_WHEEL].x = left + 84;
+    iosTouch_aButtons[BTN_LIGHT].x = left + 148;
+    iosTouch_aButtons[BTN_IR].x = left + 204;
+    iosTouch_aButtons[BTN_BACTA].x = left + 260;
+    // Top right: QUICK SAVE, QUICK LOAD, MENU in the corner, 66 pt apart (10 pt
+    // between where each takes touches): with both quick holds 0.3 s, that is
+    // what keeps a press meant for one off the other (and FORCE, below, keeps
+    // at least as far from every top row button)
+    iosTouch_aButtons[BTN_QUICKSAVE].x = right - 156;
+    iosTouch_aButtons[BTN_QUICKLOAD].x = right - 90;
+    iosTouch_aButtons[BTN_MENU].x = right - 24;
+    const int aTopRow[] = { BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA,
+                            BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU };
+    for (int i = 0; i < IOSTOUCH_COUNT(aTopRow); i++) {
+        iosTouch_aButtons[aTopRow[i]].y = top + 26;
+    }
+
     // FORCE: right of JUMP and above ALT, out of the way of aiming -- on the
     // circle IOSTOUCH_CLUSTER_GAP out from JUMP, as far round towards pointing
     // right as it fits on screen, below the top row and clear of ALT, ACT,
-    // FIRE, the gauge and the cutout.
-    // Where the cutout (or, on smaller screens, ALT) takes that spot it goes
-    // higher, over JUMP; failing that, the gaps shrink.
+    // FIRE, the gauge and the cutout. Where the cutout (or, on smaller
+    // screens, ALT) takes that spot it goes higher, over JUMP; failing that,
+    // the gaps shrink, and with the smallest it may go on round, over ACT.
+    // Wherever it goes, it keeps clear of the top row and of MENU's tray:
+    // FORCE is held (Force Jump, Lightning) and QUICK SAVE and QUICK LOAD go
+    // off after a 0.3 s hold, so it is never nearer any top row button than
+    // QUICK SAVE is to QUICK LOAD (10 pt between where each takes touches),
+    // and never where MENU's open tray would have to cover it, or come nearer
+    // the other buttons round FIRE than it could with FORCE elsewhere
+    // (iosTouch_TrayKeysAt).
     {
         iosTouchButton* f = &iosTouch_aButtons[BTN_FORCE];
         iosTouchButton* j = &iosTouch_aButtons[BTN_JUMP];
         iosTouchButton* a = &iosTouch_aButtons[BTN_ALT];
         iosTouchButton* c = &iosTouch_aButtons[BTN_ACT];
         const CGFloat R = f->radius;
-        const CGFloat aGap[3] = { IOSTOUCH_CLUSTER_GAP, 20.0, 12.0 };
-        // If nothing fits (a very short screen, e.g. with Display Zoom): just
-        // outside the arc, IOSTOUCH_CLUSTER_GAP from both DUCK and ACT
+        // Pass by pass: the gap (edge to edge) from ALT, ACT, FIRE and JUMP,
+        // and how far round from pointing right it looks (180: straight left)
+        const CGFloat aGap[] = { IOSTOUCH_CLUSTER_GAP, 20.0, 12.0 };
+        const int aMaxDeg[] = { 135, 135, 180 };
+        // In every pass, edge to edge from each top row button
+        const CGFloat topGap = IOSTOUCH_TOUCH_SLOP + IOSTOUCH_TOUCH_SLOP + 10.0;
+        const CGPoint menu = CGPointMake(iosTouch_aButtons[BTN_MENU].x, iosTouch_aButtons[BTN_MENU].y);
+        // ...and where MENU's tray can sit as clear of the other buttons round
+        // FIRE as it could without FORCE (IOSTOUCH_TRAY_CLEAR, unless they
+        // leave it less), and that clear of FORCE
+        CGFloat trayFree;
+        iosTouch_TrayKeysAt(menu, left, NULL, &trayFree, NULL);
+        const CGFloat trayNeed = MIN((CGFloat)IOSTOUCH_TRAY_CLEAR, trayFree);
+        // If nothing fits (a very short screen at a large HUD scale, e.g. with
+        // Display Zoom): just outside the arc, IOSTOUCH_CLUSTER_GAP from both
+        // DUCK and ACT
         iosTouchButton* d = &iosTouch_aButtons[BTN_DUCK];
         CGFloat dist = d->radius + R + IOSTOUCH_CLUSTER_GAP; // DUCK and ACT are the same size
         CGFloat mx = (d->x + c->x) * 0.5, my = (d->y + c->y) * 0.5;
@@ -880,10 +1332,10 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
         if ((mx - fire.x) * px + (my - fire.y) * py < 0) { px = -px; py = -py; }
         CGPoint best = CGPointMake(mx + px * h, my + py * h);
         int bFound = 0;
-        for (int pass = 0; pass < 3 && !bFound; pass++) {
+        for (int pass = 0; pass < IOSTOUCH_COUNT(aGap) && !bFound; pass++) {
             const CGFloat gap = aGap[pass];
             const CGFloat D = j->radius + R + gap;
-            for (int deg = 0; deg <= 135; deg++) {
+            for (int deg = 0; deg <= aMaxDeg[pass]; deg++) {
                 CGFloat rad = deg * (CGFloat)M_PI / 180.0;
                 CGPoint p = CGPointMake(j->x + D * cos(rad), j->y - D * sin(rad));
                 if (p.x + R > W - 4 || p.y - R < top + 60) continue;                 // on screen, below the top row
@@ -896,6 +1348,15 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
                 }
                 if (bCutout && iosTouch_DistToSegment(p, cutX, H * 0.5 - cutHalf, cutX, H * 0.5 + cutHalf) < R + cutR + 2)
                     continue;                                                          // the cutout
+                int bNearTop = 0;                                                      // the top row
+                for (int t = 0; t < IOSTOUCH_COUNT(aTopRow); t++) {
+                    iosTouchButton* q = &iosTouch_aButtons[aTopRow[t]];
+                    if (hypot(p.x - q->x, p.y - q->y) < R + q->radius + topGap) bNearTop = 1;
+                }
+                if (bNearTop) continue;
+                CGFloat trayClear, trayForce;                                          // MENU's tray
+                iosTouch_TrayKeysAt(menu, left, &p, &trayClear, &trayForce);
+                if (trayClear < trayNeed || trayForce < IOSTOUCH_TRAY_CLEAR) continue;
                 best = p;
                 bFound = 1;
                 break;
@@ -905,47 +1366,26 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
         f->y = best.y;
     }
 
-    // Top left: NEXT WPN | FORCE WHEEL | LIGHT, IR, BACTA -- each item keeps its
-    // own place whether or not the ones before it are showing
-    iosTouch_aButtons[BTN_NEXTWPN].x = left + 24;
-    iosTouch_aButtons[BTN_WHEEL].x = left + 84;
-    iosTouch_aButtons[BTN_LIGHT].x = left + 148;
-    iosTouch_aButtons[BTN_IR].x = left + 204;
-    iosTouch_aButtons[BTN_BACTA].x = left + 260;
-    // Top right: QUICK SAVE, QUICK LOAD, MENU in the corner -- spaced well
-    // apart, so a press meant for QUICK LOAD can't land on QUICK SAVE
-    iosTouch_aButtons[BTN_QUICKSAVE].x = right - 156;
-    iosTouch_aButtons[BTN_QUICKLOAD].x = right - 90;
-    iosTouch_aButtons[BTN_MENU].x = right - 24;
-    const int aTopRow[] = { BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA,
-                            BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU };
-    for (int i = 0; i < (int)(sizeof(aTopRow) / sizeof(aTopRow[0])); i++) {
-        iosTouch_aButtons[aTopRow[i]].y = top + 26;
-    }
-    // MENU's tray: a row just under the corner, the keyboard right below MENU
-    // (a held thumb slides straight down onto it) and FPS left of that. Where
-    // FORCE sits high in that corner (a smaller screen with the cutout on the
-    // right) the row moves left until it is clear of it -- or, if that never
-    // happens, to wherever it is furthest from it. (While open, the tray is on
-    // top and takes its own touches.)
+    // MENU's tray: a row just under the corner -- SENS, GYRO, FPS and the
+    // keyboard, right below MENU (a held thumb slides straight down onto it).
+    // Where the buttons round FIRE reach up into that corner (FORCE, on a
+    // smaller screen with the cutout on the right; any of them with Display
+    // Zoom or a large HUD scale) the row moves left until its backing is
+    // IOSTOUCH_TRAY_CLEAR clear of all of them, never off the left of the
+    // screen (iosTouch_TrayKeysAt); FORCE's placement above makes sure FORCE
+    // never stops it, unless FORCE fell back to its last resort. (While open,
+    // the tray is on top and takes its own touches.)
     {
         iosTouchButton* m = &iosTouch_aButtons[BTN_MENU];
         iosTouchButton* f = &iosTouch_aButtons[BTN_FORCE];
-        const CGFloat ty = m->y + 52;
-        CGFloat kx = m->x, bestGap = -1e9;
-        for (CGFloat x = m->x; x >= m->x - 120; x -= 4) {
-            CGFloat gap = iosTouch_DistToSegment(CGPointMake(f->x, f->y), x - 50, ty, x, ty) - 26 - f->radius;
-            if (gap > bestGap) {
-                bestGap = gap;
-                kx = x;
-            }
-            if (gap >= 8) break;
+        const CGPoint force = CGPointMake(f->x, f->y);
+        CGPoint k = iosTouch_TrayKeysAt(CGPointMake(m->x, m->y), left, &force, NULL, NULL);
+        const CGFloat len = IOSTOUCH_TRAY_STEP * (BTN_TRAY_LAST - BTN_TRAY_FIRST);
+        for (int i = BTN_TRAY_FIRST; i <= BTN_TRAY_LAST; i++) {
+            iosTouch_aButtons[i].x = k.x - IOSTOUCH_TRAY_STEP * (BTN_TRAY_LAST - i);
+            iosTouch_aButtons[i].y = k.y;
         }
-        iosTouch_aButtons[BTN_TRAYKEYS].x = kx;
-        iosTouch_aButtons[BTN_TRAYKEYS].y = ty;
-        iosTouch_aButtons[BTN_TRAYFPS].x = kx - 50;
-        iosTouch_aButtons[BTN_TRAYFPS].y = ty;
-        trayBack.frame = CGRectMake(kx - 50 - 26, ty - 26, 50 + 52, 52);
+        trayBack.frame = CGRectMake(k.x - len - 26, k.y - 26, len + 52, 52);
     }
     // The FPS readout where the keyboard button used to be, left of QUICK
     // SAVE: the game draws its messages and typing line centred at the top
@@ -963,18 +1403,23 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
 
 // Closest button the touch is on (with a little forgiveness), so a touch in the
 // gap between two buttons picks the nearer one rather than the first listed.
-// The open MENU tray is drawn on top of the rest (on a short screen it can lie
-// over FORCE), so its buttons come first.
+// The open MENU tray is drawn on top of the rest (on a very short screen it can
+// lie over the buttons round FIRE), so its buttons come first: anywhere on its
+// backing (which reaches as far round each as that forgiveness does) is on the
+// nearest one, the corners between two of them too.
 - (int)buttonAt:(CGPoint)p
 {
     int best = -1;
     CGFloat bestDist = 0;
-    for (int i = BTN_TRAYFPS; i <= BTN_TRAYKEYS && iosTouch_bTrayOpen; i++) {
-        iosTouchButton* b = &iosTouch_aButtons[i];
-        CGFloat d = hypot(p.x - b->x, p.y - b->y);
-        if (d <= b->radius + 6.0 && (best < 0 || d - b->radius < bestDist)) {
-            best = i;
-            bestDist = d - b->radius;
+    iosTouchButton* l = &iosTouch_aButtons[BTN_TRAY_FIRST];
+    iosTouchButton* r = &iosTouch_aButtons[BTN_TRAY_LAST];
+    if (iosTouch_bTrayOpen && iosTouch_DistToSegment(p, l->x, l->y, r->x, r->y) <= 26) {
+        for (int i = BTN_TRAY_FIRST; i <= BTN_TRAY_LAST; i++) {
+            CGFloat d = fabs(p.x - iosTouch_aButtons[i].x);
+            if (best < 0 || d < bestDist) {
+                best = i;
+                bestDist = d;
+            }
         }
     }
     if (best >= 0) return best;
@@ -983,7 +1428,7 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
         if (aButtonViews[i].hidden) continue; // an item the player doesn't have, or the closed tray
         CGFloat dx = p.x - b->x, dy = p.y - b->y;
         CGFloat d = sqrt(dx * dx + dy * dy);
-        if (d <= b->radius + 6.0 && (best < 0 || d - b->radius < bestDist)) {
+        if (d <= b->radius + IOSTOUCH_TOUCH_SLOP && (best < 0 || d - b->radius < bestDist)) {
             best = i;
             bestDist = d - b->radius;
         }
@@ -1006,6 +1451,7 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
 
 - (void)refreshButtonLooks
 {
+    int bGyro = iosTouch_GyroAvailable();
     for (int i = 0; i < IOSTOUCH_NUM_BUTTONS; i++) {
         int bHeld = iosTouch_aButtonHeld[i] != 0;
         // A thumb still on MENU after its tray opened lights the tray button it is over
@@ -1018,14 +1464,18 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
         aButtonViews[i].backgroundColor = bWheel ? [UIColor colorWithRed:0.47 green:0.78 blue:1.0 alpha:0.55]
                                                  : [UIColor colorWithWhite:(bHeld ? 1.0 : 0.0) alpha:(bHeld ? 0.30 : 0.22)];
         // A switched-on item (field light, IR goggles), the open typing line
-        // (on MENU and the tray's keyboard) and the FPS readout being on (on
-        // the tray's FPS) stand out in yellow, at full strength
+        // (on MENU and the tray's keyboard), the FPS readout being on (on
+        // the tray's FPS) and gyro aiming being on (on the tray's GYRO)
+        // stand out in yellow, at full strength
         int bOn = (iosTouch_aButtons[i].kind == KIND_ITEM && aItemActive[i])
                   || ((i == BTN_TRAYKEYS || i == BTN_MENU) && jkHud_bChatOpen)
-                  || (i == BTN_TRAYFPS && iosTouch_bShowFps);
-        int bTray = i == BTN_TRAYKEYS || i == BTN_TRAYFPS; // only there while the tray is open
+                  || (i == BTN_TRAYFPS && iosTouch_bShowFps)
+                  || (i == BTN_TRAYGYRO && bGyro && iosTouch_gyroMode != IOSTOUCH_GYRO_OFF);
+        int bTray = iosTouch_IsTrayButton(i); // only there while the tray is open
         CGFloat alpha = (bHeld || bOn || bWheel || bTray) ? 1.0 : IOSTOUCH_IDLE_ALPHA;
         if (i == BTN_FORCE && bForceLabelSet && !forceLabelName) alpha *= 0.45; // no power to use yet
+        if (i == BTN_TRAYGYRO && !bGyro) alpha *= 0.45;                           // no gyro here
+        if (i == BTN_TRAYSENS && (!bGyro || iosTouch_gyroMode == IOSTOUCH_GYRO_OFF)) alpha *= 0.45; // ...or it's off
         aButtonViews[i].alpha = alpha;
         if (i != BTN_FIRE) {
             aButtonViews[i].layer.borderColor = bOn ? [UIColor colorWithRed:1.0 green:0.85 blue:0.3 alpha:0.95].CGColor
@@ -1150,13 +1600,12 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
     if (iosTouch_bTrayOpen == bOpen) return;
     iosTouch_bTrayOpen = bOpen;
     trayBack.hidden = !bOpen;
-    aButtonViews[BTN_TRAYKEYS].hidden = !bOpen;
-    aButtonViews[BTN_TRAYFPS].hidden = !bOpen;
+    for (int i = BTN_TRAY_FIRST; i <= BTN_TRAY_LAST; i++) aButtonViews[i].hidden = !bOpen;
     if (!bOpen) {
         for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
             iosTouchSlot* s = &iosTouch_aSlots[i];
             if (!s->touch || s->role != ROLE_BUTTON) continue;
-            if (s->button == BTN_TRAYKEYS || s->button == BTN_TRAYFPS) {
+            if (iosTouch_IsTrayButton(s->button)) {
                 if (iosTouch_aButtonHeld[s->button] > 0) iosTouch_aButtonHeld[s->button]--;
                 s->role = ROLE_IGNORED;
             }
@@ -1176,63 +1625,108 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
     [self refreshButtonLooks];
 }
 
-// A tray button picked: it does its thing, and the tray closes
+// What the tray's gyro buttons say: the mode and the sensitivity
+- (void)refreshGyroLabels
+{
+    static const char* aModeName[IOSTOUCH_GYRO_NUM_MODES] = { "OFF", "TOUCH", "ALWAYS" };
+    aButtonViews[BTN_TRAYGYRO].text = iosTouch_GyroAvailable() ? [NSString stringWithFormat:@"GYRO\n%s", aModeName[iosTouch_gyroMode]]
+                                                               : @"NO\nGYRO";
+    aButtonViews[BTN_TRAYSENS].text = [NSString stringWithFormat:@"SENS\n%.1fx", (double)iosTouch_aGyroSens[iosTouch_gyroSens]];
+}
+
+// A tray button picked: it does its thing, and the tray closes -- except
+// after GYRO and SENS, which stay for another tap to go on to the next
 - (void)useTrayButton:(int)button
 {
-    if (iosTouch_aButtons[button].kind == KIND_CHAT) {
+    int kind = iosTouch_aButtons[button].kind;
+    if (kind == KIND_CHAT) {
         iosGame_ToggleChat();
     }
-    else if (iosTouch_aButtons[button].kind == KIND_FPS) {
+    else if (kind == KIND_FPS) {
         [self setShowFps:!iosTouch_bShowFps];
     }
-    [self setTrayOpen:0];
+    else if ((kind == KIND_GYRO || kind == KIND_GYROSENS) && iosTouch_GyroAvailable()) {
+        if (kind == KIND_GYRO) iosTouch_GyroNextMode();
+        else iosTouch_GyroNextSens();
+        [self refreshGyroLabels];
+    }
+    if (kind == KIND_GYRO || kind == KIND_GYROSENS) [self refreshButtonLooks];
+    else [self setTrayOpen:0];
 }
 
 // ------------------------------------------------------------ force wheel
 
-// Fits each slice's label inside it: the biggest size (11pt down to 7pt) at
-// which it fits somewhere along the slice, as near the middle of the band as
-// it can go at that size. Text width goes with font size, so it is measured
-// once.
-- (void)fitWheelLabels
+// Fits a slice's label inside it: the biggest size (11pt down to 7pt) at which
+// it fits somewhere along the slice, as near the middle of the band as it can
+// go at that size (s11: its size at 11pt; text width goes with font size). With
+// bStars, the label and the star row under it are fitted as one block, so
+// neither crosses the slice's edges. Returns whether it fitted.
+- (int)fitWheelLabel:(int)i size:(CGSize)s11 stars:(int)bStars
 {
     const iosTouchWheelMap* m = iosTouch_pWheelMap;
     CGPoint c = iosTouch_wheelCentre;
     CGFloat R0 = iosTouch_wheelR0, R1 = iosTouch_wheelR1;
+    CGFloat starW = ((IOSTOUCH_WHEEL_STARS - 1) * IOSTOUCH_WHEEL_STAR_STEP + IOSTOUCH_WHEEL_STAR_CELL) * wheelStarScale;
+    CGFloat a = m->aSlices[i].deg * M_PI / 180.0;
+    // no room for the stars: the label goes on alone
+    aSliceFont[i][bStars] = bStars ? 0.0 : 7.0;
+    aSliceLabelR[i][bStars] = R0 + (R1 - R0) * 0.58;
+    aSliceLabelSize[i][bStars] = CGSizeMake(s11.width * 7.0 / 11.0, s11.height * 7.0 / 11.0);
+    int bFound = 0;
+    for (CGFloat size = 11.0; size >= 7.0 && !bFound; size -= 0.5) {
+        CGFloat w = s11.width * size / 11.0, h = s11.height * size / 11.0;
+        CGFloat bw = bStars ? MAX(w, starW) : w;
+        CGFloat bh = bStars ? h + IOSTOUCH_WHEEL_STAR_GAP + IOSTOUCH_WHEEL_STAR_CELL * wheelStarScale : h;
+        CGFloat bestOff = 0.0;
+        for (int k = 0; k <= 20; k++) {
+            CGFloat f = 0.30 + 0.50 * k / 20.0;
+            CGFloat rr = R0 + (R1 - R0) * f;
+            CGPoint p = CGPointMake(c.x + rr * cos(a), c.y - rr * sin(a));
+            int bIn = 1;
+            for (int sx = -1; sx <= 1 && bIn; sx++) {
+                for (int sy = -1; sy <= 1 && bIn; sy++) {
+                    bIn = iosTouch_InWheelSlice(CGPointMake(p.x + sx * bw * 0.5, p.y + sy * bh * 0.5), m->aSlices[i].deg, 2.0);
+                }
+            }
+            if (bIn && (!bFound || fabs(f - 0.58) < bestOff)) {
+                bFound = 1;
+                bestOff = fabs(f - 0.58);
+                aSliceFont[i][bStars] = size;
+                aSliceLabelR[i][bStars] = rr;
+                aSliceLabelSize[i][bStars] = CGSizeMake(w, h);
+            }
+        }
+    }
+    return bFound;
+}
+
+// Fits every slice's label, alone and with its star row. The stars are one
+// size all round the wheel: the biggest, in steps of 5% down to
+// IOSTOUCH_WHEEL_STAR_MIN of full size, at which every slice's row fits (Jedi
+// Knight's slices take them full size; Mysteries of the Sith's narrower ones
+// need them smaller).
+- (void)fitWheelLabels
+{
+    const iosTouchWheelMap* m = iosTouch_pWheelMap;
+    CGSize aS11[IOSTOUCH_WHEEL_MAX];
     for (int i = 0; i < m->numSlices; i++) {
         // two-word names on two lines
         const char* name = iosGame_GetPowerName(m->aSlices[i].bin);
         UILabel* l = aSliceLabels[i];
         l.text = [[NSString stringWithUTF8String:(name ? name : "?")] stringByReplacingOccurrencesOfString:@" " withString:@"\n"];
         l.font = IOSTouch_WheelFont(11.0);
-        CGSize s11 = [l sizeThatFits:CGSizeMake(300.0, 300.0)];
-        CGFloat a = m->aSlices[i].deg * M_PI / 180.0;
-        aSliceFont[i] = 7.0;
-        aSliceLabelR[i] = R0 + (R1 - R0) * 0.58;
-        aSliceLabelSize[i] = CGSizeMake(s11.width * 7.0 / 11.0, s11.height * 7.0 / 11.0);
-        int bFound = 0;
-        for (CGFloat size = 11.0; size >= 7.0 && !bFound; size -= 0.5) {
-            CGFloat w = s11.width * size / 11.0, h = s11.height * size / 11.0;
-            CGFloat bestOff = 0.0;
-            for (int k = 0; k <= 20; k++) {
-                CGFloat f = 0.30 + 0.50 * k / 20.0;
-                CGFloat rr = R0 + (R1 - R0) * f;
-                CGPoint p = CGPointMake(c.x + rr * cos(a), c.y - rr * sin(a));
-                int bIn = 1;
-                for (int sx = -1; sx <= 1 && bIn; sx++) {
-                    for (int sy = -1; sy <= 1 && bIn; sy++) {
-                        bIn = iosTouch_InWheelSlice(CGPointMake(p.x + sx * w * 0.5, p.y + sy * h * 0.5), m->aSlices[i].deg, 2.0);
-                    }
-                }
-                if (bIn && (!bFound || fabs(f - 0.58) < bestOff)) {
-                    bFound = 1;
-                    bestOff = fabs(f - 0.58);
-                    aSliceFont[i] = size;
-                    aSliceLabelR[i] = rr;
-                    aSliceLabelSize[i] = CGSizeMake(w, h);
-                }
-            }
+        aS11[i] = [l sizeThatFits:CGSizeMake(300.0, 300.0)];
+        [self fitWheelLabel:i size:aS11[i] stars:0];
+    }
+    for (int n = 0; ; n++) {
+        int bAll = 1;
+        wheelStarScale = 1.0 - 0.05 * n;
+        int bLast = wheelStarScale <= IOSTOUCH_WHEEL_STAR_MIN + 0.001;
+        // (one that doesn't fit: on to the next size, but at the last, every slice)
+        for (int i = 0; i < m->numSlices && (bAll || bLast); i++) {
+            if (![self fitWheelLabel:i size:aS11[i] stars:1]) bAll = 0;
         }
+        if (bAll || bLast) break; // else the ones that don't fit go without
     }
 }
 
@@ -1267,18 +1761,42 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
         fitR1 = R1;
         [self fitWheelLabels];
     }
+    // Each name in its slice. Under a learned power's, its level: that many
+    // filled stars, then empty ones (made again at every opening, as the
+    // levels are read then; refreshWheelLooks only colours them).
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
     for (int i = 0; i < IOSTOUCH_WHEEL_MAX; i++) {
         UILabel* l = aSliceLabels[i];
+        int bStars = i < m->numSlices && iosTouch_aWheelEarned[i] && aSliceFont[i][1] > 0.0;
+        aSliceStars[i][0].hidden = !bStars;
+        aSliceStars[i][1].hidden = !bStars;
         if (i >= m->numSlices) {
             l.hidden = YES;
             continue;
         }
         CGFloat a = m->aSlices[i].deg * M_PI / 180.0;
-        l.font = IOSTouch_WheelFont(aSliceFont[i]);
-        l.bounds = CGRectMake(0, 0, ceil(aSliceLabelSize[i].width) + 4.0, ceil(aSliceLabelSize[i].height) + 2.0);
-        l.center = CGPointMake(c.x + aSliceLabelR[i] * cos(a), c.y - aSliceLabelR[i] * sin(a));
+        CGSize ts = aSliceLabelSize[i][bStars];
+        CGPoint p = CGPointMake(c.x + aSliceLabelR[i][bStars] * cos(a), c.y - aSliceLabelR[i][bStars] * sin(a));
+        l.font = IOSTouch_WheelFont(aSliceFont[i][bStars]);
+        l.bounds = CGRectMake(0, 0, ceil(ts.width) + 4.0, ceil(ts.height) + 2.0);
+        // with the stars, p is the middle of the name and the row under it
+        CGFloat cell = IOSTOUCH_WHEEL_STAR_CELL * wheelStarScale;
+        l.center = bStars ? CGPointMake(p.x, p.y - (IOSTOUCH_WHEEL_STAR_GAP + cell) * 0.5) : p;
         l.hidden = NO;
+        if (bStars) {
+            UIBezierPath* aPath[2] = { [UIBezierPath bezierPath], [UIBezierPath bezierPath] }; // filled, empty
+            for (int k = 0; k < IOSTOUCH_WHEEL_STARS; k++) {
+                CGFloat x = p.x + (k - (IOSTOUCH_WHEEL_STARS - 1) * 0.5) * IOSTOUCH_WHEEL_STAR_STEP * wheelStarScale;
+                IOSTouch_AddStar(aPath[k >= iosTouch_aWheelLevel[i]], CGPointMake(x, p.y + (ts.height + IOSTOUCH_WHEEL_STAR_GAP) * 0.5), wheelStarScale);
+            }
+            aSliceStars[i][0].path = aPath[0].CGPath;
+            aSliceStars[i][1].path = aPath[1].CGPath;
+            aSliceStars[i][0].lineWidth = IOSTOUCH_WHEEL_STAR_EDGE * wheelStarScale;
+            aSliceStars[i][1].lineWidth = IOSTOUCH_WHEEL_STAR_LINE * wheelStarScale;
+        }
     }
+    [CATransaction commit];
 
     // Group names beside the ring: at about their angle, pushed out until
     // clear of it, then turned a little either way until clear of the screen
@@ -1422,6 +1940,11 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
             aSlicePopped[i] = bPop;
             CGFloat half = m->sliceDeg * 0.5 - 1.0; // a degree in from each edge
             L.path = IOSTouch_WedgePath(c, sl->deg - half, sl->deg + half, R0, R1 + (bPop ? IOSTOUCH_WHEEL_POP : 0.0)).CGPath;
+            // the stars: gold, or dark like the name on a popped-out slice
+            CGFloat sr = bPop ? 25.0 / 255.0 : 1.0, sg = bPop ? 20.0 / 255.0 : 204.0 / 255.0, sb = bPop ? 10.0 / 255.0 : 64.0 / 255.0;
+            aSliceStars[i][0].fillColor = [UIColor colorWithRed:sr green:sg blue:sb alpha:1.0].CGColor;
+            aSliceStars[i][0].strokeColor = bPop ? [UIColor clearColor].CGColor : [UIColor colorWithWhite:0.0 alpha:0.78].CGColor;
+            aSliceStars[i][1].strokeColor = [UIColor colorWithRed:sr green:sg blue:sb alpha:(bPop ? 0.47 : 0.43)].CGColor;
         }
         UIColor* text;
         if (!bEarned) {
@@ -1494,8 +2017,8 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
 }
 
 // Opens the wheel, with every power of this game in its place and the ones
-// the player has learned lit. Every other touch lets go of what it was
-// holding and is ignored until it lifts, and the game holds still
+// the player has learned lit, with their levels. Every other touch lets go of
+// what it was holding and is ignored until it lifts, and the game holds still
 // (iosGame_SetHold) until the wheel closes.
 - (void)openWheel
 {
@@ -1503,6 +2026,7 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
     iosTouch_pWheelMap = iosGame_IsMots() ? &iosTouch_motsWheel : &iosTouch_jkWheel;
     for (int i = 0; i < iosTouch_pWheelMap->numSlices; i++) {
         iosTouch_aWheelEarned[i] = iosGame_IsPowerAvailable(iosTouch_pWheelMap->aSlices[i].bin);
+        iosTouch_aWheelLevel[i] = iosGame_GetPowerLevel(iosTouch_pWheelMap->aSlices[i].bin);
     }
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
@@ -1553,8 +2077,10 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
 
 - (int)isPoint:(CGPoint)p onButton:(int)button
 {
+    // (an open tray's button: anywhere on its backing that -buttonAt: puts on it)
+    if (iosTouch_bTrayOpen && iosTouch_IsTrayButton(button)) return [self buttonAt:p] == button;
     iosTouchButton* b = &iosTouch_aButtons[button];
-    return hypot(p.x - b->x, p.y - b->y) <= b->radius + 6.0;
+    return hypot(p.x - b->x, p.y - b->y) <= b->radius + IOSTOUCH_TOUCH_SLOP;
 }
 
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
@@ -1587,7 +2113,7 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
         s->button = [self buttonAt:p];
         // An open tray closes at a touch anywhere else, which then does what
         // it would anyway -- except on MENU, where it only closes the tray
-        if (iosTouch_bTrayOpen && s->button != BTN_TRAYKEYS && s->button != BTN_TRAYFPS) {
+        if (iosTouch_bTrayOpen && !iosTouch_IsTrayButton(s->button)) {
             [self setTrayOpen:0];
             if (s->button == BTN_MENU) {
                 s->role = ROLE_IGNORED;
@@ -1635,6 +2161,18 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
             if (s->touch != t) continue;
             CGPoint p = [t locationInView:self];
 
+            // QUICK SAVE, QUICK LOAD: a finger that leaves the button, even
+            // between two frames, doesn't save or load, even if it comes back
+            // on -- so the places UIKit merged into this move count too (the
+            // last of them is p). -tick checks as well, for a button laid out
+            // again away from a finger keeping still.
+            if (s->role == ROLE_BUTTON && iosTouch_IsQuickHold(s->button) && !s->bFired) {
+                for (UITouch* c in [event coalescedTouchesForTouch:t]) {
+                    if (![self isPoint:[c locationInView:self] onButton:s->button]) s->bFired = 1;
+                }
+                if (![self isPoint:p onButton:s->button]) s->bFired = 1;
+            }
+
             if (s->role == ROLE_WHEEL) {
                 if (s->bWheelOpener && !iosTouch_bWheelTapMode) [self aimWheel:s at:p];
                 else s->wheelSlot = iosTouch_WheelSliceAt(p, s->wheelSlot);
@@ -1642,7 +2180,7 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
             else if (s->role == ROLE_BUTTON && s->button == BTN_MENU && s->bFired && iosTouch_bTrayOpen) {
                 // Held until the tray opened: the tray button under the thumb lights up
                 int tb = [self buttonAt:p];
-                tb = (tb == BTN_TRAYKEYS || tb == BTN_TRAYFPS) ? tb : -1;
+                tb = iosTouch_IsTrayButton(tb) ? tb : -1;
                 if (tb != s->trayButton) {
                     s->trayButton = tb;
                     bLooksChanged = 1;
@@ -1728,7 +2266,7 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
                 // the tray's buttons (MENU and the keyboard close the line):
                 // the game isn't reading the controls then, so the rest would
                 // only go off later.
-                int bWhileTyping = b->kind == KIND_MENU || b->kind == KIND_CHAT || b->kind == KIND_FPS;
+                int bWhileTyping = b->kind == KIND_MENU || iosTouch_IsTrayButton(s->button);
                 if (!bCancelled && [self isPoint:p onButton:s->button] && (!jkHud_bChatOpen || bWhileTyping)) {
                     if (b->kind == KIND_ITEM && !aButtonViews[s->button].hidden
                              // one item at a time: the use key acts on whichever item is selected when it is read
@@ -1737,7 +2275,7 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
                         iosGame_SelectItem(b->bin);
                         iosTouch_QueuePress(b->scancode);
                     }
-                    else if (b->kind == KIND_CHAT || b->kind == KIND_FPS) {
+                    else if (iosTouch_IsTrayButton(s->button)) {
                         [self useTrayButton:s->button];
                     }
                     else if (b->kind == KIND_MENU && !s->bFired) {
@@ -1748,7 +2286,7 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
                 // MENU held until its tray opened, then slid onto one of its buttons
                 if (!bCancelled && s->button == BTN_MENU && s->bFired && iosTouch_bTrayOpen) {
                     int tb = [self buttonAt:p];
-                    if (tb == BTN_TRAYKEYS || tb == BTN_TRAYFPS) [self useTrayButton:tb];
+                    if (iosTouch_IsTrayButton(tb)) [self useTrayButton:tb];
                 }
                 if (s->button == BTN_QUICKSAVE) [self setRing:saveRing progress:0.0];
                 if (s->button == BTN_QUICKLOAD) [self setRing:loadRing progress:0.0];
@@ -1806,39 +2344,36 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
     CFTimeInterval now = CACurrentMediaTime();
     CFTimeInterval known = lastTickTime;
     lastTickTime = now;
+    // How far QUICK SAVE's and QUICK LOAD's rings have filled (the furthest
+    // along of each one's holds), and the one whose hold completed
+    CGFloat saveProgress = 0.0, loadProgress = 0.0;
+    int done = -1;
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
         if (!s->touch || s->role != ROLE_BUTTON) continue;
-        if (s->button == BTN_QUICKSAVE && !s->bFired) {
-            if (![self isPoint:s->last onButton:BTN_QUICKSAVE] || jkHud_bChatOpen) {
-                // off the button as this frame sees it (like MENU's hold), or
-                // the typing line is open (the game would only read the key
-                // once it closes): this touch doesn't save, even if it comes
-                // back on or the line closes
+        if (iosTouch_IsQuickHold(s->button) && !s->bFired) {
+            if (![self isPoint:s->last onButton:s->button] || jkHud_bChatOpen) {
+                // off the button as this frame sees it (a finger that slid
+                // off is already done, in touchesMoved; this is the button
+                // laid out again away from a finger keeping still), or the
+                // typing line is open (the game would only read the key once
+                // it closes): this touch doesn't save or load, even if it
+                // comes back on or the line closes
                 s->bFired = 1;
-                [self setRing:saveRing progress:0.0];
                 continue;
             }
-            // saves once, when the ring is full, with the finger still on it
-            CGFloat progress = (CGFloat)((now - s->tDown) / IOSTOUCH_QUICKSAVE_HOLD);
-            if (known - s->tDown >= IOSTOUCH_QUICKSAVE_HOLD) {
-                s->bFired = 1;
-                [self setRing:saveRing progress:0.0];
-                iosTouch_QueuePress(iosTouch_aButtons[BTN_QUICKSAVE].scancode);
+            CFTimeInterval hold = (s->button == BTN_QUICKSAVE) ? IOSTOUCH_QUICKSAVE_HOLD : IOSTOUCH_QUICKLOAD_HOLD;
+            if (known - s->tDown >= hold) {
+                // the ring is full, with the finger still on it. QUICK SAVE
+                // and QUICK LOAD both found done in the same tick (one long
+                // frame can cover both, whichever was touched first): QUICK
+                // SAVE, as only a load throws away the game being played
+                if (done != BTN_QUICKSAVE) done = s->button;
             }
             else {
-                [self setRing:saveRing progress:MIN(progress, 1.0)];
-            }
-        }
-        else if (s->button == BTN_QUICKLOAD && !s->bFired) {
-            CGFloat progress = (CGFloat)((now - s->tDown) / IOSTOUCH_QUICKLOAD_HOLD);
-            if (known - s->tDown >= IOSTOUCH_QUICKLOAD_HOLD) {
-                s->bFired = 1;
-                [self setRing:loadRing progress:0.0];
-                iosGame_QuickLoad();
-            }
-            else {
-                [self setRing:loadRing progress:MIN(progress, 1.0)];
+                CGFloat progress = MIN((CGFloat)((now - s->tDown) / hold), 1.0);
+                if (s->button == BTN_QUICKSAVE) saveProgress = MAX(saveProgress, progress);
+                else loadProgress = MAX(loadProgress, progress);
             }
         }
         else if (s->button == BTN_MENU && !s->bFired) {
@@ -1859,6 +2394,23 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
             }
         }
     }
+
+    if (done >= 0) {
+        // One save or load, once: it ends every hold on QUICK SAVE and QUICK
+        // LOAD, so two fingers on one button save or load once (a finger that
+        // comes down after that starts a new hold), and the two buttons held
+        // together do whichever completes first, never both (both would only
+        // load back the game just saved, or save again the one just loaded)
+        for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+            iosTouchSlot* o = &iosTouch_aSlots[i];
+            if (o->touch && o->role == ROLE_BUTTON && iosTouch_IsQuickHold(o->button)) o->bFired = 1;
+        }
+        saveProgress = loadProgress = 0.0;
+        if (done == BTN_QUICKSAVE) iosTouch_QueuePress(iosTouch_aButtons[BTN_QUICKSAVE].scancode); // saves once
+        else iosGame_QuickLoad();
+    }
+    [self setRing:saveRing progress:saveProgress];
+    [self setRing:loadRing progress:loadProgress];
 
     int bLooksChanged = 0;
 
@@ -1984,6 +2536,8 @@ static UIBezierPath* IOSTouch_WedgePath(CGPoint c, CGFloat deg0, CGFloat deg1, C
     iosTouch_bStickActive = 0;
     iosTouch_stickX = iosTouch_stickY = 0.0f;
     iosTouch_lookX = iosTouch_lookY = 0.0f;
+    iosTouch_bGyroWasOk = 0; // the gyro starts over too
+    iosTouch_gyroCountX = iosTouch_gyroCountY = 0.0f;
     iosTouch_menuPulse = 0;
     bFpsBase = 0; // time spent in a menu doesn't count
     [self hideStick];
@@ -2010,15 +2564,21 @@ static UIView* iosTouch_GetHostView(void)
     return w.rootViewController.view ? w.rootViewController.view : w;
 }
 
+// Whether the overlay is wanted: gameplay controls active and no cutscene
+// playing -- and not over a GUI menu either, e.g. the objectives screen at
+// level start waits for Ok while gameplay controls are already active.
+static int iosTouch_WantOverlay(void)
+{
+    return stdControl_bControlsActive && !jkCutscene_isRendering && !jkGuiRend_IsMenuActive();
+}
+
 static void iosTouch_UpdateInPool(void)
 {
     // A MENU tap holds Escape down for a couple of updates -- the game acts on
     // it once, when it first sees it (Window_SdlUpdate) -- then lets it go
     if (iosTouch_menuPulse > 0 && --iosTouch_menuPulse == 0) stdControl_bControllerEscapeKey = 0;
 
-    // Not over a GUI menu either -- e.g. the objectives screen at level start
-    // waits for Ok while gameplay controls are already active.
-    int bWant = stdControl_bControlsActive && !jkCutscene_isRendering && !jkGuiRend_IsMenuActive();
+    int bWant = iosTouch_WantOverlay();
 
     if (!iosTouch_pOverlay) {
         if (!bWant) return;
@@ -2080,6 +2640,22 @@ void iosTouch_Update(void)
     // (labels' strings, colours, subviews arrays) would pile up all game long
     @autoreleasepool {
         iosTouch_UpdateInPool();
+    }
+}
+
+void iosTouch_UpdateGyro(void)
+{
+    @autoreleasepool { // (as iosTouch_Update)
+        if (!iosTouch_pOverlay) return;
+        // Not while the overlay is hidden -- nor if this frame's events just
+        // left gameplay, which hides it next frame
+        int bHadGyro = iosTouch_GyroAvailable();
+        iosTouch_GyroUpdate(!iosTouch_pOverlay.hidden && iosTouch_WantOverlay(), iosTouch_pOverlay);
+        if (iosTouch_GyroAvailable() != bHadGyro) {
+            // iOS refused the motion data: the tray's GYRO says NO GYRO
+            [iosTouch_pOverlay refreshGyroLabels];
+            [iosTouch_pOverlay refreshButtonLooks];
+        }
     }
 }
 

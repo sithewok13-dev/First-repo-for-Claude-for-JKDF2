@@ -15,6 +15,7 @@ Contents: [What this is](#what-this-is) ·
 [3. Copy the game files to your iPhone](#3-copy-the-game-files-to-your-iphone) ·
 [4. Play](#4-play) ·
 [Touch controls](#touch-controls) ·
+[Tilt aiming](#tilt-aiming) ·
 [The Force wheel](#the-force-wheel) ·
 [Saving and loading](#saving-and-loading) ·
 [Cheats](#cheats) ·
@@ -35,7 +36,7 @@ can already be built for iOS. This build adds the parts you need to actually
 play it on a phone:
 
 - on-screen touch controls (move stick, look, buttons, a Force power wheel,
-  quick save and quick load)
+  quick save and quick load), and optional tilt aiming
 - a HUD that stays clear of rounded screen corners and the home bar
 - sound fixes
 - a ready-made (unsigned) `.ipa` that GitHub builds automatically
@@ -241,8 +242,8 @@ screen, the camera cutout and the HUD.
 ```
  NEXT   FORCE   LIGHT  IR  BACTA         (FPS)  QUICK  QUICK  MENU
  WPN    WHEEL   (only items you have)            SAVE   LOAD
-                                                   [FPS] [keyboard]
-                                                   (MENU's tray, when held)
+                                     [SENS] [GYRO] [FPS] [keyboard]
+                                     (MENU's tray, when held)
 
       (^^)  run marker                              JUMP   FORCE
        |                                     ACT
@@ -270,6 +271,8 @@ Buttons are slightly see-through until you touch them.
 - **Look / aim:** drag anywhere else on the screen, which mostly means the
   right side. Dragging on FIRE, ALT, DUCK, ACT, JUMP or FORCE also turns
   the view, so if your thumb lands on one while you're aiming, keep dragging.
+  You can also aim by turning the phone: see [Tilt aiming](#tilt-aiming)
+  (it starts switched off).
 
 ### Buttons
 
@@ -280,34 +283,74 @@ Buttons are slightly see-through until you touch them.
 | **ACT** | up and left of FIRE | Activate: doors, switches, elevators, consoles. |
 | **JUMP** | above FIRE | Jumps. |
 | **ALT** | up and right of FIRE, just above the ammo gauge | Secondary fire (each weapon's second mode). |
-| **FORCE** | right of JUMP | Uses your selected Force power, for as long as you hold it. Tap for a single use, hold for powers that charge up (Force Jump) or keep going (Lightning). The button shows the power's name, and it's dimmed until you have a power. The **blue ring** around it is your Force meter: it shrinks as you use the Force, and glows and pulses when the meter is full. |
+| **FORCE** | right of JUMP, or above it (a little to its left) on smaller screens with the camera cutout on the right. With Display Zoom, where there's no room there, it can sit further left, between DUCK and ACT. It always keeps a little space from the top row, so holding it can't set off QUICK SAVE or QUICK LOAD. | Uses your selected Force power, for as long as you hold it. Tap for a single use, hold for powers that charge up (Force Jump) or keep going (Lightning). The button shows the power's name, and it's dimmed until you have a power. The **blue ring** around it is your Force meter: it shrinks as you use the Force, and glows and pulses when the meter is full. |
 | **NEXT WPN** | top left | Switches to your next weapon. |
 | **FORCE WHEEL** | top left | Opens the Force wheel to choose a power: see [The Force wheel](#the-force-wheel). |
 | **LIGHT**, **IR**, **BACTA** | top left, after FORCE WHEEL | Field light, IR goggles and bacta tank. Each button only appears once you have that item, and always in the same spot. LIGHT and IR turn yellow while switched on. BACTA shows how many you have when it's more than one. |
 | **QUICK SAVE** | top right | **Hold** for about a third of a second: a ring fills, then the game quick saves. See [Saving and loading](#saving-and-loading). |
-| **QUICK LOAD** | top right | **Hold** for a full second: a ring fills, then your quick save loads. To cancel, lift before the ring fills (sliding off doesn't cancel it). |
+| **QUICK LOAD** | top right | **Hold** for about a third of a second: a ring fills, then your quick save loads. To cancel, lift or slide off before the ring fills. |
 | **MENU** | top right corner | **Tap** opens the game's menu (objectives, map, Jedi powers, save, load, setup and more). **Hold** opens a small tray just under it, see below. |
 
 FIRE, ALT, DUCK, ACT, JUMP, FORCE and NEXT WPN act as soon as you touch them.
 LIGHT, IR, BACTA, MENU and the tray buttons act when you **lift** your finger
 on them, so if you touch one by mistake, slide off before you lift.
 
-### MENU's tray: keyboard and FPS
+### MENU's tray: tilt aiming, FPS and keyboard
 
 Hold **MENU** until its ring fills (about half a second). A small tray opens just under it
-with two buttons. Either slide your thumb down onto one and lift, or lift
-first and then tap one:
+with four buttons, from left to right **SENS**, **GYRO**, **FPS** and the
+**keyboard**. Either slide your thumb down onto one and lift, or lift first and
+then tap one. Anywhere on the tray's dark backing counts as the nearest button.
 
-- **Keyboard** (the keyboard symbol, right under MENU): opens the game's
-  typing line with the iPhone keyboard, for [cheats](#cheats). While it's open,
-  MENU and the keyboard button are lit yellow.
-- **FPS:** shows or hides a frame-rate counter, to the left of QUICK SAVE. The app
-  remembers this setting next time you open it. The FPS button is yellow while
-  the counter is on.
+- **SENS** and **GYRO:** tilt aiming's sensitivity and setting, see
+  [Tilt aiming](#tilt-aiming). Each tap goes on to the next setting, and the
+  tray stays open, so you can tap again.
+- **FPS:** shows or hides a frame-rate counter, to the left of QUICK SAVE. The FPS
+  button is yellow while the counter is on.
+- **Keyboard** (the keyboard symbol, at the right end of the tray): opens the
+  game's typing line with the iPhone keyboard, for [cheats](#cheats). While
+  it's open, MENU and the keyboard button are lit yellow.
 
-The tray closes after you pick something, or when you touch anywhere else.
-Touching MENU again just closes it. If you slide off MENU while holding it,
-nothing happens.
+The app remembers SENS, GYRO and FPS next time you open it. The tray usually
+sits right under MENU. On smaller screens (with the camera cutout on the
+right, with Display Zoom, or at a large HUD Scale) it sits further left, so
+that it never covers FORCE or the buttons around FIRE. The tray closes after
+you pick FPS or the keyboard, or when you touch anywhere else. Touching MENU
+again just closes it. If you slide off MENU while holding it, nothing happens.
+
+## Tilt aiming
+
+You can also aim by turning and tilting the iPhone, on top of dragging. **Tilt
+aiming starts switched off.** To switch it on, hold **MENU** and tap **GYRO**
+in its tray. Each tap goes on to the next setting:
+
+- **GYRO OFF** (the default): no tilt aiming. The app doesn't read the
+  motion sensor at all.
+- **GYRO TOUCH:** turning the phone aims only while your right thumb is down
+  where it aims, that is dragging to look, or on FIRE, ALT, DUCK, ACT, JUMP or
+  FORCE. Lift your thumb and the view stays exactly where it is, so you can move
+  the phone back to a comfortable position and carry on from there, like
+  lifting a mouse off the desk.
+- **GYRO ALWAYS:** turning the phone always aims, with or without a thumb down.
+
+**SENS** sets how far the view turns: 1.0x, 1.5x (the default), 2.0x or 3.0x.
+At 1.0x the view turns exactly as far as the phone does. SENS is dimmed while
+GYRO is off. GYRO is lit yellow while tilt aiming is on.
+
+Good to know:
+
+- **The view never resets or springs back.** Tilt aiming only adds the way
+  the phone turns. There's no "straight ahead" position it returns to, so
+  however you hold the phone when you start, that's where you start from.
+- Turning left and right works however far back you tip the phone, even lying
+  flat on a table. It also works lying down with the screen facing you from
+  above, or on your side. Tilting the top of the phone toward you looks up.
+- Tilt aiming pauses while the Force wheel, the cheat typing line or MENU's
+  tray is open, and for a moment after you turn the phone round to the other
+  landscape side.
+- The game's mouse sensitivity (*Setup > Controls > Mouse*) doesn't change it.
+  Use SENS instead.
+- If the device has no motion sensor, GYRO says **NO GYRO** and does nothing.
 
 ## The Force wheel
 
@@ -338,18 +381,27 @@ There are two ways to pick a power:
 If you hold FORCE WHEEL without sliding and then lift, the wheel closes again
 without changing anything. Once you've picked a power, use it with **FORCE**.
 
+**Stars:** under the name of each power you've learned, a row of four stars
+shows its level, one gold star per level (a power at level 2 shows two gold
+stars and two empty ones).
+
 ## Saving and loading
 
 - **QUICK SAVE** saves to the game's quick-save slot, the same one F9 uses on PC.
   Hold it until the ring fills (about a third of a second). It saves once, while your
   finger is still down. If you lift sooner, or slide off the button, it doesn't
-  save. It doesn't work while the cheat typing line is open.
-- **QUICK LOAD** loads that quick save. Hold it for a full second, so a stray
-  touch can't throw away your progress. To cancel, lift your finger before the
-  ring fills: unlike QUICK SAVE, sliding off doesn't cancel it, and it also
-  works while the typing line is open. If the quick save is from another
-  level, that level is loaded. If you haven't quick saved yet, it says
-  *No quicksave yet*.
+  save, even if you slide back on. It doesn't work while the cheat typing line
+  is open.
+- **QUICK LOAD** loads that quick save. Hold it until the ring fills (about a
+  third of a second), so a stray tap can't throw away your progress. It loads
+  once, while your finger is still down. If you lift sooner, or slide off the
+  button, it doesn't load, even if you slide back on. It doesn't work while the
+  cheat typing line is open. If the quick save is from another level, that
+  level is loaded. If you haven't quick saved yet, it says *No quicksave yet*.
+- **Holding with more than one finger** still saves or loads only once. To do
+  it again, touch and hold the button again. If you press QUICK SAVE and QUICK
+  LOAD together, only the one whose ring fills first goes off (if both fill in
+  the same frame, it saves).
 - **Normal saves:** tap MENU and use the game's own save and load screens, as
   on PC.
 - Your player profile and all saves are stored in *Files > On My iPhone >
@@ -360,15 +412,15 @@ without changing anything. Once you've picked a power, use it with **FORCE**.
 Cheats go into the game's typing line (on PC, that's where chat goes):
 
 1. During a level, **hold MENU** until its ring fills, then tap the
-   **keyboard** button that appears just under it.
+   **keyboard** button at the right end of the tray that appears under it.
 2. A typing line opens at the top of the screen, with the iPhone keyboard.
    Type the cheat (autocorrect is off here, so it goes in exactly as typed),
    then tap **return**.
 3. To close the line without sending anything, tap **MENU**.
 
 While the typing line is open, most other touch buttons don't work. The
-exceptions: **FORCE WHEEL** closes the line and opens the wheel, and
-**QUICK LOAD** still loads, so be careful with it. Cheats only work in single
+exceptions: **MENU** (and the tray's keyboard button) close the line, and
+**FORCE WHEEL** closes it and opens the wheel. Cheats only work in single
 player. Some cheats need `on` or `off` after them.
 
 | Type this | What it does |
@@ -414,6 +466,8 @@ use Setup from the main menu):
   *Sensitivity* slider for the mouse's turn and look entries should change how
   fast the view turns. This hasn't been tested on a device yet. Changing the
   sensitivity doesn't change any bindings, so it's safe (see the next point).
+  Tilt aiming has its own setting, SENS, in MENU's tray (see
+  [Tilt aiming](#tilt-aiming)).
 - **Keyboard bindings** (*Setup > Controls*): **leave these at their defaults.**
   The touch buttons press the game's default keys, so if you rebind an action,
   its touch button stops working.
@@ -441,6 +495,9 @@ use Setup from the main menu):
 - **No cutscenes:** copy `Resource/video` too.
 - **I can't see the touch buttons:** they only show while you're playing a level.
   In menus, tap the menu items directly.
+- **The view turns when I move the phone:** tilt aiming is on. Hold MENU and
+  tap GYRO until it says GYRO OFF, or choose GYRO TOUCH so it only aims while
+  your right thumb is down (see [Tilt aiming](#tilt-aiming)).
 - **A touch button does nothing:** if you changed the key bindings in
   *Setup > Controls*, change them back to the defaults. Also, the typing line
   might still be open: tap MENU to close it.

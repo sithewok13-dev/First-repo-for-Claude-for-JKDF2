@@ -1195,6 +1195,11 @@ void Window_SdlUpdate()
         }
     }
 
+#ifdef TARGET_IOS
+    // Added: gyro aiming, now that this frame's touches are in
+    iosTouch_UpdateGyro();
+#endif
+
     // HACK: Escape key for controllers
     if (stdControl_bControllerEscapeKey && !stdControl_bControllerEscapeKey_last) {
         Window_msg_main_handler(g_hWnd, WM_KEYFIRST, VK_ESCAPE, 0);
