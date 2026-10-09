@@ -480,6 +480,7 @@ player. Some cheats need `on` or `off` after them.
 
 | Type this | What it does |
 | --- | --- |
+| `sithewok` / `sithewok off` | Everything at once: all weapons and ammo, all items, every Force power at 4 stars with the top Jedi rank, full health, shields and Force meter, and invincibility. While it's on, the Force meter never drains, however much you use your powers. `sithewok off` turns the invincibility and the endless Force off again; you keep everything else. Type `sithewok` again to fill everything back up. This one was added by this iOS build. |
 | `jediwannabe on` / `jediwannabe off` | Invincibility on / off |
 | `eriamjh` | Fly (type it again to stop) |
 | `noclip` | Fly through walls (type it again to stop). This one was added by OpenJKDF2. |
@@ -500,6 +501,27 @@ player. Some cheats need `on` or `off` after them.
 powers they give to 1 star, and `imayoda` takes away any dark side powers you
 have (`sithlord`: any light side powers). Late in the game they can make you
 weaker, so save first.
+
+`sithewok` lasts until you type `sithewok off`, with a few catches:
+
+- The invincibility ends when the next level starts (as with `jediwannabe on`).
+  A saved game remembers it, so loading a save made with it on brings it back.
+- Invincibility doesn't protect you from falling: a long drop can still hurt
+  or kill you (the same as with `jediwannabe on`).
+- The endless Force stays on, even through new levels, loaded games and a new
+  game you start from the menu, until you type `sithewok off` or the app is
+  closed (swiped away).
+- On the next level the game only lets you use the Force powers you've learned
+  in the story so far (it does the same after `raccoonking`), and some levels
+  lower your Jedi rank, which makes the Force meter smaller. Type `sithewok`
+  again to get everything back.
+- It can change the story. With every light and dark power at 4 stars, the
+  two sides cancel out, so when the game picks your path (after level 14) you
+  get the light side unless you've killed more than about one in five of the
+  civilians. On that screen the game then takes the other side's stars away
+  one at a time, which takes about 16 seconds after `sithewok`. Wait until it
+  stops before you tap OK, or the game only finishes setting your path on a
+  later Force screen.
 
 ## Settings worth knowing
 

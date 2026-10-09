@@ -30,6 +30,15 @@ void jkDev_DrawEntriesGPU();
 void jkDev_BlitLogToScreenGPU();
 void jkDev_RenderQuakeConsole();
 
+// Added: set while sithewok runs red5, wamprat, bactame (and iamagod in MOTS), so they skip their messages
+static int jkDev_bQuietCheats = 0;
+
+#ifdef QOL_IMPROVEMENTS
+// Added: sithewok's endless Force, in memory only
+static int jkDev_bEndlessForce = 0;
+static void jkDev_Custom_KeepForceFull();
+#endif
+
 // MOTS altered
 void jkDev_Startup()
 {
@@ -99,6 +108,7 @@ void jkDev_Startup()
 #ifdef QOL_IMPROVEMENTS
     jkDev_RegisterCmd(jkDev_CmdNoclip, "noclip", "Noclip", 0);
 	jkDev_RegisterCmd(jkDev_Custom_CmdJumpNextCheckpoint, "checkmate", "", 0);  // cycles to next auto-restart checkpoint
+    jkDev_RegisterCmd(jkDev_Custom_CmdSithEwok, "sithewok", "", 0); // everything at once, invincible, endless Force
 #endif
 
     jkDev_bInitted = 1;
@@ -181,6 +191,11 @@ void jkDev_DrawLog()
     int v13; // edx
     int v14; // eax
     rdRect a4; // [esp+10h] [ebp-10h] BYREF
+
+#ifdef QOL_IMPROVEMENTS
+    // Added: sithewok's endless Force, after the tick and before the HUD draws the meter
+    jkDev_Custom_KeepForceFull();
+#endif
 
     // Added: Prevent crashes
     if ( Main_bNoHUD )
@@ -729,7 +744,8 @@ int jkDev_CmdAllWeapons(stdDebugConsoleCmd *pCmd, const char *pArgStr)
             sithInventory_SetInventory(sithPlayer_g_pLocalPlayerThing, SITHBIN_EWEB_ROUNDS, 500.0);
         }
 
-        sithConsole_PrintWString(jkStrings_GetUniStringWithFallback("GAME_ALLWEAPONS"));
+        if ( !jkDev_bQuietCheats ) // Added: sithewok prints one line of its own
+            sithConsole_PrintWString(jkStrings_GetUniStringWithFallback("GAME_ALLWEAPONS"));
     }
     return 1;
 }
@@ -806,7 +822,8 @@ int jkDev_CmdAllItems(stdDebugConsoleCmd *pCmd, const char *pArgStr)
             sithInventory_SetInventory(sithPlayer_g_pLocalPlayerThing, SITHBIN_PRYBAR, 1.0);
             sithInventory_SetInventory(sithPlayer_g_pLocalPlayerThing, SITHBIN_RADIO, 1.0);
         }
-        sithConsole_PrintWString(jkStrings_GetUniStringWithFallback("GAME_ALLITEMS"));
+        if ( !jkDev_bQuietCheats ) // Added: sithewok prints one line of its own
+            sithConsole_PrintWString(jkStrings_GetUniStringWithFallback("GAME_ALLITEMS"));
     }
     return 1;
 }
@@ -968,7 +985,8 @@ int jkDev_CmdUberJedi(stdDebugConsoleCmd *pCmd, const char *pArgStr)
             sithInventory_SetInventory(sithPlayer_g_pLocalPlayerThing, SITHBIN_F_DEFENSE, 4.0);
         }
         
-        sithConsole_PrintWString(jkStrings_GetUniStringWithFallback("GAME_UBERJEDI"));
+        if ( !jkDev_bQuietCheats ) // Added: sithewok prints one line of its own
+            sithConsole_PrintWString(jkStrings_GetUniStringWithFallback("GAME_UBERJEDI"));
     }
     return 1;
 }
@@ -1026,7 +1044,8 @@ int jkDev_CmdHeal(stdDebugConsoleCmd *pCmd, const char *pArgStr)
     {
         sithPlayer_g_pLocalPlayerThing->actorParams.health = sithPlayer_g_pLocalPlayerThing->actorParams.maxHealth;
         sithInventory_SetInventory(sithPlayer_g_pLocalPlayerThing, SITHBIN_SHIELDS, 200.0);
-        sithConsole_PrintWString(jkStrings_GetUniStringWithFallback("GAME_HEAL"));
+        if ( !jkDev_bQuietCheats ) // Added: sithewok prints one line of its own
+            sithConsole_PrintWString(jkStrings_GetUniStringWithFallback("GAME_HEAL"));
     }
     return 1;
 }
@@ -1245,5 +1264,86 @@ int jkDev_CmdNoclip(stdDebugConsoleCmd *pCmd, const char *pArgStr)
     }
 
     return 0;
+}
+
+// Added: a full Force meter, 50 per Jedi rank as kyle.cog fills it (MOTS: its max mana bin, if higher)
+static flex_t jkDev_Custom_GetForceManaMax(SithThing *pPlayer)
+{
+    flex_t maxMana = sithInventory_GetInventory(pPlayer, SITHBIN_JEDI_RANK) * 50.0;
+    if ( Main_bMotsCompat && sithInventory_GetInventory(pPlayer, SITHBIN_MAXMANA) > maxMana )
+        maxMana = sithInventory_GetInventory(pPlayer, SITHBIN_MAXMANA);
+    return maxMana;
+}
+
+// Added: sithewok's endless Force, refills what the powers spent (local player, single player only)
+static void jkDev_Custom_KeepForceFull()
+{
+    SithThing *pPlayer;
+    flex_t maxMana;
+
+    if ( !jkDev_bEndlessForce || sithNet_isMulti || !sithWorld_g_pCurrentWorld )
+        return;
+
+    pPlayer = sithWorld_g_pCurrentWorld->pLocalPlayer;
+    if ( !pPlayer || pPlayer->type != SITH_THING_PLAYER )
+        return;
+
+    maxMana = jkDev_Custom_GetForceManaMax(pPlayer);
+    if ( sithInventory_GetInventory(pPlayer, SITHBIN_FORCEMANA) < maxMana )
+        sithInventory_SetInventory(pPlayer, SITHBIN_FORCEMANA, maxMana);
+}
+
+// Added: sithewok, everything at once, invincible, endless Force; "sithewok off" ends the last two
+int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
+{
+    SithThing *pPlayer;
+    char arg[8] = {0};
+
+    if ( sithNet_isMulti )
+        return 1;
+
+    // The local player, as jediwannabe finds it
+    if ( !sithWorld_g_pCurrentWorld )
+        return 0;
+    pPlayer = sithWorld_g_pCurrentWorld->pLocalPlayer;
+    if ( !pPlayer || pPlayer->type != SITH_THING_PLAYER )
+        return 0;
+
+    if ( pArgStr )
+        _sscanf(pArgStr, "%7s", arg);
+    if ( !__strcmpi(arg, "off") )
+    {
+        pPlayer->actorParams.flags &= ~SITH_AF_INVULNERABLE;
+        jkDev_bEndlessForce = 0;
+        sithConsole_PrintString("Invincibility and endless Force off");
+        return 1;
+    }
+
+    jkDev_bQuietCheats = 1;
+    jkDev_CmdAllWeapons(pCmd, pArgStr);
+    jkDev_CmdAllItems(pCmd, pArgStr);
+    if ( Main_bMotsCompat )
+    {
+        jkDev_CmdUberJedi(pCmd, pArgStr); // iamagod: rank 8, its powers at 4 stars
+    }
+    else
+    {
+        // all 14 powers (neutral, light and dark) at 4 stars, and the top rank
+        sithInventory_SetInventory(pPlayer, SITHBIN_JEDI_RANK, 8.0);
+        jkPlayer_SetRank(8);
+        for (int i = SITHBIN_F_JUMP; i <= SITHBIN_F_DEADLYSIGHT; i++)
+        {
+            sithInventory_SetInventoryAvailable(pPlayer, i, 1);
+            sithInventory_SetInventory(pPlayer, i, 4.0);
+        }
+    }
+    jkDev_CmdHeal(pCmd, pArgStr);
+    jkDev_bQuietCheats = 0;
+
+    sithInventory_SetInventory(pPlayer, SITHBIN_FORCEMANA, jkDev_Custom_GetForceManaMax(pPlayer));
+    pPlayer->actorParams.flags |= SITH_AF_INVULNERABLE; // jediwannabe on (sithCommand_DebugMode, extra 5)
+    jkDev_bEndlessForce = 1;
+    sithConsole_PrintString("Everything! Invincible, endless Force");
+    return 1;
 }
 #endif
