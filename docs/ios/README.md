@@ -267,7 +267,7 @@ screen, the camera cutout and the HUD.
 ```
  NEXT   FORCE   LIGHT  IR  BACTA         (FPS)  QUICK  QUICK  MENU
  WPN    WHEEL   (only items you have)            SAVE   LOAD
-                                     [SENS] [GYRO] [FPS] [keyboard]
+ VIEW                                [SENS] [GYRO] [FPS] [keyboard]
                                      (MENU's tray, when held)
 
       (^^)  run marker                              JUMP   FORCE
@@ -311,12 +311,13 @@ Buttons are slightly see-through until you touch them.
 | **FORCE** | right of JUMP, or above it (a little to its left) on smaller screens with the camera cutout on the right. With Display Zoom, where there's no room there, it can sit further left, between DUCK and ACT. It always keeps a little space from the top row, so holding it can't set off QUICK SAVE or QUICK LOAD. | Uses your selected Force power, for as long as you hold it. Tap for a single use, hold for powers that charge up (Force Jump) or keep going (Lightning). The button shows the power's name, and it's dimmed until you have a power. The **blue ring** around it is your Force meter: it shrinks as you use the Force, and glows and pulses when the meter is full. |
 | **NEXT WPN** | top left | **Tap:** switches to your next weapon. **Slide** or **hold:** opens the weapon wheel to choose one: see [The weapon wheel](#the-weapon-wheel). |
 | **FORCE WHEEL** | top left | **Tap:** selects your next learned Force power (FORCE shows which). **Slide** or **hold:** opens the Force wheel to choose one: see [The Force wheel](#the-force-wheel). |
+| **VIEW** | top left, under NEXT WPN | Switches the camera between first person and third person, like the F1 key on PC. |
 | **LIGHT**, **IR**, **BACTA** | top left, after FORCE WHEEL | Field light, IR goggles and bacta tank. Each button only appears once you have that item, and always in the same spot. LIGHT and IR turn yellow while switched on. BACTA shows how many you have when it's more than one. |
 | **QUICK SAVE** | top right | **Hold** for about a third of a second: a ring fills, then the game quick saves. See [Saving and loading](#saving-and-loading). |
 | **QUICK LOAD** | top right | **Hold** for about a third of a second: a ring fills, then your quick save loads. To cancel, lift or slide off before the ring fills. |
 | **MENU** | top right corner | **Tap** opens the game's menu (objectives, map, Jedi powers, save, load, setup and more). **Hold** opens a small tray just under it, see below. |
 
-FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them.
+FIRE, ALT, DUCK, ACT, JUMP, FORCE and VIEW act as soon as you touch them.
 LIGHT, IR, BACTA, MENU and the tray buttons act when you **lift** your finger
 on them, so if you touch one by mistake, slide off before you lift. NEXT WPN
 and FORCE WHEEL act on a quick tap when you lift, or open their wheel when
