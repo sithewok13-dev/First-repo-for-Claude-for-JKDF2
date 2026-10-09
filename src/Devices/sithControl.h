@@ -82,6 +82,7 @@ void sithControl_RebindJoystick();
 void sithControl_MapDefaultsJoystick();
 #ifdef TARGET_IOS
 void sithControl_IosRestoreStickBindings(); // Added
+void sithControl_IosControllerRun(); // Added
 #endif
 
 #ifdef QOL_IMPROVEMENTS

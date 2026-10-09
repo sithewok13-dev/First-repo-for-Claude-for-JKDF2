@@ -279,9 +279,10 @@ Buttons are slightly see-through until you touch them.
 **With a game controller connected** (Xbox, PlayStation, Switch Pro or MFi,
 paired in iOS Settings > Bluetooth), FIRE, ALT, DUCK, ACT, JUMP and FORCE
 hide, since the controller does all of that: left stick to move and strafe,
-right stick to aim, triggers to fire, the face buttons for use, duck,
-activate and jump. The rest of the touch controls stay. Disconnect the
-controller and the buttons come back.
+right stick to aim, **click the left stick and hold it to run**, triggers to
+fire, the face buttons for use, duck, activate and jump. (Or turn on *Always
+Run*: then how far you push the stick sets the speed.) The rest of the touch
+controls stay. Disconnect the controller and the buttons come back.
 
 ### Moving and looking
 

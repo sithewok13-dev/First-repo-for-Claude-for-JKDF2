@@ -680,6 +680,7 @@ LABEL_30:
     }
 #ifdef TARGET_IOS
     sithControl_IosRestoreStickBindings(); // Added
+    sithControl_IosControllerRun(); // Added
 #endif
     return 1;
 }
@@ -2395,6 +2396,32 @@ void sithControl_IosRestoreStickBindings()
     if (mapped) mapped->binaryAxisVal = 1.5;
     stdPlatform_Printf("iOS: restored the controller's stick bindings\n");
 }
+
+// Added: profiles made before the left stick click ran (see
+// sithControl_MapDefaultsJoystick) have it on use-item. If it still is, and
+// no controller button runs, it becomes run. (Bound back to use-item in
+// Setup > Controls, with no controller button for run, it would come back
+// to run at the next load -- bind run to another controller button to keep
+// use-item there.)
+void sithControl_IosControllerRun()
+{
+    int bLeftClickUsesItem = 0;
+    for (uint32_t e = 0; e < sithControl_aInputFuncToKeyinfo[INPUT_FUNC_USEINV].numEntries; e++) {
+        stdControlKeyInfoEntry* pEntry = &sithControl_aInputFuncToKeyinfo[INPUT_FUNC_USEINV].aEntries[e];
+        if (!(pEntry->flags & INPUT_MAPPING_FLAG_AXIS) && pEntry->dxKeyNum == KEY_JOY1_B8)
+            bLeftClickUsesItem = 1;
+    }
+    if (!bLeftClickUsesItem) return;
+
+    for (uint32_t e = 0; e < sithControl_aInputFuncToKeyinfo[INPUT_FUNC_FAST].numEntries; e++) {
+        stdControlKeyInfoEntry* pEntry = &sithControl_aInputFuncToKeyinfo[INPUT_FUNC_FAST].aEntries[e];
+        if (!(pEntry->flags & INPUT_MAPPING_FLAG_AXIS) && pEntry->dxKeyNum >= JK_EXTENDED_KEY_START && !KEY_IS_MOUSE(pEntry->dxKeyNum))
+            return; // a controller button already runs
+    }
+
+    sithControl_BindControl(INPUT_FUNC_FAST, KEY_JOY1_B8, 0); // also takes it off use-item
+    stdPlatform_Printf("iOS: the controller's left stick click now runs\n");
+}
 #endif
 
 // Added
@@ -2431,7 +2458,13 @@ void sithControl_MapDefaultsJoystick() {
     sithControl_DefaultHelper(INPUT_FUNC_ACTIVATE, KEY_JOY1_B3, 2); // x
     sithControl_BindControl(INPUT_FUNC_JUMP, KEY_JOY1_B4, 0); // y
 
+#ifdef TARGET_IOS
+    // Added: on iOS the left stick click runs (held), as in most shooters --
+    // A already uses the last selected item, and the touch buttons use items
+    sithControl_BindControl(INPUT_FUNC_FAST, KEY_JOY1_B8, 0); // lstick click
+#else
     sithControl_DefaultHelper(INPUT_FUNC_USEINV, KEY_JOY1_B8, 2); // lstick click
+#endif
     sithControl_DefaultHelper(INPUT_FUNC_USESKILL, KEY_JOY1_B9, 2); // rstick click
 
     sithControl_BindControl(INPUT_FUNC_NEXTINV, KEY_JOY1_HUP, 0);
