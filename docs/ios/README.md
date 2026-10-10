@@ -14,6 +14,7 @@ Contents: [What this is](#what-this-is) ·
 [2. Install the app](#2-install-the-app) ·
 [3. Copy the game files to your iPhone](#3-copy-the-game-files-to-your-iphone) ·
 [4. Play](#4-play) ·
+[Mysteries of the Sith](#mysteries-of-the-sith-experimental) ·
 [Touch controls](#touch-controls) ·
 [Tilt aiming](#tilt-aiming) ·
 [The Force wheel](#the-force-wheel) ·
@@ -72,9 +73,10 @@ Please keep in mind:
   `Episode`, `Resource` and `MUSIC` folders take on your computer (check their
   size there).
 
-**Mysteries of the Sith** (the expansion) hasn't been tested on iOS and isn't
-supported in this release. The main menu's *Expansions & Mods* screen offers
-*Install Mysteries of the Sith*, but please ignore it for now, and never copy
+**Mysteries of the Sith** (the expansion with Mara Jade) is **experimental**
+on iOS: it has its own folder, `mots`, and if you have both games the app asks
+which one to play when it opens. See
+[Mysteries of the Sith](#mysteries-of-the-sith-experimental). Never copy
 expansion files into `jk1`.
 
 ## 1. Get your game files ready
@@ -235,6 +237,28 @@ the intro plays, then the main menu.
 The touch controls appear once you're actually playing a level, and they hide again in menus
 and cutscenes.
 
+## Mysteries of the Sith (experimental)
+
+Mysteries of the Sith hasn't had much testing on iOS yet, so expect bugs.
+
+1. **Open the app once** if you haven't since updating. It makes a `mots`
+   folder next to `jk1` (Files > On My iPhone > OpenJKDF2 > `mots`).
+2. **Copy the expansion's own `Episode`, `Resource` and `MUSIC` folders into
+   `mots`**, from its install folder on your computer (the folder with
+   `JKM.EXE` in it). Not the Jedi
+   Knight ones: `mots/resource` needs the expansion's own `jk_.cd`, and
+   `mots/episode` its `JKM*.goo` files.
+3. **Open OpenJKDF2.** With both games in place, it asks **which game you want
+   to play**: *Jedi Knight* or *Mysteries of the Sith*. It asks every time it
+   opens, with the game you played last as the default. With only one of the
+   two in place, that one starts without asking.
+
+Each game keeps its own player profile and saves (`jk1/player`,
+`mots/player`). The touch controls are the same; the Force wheel shows the
+expansion's powers in its four tiers. To switch games, close the app and open
+it again. The *Launch Mysteries of the Sith* entry under *Expansions & Mods*
+switches without closing the app, but it hasn't been tested on iOS.
+
 ## Touch controls
 
 The layout looks roughly like this. Exact positions shift a little to fit your
@@ -243,7 +267,7 @@ screen, the camera cutout and the HUD.
 ```
  NEXT   FORCE   LIGHT  IR  BACTA         (FPS)  QUICK  QUICK  MENU
  WPN    WHEEL   (only items you have)            SAVE   LOAD
-                                     [SENS] [GYRO] [FPS] [keyboard]
+ VIEW                                [SENS] [GYRO] [FPS] [keyboard]
                                      (MENU's tray, when held)
 
       (^^)  run marker                              JUMP   FORCE
@@ -287,12 +311,13 @@ Buttons are slightly see-through until you touch them.
 | **FORCE** | right of JUMP, or above it (a little to its left) on smaller screens with the camera cutout on the right. With Display Zoom, where there's no room there, it can sit further left, between DUCK and ACT. It always keeps a little space from the top row, so holding it can't set off QUICK SAVE or QUICK LOAD. | Uses your selected Force power, for as long as you hold it. Tap for a single use, hold for powers that charge up (Force Jump) or keep going (Lightning). The button shows the power's name, and it's dimmed until you have a power. The **blue ring** around it is your Force meter: it shrinks as you use the Force, and glows and pulses when the meter is full. |
 | **NEXT WPN** | top left | **Tap:** switches to your next weapon. **Slide** or **hold:** opens the weapon wheel to choose one: see [The weapon wheel](#the-weapon-wheel). |
 | **FORCE WHEEL** | top left | **Tap:** selects your next learned Force power (FORCE shows which). **Slide** or **hold:** opens the Force wheel to choose one: see [The Force wheel](#the-force-wheel). |
+| **VIEW** | top left, under NEXT WPN | Switches the camera between first person and third person, like the F1 key on PC. |
 | **LIGHT**, **IR**, **BACTA** | top left, after FORCE WHEEL | Field light, IR goggles and bacta tank. Each button only appears once you have that item, and always in the same spot. LIGHT and IR turn yellow while switched on. BACTA shows how many you have when it's more than one. |
 | **QUICK SAVE** | top right | **Hold** for about a third of a second: a ring fills, then the game quick saves. See [Saving and loading](#saving-and-loading). |
 | **QUICK LOAD** | top right | **Hold** for about a third of a second: a ring fills, then your quick save loads. To cancel, lift or slide off before the ring fills. |
 | **MENU** | top right corner | **Tap** opens the game's menu (objectives, map, Jedi powers, save, load, setup and more). **Hold** opens a small tray just under it, see below. |
 
-FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them.
+FIRE, ALT, DUCK, ACT, JUMP, FORCE and VIEW act as soon as you touch them.
 LIGHT, IR, BACTA, MENU and the tray buttons act when you **lift** your finger
 on them, so if you touch one by mistake, slide off before you lift. NEXT WPN
 and FORCE WHEEL act on a quick tap when you lift, or open their wheel when
@@ -566,10 +591,15 @@ use Setup from the main menu):
 - **I copied the folders into OpenJKDF2, not into jk1:** that's the "Documents
   folder" the app's message mentions. Move `Episode`, `Resource` and `MUSIC`
   into `jk1`.
-- **I tapped *Install Mysteries of the Sith*:** the app now asks for the
-  expansion's files. Close the app and open it again; it should start Jedi
-  Knight again. You may see an empty `mots` folder next to `jk1`, which you can
-  leave or delete.
+- **I tapped *Install Mysteries of the Sith*:** if the expansion's files
+  aren't in `mots` yet, the app asks for them. Close the app and open it again;
+  it starts Jedi Knight. The `mots` folder next to `jk1` is where the
+  expansion's files go (see
+  [Mysteries of the Sith](#mysteries-of-the-sith-experimental)); leave it
+  empty if you don't have it.
+- **The app doesn't ask which game to play:** it only asks when both `jk1`
+  and `mots` have their game's files. Check that `mots/resource/jk_.cd` is
+  the expansion's own, not a copy of Jedi Knight's.
 - **No music:** copy the `MUSIC` folder into `jk1` (see step 1). Not every copy of the
   game includes it.
 - **No cutscenes:** copy `Resource/video` too.
@@ -590,8 +620,9 @@ use Setup from the main menu):
 
 - **Experimental build.** It has only had limited testing so far. It may
   crash, and the touch layout may not suit every iPhone or iPad screen.
-- **Mysteries of the Sith hasn't been tested and isn't supported.** Please
-  ignore *Install Mysteries of the Sith* under *Expansions & Mods* for now.
+- **Mysteries of the Sith is experimental.** It has had little testing on
+  iOS. Switching games from *Expansions & Mods* without closing the app hasn't
+  been tested at all.
 - **No multiplayer.** The iOS build has no networking.
 - **No in-app file picker.** Game files have to be copied into `jk1` with
   the Files app (or Finder / Apple Devices).

@@ -10,6 +10,9 @@
 #ifdef TARGET_DREAMCAST
 #include "Platform/Dreamcast/dcStorage.h"
 #endif
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosGame.h"
+#endif
 
 #ifdef TARGET_TWL
 #include <unistd.h>
@@ -1283,6 +1286,12 @@ void InstallHelper_SetCwd()
     // Android and iOS always run from the app-specific data dir (jk1/ or mots/):
     // the process starts with its CWD inside the read-only app bundle, so there is
     // no "current working directory install" to fall back to.
+#if defined(TARGET_IOS)
+    // Added: on first launch, which game (jk1/ or mots/) -- asked if both are there
+    if (openjkdf2_bIsFirstLaunch) {
+        iosGame_ChooseStartupGame();
+    }
+#endif
     InstallHelper_UseLocalData();
     found_override = 1;
 #else

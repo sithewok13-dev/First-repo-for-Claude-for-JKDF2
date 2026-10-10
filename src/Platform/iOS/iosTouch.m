@@ -224,7 +224,8 @@ typedef struct {
 // These all pass drags through to looking, so a thumb that lands on one while
 // aiming keeps aiming. Top left: next weapon, the FORCE WHEEL that picks the
 // power, and a button for each usable item while the player has it (field
-// light, IR goggles, bacta), each always in its own place. Top right: quick
+// light, IR goggles, bacta), each always in its own place, and under NEXT
+// WPN, VIEW: the camera view key (F1), first person / third person. Top right: quick
 // save and quick load (short holds) and the menu. Holding MENU opens a tray
 // just under it: gyro aiming's sensitivity and mode, FPS, which shows or hides
 // a frame rate readout left of QUICK SAVE, and the keyboard, for the typing
@@ -233,7 +234,7 @@ typedef struct {
 // slide or a hold opens the weapon / force wheel.
 enum {
     BTN_FIRE, BTN_ALT, BTN_DUCK, BTN_ACT, BTN_JUMP, BTN_FORCE,
-    BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA,
+    BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA, BTN_VIEW,
     BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU,
     BTN_TRAYSENS, BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
     BTN_COUNT,
@@ -251,6 +252,7 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_LIGHT]     = { "LIGHT",       KIND_ITEM,     SDL_SCANCODE_RETURN, 22.0f, 0, SITHBIN_FIELDLIGHT_IOS },
     [BTN_IR]        = { "IR",          KIND_ITEM,     SDL_SCANCODE_RETURN, 22.0f, 0, SITHBIN_IRGOGGLES_IOS },
     [BTN_BACTA]     = { "BACTA",       KIND_ITEM,     SDL_SCANCODE_RETURN, 22.0f, 0, SITHBIN_BACTATANK_IOS },
+    [BTN_VIEW]      = { "VIEW",        KIND_KEY,      SDL_SCANCODE_F1,     20.0f, 0 },
     [BTN_QUICKSAVE] = { "QUICK\nSAVE", KIND_HOLDSAVE, SDL_SCANCODE_F9,     22.0f, 0 },
     [BTN_QUICKLOAD] = { "QUICK\nLOAD", KIND_HOLDLOAD, -1,                  22.0f, 0 },
     [BTN_MENU]      = { "MENU",        KIND_MENU,     -1,                  22.0f, 0 },
@@ -1393,6 +1395,9 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     iosTouch_aButtons[BTN_LIGHT].x = left + 148;
     iosTouch_aButtons[BTN_IR].x = left + 204;
     iosTouch_aButtons[BTN_BACTA].x = left + 260;
+    // VIEW under NEXT WPN, off the top row
+    iosTouch_aButtons[BTN_VIEW].x = left + 24;
+    iosTouch_aButtons[BTN_VIEW].y = top + 82;
     // Top right: QUICK SAVE, QUICK LOAD, MENU in the corner, 66 pt apart (10 pt
     // between where each takes touches): with both quick holds 0.3 s, that is
     // what keeps a press meant for one off the other (and FORCE, below, keeps
