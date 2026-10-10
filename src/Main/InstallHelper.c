@@ -17,6 +17,8 @@
 
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosApp.h" // Added: Jedi Knight or Mysteries of the Sith app
+#include <dirent.h>
+#include <strings.h>
 #endif
 
 #ifdef TARGET_DREAMCAST
@@ -273,6 +275,72 @@ Windows:
  - %APPDATA\local\openjkdf2\resource\jk_.cd (legacy)
  - %APPDATA\OpenJKDF2\openjkdf2\resource\jk_.cd (install default)
 */
+#if defined(TARGET_IOS)
+// Added: does pDir hold resource/<pName>? Names match without case, as in the
+// engine's own lookups (fcaseopen), and every "resource" folder that matches is
+// tried, so an empty "resource" can't hide a full "Resource" next to it.
+static int InstallHelper_iOSHasGame(const char* pDir, const char* pName)
+{
+    DIR* d = opendir(pDir);
+    if (!d) return 0;
+    int bFound = 0;
+    struct dirent* e;
+    while (!bFound && (e = readdir(d)) != NULL) {
+        if (strcasecmp(e->d_name, "resource")) continue;
+        char sub[512];
+        snprintf(sub, sizeof(sub), "%s/%s", pDir, e->d_name);
+        DIR* d2 = opendir(sub);
+        if (!d2) continue;
+        struct dirent* e2;
+        while ((e2 = readdir(d2)) != NULL) {
+            if (!strcasecmp(e2->d_name, pName)) {
+                bFound = 1;
+                break;
+            }
+        }
+        closedir(d2);
+    }
+    closedir(d);
+    return bFound;
+}
+
+// Added: the folder that holds the game, so it is also found when a player
+// copies the files straight into the app's own Files folder, or into a folder
+// of their own inside it (such as an unzipped "mots-data"), instead of into
+// jk1/mots. In order: Documents/<pSub> (the documented place, so a working setup
+// never moves), Documents itself, then the first folder in Documents, by name,
+// that holds the game. Returns 0 if none does.
+static int InstallHelper_iOSFindGameDir(const char* pDocs, const char* pSub, const char* pMarker, char* pOut, size_t pOut_sz)
+{
+    char tmp[256];
+    char best[256] = "";
+    stdFnames_MakePath(tmp, sizeof(tmp), pDocs, pSub);
+    if (InstallHelper_iOSHasGame(tmp, pMarker)) {
+        stdString_SafeStrCopy(pOut, tmp, pOut_sz);
+        return 1;
+    }
+    if (InstallHelper_iOSHasGame(pDocs, pMarker)) {
+        stdString_SafeStrCopy(pOut, pDocs, pOut_sz);
+        return 1;
+    }
+    DIR* d = opendir(pDocs);
+    if (!d) return 0;
+    struct dirent* e;
+    while ((e = readdir(d)) != NULL) {
+        if (e->d_name[0] == '.' || !strcmp(e->d_name, pSub)) continue;
+        if (best[0] && strcmp(e->d_name, best) >= 0) continue;
+        stdFnames_MakePath(tmp, sizeof(tmp), pDocs, e->d_name);
+        if (InstallHelper_iOSHasGame(tmp, pMarker)) {
+            stdString_SafeStrCopy(best, e->d_name, sizeof(best));
+        }
+    }
+    closedir(d);
+    if (!best[0]) return 0;
+    stdFnames_MakePath(pOut, pOut_sz, pDocs, best);
+    return 1;
+}
+#endif
+
 int InstallHelper_GetLocalDataDir(char* pOut, size_t pOut_sz, int bChdir)
 {
     const char *homedir;
@@ -298,8 +366,12 @@ int InstallHelper_GetLocalDataDir(char* pOut, size_t pOut_sz, int bChdir)
         // check openjkdf2_bOrigWasDF2 (set from argv in main()) as well.
         int bMots = Main_bMotsCompat || !openjkdf2_bOrigWasDF2;
         stdFnames_MakePath(fname_tmp, sizeof(fname_tmp), home_path, "Documents");
-        stdFnames_MakePath(fname, sizeof(fname), fname_tmp, bMots ? "mots" : "jk1");
-        stdFileUtil_MkDir(fname);
+        // Added: look for the game in more places than jk1/mots (see above),
+        // by a file only that game has
+        if (!InstallHelper_iOSFindGameDir(fname_tmp, bMots ? "mots" : "jk1", bMots ? "Jkmres.goo" : "Res2.gob", fname, sizeof(fname))) {
+            stdFnames_MakePath(fname, sizeof(fname), fname_tmp, bMots ? "mots" : "jk1");
+            stdFileUtil_MkDir(fname);
+        }
         if (bChdir) {
             chdir(fname);
             stdPlatform_Printf("Using iOS data dir: %s\n", fname);
@@ -1167,7 +1239,7 @@ int InstallHelper_AttemptInstall()
                  "(via Finder file sharing or the Files app), then relaunch.\n\nExpected: %s",
                  Main_bMotsCompat ? "JKMOTS" : "JKDF2",
                  iosApp_IsMots() ? "OpenMoTS" : "OpenJKDF2", dataDir); // Added: the app's own name
-        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "OpenJKDF2 Install Helper", msgbuf, NULL);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, iosApp_IsMots() ? "OpenMoTS Install Helper" : "OpenJKDF2 Install Helper", msgbuf, NULL);
     }
     return 0;
 #else
@@ -1223,7 +1295,12 @@ int InstallHelper_AttemptInstall()
 
 void InstallHelper_CheckRequiredAssets(int doInstall)
 {
+#ifdef TARGET_IOS
+    const char* msg = iosApp_IsMots() ? "OpenMoTS is missing the following required assets:\n" // Added: the app's own name
+                                      : "OpenJKDF2 is missing the following required assets:\n";
+#else
     const char* msg = "OpenJKDF2 is missing the following required assets:\n";
+#endif
 
     const char** paRequiredAssets = Main_bMotsCompat ? aRequiredAssetsMots : aRequiredAssets;
     size_t paRequiredAssets_len = Main_bMotsCompat ? aRequiredAssetsMots_len : aRequiredAssets_len;
@@ -1285,7 +1362,8 @@ void InstallHelper_SetCwd()
     int found_override = 0;
 
 #if defined(TARGET_ANDROID) || defined(TARGET_IOS)
-    // Android and iOS always run from the app-specific data dir (jk1/ or mots/):
+    // Android and iOS always run from the app-specific data dir (jk1/ or mots/,
+    // or on iOS wherever in Documents the game is):
     // the process starts with its CWD inside the read-only app bundle, so there is
     // no "current working directory install" to fall back to.
     InstallHelper_UseLocalData();

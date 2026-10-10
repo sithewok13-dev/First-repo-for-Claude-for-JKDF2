@@ -326,8 +326,9 @@ void jkGuiMods_PopulateEntries(Darray *pListDisplayed, jkGuiElement *element)
     
     // Added: on iOS, Mysteries of the Sith is an app of its own, with its own
     // Documents folder, and Jedi Knight is the other app. Switching here would
-    // only start MotS again: InstallHelper_GetLocalDataDir keeps to
-    // Documents/mots, and the MotS data there turns MotS mode back on.
+    // only start MotS again: InstallHelper_GetLocalDataDir keeps to the MotS
+    // data (Documents/mots, or wherever in Documents it is), which turns MotS
+    // mode back on.
     int bCanSwitchToDF2 = 1;
 #ifdef TARGET_IOS
     bCanSwitchToDF2 = !iosApp_IsMots();
