@@ -36,6 +36,8 @@ static int jkDev_bQuietCheats = 0;
 #ifdef QOL_IMPROVEMENTS
 // Added: sithewok's endless Force, in memory only
 static int jkDev_bEndlessForce = 0;
+// Added: MOTS: sithewok's powers past the tier limits stay, in memory only ("sithewok off" leaves it on)
+static int jkDev_bKeepForcePowers = 0;
 static void jkDev_Custom_KeepForceFull();
 #endif
 
@@ -1266,13 +1268,10 @@ int jkDev_CmdNoclip(stdDebugConsoleCmd *pCmd, const char *pArgStr)
     return 0;
 }
 
-// Added: a full Force meter, 50 per Jedi rank as kyle.cog fills it (MOTS: its max mana bin, if higher)
+// Added: a full Force meter, 50 per Jedi rank as kyle.cog fills it (MOTS too: force_well.cog caps it there in single player)
 static flex_t jkDev_Custom_GetForceManaMax(SithThing *pPlayer)
 {
-    flex_t maxMana = sithInventory_GetInventory(pPlayer, SITHBIN_JEDI_RANK) * 50.0;
-    if ( Main_bMotsCompat && sithInventory_GetInventory(pPlayer, SITHBIN_MAXMANA) > maxMana )
-        maxMana = sithInventory_GetInventory(pPlayer, SITHBIN_MAXMANA);
-    return maxMana;
+    return sithInventory_GetInventory(pPlayer, SITHBIN_JEDI_RANK) * 50.0;
 }
 
 // Added: sithewok's endless Force, refills what the powers spent (local player, single player only)
@@ -1291,6 +1290,13 @@ static void jkDev_Custom_KeepForceFull()
     maxMana = jkDev_Custom_GetForceManaMax(pPlayer);
     if ( sithInventory_GetInventory(pPlayer, SITHBIN_FORCEMANA) < maxMana )
         sithInventory_SetInventory(pPlayer, SITHBIN_FORCEMANA, maxMana);
+}
+
+// Added: MOTS: after sithewok the Force screen (jkPlayer_SyncForcePowers) leaves a tier with more powers
+// than the rank allows as it is, instead of taking them all back (single player)
+int jkDev_Custom_KeepsForcePowers()
+{
+    return jkDev_bKeepForcePowers && Main_bMotsCompat && !sithNet_isMulti;
 }
 
 // Added: sithewok, everything at once, invincible, endless Force; "sithewok off" ends the last two
@@ -1325,6 +1331,7 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
     if ( Main_bMotsCompat )
     {
         jkDev_CmdUberJedi(pCmd, pArgStr); // iamagod: rank 8, its powers at 4 stars
+        jkDev_bKeepForcePowers = 1; // all 17 are more than rank 8's tiers allow (jkPlayer_aMotsFpBins)
     }
     else
     {

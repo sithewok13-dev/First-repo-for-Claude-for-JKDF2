@@ -4,6 +4,10 @@
 #   ./build_ios.sh                  # arm64 device slice   -> build_ios/        + OpenJKDF2-iOS.app
 #   IOS_PLATFORM=SIMULATOR ./build_ios.sh
 #
+# The Mysteries of the Sith app is made from a built .app afterwards (CI does
+# this for branch builds), with the same signing variables plus its own:
+#   sh packaging/ios/make_mots_app.sh OpenJKDF2-iOS.app OpenJKDF2-MotS-iOS.app
+#
 # Rendering goes through ANGLE (Metal backend) so the engine keeps its GLSL ES
 # 3.00 shaders -- see cmake_modules/build_angle.cmake for where ANGLE comes from
 # and how to build it. Override the checkout with ANGLE_ROOT=/path/to/angle.

@@ -5,6 +5,8 @@ with on-screen touch controls, using your own copy of the game.
 
 - **Download:** the `.ipa` file from the
   [latest release](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/releases/latest)
+- **Mysteries of the Sith:** a separate test app, OpenMoTS. See
+  [Mysteries of the Sith (test app)](#mysteries-of-the-sith-test-app).
 - **Problems?** [Open an issue](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/issues)
   (see [Reporting bugs](#reporting-bugs))
 
@@ -22,6 +24,7 @@ Contents: [What this is](#what-this-is) ·
 [Cheats](#cheats) ·
 [Settings worth knowing](#settings-worth-knowing) ·
 [Troubleshooting](#troubleshooting) ·
+[Mysteries of the Sith (test app)](#mysteries-of-the-sith-test-app) ·
 [Known issues and limitations](#known-issues-and-limitations) ·
 [Reporting bugs](#reporting-bugs) ·
 [Credits and legal](#credits-and-legal)
@@ -72,10 +75,11 @@ Please keep in mind:
   `Episode`, `Resource` and `MUSIC` folders take on your computer (check their
   size there).
 
-**Mysteries of the Sith** (the expansion) hasn't been tested on iOS and isn't
-supported in this release. The main menu's *Expansions & Mods* screen offers
-*Install Mysteries of the Sith*, but please ignore it for now, and never copy
-expansion files into `jk1`.
+**Mysteries of the Sith** (the expansion) has an app of its own, OpenMoTS, as
+an untested test build: see
+[Mysteries of the Sith (test app)](#mysteries-of-the-sith-test-app). In this
+app (OpenJKDF2), please ignore *Install Mysteries of the Sith* on the main
+menu's *Expansions & Mods* screen, and never copy expansion files into `jk1`.
 
 ## 1. Get your game files ready
 
@@ -586,12 +590,109 @@ use Setup from the main menu):
   *Setup > Controls*, change them back to the defaults. Also, the typing line
   might still be open: tap MENU to close it.
 
+## Mysteries of the Sith (test app)
+
+**Star Wars Jedi Knight: Mysteries of the Sith** (1998), the expansion, has its
+own app: **OpenMoTS**. It's the same game engine and the same touch controls,
+in a second app with its own icon and its own folder in the Files app, so it
+installs next to OpenJKDF2 and keeps its files and saves apart from Jedi
+Knight's. It is an **untested test build**: it has been checked on a computer,
+but not yet on an iPhone or iPad.
+
+**What you need:** your own copy of Mysteries of the Sith (GOG and Steam sell
+it), installed on a computer, and room on your phone for about 435 MB (170 MB
+without the cutscenes and music).
+
+1. **Download `OpenJKDF2-MotS-iOS-unsigned.ipa`** from the
+   ["iOS latest build"](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/releases/tag/ios-latest)
+   pre-release (it's not in the regular releases yet). Sign and install it the
+   same way as OpenJKDF2 ([2. Install the app](#2-install-the-app)). With a
+   free Apple ID, it counts as one more of your 3 sideloaded apps.
+2. **Open OpenMoTS once.** It tells you the game files are missing, with a
+   long path that ends in `Documents/mots`. That's normal: it has just created
+   its folder. Close it.
+3. **In the Files app, go to *On My iPhone > OpenMoTS > mots*** and copy the
+   `Episode`, `Resource` and `MUSIC` folders from your Mysteries of the Sith
+   folder into it, the same way as for Jedi Knight
+   ([3. Copy the game files to your iPhone](#3-copy-the-game-files-to-your-iphone)).
+   It should look like this:
+
+   ```
+   On My iPhone
+   └── OpenMoTS
+       └── mots
+           ├── Episode
+           │   ├── JKM.GOO
+           │   ├── JKM_KFY.GOO
+           │   ├── JKM_MP.GOO
+           │   └── JKM_SABER.GOO
+           ├── Resource
+           │   ├── JKMRES.GOO
+           │   ├── JKMsndLO.goo
+           │   ├── JK_.CD
+           │   └── VIDEO        (cutscenes)
+           └── MUSIC            (soundtrack)
+   ```
+
+4. **Open OpenMoTS again.** The intro plays, then you make a player and start
+   *Single Player > New Game*.
+
+Things to know:
+
+- **Keep the two games apart.** Mysteries of the Sith files go in OpenMoTS's
+  `mots` folder only, never in OpenJKDF2's `jk1`, and Jedi Knight files don't
+  go in `mots`.
+- **Deleting OpenMoTS deletes its `mots` folder too**, including your saves
+  (`mots/player`).
+- *Expansions & Mods* in OpenMoTS has no entry for Jedi Knight: open the
+  OpenJKDF2 app instead.
+- The **Force wheel** and the **weapon wheel** show Mysteries of the Sith's
+  powers and weapons.
+- **Cheats** go in the typing line as in Jedi Knight ([Cheats](#cheats)). The
+  Jedi Knight names in the table work here too, except `imayoda` and
+  `sithlord`, which do nothing in Mysteries of the Sith. So do the game's own:
+  `diediedie` (weapons), `gimmestuff` (items), `morelife` (health and
+  shields), `trixie` (Force meter), `cartograph` (map), `iamagod` (every
+  Force power), `trainme` (Force level-up), `boinga on` / `boinga off`
+  (invincibility), `freebird` (fly) and `gameover` (finishes the level).
+
+`sithewok` works in Mysteries of the Sith too: all weapons and ammo, all
+items, all 17 Force powers at 4 stars with the top Jedi rank, full health,
+shields and Force meter, invincibility and the endless Force. `sithewok off`
+turns the invincibility and the endless Force off again. The catches:
+
+- The endless Force stays on, even through new levels, loaded games and a new
+  game, until you type `sithewok off` or the app is closed.
+- The invincibility ends when the next level starts, and it doesn't protect
+  you from falling (as in Jedi Knight).
+- Your Force powers stay through the Force screen at the end of each level.
+  Normally Mysteries of the Sith takes back powers beyond what your rank
+  allows. This lasts until the app is closed, in any game you play (also after
+  `sithewok off`). If you load a game saved with these powers after reopening
+  the app, type `sithewok` again before the level ends, or the Force screen
+  turns them back into stars.
+- While you have them, the Force screen's *Choose* numbers and left-over stars
+  don't matter: just tap *Ok*.
+- When the story switches to Mara Jade (level 5), the game gives her her own
+  starting powers, rank and weapons. The endless Force stays on; type
+  `sithewok` again for the rest.
+- On Kyle's levels, if you type it in the first couple of seconds of a level,
+  the game can switch the invincibility off when its own start-of-level
+  protection ends. The same can happen when a Super Shield you picked up runs
+  out. Type `sithewok` again.
+
+If something doesn't work in OpenMoTS, please say so in your bug report
+([Reporting bugs](#reporting-bugs)).
+
 ## Known issues and limitations
 
 - **Experimental build.** It has only had limited testing so far. It may
   crash, and the touch layout may not suit every iPhone or iPad screen.
-- **Mysteries of the Sith hasn't been tested and isn't supported.** Please
-  ignore *Install Mysteries of the Sith* under *Expansions & Mods* for now.
+- **Mysteries of the Sith is a test build.** The OpenMoTS app hasn't been
+  tested on an iPhone or iPad yet (see
+  [Mysteries of the Sith (test app)](#mysteries-of-the-sith-test-app)). In
+  OpenJKDF2, please ignore *Install Mysteries of the Sith* under
+  *Expansions & Mods*.
 - **No multiplayer.** The iOS build has no networking.
 - **No in-app file picker.** Game files have to be copied into `jk1` with
   the Files app (or Finder / Apple Devices).

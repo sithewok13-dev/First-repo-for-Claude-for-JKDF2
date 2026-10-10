@@ -15,6 +15,10 @@
 #include <unistd.h>
 #endif
 
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosApp.h" // Added: Jedi Knight or Mysteries of the Sith app
+#endif
+
 #ifdef TARGET_DREAMCAST
 #include <dirent.h>
 #endif
@@ -1159,9 +1163,10 @@ int InstallHelper_AttemptInstall()
         char msgbuf[512];
         InstallHelper_GetLocalDataDir(dataDir, sizeof(dataDir), 0);
         snprintf(msgbuf, sizeof(msgbuf),
-                 "Copy your %s installation into the OpenJKDF2 app's Documents folder "
+                 "Copy your %s installation into the %s app's Documents folder "
                  "(via Finder file sharing or the Files app), then relaunch.\n\nExpected: %s",
-                 Main_bMotsCompat ? "JKMOTS" : "JKDF2", dataDir);
+                 Main_bMotsCompat ? "JKMOTS" : "JKDF2",
+                 iosApp_IsMots() ? "OpenMoTS" : "OpenJKDF2", dataDir); // Added: the app's own name
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "OpenJKDF2 Install Helper", msgbuf, NULL);
     }
     return 0;

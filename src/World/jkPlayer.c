@@ -31,6 +31,7 @@
 #include "Devices/sithControl.h"
 #include "Main/jkHudInv.h"
 #include "Main/jkGame.h"
+#include "Main/jkDev.h" // Added: sithewok (jkDev_Custom_KeepsForcePowers)
 #include "jk.h"
 #include "Win95/Window.h"
 #include "General/stdJSON.h"
@@ -2444,6 +2445,9 @@ LAB_004074a0:
             piVar2 = local_c;
             do {
                 if (iVar3 <= local_8) break;
+#ifdef QOL_IMPROVEMENTS
+                if (!bVar7 && jkDev_Custom_KeepsForcePowers()) break; // Added: sithewok's powers stay
+#endif
                 iVar6 = *piVar2;
                 if ((iVar6 != 0) && (jkPlayer_aMultiParams[iVar6 + 100] < 1.0)) {
                     bIsMulti = bIsMulti + (int)sithPlayer_GetInvItemAmount(iVar6);

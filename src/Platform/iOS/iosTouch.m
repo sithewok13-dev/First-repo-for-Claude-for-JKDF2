@@ -319,10 +319,11 @@ static const iosTouchWheelSlice iosTouch_aJkWheelSlices[] = {
 // four tiers instead (jkPlayer_aMotsFpBins), opened at Jedi ranks 1, 2, 5 and
 // 7 and shown as the four columns of its Force screen. They go round
 // clockwise in that order from the bottom left: tier I reads its column top
-// to bottom down the left, tier IV its column down the right (Deadly Sight by
-// the gap, as in JK); tier II is in the game's own power order, and tier III
-// puts its long names where the slices have room for them. Defense is
-// multiplayer only and can't be selected, so it isn't on the wheel.
+// to bottom down the left, tier IV its column down the right except that
+// Deadly Sight swaps with Protection to sit by the gap, as in JK; tier II is
+// in the game's own power order, and tier III puts its long names where the
+// slices have room for them. Defense is multiplayer only and can't be
+// selected, so it isn't on the wheel.
 static const iosTouchWheelGroup iosTouch_aMotsWheelGroups[] = {
     { "TIER I",   207.0f, 255, 214, 120 },
     { "TIER II",  120.0f, 110, 220, 170 },

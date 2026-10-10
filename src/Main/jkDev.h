@@ -94,6 +94,7 @@ int jkDev_UpdateEntries();
 #ifdef QOL_IMPROVEMENTS
 int jkDev_CmdNoclip(stdDebugConsoleCmd *pCmd, const char *pArgStr);
 int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr); // Added
+int jkDev_Custom_KeepsForcePowers(); // Added
 #endif
 
 #if defined(WIN32) && !defined(SDL2_RENDER)

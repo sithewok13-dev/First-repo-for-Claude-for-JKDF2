@@ -417,10 +417,12 @@ int iosGame_HoldGameplay(void)
 
 // Full force meter: Jedi rank x 50, the level the game itself fills it to
 // (kyle.cog "Set Mana to full", force_well.cog, pow_mana.cog); the HUD's own
-// 0-400 scale is the meter at the top rank
+// 0-400 scale is the meter at the top rank. Mysteries of the Sith keeps its
+// multiplayer top in the max mana bin (force_well.cog); in single player that
+// bin is set out of reach and the cog caps the meter at rank x 50 itself.
 static float iosGame_GetForceManaMax(SithThing* pPlayer)
 {
-    if (Main_bMotsCompat)
+    if (Main_bMotsCompat && sithNet_isMulti)
     {
         float maxMana = (float)sithInventory_GetInventory(pPlayer, SITHBIN_MAXMANA);
         if (maxMana > 0.0f)

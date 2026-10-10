@@ -30,6 +30,9 @@
 #include "General/stdFileUtil.h"
 #include "stdPlatform.h"
 #include "Main/InstallHelper.h"
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosApp.h" // Added
+#endif
 
 #if defined(LINUX)
 #include <stdio.h>
@@ -207,8 +210,13 @@ void jkGuiMods_Show()
         }
         else if ( v4 == JKGUIMODS_BTN_LISTCLICK )
         {
+            // Added: nothing to pick in an empty list (the iOS MotS app has no game-switch entry)
+            if (jkGuiMods_aElements[1].selectedTextEntry < 0)
+                continue;
+
             jkGuiModsElement_t* pListElement = (jkGuiModsElement_t*)jkGuiRend_GetId(&darray, jkGuiMods_aElements[1].selectedTextEntry);
-            
+            if (!pListElement) continue; // Added: the list's end marker
+
             if (pListElement->type == JKGUIMODS_TYPE_RESTART)
             {
                 if (!strcmp(pListElement->paPath, "OPENJKDF2_RESTART_DF2"))
@@ -316,7 +324,16 @@ void jkGuiMods_PopulateEntries(Darray *pListDisplayed, jkGuiElement *element)
         jkGuiMods_AddEntry(pListDisplayed, JKGUIMODS_TYPE_RESTART, "OPENJKDF2_RESTART_MOTS", "Return to Mysteries of the Sith");
     }
     
-    if (Main_bMotsCompat)
+    // Added: on iOS, Mysteries of the Sith is an app of its own, with its own
+    // Documents folder, and Jedi Knight is the other app. Switching here would
+    // only start MotS again: InstallHelper_GetLocalDataDir keeps to
+    // Documents/mots, and the MotS data there turns MotS mode back on.
+    int bCanSwitchToDF2 = 1;
+#ifdef TARGET_IOS
+    bCanSwitchToDF2 = !iosApp_IsMots();
+#endif
+
+    if (Main_bMotsCompat && bCanSwitchToDF2) // Added: bCanSwitchToDF2
     {
         if (!(openjkdf2_bOrigWasDF2 && openjkdf2_bOrigWasRunningFromExistingInstall) && (keyval == 0 || !JKRES_IS_DF2_MAGIC(keyval))) {
             jkGuiMods_AddEntry(pListDisplayed, JKGUIMODS_TYPE_RESTART, "OPENJKDF2_RESTART_DF2", "Install Dark Forces II");
@@ -325,7 +342,7 @@ void jkGuiMods_PopulateEntries(Darray *pListDisplayed, jkGuiElement *element)
             jkGuiMods_AddEntry(pListDisplayed, JKGUIMODS_TYPE_RESTART, "OPENJKDF2_RESTART_DF2", "Launch Dark Forces II");
         }
     }
-    else if (!Main_bMotsCompat && Main_path[0])
+    else if (!Main_bMotsCompat && Main_path[0] && bCanSwitchToDF2) // Added: bCanSwitchToDF2
     {
         jkGuiMods_AddEntry(pListDisplayed, JKGUIMODS_TYPE_RESTART, "OPENJKDF2_RESTART_DF2", "Return to Dark Forces II");
     }

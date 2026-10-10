@@ -5,8 +5,13 @@
 # sideloading tool. No game data is bundled -- they copy their own JKDF2 files
 # into the app's Documents/jk1 folder with the Files app (docs/ios/README.md).
 #
+# Branch builds also make the Mysteries of the Sith app, an untested test build:
+# packaging/ios/make_mots_app.sh turns a copy of the .app into a second app with
+# its own name (OpenMoTS), icon and bundle ID, so it installs next to Jedi
+# Knight with a Documents folder of its own (MotS data goes in Documents/mots).
+#
 # Where the .ipa goes (decided by the ref, so a manual run behaves like a push):
-#   - a branch: the "ios-latest" prerelease (newest build)
+#   - a branch: the "ios-latest" prerelease (newest build), with the MotS .ipa
 #   - a v* tag (v0.1, ...): a release for that tag, with
 #     docs/ios/RELEASE_NOTES.md as its text, marked as the latest release. A tag
 #     with a '-' in it (v0.2-beta1) becomes a prerelease and isn't marked latest.
@@ -211,9 +216,35 @@ jobs:
           path: OpenJKDF2-iOS-unsigned.ipa
           if-no-files-found: error
 
-      # Added: a stable direct link to the newest .ipa (no zip, works from Safari).
-      # Branches only (pushed or run by hand): a release tag gets its own
-      # release (next step) and leaves this one alone.
+      # Added: the Mysteries of the Sith app, made from the .app just built (same
+      # binary; its own name, icon and bundle ID, and OpenJKDF2Game = mots in its
+      # Info.plist, which starts the engine as -motsCompat does). Branch builds
+      # only, for ios-latest: a release tag ships the Jedi Knight .ipa alone.
+      - name: Package Mysteries of the Sith IPA
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && env.RELEASE_TAG == '' }}
+        run: |
+          set -e
+          sh packaging/ios/make_mots_app.sh OpenJKDF2-iOS.app OpenJKDF2-MotS-iOS.app
+          # Its own Payload folder, so the Jedi Knight one is left as it is
+          rm -rf mots-ipa OpenJKDF2-MotS-iOS-unsigned.ipa
+          mkdir -p mots-ipa/Payload
+          cp -R OpenJKDF2-MotS-iOS.app mots-ipa/Payload/
+          (cd mots-ipa && zip -qry ../OpenJKDF2-MotS-iOS-unsigned.ipa Payload)
+          ls -la OpenJKDF2-MotS-iOS-unsigned.ipa
+          plutil -p mots-ipa/Payload/OpenJKDF2-MotS-iOS.app/Info.plist | grep -E 'CFBundleIdentifier|CFBundleDisplayName|CFBundleExecutable|MinimumOSVersion|OpenJKDF2Game'
+          codesign -dv mots-ipa/Payload/OpenJKDF2-MotS-iOS.app 2>&1 | grep -E '^(Identifier|Signature)='
+
+      - name: Upload Mysteries of the Sith IPA
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && env.RELEASE_TAG == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenJKDF2-MotS-iOS-unsigned-ipa
+          path: OpenJKDF2-MotS-iOS-unsigned.ipa
+          if-no-files-found: error
+
+      # Added: a stable direct link to the newest .ipa (no zip, works from Safari),
+      # and to the MotS one next to it. Branches only (pushed or run by hand): a
+      # release tag gets its own release (next step) and leaves this one alone.
       - name: Publish to "ios-latest" release
         if: ${{ !startsWith(github.ref, 'refs/tags/') && env.RELEASE_TAG == '' }}
         uses: softprops/action-gh-release@v2
@@ -224,8 +255,13 @@ jobs:
           make_latest: false
           body: |
             Development build of OpenJKDF2 for iOS, rebuilt on every push (run ${{ github.run_number }}, commit ${{ github.sha }}). It can be broken; the latest stable release is at ${{ github.server_url }}/${{ github.repository }}/releases/latest
-            The .ipa is unsigned: sign and install it with a sideloading tool. Game data goes in Files > On My iPhone > OpenJKDF2 > jk1. Setup guide: ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/docs/ios/README.md
-          files: OpenJKDF2-iOS-unsigned.ipa
+            Two apps, both unsigned: sign and install them with a sideloading tool. They install side by side, each with its own folder in the Files app (with a free Apple ID, each one counts toward its limit of 3 sideloaded apps).
+            - **OpenJKDF2-iOS-unsigned.ipa**: Jedi Knight (the OpenJKDF2 app). Game data goes in Files > On My iPhone > OpenJKDF2 > jk1. Setup guide: ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/docs/ios/README.md
+            - **OpenJKDF2-MotS-iOS-unsigned.ipa**: Mysteries of the Sith (the OpenMoTS app). An untested test build. Its game data goes in Files > On My iPhone > OpenMoTS > mots: copy the Episode, Resource and MUSIC folders of your Mysteries of the Sith install into it, the way the guide does for Jedi Knight.
+          files: |
+            OpenJKDF2-iOS-unsigned.ipa
+            OpenJKDF2-MotS-iOS-unsigned.ipa
+          fail_on_unmatched_files: true
 
       # Added: a release tag (v0.1, ...) becomes a release, shown as the
       # repository's latest, with the release notes from the tagged commit and

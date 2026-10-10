@@ -9,6 +9,10 @@
 #include "jk.h"
 #include "types.h"
 
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosApp.h" // Added: Jedi Knight or Mysteries of the Sith app
+#endif
+
 #include "General/stdMath.h"
 
 #ifndef NO_JK_MMAP
@@ -382,6 +386,23 @@ int main(int argc, char** argv)
     argv = twlAutobootArgv;
     extern int jkGuiTitle_bSkipLoadingWait; // Added: don't wait for input at the load screen
     jkGuiTitle_bSkipLoadingWait = 1;
+#endif
+#ifdef TARGET_IOS
+    // Added: iOS starts an app with no arguments. The Mysteries of the Sith
+    // app (this binary in a second bundle, see Platform/iOS/iosApp.h) gets
+    // the -motsCompat a desktop shortcut would pass, before anything below
+    // reads argv, so it starts exactly as -motsCompat does everywhere else.
+    if (iosApp_IsMots()) {
+        char** iosArgv = (char**)malloc((argc + 2) * sizeof(char*));
+        if (iosArgv) {
+            for (int i = 0; i < argc; i++) {
+                iosArgv[i] = argv[i];
+            }
+            iosArgv[argc++] = "-motsCompat";
+            iosArgv[argc] = NULL;
+            argv = iosArgv;
+        }
+    }
 #endif
 #ifdef ARCH_WASM
     EM_ASM(
