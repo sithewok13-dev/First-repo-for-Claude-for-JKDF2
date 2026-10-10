@@ -1,12 +1,14 @@
 # OpenJKDF2 for iOS: setup guide
 
 Play **Star Wars Jedi Knight: Dark Forces II** (1997) on an iPhone or iPad,
-with on-screen touch controls, using your own copy of the game.
+with on-screen touch controls, using your own copy of the game. Its expansion,
+**Mysteries of the Sith**, has an app of its own.
 
-- **Download:** the `.ipa` file from the
+- **Download:** `OpenJKDF2-iOS-unsigned.ipa` from the
   [latest release](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/releases/latest)
-- **Mysteries of the Sith:** a separate test app, OpenMoTS. See
-  [Mysteries of the Sith (test app)](#mysteries-of-the-sith-test-app).
+- **Mysteries of the Sith:** a separate app, OpenMoTS
+  (`OpenJKDF2-MotS-iOS-unsigned.ipa`, new in v0.4). See
+  [Mysteries of the Sith](#mysteries-of-the-sith).
 - **Problems?** [Open an issue](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/issues)
   (see [Reporting bugs](#reporting-bugs))
 
@@ -24,7 +26,7 @@ Contents: [What this is](#what-this-is) ·
 [Cheats](#cheats) ·
 [Settings worth knowing](#settings-worth-knowing) ·
 [Troubleshooting](#troubleshooting) ·
-[Mysteries of the Sith (test app)](#mysteries-of-the-sith-test-app) ·
+[Mysteries of the Sith](#mysteries-of-the-sith) ·
 [Known issues and limitations](#known-issues-and-limitations) ·
 [Reporting bugs](#reporting-bugs) ·
 [Credits and legal](#credits-and-legal)
@@ -44,12 +46,14 @@ play it on a phone:
 - a HUD that stays clear of rounded screen corners and the home bar
 - sound fixes
 - a ready-made (unsigned) `.ipa` that GitHub builds automatically
+- a second app, OpenMoTS, for the expansion, Mysteries of the Sith
 
 Please keep in mind:
 
 - **It's experimental.** Expect bugs, and keep backups of your saves.
 - **No game files are included.** You need your own copy of Jedi Knight from
-  GOG or Steam. Nobody here can give you the game files, so please don't ask.
+  GOG or Steam (and of Mysteries of the Sith, for OpenMoTS). Nobody here can
+  give you the game files, so please don't ask.
 - **It is not affiliated with or endorsed by Lucasfilm, Disney or LucasArts.**
   It's also not an official OpenJKDF2 release. Please report problems with
   this build here, not to the OpenJKDF2 developers (see
@@ -75,11 +79,10 @@ Please keep in mind:
   `Episode`, `Resource` and `MUSIC` folders take on your computer (check their
   size there).
 
-**Mysteries of the Sith** (the expansion) has an app of its own, OpenMoTS, as
-an untested test build: see
-[Mysteries of the Sith (test app)](#mysteries-of-the-sith-test-app). In this
-app (OpenJKDF2), please ignore *Install Mysteries of the Sith* on the main
-menu's *Expansions & Mods* screen, and never copy expansion files into `jk1`.
+**Mysteries of the Sith** (the expansion) has an app of its own, OpenMoTS, new
+in v0.4: see [Mysteries of the Sith](#mysteries-of-the-sith). In this app
+(OpenJKDF2), please ignore *Install Mysteries of the Sith* on the main menu's
+*Expansions & Mods* screen, and never copy expansion files into OpenJKDF2.
 
 ## 1. Get your game files ready
 
@@ -109,7 +112,9 @@ folders. You don't need `JK.EXE` or anything else from the game folder.
 Go to the [latest release](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/releases/latest)
 and download `OpenJKDF2-iOS-unsigned.ipa` from its *Assets*. You can download it
 on the phone in Safari (it goes to Files > Downloads) or on your computer,
-depending on the tool you use below.
+depending on the tool you use below. (The other file there,
+`OpenJKDF2-MotS-iOS-unsigned.ipa`, is the Mysteries of the Sith app: see
+[Mysteries of the Sith](#mysteries-of-the-sith).)
 
 There is also an
 ["iOS latest build"](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/releases/tag/ios-latest)
@@ -150,7 +155,8 @@ whether you trust it.
 won't open until you refresh it (AltStore and SideStore can do this for you)
 or install it again with the same tool. Your game files and saves are kept
 when you refresh. A free Apple ID can also only have 3 sideloaded apps
-at a time (AltStore or SideStore itself counts as one).
+at a time (AltStore or SideStore itself counts as one, and OpenJKDF2 and
+OpenMoTS count as one each).
 
 The first time, iOS may ask for two more things:
 
@@ -164,7 +170,9 @@ Apple ID. It replaces the app and keeps your game files and saves. If you
 switch to a different tool or Apple ID, iOS may install it as a separate
 app with an empty folder. If that happens, open the new app once, copy
 everything from the old app's `jk1` folder into the new app's `jk1` folder
-in the Files app (see below), and only then delete the old app.
+in the Files app (see below), and only then delete the old app. (If your game
+files are somewhere else in the old app's folder, copy them and the `player`
+folder next to them instead.)
 
 ## 3. Copy the game files to your iPhone
 
@@ -211,9 +219,18 @@ Things to know:
 - **Capital letters don't matter** for anything inside `jk1`. The game finds
   `Episode` or `episode`, and `RES2.GOB` or `Res2.gob`. But use the `jk1` folder
   the app made (all lower case). Don't make your own.
+- **Not in `jk1`?** Since v0.4 the app also finds the files when `Episode` and
+  `Resource` are straight in the *OpenJKDF2* folder itself, or in a folder of
+  their own inside it (for example one made by unpacking a `.zip`). `jk1` is
+  still the best place, and the app looks there first. Wherever the files
+  are, the game keeps your saves (the `player` folder) and its settings next
+  to them, so keep just one copy of the game files, and if you move them
+  later, move `player` with them. A folder inside `jk1`, or two folders deep,
+  is still too deep.
 - **Using a .zip:** tapping a `.zip` in the Files app unpacks it. Unpacking can
-  create an extra folder around your files. If so, move `Episode`,
-  `Resource` and `MUSIC` out of it so they sit directly inside `jk1`.
+  create an extra folder around your files. If that happens inside `jk1`, move
+  `Episode`, `Resource` and `MUSIC` out of it so they sit directly inside
+  `jk1`.
 - **With a cable instead:** on a Mac, open Finder, select your iPhone and go to
   the *Files* tab. On Windows, use the Apple Devices app (or iTunes) and its file sharing.
   Drag a folder named `jk1`, containing `episode`, `resource` and `MUSIC`, onto
@@ -221,7 +238,7 @@ Things to know:
   it, and replacing it deletes your saves (`jk1/player`). Back those up first.
   If your computer won't copy folders this way, use the Files app steps above
   instead.
-- **Deleting the app deletes the `jk1` folder too**, including your saves.
+- **Deleting the app deletes its folder too**, `jk1` and your saves included.
   Copy `jk1/player` somewhere safe first if you want to keep them.
 
 ## 4. Play
@@ -463,7 +480,9 @@ quick load drops a pick that is still waiting.
 - **Normal saves:** tap MENU and use the game's own save and load screens, as
   on PC.
 - Your player profile and all saves are stored in *Files > On My iPhone >
-  OpenJKDF2 > jk1 > player*. Copy that folder somewhere safe now and then.
+  OpenJKDF2 > jk1 > player* (or in the `player` folder next to your game
+  files, if they're somewhere else in the OpenJKDF2 folder). Copy that folder
+  somewhere safe now and then.
 
 ## Cheats
 
@@ -565,17 +584,22 @@ use Setup from the main menu):
 - **There's no OpenJKDF2 folder in Files:** open the app once first, so it
   creates the folder.
 - **"OpenJKDF2 is missing the following required assets":** the message lists
-  which files it couldn't find and the folder it looked in. Check the files
-  are in `jk1/episode` and `jk1/resource`, and not one folder deeper.
-- **I copied the folders into OpenJKDF2, not into jk1:** that's the "Documents
-  folder" the app's message mentions. Move `Episode`, `Resource` and `MUSIC`
-  into `jk1`.
+  which files it couldn't find and, after *Root dir*, the folder it looked in.
+  Check the files are in `jk1/episode` and `jk1/resource`, and not one folder
+  deeper (inside `jk1`). The app also looks straight in the OpenJKDF2 folder,
+  and in the folders directly inside it, for a `resource` folder with
+  `Res2.gob` in it. Make sure the files aren't still zipped.
+- **I copied the folders into OpenJKDF2, not into jk1:** since v0.4 that works
+  too, as long as `Episode` and `Resource` are straight in the OpenJKDF2
+  folder. Your saves then go in a `player` folder next to them. `jk1` is still
+  the recommended place: if you'd rather have them there, move `Episode`,
+  `Resource` and `MUSIC` (and `player`, if you've played already) into `jk1`.
 - **I tapped *Install Mysteries of the Sith*:** the app now asks for the
   expansion's files. Close the app and open it again; it should start Jedi
   Knight again. You may see an empty `mots` folder next to `jk1`, which you can
   leave or delete.
-- **No music:** copy the `MUSIC` folder into `jk1` (see step 1). Not every copy of the
-  game includes it.
+- **No music:** copy the `MUSIC` folder next to `Episode` and `Resource` (into
+  `jk1`, see step 1). Not every copy of the game includes it.
 - **No cutscenes:** copy `Resource/video` too.
 - **I can't see the touch buttons:** they only show while you're playing a level.
   In menus, tap the menu items directly.
@@ -590,30 +614,42 @@ use Setup from the main menu):
   *Setup > Controls*, change them back to the defaults. Also, the typing line
   might still be open: tap MENU to close it.
 
-## Mysteries of the Sith (test app)
+## Mysteries of the Sith
 
 **Star Wars Jedi Knight: Mysteries of the Sith** (1998), the expansion, has its
-own app: **OpenMoTS**. It's the same game engine and the same touch controls,
-in a second app with its own icon and its own folder in the Files app, so it
-installs next to OpenJKDF2 and keeps its files and saves apart from Jedi
-Knight's. It is an **untested test build**: it has been checked on a computer,
-but not yet on an iPhone or iPad.
+own app: **OpenMoTS**, new in v0.4. It's the same game engine and the same
+touch controls, in a second app with its own icon and its own folder in the
+Files app, so it installs next to OpenJKDF2 and keeps its files and saves
+apart from Jedi Knight's. It only needs Mysteries of the Sith's own files.
+
+**How well it's tested:** OpenMoTS has had much less testing than OpenJKDF2.
+It has been tested on a computer, with the real game engine, the Mysteries of
+the Sith files and simulated touches: the menus, the first level, the HUD,
+the main buttons, both wheels, the cheats and `sithewok`, quick save and
+quick load, the item buttons, finishing a level and starting the next, and
+Mara Jade's first level. Tilt aiming and the sound haven't been checked in
+OpenMoTS yet. On an iPhone, it has only been checked to start and run with
+the files in its folder so far. It hasn't been played through on one, and it
+hasn't been tried on an iPad.
 
 **What you need:** your own copy of Mysteries of the Sith (GOG and Steam sell
-it), installed on a computer, and room on your phone for about 435 MB (170 MB
-without the cutscenes and music).
+it), installed on a computer (find its folder the same way as for Jedi Knight,
+in [1. Get your game files ready](#1-get-your-game-files-ready)), and room on
+your phone for about 450 MB (under 200 MB without the cutscenes and music).
 
 1. **Download `OpenJKDF2-MotS-iOS-unsigned.ipa`** from the
-   ["iOS latest build"](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/releases/tag/ios-latest)
-   pre-release (it's not in the regular releases yet). Sign and install it the
-   same way as OpenJKDF2 ([2. Install the app](#2-install-the-app)). With a
-   free Apple ID, it counts as one more of your 3 sideloaded apps.
+   [latest release](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/releases/latest).
+   Sign and install it the same way, with the same tool, as OpenJKDF2
+   ([2. Install the app](#2-install-the-app)). With a free Apple ID, it counts
+   as one more of your 3 sideloaded apps. If your tool says you've reached the
+   limit, **don't delete OpenJKDF2** to make room: that deletes its game files
+   and saves too. Deactivate or remove a different app instead.
 2. **Open OpenMoTS once.** It tells you the game files are missing, with a
    long path that ends in `Documents/mots`. That's normal: it has just created
    its folder. Close it.
-3. **In the Files app, go to *On My iPhone > OpenMoTS > mots*** and copy the
-   `Episode`, `Resource` and `MUSIC` folders from your Mysteries of the Sith
-   folder into it, the same way as for Jedi Knight
+3. **In the Files app, go to *On My iPhone (or On My iPad) > OpenMoTS > mots***
+   and copy the `Episode`, `Resource` and `MUSIC` folders from your Mysteries
+   of the Sith folder into it, the same way as for Jedi Knight
    ([3. Copy the game files to your iPhone](#3-copy-the-game-files-to-your-iphone)).
    It should look like this:
 
@@ -639,25 +675,42 @@ without the cutscenes and music).
 
 Things to know:
 
+- **Not in `mots`?** Like OpenJKDF2, OpenMoTS also finds the files when
+  `Episode` and `Resource` are straight in the *OpenMoTS* folder, or in a
+  folder of their own inside it (see
+  [3. Copy the game files to your iPhone](#3-copy-the-game-files-to-your-iphone)).
+  `mots` is still the recommended place. Your saves go in a `player` folder
+  next to the files, wherever they are.
 - **Keep the two games apart.** Mysteries of the Sith files go in OpenMoTS's
   `mots` folder only, never in OpenJKDF2's `jk1`, and Jedi Knight files don't
   go in `mots`.
-- **Deleting OpenMoTS deletes its `mots` folder too**, including your saves
-  (`mots/player`).
+- **Deleting OpenMoTS deletes its folder too**, `mots` and your saves
+  (`mots/player`) included.
+- **Updating:** install a newer `OpenJKDF2-MotS-iOS-unsigned.ipa` with the same
+  tool and Apple ID, as for OpenJKDF2. It replaces the app and keeps your
+  files and saves. That includes going from the OpenMoTS test build on the
+  "iOS latest build" pre-release to v0.4.
 - *Expansions & Mods* in OpenMoTS has no entry for Jedi Knight: open the
   OpenJKDF2 app instead.
-- The **Force wheel** and the **weapon wheel** show Mysteries of the Sith's
-  powers and weapons.
-- **Cheats** go in the typing line as in Jedi Knight ([Cheats](#cheats)). The
-  Jedi Knight names in the table work here too, except `imayoda` and
-  `sithlord`, which do nothing in Mysteries of the Sith. So do the game's own:
-  `diediedie` (weapons), `gimmestuff` (items), `morelife` (health and
-  shields), `trixie` (Force meter), `cartograph` (map), `iamagod` (every
-  Force power), `trainme` (Force level-up), `boinga on` / `boinga off`
-  (invincibility), `freebird` (fly) and `gameover` (finishes the level).
+- The **Force wheel** shows the 17 Force powers you can use in Mysteries of
+  the Sith, in its four tiers (the four columns of its Force screen),
+  clockwise from the bottom left: tier I (gold) up the left side, tier II
+  (green) at the top left, tier III (blue) at the top right, and tier IV
+  (purple) down the right. Defense is for multiplayer only, so it isn't on
+  the wheel.
+- The **weapon wheel** shows its 17 weapons, in the order NEXT WPN goes
+  through them. The E-Web and the Carbo Gun are purple.
+- **Cheats** go in the typing line as in Jedi Knight ([Cheats](#cheats)).
+  Mysteries of the Sith's own cheats work: `diediedie` (weapons),
+  `gimmestuff` (items), `morelife` (health and shields), `trixie` (Force
+  meter), `cartograph` (map), `iamagod` (every Force power), `trainme` (Force
+  level-up), `boinga on` / `boinga off` (invincibility), `freebird` (fly) and
+  `gameover` (finishes the level). The Jedi Knight names in the table work
+  here too, except `imayoda` and `sithlord`, which do nothing in Mysteries of
+  the Sith.
 
 `sithewok` works in Mysteries of the Sith too: all weapons and ammo, all
-items, all 17 Force powers at 4 stars with the top Jedi rank, full health,
+items, every Force power at 4 stars with the top Jedi rank, full health,
 shields and Force meter, invincibility and the endless Force. `sithewok off`
 turns the invincibility and the endless Force off again. The catches:
 
@@ -688,14 +741,17 @@ If something doesn't work in OpenMoTS, please say so in your bug report
 
 - **Experimental build.** It has only had limited testing so far. It may
   crash, and the touch layout may not suit every iPhone or iPad screen.
-- **Mysteries of the Sith is a test build.** The OpenMoTS app hasn't been
-  tested on an iPhone or iPad yet (see
-  [Mysteries of the Sith (test app)](#mysteries-of-the-sith-test-app)). In
-  OpenJKDF2, please ignore *Install Mysteries of the Sith* under
-  *Expansions & Mods*.
+- **Mysteries of the Sith (OpenMoTS) is new, and has had much less testing.**
+  On an iPhone, it has only been checked to start and run so far (see
+  [Mysteries of the Sith](#mysteries-of-the-sith)). In OpenJKDF2, please
+  ignore *Install Mysteries of the Sith* under *Expansions & Mods*.
+- **Finding the files outside `jk1` and `mots`** is new in v0.4, and has
+  mostly been tested on a computer. If an app doesn't find your files, put
+  them in `jk1` (or `mots`) as this guide shows.
 - **No multiplayer.** The iOS build has no networking.
-- **No in-app file picker.** Game files have to be copied into `jk1` with
-  the Files app (or Finder / Apple Devices).
+- **No in-app file picker.** Game files have to be copied into the app's
+  folder (`jk1`, or `mots` for OpenMoTS) with the Files app (or Finder /
+  Apple Devices).
 - **Not every PC key has a touch button.** There is no previous-weapon or
   previous-power button: use the weapon and Force wheels (NEXT WPN and FORCE
   WHEEL). There is no button for the
@@ -707,8 +763,8 @@ If something doesn't work in OpenMoTS, please say so in your bug report
   [Settings worth knowing](#settings-worth-knowing)).
 - **No separate touch look-sensitivity setting** (the mouse sensitivity may
   work instead: see *Look speed* in [Settings worth knowing](#settings-worth-knowing)).
-- **Game controllers and hardware keyboards** haven't been tested with this
-  build.
+- **Game controllers and hardware keyboards** haven't been tested with either
+  app.
 - **Free Apple ID signing expires every 7 days**, and deleting the app deletes
   your files and saves.
 
@@ -722,7 +778,8 @@ OpenJKDF2 project, unless the same thing also happens in the desktop version.
 To help track a bug down, please include:
 
 - your device model and iOS version, for example *iPhone 15, iOS 18.5*
-- which build you're using: the release name (for example *v0.1*), or, for an
+- which app: OpenJKDF2 (Jedi Knight) or OpenMoTS (Mysteries of the Sith)
+- which build you're using: the release name (for example *v0.4*), or, for an
   "iOS latest build", the run number and commit from its description. (AltStore
   and Settings show the app's version as 0.9.9: that's the engine's version,
   not the release name.)
@@ -756,7 +813,8 @@ Please don't attach any of the game's own files.
   - [fcaseopen](../../src/external/fcaseopen/LICENSE.txt) and
     [libsmusher](../../src/external/libsmusher/LICENSE) (MIT license)
 - OpenJKDF2 contains **no original game assets**. You need a legitimately
-  purchased copy of Jedi Knight: Dark Forces II to play.
+  purchased copy of Jedi Knight: Dark Forces II to play (and of Mysteries of
+  the Sith, for OpenMoTS).
 - Star Wars, Jedi Knight, LucasArts and related names are trademarks of
   Lucasfilm Ltd. and/or its affiliates. This project is not affiliated with,
   endorsed by or supported by Lucasfilm, Disney or LucasArts.

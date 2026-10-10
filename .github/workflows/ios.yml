@@ -5,16 +5,19 @@
 # sideloading tool. No game data is bundled -- they copy their own JKDF2 files
 # into the app's Documents/jk1 folder with the Files app (docs/ios/README.md).
 #
-# Branch builds also make the Mysteries of the Sith app, an untested test build:
+# Every run also makes the Mysteries of the Sith app (OpenMoTS):
 # packaging/ios/make_mots_app.sh turns a copy of the .app into a second app with
 # its own name (OpenMoTS), icon and bundle ID, so it installs next to Jedi
 # Knight with a Documents folder of its own (MotS data goes in Documents/mots).
 #
-# Where the .ipa goes (decided by the ref, so a manual run behaves like a push):
-#   - a branch: the "ios-latest" prerelease (newest build), with the MotS .ipa
-#   - a v* tag (v0.1, ...): a release for that tag, with
-#     docs/ios/RELEASE_NOTES.md as its text, marked as the latest release. A tag
-#     with a '-' in it (v0.2-beta1) becomes a prerelease and isn't marked latest.
+# Where the two .ipa files go (Jedi Knight and OpenMoTS, both every time):
+#   - a branch (pushed, or run by hand with "release" empty): the "ios-latest"
+#     prerelease (newest build)
+#   - a v* tag (v0.1, ...; a manual run with release=<tag>, or a pushed tag): a
+#     release for that tag (both apps since v0.4; v0.3 and older had Jedi
+#     Knight only), with docs/ios/RELEASE_NOTES.md as its text, marked as the
+#     latest release. A tag with a '-' in it (v0.2-beta1) becomes a prerelease
+#     and isn't marked latest.
 #     The run stops before building if the notes have no "### What's in <tag>"
 #     heading line, so a release can't go out with missing or stale notes.
 #
@@ -52,9 +55,11 @@ on:
 
 concurrency:
   # One run at a time per branch or tag. A new push to a branch cancels that
-  # branch's older run; a release tag has a group of its own and is never
-  # cancelled halfway (pushed again, the new run waits for the old one).
-  group: ios-${{ github.ref }}
+  # branch's older run. A release (a pushed v* tag, or a manual run with
+  # release=<tag>) has a group of its own, so a push to the branch doesn't
+  # cancel it, and it is never cancelled halfway (run again, the new run waits
+  # for the old one).
+  group: ${{ inputs.release != '' && format('ios-release-{0}', inputs.release) || format('ios-{0}', github.ref) }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && inputs.release == '' }}
 
 env:
@@ -218,10 +223,9 @@ jobs:
 
       # Added: the Mysteries of the Sith app, made from the .app just built (same
       # binary; its own name, icon and bundle ID, and OpenJKDF2Game = mots in its
-      # Info.plist, which starts the engine as -motsCompat does). Branch builds
-      # only, for ios-latest: a release tag ships the Jedi Knight .ipa alone.
+      # Info.plist, which starts the engine as -motsCompat does). Every run: it
+      # goes to ios-latest and, since v0.4, to v* releases, next to Jedi Knight.
       - name: Package Mysteries of the Sith IPA
-        if: ${{ !startsWith(github.ref, 'refs/tags/') && env.RELEASE_TAG == '' }}
         run: |
           set -e
           sh packaging/ios/make_mots_app.sh OpenJKDF2-iOS.app OpenJKDF2-MotS-iOS.app
@@ -235,7 +239,6 @@ jobs:
           codesign -dv mots-ipa/Payload/OpenJKDF2-MotS-iOS.app 2>&1 | grep -E '^(Identifier|Signature)='
 
       - name: Upload Mysteries of the Sith IPA
-        if: ${{ !startsWith(github.ref, 'refs/tags/') && env.RELEASE_TAG == '' }}
         uses: actions/upload-artifact@v4
         with:
           name: OpenJKDF2-MotS-iOS-unsigned-ipa
@@ -257,7 +260,7 @@ jobs:
             Development build of OpenJKDF2 for iOS, rebuilt on every push (run ${{ github.run_number }}, commit ${{ github.sha }}). It can be broken; the latest stable release is at ${{ github.server_url }}/${{ github.repository }}/releases/latest
             Two apps, both unsigned: sign and install them with a sideloading tool. They install side by side, each with its own folder in the Files app (with a free Apple ID, each one counts toward its limit of 3 sideloaded apps).
             - **OpenJKDF2-iOS-unsigned.ipa**: Jedi Knight (the OpenJKDF2 app). Game data goes in Files > On My iPhone > OpenJKDF2 > jk1. Setup guide: ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/docs/ios/README.md
-            - **OpenJKDF2-MotS-iOS-unsigned.ipa**: Mysteries of the Sith (the OpenMoTS app). An untested test build. Its game data goes in Files > On My iPhone > OpenMoTS > mots: copy the Episode, Resource and MUSIC folders of your Mysteries of the Sith install into it, the way the guide does for Jedi Knight.
+            - **OpenJKDF2-MotS-iOS-unsigned.ipa**: Mysteries of the Sith (the OpenMoTS app). Newer and less tested than Jedi Knight, but it has run on an iPhone. Its game data goes in Files > On My iPhone > OpenMoTS > mots: copy the Episode, Resource and MUSIC folders of your Mysteries of the Sith install into it. Setup: ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/docs/ios/README.md#mysteries-of-the-sith
           files: |
             OpenJKDF2-iOS-unsigned.ipa
             OpenJKDF2-MotS-iOS-unsigned.ipa
@@ -265,7 +268,8 @@ jobs:
 
       # Added: a release tag (v0.1, ...) becomes a release, shown as the
       # repository's latest, with the release notes from the tagged commit and
-      # the .ipa attached. Running the workflow again on the tag (re-run, or
+      # both .ipa files attached (Jedi Knight and OpenMoTS; v0.3 and older had
+      # Jedi Knight only). Running the workflow again on the tag (re-run, or
       # "Run workflow" with the tag selected) updates it. A tag with a '-' in
       # it is a test or beta build: a prerelease, never marked latest.
       - name: Publish release for the tag
@@ -279,5 +283,7 @@ jobs:
           body_path: docs/ios/RELEASE_NOTES.md
           prerelease: ${{ contains(env.RELEASE_TAG, '-') }}
           make_latest: ${{ !contains(env.RELEASE_TAG, '-') }}
-          files: OpenJKDF2-iOS-unsigned.ipa
+          files: |
+            OpenJKDF2-iOS-unsigned.ipa
+            OpenJKDF2-MotS-iOS-unsigned.ipa
           fail_on_unmatched_files: true
