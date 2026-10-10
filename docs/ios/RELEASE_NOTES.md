@@ -11,7 +11,7 @@
   visible one.
 -->
 
-**OpenJKDF2 for iOS v0.2**: an unofficial iPhone and iPad build of [OpenJKDF2](https://github.com/shinyquagsire23/OpenJKDF2), the open-source Jedi Knight: Dark Forces II engine, with on-screen touch controls. This release adds a **weapon wheel**, **tilt aiming**, Force power levels on the Force wheel, three ways to use the wheel buttons, and a shorter, safer QUICK LOAD. It's still **experimental**, so expect bugs.
+**OpenJKDF2 for iOS v0.3**: an unofficial iPhone and iPad build of [OpenJKDF2](https://github.com/shinyquagsire23/OpenJKDF2), the open-source Jedi Knight: Dark Forces II engine, with on-screen touch controls. This release adds a new cheat, **`sithewok`**: everything at once (invincibility included) and a Force meter that never drains. Coming from v0.1? You also get what v0.2 added, including a **weapon wheel**, **tilt aiming**, Force power levels on the Force wheel, three ways to use the wheel buttons, and a shorter, safer QUICK LOAD. It's still **experimental**, so expect bugs.
 
 **You need your own copy of Star Wars Jedi Knight: Dark Forces II** (GOG or Steam). No game files are included.
 
@@ -19,9 +19,13 @@
 
 **New here?** *Requirements* and *Install* are at the bottom of this page, just above the download.
 
-### What's in v0.2
+### What's in v0.3
 
-New since v0.1:
+New since v0.2:
+
+- **A new cheat, `sithewok`: everything at once, and a Force meter that never drains.** During a level, hold **MENU**, tap the **keyboard** button in the tray, type `sithewok` and tap **return**. You get all weapons and ammo, every item and Force power (at 4 stars), full health and shields, and invincibility. `sithewok off` ends the invincibility and the endless Force. Careful: **it can decide your story path**, and `sithewok off` doesn't undo that. More catches in *Cheats* below.
+
+Added in v0.2 (if you're coming from v0.1):
 
 - **A weapon wheel** on **NEXT WPN**: every weapon at once, with its ammo count, so you can pick the one you want. A quick tap still switches to the next weapon.
 - **Tap, swipe or long-press** on **FORCE WHEEL** and **NEXT WPN**. Both buttons now work the same way: a quick tap steps to the next power or weapon, a swipe opens the wheel to pick by sliding, and a long press opens it to pick by tapping. See *Tap, swipe or long-press* below.
@@ -147,13 +151,13 @@ Every Force power always has the same slot, whether you've learned it yet or not
 - **Right side, red: dark side.** From the top: Throw, Grip, Lightning, Destruction, Deadly Sight.
 - On the wheel and the FORCE button, a few names are shortened: PERSUADE, PROTECT and DESTRUCT.
 - **The gap at the bottom** means *cancel*.
-- **Stars (new):** under each power you've learned, a row of four stars shows its level, one gold star per level (a level 2 power shows two gold stars and two empty ones).
+- **Stars (added in v0.2):** under each power you've learned, a row of four stars shows its level, one gold star per level (a level 2 power shows two gold stars and two empty ones).
 
 Once you've picked a power, use it with **FORCE**.
 
 #### The weapon wheel
 
-New in v0.2. Every weapon always has the same slot, whether you've found it yet or not, in the order of the PC number keys, clockwise from the bottom left: Fists, Bryar Pistol, Stormtrooper Rifle, Thermal Detonator, Bowcaster, Repeater, Rail Detonator, Sequencer Charge, Concussion Rifle, Lightsaber. The gap at the bottom means *cancel*.
+Added in v0.2. Every weapon always has the same slot, whether you've found it yet or not, in the order of the PC number keys, clockwise from the bottom left: Fists, Bryar Pistol, Stormtrooper Rifle, Thermal Detonator, Bowcaster, Repeater, Rail Detonator, Sequencer Charge, Concussion Rifle, Lightsaber. The gap at the bottom means *cancel*.
 
 - **Colours show the kind of ammo:** gold for the fists and the lightsaber (no ammo), blue for energy cells, green for power cells, red for explosives.
 - **Ammo counts:** under each weapon you have, its ammo shows, the same number the HUD shows with that weapon in hand. Weapons that share ammo show the same number. The fists and the lightsaber show no count.
@@ -189,7 +193,18 @@ New in v0.2. Every weapon always has the same slot, whether you've found it yet 
 2. A typing line opens at the top of the screen with the iPhone keyboard. Type the cheat (autocorrect is off here) and tap **return**.
 3. To close the line without sending anything, tap **MENU** (or the keyboard button in the tray again). While the line is open, MENU and the keyboard button are lit yellow.
 
-While you're typing, most touch buttons don't work. A swipe or long press on FORCE WHEEL or NEXT WPN closes the line and opens its wheel (a quick tap does nothing while you type). Cheats only work in single player. A few favourites: `red5` (all weapons and ammo), `bactame` (full health and shields), `yodajammies` (full Force meter), `jediwannabe on` (invincibility). The full list is in the guide: https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/blob/HEAD/docs/ios/README.md#cheats
+While you're typing, most touch buttons don't work. A swipe or long press on FORCE WHEEL or NEXT WPN closes the line and opens its wheel (a quick tap does nothing while you type). Cheats only work in single player. A few favourites: `sithewok` (everything at once, see below), `red5` (all weapons and ammo), `bactame` (full health and shields), `yodajammies` (full Force meter), `jediwannabe on` (invincibility). The full list is in the guide: https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/blob/HEAD/docs/ios/README.md#cheats
+
+**`sithewok`** is new in v0.3, and it was added by this iOS build (the original game doesn't have it). It gives you everything at once: all weapons and ammo, all items, every Force power at 4 stars with the top Jedi rank, full health, shields and Force meter, and invincibility. While it's on, the Force meter never drains, however much you use your powers. `sithewok off` turns the invincibility and the endless Force off again; you keep everything else. Type `sithewok` again to fill everything back up.
+
+`sithewok` lasts until you type `sithewok off`, with a few catches:
+
+- The invincibility ends when the next level starts (as with `jediwannabe on`). A saved game remembers it, so loading a save made with it on brings it back.
+- Invincibility doesn't protect you from falling: a long drop can still hurt or kill you (the same as with `jediwannabe on`).
+- The endless Force stays on, even through new levels, loaded games and a new game you start from the menu, until you type `sithewok off` or the app is closed (swiped away).
+- On the next level the game only lets you use the Force powers you've learned in the story so far (it does the same after `raccoonking`), and some levels lower your Jedi rank, which makes the Force meter smaller. Type `sithewok` again to get everything back.
+- **It can change the story.** With every light and dark power at 4 stars, the two sides cancel out, so when the game picks your path (after level 14) you get the light side unless you've killed more than about one in five of the civilians. `sithewok off` doesn't undo this, because you keep the stars. If you care which side you end up on, keep a save from before you first type `sithewok`, or wait to use it until your path has been set after level 14.
+- On the Force screen after level 14, where your path is set, the game takes the other side's stars away one at a time, which takes about 16 seconds if you've used `sithewok`. Wait until it stops before you tap OK, or your path isn't fully set until a later Force screen.
 
 #### Other things worth knowing
 
@@ -213,7 +228,7 @@ While you're typing, most touch buttons don't work. A swipe or long press on FOR
 
 The setup guide covers each step, including Developer Mode and "Untrusted Developer": https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/blob/HEAD/docs/ios/README.md#2-install-the-app
 
-**Updating from v0.1:** sideload the new `.ipa` with the same tool and Apple ID. It replaces the app and keeps your game files and saves. (With a different tool or Apple ID, iOS may install it as a separate app with an empty folder: the guide explains how to move your files over.)
+**Updating from v0.1 or v0.2:** sideload the new `.ipa` with the same tool and Apple ID. It replaces the app and keeps your game files and saves. (With a different tool or Apple ID, iOS may install it as a separate app with an empty folder: the guide explains how to move your files over.)
 
 ### Known limitations
 
@@ -227,7 +242,7 @@ The setup guide covers each step, including Developer Mode and "Untrusted Develo
 - **Free Apple ID signing expires every 7 days**: refresh the app in AltStore or SideStore, or install it again with the same tool and Apple ID. Your files and saves are kept.
 - It has only had limited testing so far.
 
-Found a bug? Please report it here, not to the upstream OpenJKDF2 project, and say you're on **v0.2** (AltStore and Settings show 0.9.9: that's the engine's version): https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/issues
+Found a bug? Please report it here, not to the upstream OpenJKDF2 project, and say you're on **v0.3** (AltStore and Settings show 0.9.9: that's the engine's version): https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/issues
 
 ---
 

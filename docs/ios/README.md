@@ -518,10 +518,13 @@ weaker, so save first.
 - It can change the story. With every light and dark power at 4 stars, the
   two sides cancel out, so when the game picks your path (after level 14) you
   get the light side unless you've killed more than about one in five of the
-  civilians. On that screen the game then takes the other side's stars away
-  one at a time, which takes about 16 seconds after `sithewok`. Wait until it
-  stops before you tap OK, or the game only finishes setting your path on a
-  later Force screen.
+  civilians. `sithewok off` doesn't undo this, because you keep the stars. If
+  you care which side you end up on, keep a save from before you first type
+  `sithewok`, or wait to use it until your path has been set after level 14.
+- On the Force screen after level 14, where your path is set, the game takes
+  the other side's stars away one at a time, which takes about 16 seconds if
+  you've used `sithewok`. Wait until it stops before you tap OK, or your path
+  isn't fully set until a later Force screen.
 
 ## Settings worth knowing
 
