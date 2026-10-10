@@ -21,6 +21,21 @@
 
 namespace fs = std::filesystem;
 
+// The shader (TEX_MODE_16BPP) expects albedo textures with R and B swapped.
+// Desktop GL gets that by uploading RGB data as GL_BGR(A), but GLES (ANGLE on
+// iOS, Android, WASM) has no GL_BGR, and GL_BGRA isn't valid with a sized
+// GL_RGB(A)8 internal format: the upload fails, the texture stays incomplete
+// and samples black. There, have libpng swap the bytes and upload as RGB(A).
+#if defined(TARGET_IOS) || defined(TARGET_ANDROID) || defined(ARCH_WASM)
+#define JKGM_ALBEDO_FLIP_BGR 1
+#define JKGM_ALBEDO_FMT_RGB GL_RGB
+#define JKGM_ALBEDO_FMT_RGBA GL_RGBA
+#else
+#define JKGM_ALBEDO_FLIP_BGR 0
+#define JKGM_ALBEDO_FMT_RGB GL_BGR
+#define JKGM_ALBEDO_FMT_RGBA GL_BGRA
+#endif
+
 extern "C" {
 
 void* jkgm_alloc_aligned(size_t amt)
@@ -179,7 +194,7 @@ bool loadPngImage(const char *name, int* outWidth, int* outHeight, int* outHasAl
      * PNG_TRANSFORM_EXPAND forces to
      *  expand a palette into RGB
      */
-    png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_STRIP_16 | PNG_TRANSFORM_PACKING | PNG_TRANSFORM_EXPAND | (flip_bgr ? PNG_TRANSFORM_BGR : 0), NULL); // 
+    png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_STRIP_16 | PNG_TRANSFORM_PACKING | PNG_TRANSFORM_EXPAND | PNG_TRANSFORM_GRAY_TO_RGB | (flip_bgr ? PNG_TRANSFORM_BGR : 0), NULL); // 
     //printf("png_read_png\n");
 
     png_uint_32 width = 0, height = 0;
@@ -743,14 +758,14 @@ int jkgm_std3D_AddToTextureCache(tVBuffer *vbuf, rdDDrawSurface *texture, int is
                 //printf("Using precached %s\n", path);
             }
 
-            if (data || loadPngImage(path, &entry->albedo_width, &entry->albedo_height, &entry->albedo_hasAlpha, &data, 0))
+            if (data || loadPngImage(path, &entry->albedo_width, &entry->albedo_height, &entry->albedo_hasAlpha, &data, JKGM_ALBEDO_FLIP_BGR))
             {
                 //printf("Loaded %s %p\n", path, data);
                 //glTexStorage2D(GL_TEXTURE_2D, 1, entry->albedo_hasAlpha ? GL_RGBA8 : GL_RGB8, width, height);
                 //glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, entry->albedo_hasAlpha ? GL_RGBA : GL_RGB, GL_UNSIGNED_INT_8_8_8_8_REV, data);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
-                glTexImage2D(GL_TEXTURE_2D, 0, entry->albedo_hasAlpha ? GL_RGBA8 : GL_RGB8, entry->albedo_width, entry->albedo_height, 0,  entry->albedo_hasAlpha ?  GL_BGRA : GL_BGR,     GL_UNSIGNED_BYTE, data);
+                glTexImage2D(GL_TEXTURE_2D, 0, entry->albedo_hasAlpha ? GL_RGBA8 : GL_RGB8, entry->albedo_width, entry->albedo_height, 0,  entry->albedo_hasAlpha ?  JKGM_ALBEDO_FMT_RGBA : JKGM_ALBEDO_FMT_RGB,     GL_UNSIGNED_BYTE, data);
                 //glGetTexImage(GL_TEXTURE_2D, 0, entry->albedo_hasAlpha ? GL_BGRA : GL_BGR, GL_UNSIGNED_BYTE, data);
                 //printf("%x\n", *(uint32_t*)data);
                 texture->texture_id = image_texture;
