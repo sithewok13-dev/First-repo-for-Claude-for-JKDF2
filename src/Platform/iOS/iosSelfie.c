@@ -80,6 +80,10 @@ enum { IOSSELFIE_STANCE_STAND = 0, IOSSELFIE_STANCE_CROUCH, IOSSELFIE_STANCE_KNE
 #define IOSSELFIE_LEAN_MAX 0.16f
 // The player turned this much away from the phone hand (radians)
 #define IOSSELFIE_PHONE_TURN 0.35f
+// The phone arm aims this far in front of the camera, this much past the
+// edge of the photo there (1: right on the edge)
+#define IOSSELFIE_PHONE_AIM_DEPTH 0.02f
+#define IOSSELFIE_PHONE_AIM_OUT 1.3f
 // The phone in the left hand (percent)
 #define IOSSELFIE_LEFT_HAND_CHANCE 30
 // The camera held higher or lower than the head (percent each), and
@@ -453,7 +457,8 @@ typedef struct {
 // This selfie's phone: in the left hand (else the right), and held
 // this much above the head
 static int iosSelfie_bPhoneLeft = 0;
-static rdVector3 iosSelfie_camPos; // where it is (while a selfie is up)
+static rdVector3 iosSelfie_camPos; // where it is (while a selfie is up)...
+static rdVector3 iosSelfie_camLook; // ...and what it looks at
 static flex_t iosSelfie_camLift = IOSSELFIE_CAM_LIFT;
 
 // The camera spot for the people in it: out from the player's head, in the
@@ -1092,6 +1097,27 @@ static void iosSelfie_Lean(iosSelfiePerson* p)
     iosSelfie_Build(p->thing);
 }
 
+// Where the phone arm reaches: a point just outside the photo, off its
+// bottom corner on the shoulder's side, a little in front of the camera
+static void iosSelfie_PhoneAim(rdVector3* out, const rdVector3* shoulder, const rdVector3* camPos)
+{
+    rdVector3 f, r, u, up = { 0, 0, 1 }, v;
+    *out = *camPos;
+    rdVector_Sub3(&f, &iosSelfie_camLook, camPos);
+    if (rdVector_Normalize3Acc(&f) < 1e-6f) return;
+    rdVector_Cross3(&r, &f, &up);
+    if (rdVector_Normalize3Acc(&r) < 1e-6f) return;
+    rdVector_Cross3(&u, &r, &f);
+    rdVector_Sub3(&v, shoulder, camPos);
+    const flex_t side = rdVector_Dot3(&v, &r) < 0 ? -1.0f : 1.0f;
+    const flex_t tanY = tanf(IOSSELFIE_FOV * 0.5f * (flex_t)M_PI / 180.0f);
+    const flex_t tanX = (Window_xSize > 0 && Window_ySize > 0) ? tanY * Window_xSize / Window_ySize : tanY / 0.46f;
+    const flex_t d = IOSSELFIE_PHONE_AIM_DEPTH;
+    rdVector_ScaleAdd3Acc(out, &f, d);
+    rdVector_ScaleAdd3Acc(out, &r, side * tanX * d * IOSSELFIE_PHONE_AIM_OUT);
+    rdVector_ScaleAdd3Acc(out, &u, -tanY * d * IOSSELFIE_PHONE_AIM_OUT);
+}
+
 static void iosSelfie_SolvePose(iosSelfiePerson* p, const rdVector3* camPos)
 {
     SithThing* t = p->thing;
@@ -1112,10 +1138,13 @@ static void iosSelfie_SolvePose(iosSelfiePerson* p, const rdVector3* camPos)
         const int partUp = side ? IOSSELFIE_PART_LUPPER : IOSSELFIE_PART_RUPPER;
         rdVector3 up, fore;
         if ((side ? p->armL : p->armR) < 0) {
-            // The phone: the whole arm reaching straight for the camera
-            rdVector3 shoulder;
+            // The phone: the whole arm reaching for the camera, just past
+            // the bottom corner of the photo on its own side (as a selfie
+            // arm runs out of the picture, not end on into the lens)
+            rdVector3 shoulder, at;
             iosSelfie_JointAt(&shoulder, r, p->aPart[partUp]);
-            rdVector_Sub3(&up, camPos, &shoulder);
+            iosSelfie_PhoneAim(&at, &shoulder, camPos);
+            rdVector_Sub3(&up, &at, &shoulder);
             if (rdVector_Normalize3Acc(&up) < 1e-6f) continue;
             fore = up;
         }
@@ -1303,6 +1332,8 @@ int iosSelfie_Begin(int pose, int* pNumPeople)
     for (int i = 0; iosSelfie_aSectorSeen && i < w->numSectors; i++)
         iosSelfie_aSectorSeen[i] = (w->aSectors[i].flags & SITH_SECTOR_SEEN) != 0;
     iosSelfie_bActive = 1;
+    iosSelfie_camPos = cam.pos;
+    iosSelfie_camLook = cam.look;
     // Now and then everyone does the same, like a team photo
     int group = -1;
     if (pose < 0 && iosSelfie_numPeople >= 3 && iosSelfie_Rand() % IOSSELFIE_GROUP_CHANCE == 0)
@@ -1414,6 +1445,7 @@ int iosSelfie_Begin(int pose, int* pNumPeople)
     c->pSecondaryFocusThing = NULL;
     rdMatrix_LookAt(&c->orient, &cam.pos, &cam.look, cam.tilt);
     iosSelfie_camPos = cam.pos;
+    iosSelfie_camLook = cam.look;
     IOSSELFIE_LOG("camera in sector %d (inside: %d) at %f %f %f looking at %f %f %f\n", cam.sector ? (int)(cam.sector - w->aSectors) : -1,
                   cam.sector ? sithIntersect_IsSphereInSector(&cam.pos, 0.0f, cam.sector) : 0,
                   (double)cam.pos.x, (double)cam.pos.y, (double)cam.pos.z, (double)cam.look.x, (double)cam.look.y, (double)cam.look.z);
