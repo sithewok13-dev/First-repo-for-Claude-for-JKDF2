@@ -21,10 +21,15 @@ extern "C" {
 // At most this many captures are being saved at once; another waits
 #define IOSCAPTURE_MAX_SAVING 2
 
-// Takes the photos at the next game frame drawn (bBurst: one shot of a
-// burst; only IOSCAPTURE_CLEAN). 0 if a capture is already waiting, or too
-// many are still being saved.
-int iosCapture_Request(int kinds, int bBurst);
+// What a capture is for: the photos asked for, one shot of a burst, or a
+// selfie (both only IOSCAPTURE_CLEAN)
+#define IOSCAPTURE_MODE_PHOTO  0
+#define IOSCAPTURE_MODE_BURST  1
+#define IOSCAPTURE_MODE_SELFIE 2
+
+// Takes the photos at the next game frame drawn. 0 if a capture is already
+// waiting, or too many are still being saved.
+int iosCapture_Request(int kinds, int mode);
 
 // Gives up on a requested capture that no frame has taken yet.
 void iosCapture_Cancel(void);
@@ -44,7 +49,7 @@ void iosCapture_AfterHud(void);
 // iosPhotos.m: takes the images (RGBA, top row first, opaque, w x h pixels,
 // malloc'd, NULL if not taken; it frees them), adds the touch overlay for
 // IOSCAPTURE_HUDBTNS, saves the kinds asked for, then calls iosCapture_Done.
-void iosPhotos_SaveCapture(unsigned char* pClean, unsigned char* pHud, int w, int h, int kinds, int bBurst);
+void iosPhotos_SaveCapture(unsigned char* pClean, unsigned char* pHud, int w, int h, int kinds, int mode);
 
 #ifdef __cplusplus
 }

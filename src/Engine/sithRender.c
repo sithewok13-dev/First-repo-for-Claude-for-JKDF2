@@ -33,6 +33,14 @@
 #include "Platform/std3D.h"
 #include "Primitives/rdMath.h"
 #include "stdPlatform.h"
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosSelfie.h" // Added
+// Added: a selfie's camera only looks: what it sees isn't sighted, seen on
+// the map, marked as on screen, or flashed (iosSelfie)
+#define SITHRENDER_SELFIE_LOOKING() iosSelfie_IsActive()
+#else
+#define SITHRENDER_SELFIE_LOOKING() 0
+#endif
 
 #if defined(TARGET_TWL)
 #include <nds.h>
@@ -681,7 +689,7 @@ void sithRender_BuildVisibleSectorList(SithSector *pSector, rdClipFrustum *pFrus
         }
 
         sithRender_aVisibleSectors[sithRender_g_numVisibleSectors++] = pSector;
-        if (!(pSector->flags & SITH_SECTOR_SEEN) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP)) // Added: don't send sighted stuff in noclip, otherwise the whole map reveals
+        if (!(pSector->flags & SITH_SECTOR_SEEN) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP) && !SITHRENDER_SELFIE_LOOKING()) // Added: don't send sighted stuff in noclip, otherwise the whole map reveals
         {
             pSector->flags |= SITH_SECTOR_SEEN;
             if ( (pSector->flags & SITH_SECTOR_COGLINKED) != 0 )
@@ -1028,7 +1036,7 @@ void sithRender_NoClip(SithSector *sector, rdClipFrustum *frustumArg, flex_t pre
         }
 
         sithRender_aVisibleSectors[sithRender_g_numVisibleSectors++] = sector;
-        if (!(sector->flags & SITH_SECTOR_SEEN) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP)) // Added: don't send sighted stuff in noclip, otherwise the whole map reveals
+        if (!(sector->flags & SITH_SECTOR_SEEN) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP) && !SITHRENDER_SELFIE_LOOKING()) // Added: don't send sighted stuff in noclip, otherwise the whole map reveals
         {
             sector->flags |= SITH_SECTOR_SEEN;
             if ( (sector->flags & SITH_SECTOR_COGLINKED) != 0 )
@@ -1264,7 +1272,7 @@ void sithRender_KindaClipAssignFrustum(SithSector *sector, rdClipFrustum *frustu
     }
 
     sithRender_aVisibleSectors[sithRender_g_numVisibleSectors++] = sector;
-    if (!(sector->flags & SITH_SECTOR_SEEN) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP)) // Added: don't send sighted stuff in noclip, otherwise the whole map reveals
+    if (!(sector->flags & SITH_SECTOR_SEEN) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP) && !SITHRENDER_SELFIE_LOOKING()) // Added: don't send sighted stuff in noclip, otherwise the whole map reveals
     {
         sector->flags |= SITH_SECTOR_SEEN;
         if ( (sector->flags & SITH_SECTOR_COGLINKED) != 0 )
@@ -2992,7 +3000,10 @@ int sithRender_RenderThing(SithThing *pThing)
     // Added: Ensure the clipping frustum doesn't get mutated
     //rdClipFrustum* pFullCameraFrustum = rdCamera_g_pCurCamera->pClipFrustum;
 
-    if (!(pThing->flags & SITH_TF_INCAMFOV) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP)) // Added: don't send sighted stuff in noclip
+    int bSighting = !(pThing->flags & SITH_TF_INCAMFOV) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP); // Added: don't send sighted stuff in noclip
+    if (SITHRENDER_SELFIE_LOOKING()) // Added
+        bSighting = 0;
+    if (bSighting)
     {
         if (pThing->flags & SITH_TF_CAPTURED) {
             sithCog_ThingSendMessage(pThing, 0, SITH_MESSAGE_SIGHTED);
@@ -3005,7 +3016,8 @@ int sithRender_RenderThing(SithThing *pThing)
         pThing->flags |= SITH_TF_INCAMFOV;
     }
 
-    pThing->renderFrame = jkPlayer_currentTickIdx;
+    if (!SITHRENDER_SELFIE_LOOKING()) // Added
+        pThing->renderFrame = jkPlayer_currentTickIdx;
     pThing->orient.scale = pThing->position;
 
 #ifdef TARGET_TWL
@@ -3040,7 +3052,8 @@ int sithRender_RenderThing(SithThing *pThing)
     }
 #endif
 
-    if (pThing->type == SITH_THING_EXPLOSION && (pThing->explosionParams.flags & SITHEXPLOSION_FLAG_FLASH_BLINDS_THINGS))
+    if (pThing->type == SITH_THING_EXPLOSION && (pThing->explosionParams.flags & SITHEXPLOSION_FLAG_FLASH_BLINDS_THINGS)
+        && !SITHRENDER_SELFIE_LOOKING()) // Added
     {
         flex_t cameraDist = stdMath_Dist3D1(pThing->transformedPos.x, pThing->transformedPos.y, pThing->transformedPos.z);
         uint32_t flashG = pThing->explosionParams.flashG;

@@ -13,18 +13,18 @@
 extern GLint std3D_windowFbo;
 
 static int iosCapture_wanted = 0; // the kinds a frame should take (0: none waiting)
-static int iosCapture_bBurst = 0;
+static int iosCapture_mode = IOSCAPTURE_MODE_PHOTO;
 static int iosCapture_numSaving = 0; // handed to iosPhotos, not saved yet
 static unsigned char* iosCapture_pClean = NULL;
 static int iosCapture_w = 0, iosCapture_h = 0;
 
-int iosCapture_Request(int kinds, int bBurst)
+int iosCapture_Request(int kinds, int mode)
 {
     kinds &= IOSCAPTURE_ALL;
-    if (bBurst) kinds = IOSCAPTURE_CLEAN;
+    if (mode != IOSCAPTURE_MODE_PHOTO) kinds = IOSCAPTURE_CLEAN;
     if (!kinds || iosCapture_wanted || iosCapture_numSaving >= IOSCAPTURE_MAX_SAVING) return 0;
     iosCapture_wanted = kinds;
-    iosCapture_bBurst = bBurst != 0;
+    iosCapture_mode = mode;
     return 1;
 }
 
@@ -53,7 +53,7 @@ static void iosCapture_Hand(unsigned char* pHud)
     iosCapture_pClean = NULL;
     iosCapture_wanted = 0;
     iosCapture_numSaving++;
-    iosPhotos_SaveCapture(pClean, pHud, iosCapture_w, iosCapture_h, kinds, iosCapture_bBurst);
+    iosPhotos_SaveCapture(pClean, pHud, iosCapture_w, iosCapture_h, kinds, iosCapture_mode);
 }
 
 // The window as drawn so far, RGBA with the top row first and fully opaque

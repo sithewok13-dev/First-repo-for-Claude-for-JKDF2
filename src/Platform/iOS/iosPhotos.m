@@ -15,7 +15,7 @@
 
 // iosTouch.m
 UIView* iosTouch_OverlayView(void);
-void iosTouch_CameraFeedback(int bBurst);
+void iosTouch_CameraFeedback(int mode);
 
 static void iosPhotos_FreeBytes(void* info, const void* data, size_t size)
 {
@@ -165,8 +165,9 @@ static void iosPhotos_Save(NSArray<NSData*>* aData, NSArray<NSString*>* aName, N
     }];
 }
 
-void iosPhotos_SaveCapture(unsigned char* pClean, unsigned char* pHud, int w, int h, int kinds, int bBurst)
+void iosPhotos_SaveCapture(unsigned char* pClean, unsigned char* pHud, int w, int h, int kinds, int mode)
 {
+    const int bBurst = mode == IOSCAPTURE_MODE_BURST;
     @autoreleasepool {
         iosPhotos_numPending++;
         CGImageRef clean = pClean ? iosPhotos_MakeImage(pClean, w, h) : NULL;
@@ -211,7 +212,7 @@ void iosPhotos_SaveCapture(unsigned char* pClean, unsigned char* pHud, int w, in
 
         // The flash, the shutter and a tap, now the frame is taken, so none
         // of them is in it (lighter for each shot of a burst)
-        iosTouch_CameraFeedback(bBurst);
+        iosTouch_CameraFeedback(mode);
 
         NSDate* when = [NSDate date];
         NSString* base = iosPhotos_BaseName(when);
@@ -232,7 +233,7 @@ void iosPhotos_SaveCapture(unsigned char* pClean, unsigned char* pHud, int w, in
                     if (png) {
                         [aData addObject:png];
                         [aName addObject:bBurst ? [base stringByAppendingString:@".png"]
-                                                : [NSString stringWithFormat:@"%@ %@.png", base, aJobSuffix[i]]];
+                                                : [NSString stringWithFormat:@"%@ %@.png", base, mode == IOSCAPTURE_MODE_SELFIE ? @"selfie" : aJobSuffix[i]]];
                     }
                     else {
                         numBad++;

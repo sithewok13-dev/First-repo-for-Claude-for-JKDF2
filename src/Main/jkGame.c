@@ -25,6 +25,9 @@
 
 #include "stdPlatform.h"
 #include "jk.h"
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosSelfie.h" // Added
+#endif
 
 #if defined(TARGET_TWL)
 #include <nds.h>
@@ -355,6 +358,12 @@ int jkGame_Update()
     stdDisplay_VBufferUnlock(pOverlayBuffer);
 #endif
 
+#ifdef TARGET_IOS
+    // Added: nothing of the HUD (meters, crosshair, messages, items) over a
+    // selfie (iosSelfie)
+    if (!iosSelfie_IsActive())
+#endif
+    {
     // MOTS added: scope/security cam overlays
     if (!Main_bMotsCompat) {
         if ( (playerThings[playerThingIdx].actorThing->actorParams.flags & SITH_AF_NOIDLECAMERA) == 0 ) {
@@ -379,6 +388,7 @@ int jkGame_Update()
 
     jkDev_BlitLogToScreen();
     jkHudInv_Draw();
+    }
 #if !defined(SDL2_RENDER) && !defined(TARGET_RETRO_HOMEBREW)
     if ( Video_modeStruct.b3DAccel )
         std3D_DrawOverlay();

@@ -17,6 +17,7 @@
 #include "Platform/iOS/iosGame.h"
 #include "Platform/iOS/iosCapture.h"
 #include "Platform/iOS/iosPhotos.h"
+#include "Platform/iOS/iosSelfie.h"
 
 extern SDL_Window* displayWindow;
 extern int stdControl_bControlsActive;
@@ -159,6 +160,12 @@ extern int jkHud_bChatOpen;
 // held still this long is the selfie; slid IOSTOUCH_WHEEL_OPEN_SLIDE starts a
 // burst of clean shots this far apart, for as long as the finger stays down
 #define IOSTOUCH_SELFIE_HOLD 0.5
+// The selfie: posed this long before the photo (a frame or two to settle),
+// shown this long after it, and given up if the photo hasn't come by
+// IOSTOUCH_SELFIE_GIVEUP
+#define IOSTOUCH_SELFIE_SETTLE 0.35
+#define IOSTOUCH_SELFIE_SHOW 0.9
+#define IOSTOUCH_SELFIE_GIVEUP 3.0
 #define IOSTOUCH_BURST_GAP 0.2
 #define IOSTOUCH_BURST_MAX 10
 // iOS's camera shutter sound (not a documented ID, but long stable); a burst
@@ -506,6 +513,10 @@ static UITouch* iosTouch_pBurstTouch = nil; // the finger a burst goes on for (n
 static int iosTouch_burstShots = 0;
 static SystemSoundID iosTouch_burstSound = 0; // (0: not loaded; then the shutter)
 static CFTimeInterval iosTouch_tBurstNext = 0;
+// The selfie going on: its stage, and when it began / was taken
+enum { IOSTOUCH_SELFIE_NONE = 0, IOSTOUCH_SELFIE_POSING, IOSTOUCH_SELFIE_TAKING, IOSTOUCH_SELFIE_SHOWN };
+static int iosTouch_selfieStage = IOSTOUCH_SELFIE_NONE;
+static CFTimeInterval iosTouch_tSelfie = 0;
 // Gyro aiming: its mode, its sensitivity (an index into iosTouch_aGyroSens),
 // the motion manager (one for the app, as Apple asks) and the queue its
 // samples are handled on, whether its updates are running, whether iOS
@@ -974,6 +985,8 @@ typedef struct {
     UIView* camOptBack;     // behind the camera options
     CAShapeLayer* camOptRing; // the tray's camera switch, held to open them
     UILabel* burstLabel;    // beside CAMERA: how many shots a burst has taken
+    CAShapeLayer* cameraRing; // CAMERA's, held for the selfie
+    CGFloat aSelfieAlpha[64]; // the overlay's views as they were, hidden during a selfie
     UILabel* fpsLabel;      // the FPS readout...
     int bFpsBase;           // ...counting frames since fpsBaseFrames, at fpsBaseTime
     unsigned int fpsBaseFrames;
@@ -1008,7 +1021,8 @@ typedef struct {
 }
 - (void)resetAll;
 - (void)tick;
-- (void)cameraFeedback:(int)bBurst;
+- (void)cameraFeedback:(int)mode;
+- (void)endSelfie;
 - (void)refreshGyroLabels;
 - (void)refreshButtonLooks;
 @end
@@ -1231,6 +1245,8 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         burstLabel.userInteractionEnabled = NO;
         burstLabel.hidden = YES;
         [self addSubview:burstLabel];
+        cameraRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_CAMERA].radius);
+        [aButtonViews[BTN_CAMERA].layer addSublayer:cameraRing];
         cameraTap = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
         NSURL* tickUrl = [[NSBundle mainBundle] URLForResource:@"burst_tick" withExtension:@"wav"];
         if (tickUrl && AudioServicesCreateSystemSoundID((__bridge CFURLRef)tickUrl, &iosTouch_burstSound) != kAudioServicesNoError)
@@ -1976,7 +1992,7 @@ static void iosTouch_PhotosAsked(void)
 // The CAMERA button tapped: the ticked photos at the next frame drawn
 - (void)takePhotos
 {
-    if (!iosCapture_Request(iosTouch_cameraKinds, 0)) return; // the last ones are still being saved
+    if (!iosCapture_Request(iosTouch_cameraKinds, IOSCAPTURE_MODE_PHOTO)) return; // the last ones are still being saved
     iosTouch_tCameraAsked = CACurrentMediaTime();
     [cameraTap prepare];
 }
@@ -1998,7 +2014,7 @@ static void iosTouch_PhotosAsked(void)
 - (void)tickBurst:(CFTimeInterval)now
 {
     if (!iosTouch_pBurstTouch || iosTouch_burstShots >= IOSTOUCH_BURST_MAX || now < iosTouch_tBurstNext) return;
-    if (!iosCapture_Request(IOSCAPTURE_CLEAN, 1)) return; // try again next frame
+    if (!iosCapture_Request(IOSCAPTURE_CLEAN, IOSCAPTURE_MODE_BURST)) return; // try again next frame
     iosTouch_tCameraAsked = now;
     iosTouch_burstShots++;
     iosTouch_tBurstNext = now + IOSTOUCH_BURST_GAP;
@@ -2014,11 +2030,90 @@ static void iosTouch_PhotosAsked(void)
     [self refreshButtonLooks];
 }
 
+// The selfie: the CAMERA button held still IOSTOUCH_SELFIE_HOLD. The game
+// holds still and everyone near poses for a camera held out at arm's length
+// (iosSelfie); the touch buttons go while it is up, and touches are ignored,
+// so nothing can let the game go on in the middle of it. Posed, then the
+// photo (the clean kind only), shown a moment, then all as it was.
+- (void)startSelfie
+{
+    if (iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE) return;
+    int numPeople = 0;
+    if (iosCapture_IsBusy() || !iosSelfie_Begin(IOSSELFIE_POSE_RANDOM, &numPeople)) {
+        iosGame_ShowMessage(iosCapture_IsBusy() ? "Still saving the last photo" : "Can't take a selfie here");
+        return;
+    }
+    [self endBurst];
+    [self setTrayOpen:0];
+    // Every touch now down is let go, and the buttons are hidden
+    for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+        iosTouchSlot* s = &iosTouch_aSlots[i];
+        if (s->touch) s->role = ROLE_IGNORED;
+    }
+    memset(iosTouch_aButtonHeld, 0, sizeof(iosTouch_aButtonHeld));
+    iosTouch_bStickActive = 0;
+    iosTouch_stickX = iosTouch_stickY = 0.0f;
+    [self hideStick];
+    iosTouch_RecomputeKeys();
+    // (counted without the flash, which moves to the top when it goes off)
+    int k = 0;
+    for (UIView* v in self.subviews) {
+        if (v == cameraFlash || k >= 64) continue;
+        aSelfieAlpha[k++] = v.alpha;
+        v.alpha = 0.0;
+    }
+    [cameraTap prepare];
+    iosTouch_selfieStage = IOSTOUCH_SELFIE_POSING;
+    iosTouch_tSelfie = CACurrentMediaTime();
+}
+
+- (void)tickSelfie:(CFTimeInterval)now
+{
+    if (iosTouch_selfieStage == IOSTOUCH_SELFIE_NONE) return;
+    iosSelfie_Frame();
+    if (iosTouch_selfieStage == IOSTOUCH_SELFIE_POSING && now - iosTouch_tSelfie >= IOSTOUCH_SELFIE_SETTLE) {
+        if (iosCapture_Request(IOSCAPTURE_CLEAN, IOSCAPTURE_MODE_SELFIE)) {
+            iosTouch_selfieStage = IOSTOUCH_SELFIE_TAKING;
+            iosTouch_tCameraAsked = 0; // (the selfie keeps its own time)
+        }
+    }
+    if (iosTouch_selfieStage == IOSTOUCH_SELFIE_SHOWN && now - iosTouch_tSelfie >= IOSTOUCH_SELFIE_SHOW)
+        [self endSelfie];
+    else if (iosTouch_selfieStage == IOSTOUCH_SELFIE_TAKING && !iosCapture_IsBusy())
+        [self endSelfie]; // the photo couldn't be taken (the message line says so)
+    else if (iosTouch_selfieStage != IOSTOUCH_SELFIE_SHOWN && now - iosTouch_tSelfie >= IOSTOUCH_SELFIE_GIVEUP) {
+        iosCapture_Cancel();
+        [self endSelfie];
+    }
+}
+
+// Everything as it was; the game goes on
+- (void)endSelfie
+{
+    if (iosTouch_selfieStage == IOSTOUCH_SELFIE_NONE) return;
+    iosTouch_selfieStage = IOSTOUCH_SELFIE_NONE;
+    iosSelfie_End();
+    // (a mouse or trackpad moved meanwhile doesn't turn the view afterwards)
+    Window_lastXRel = 0;
+    Window_lastYRel = 0;
+    int k = 0;
+    for (UIView* v in self.subviews) {
+        if (v == cameraFlash || k >= 64) continue;
+        v.alpha = aSelfieAlpha[k++];
+    }
+    [self refreshButtonLooks];
+}
+
 // Right after photos were taken (iosPhotos), so none of it is in them; a
 // lighter flash for each shot of a burst
-- (void)cameraFeedback:(int)bBurst
+- (void)cameraFeedback:(int)mode
 {
+    const int bBurst = mode == IOSCAPTURE_MODE_BURST;
     iosTouch_tCameraAsked = 0;
+    if (mode == IOSCAPTURE_MODE_SELFIE && iosTouch_selfieStage == IOSTOUCH_SELFIE_TAKING) {
+        iosTouch_selfieStage = IOSTOUCH_SELFIE_SHOWN;
+        iosTouch_tSelfie = CACurrentMediaTime();
+    }
     [cameraFlash.layer removeAllAnimations];
     [self addSubview:cameraFlash]; // on top
     cameraFlash.frame = self.bounds;
@@ -2662,6 +2757,10 @@ static int iosTouch_WheelSliceHasRow(int i)
         s->trayButton = -1;
         s->wheelSlot = -1;
 
+        if (iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE) {
+            s->role = ROLE_IGNORED; // nothing during a selfie
+            continue;
+        }
         if (iosTouch_bWheelOpen) {
             s->role = ROLE_WHEEL;
             s->wheelSlot = iosTouch_WheelSliceAt(p, -1);
@@ -2754,6 +2853,7 @@ static int iosTouch_WheelSliceHasRow(int i)
                 }
                 if (bOut && s->button == BTN_CAMERA) {
                     s->bFired = 1;
+                    [self setRing:cameraRing progress:0.0];
                     // (not a finger already held long enough for the selfie,
                     // by its own clock, that a frame hasn't seen yet)
                     if (!iosTouch_pBurstTouch && !jkHud_bChatOpen && t.timestamp - s->tDownTouch < IOSTOUCH_SELFIE_HOLD)
@@ -2939,6 +3039,7 @@ static int iosTouch_WheelSliceHasRow(int i)
                 if (s->button == BTN_QUICKLOAD) [self setRing:loadRing progress:0.0];
                 if (s->button == BTN_MENU) [self setRing:menuRing progress:0.0];
                 if (s->button == BTN_TRAYCAM) [self setRing:camOptRing progress:0.0];
+                if (s->button == BTN_CAMERA) [self setRing:cameraRing progress:0.0];
             }
             else if (s->role == ROLE_STICK) {
                 iosTouch_bStickActive = 0;
@@ -2993,6 +3094,11 @@ static int iosTouch_WheelSliceHasRow(int i)
     CFTimeInterval now = CACurrentMediaTime();
     CFTimeInterval known = lastTickTime;
     lastTickTime = now;
+    // During a selfie nothing else goes on here
+    if (iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE) {
+        [self tickSelfie:now];
+        return;
+    }
     // FORCE WHEEL and NEXT WPN held still (they haven't slid, or the wheel
     // would be open): known to be held IOSTOUCH_WHEEL_HOLD, the wheel opens to
     // tap a slice; until then the ring fills. The first to get there opens
@@ -3064,9 +3170,16 @@ static int iosTouch_WheelSliceHasRow(int i)
                 [self setRing:camOptRing progress:MIN(progress, 1.0)];
             }
         }
-        else if (s->button == BTN_CAMERA && !s->bFired && known - s->tDown >= IOSTOUCH_SELFIE_HOLD) {
-            // Held still: the selfie (to come). The lift takes no photos.
-            s->bFired = 1;
+        else if (s->button == BTN_CAMERA && !s->bFired && !jkHud_bChatOpen) {
+            // Held still: the ring fills, then the selfie (the lift takes no
+            // photos). Not while typing.
+            if (known - s->tDown >= IOSTOUCH_SELFIE_HOLD) {
+                s->bFired = 1;
+                [self setRing:cameraRing progress:0.0];
+                [self startSelfie];
+                return; // everything else waits for the selfie to end
+            }
+            [self setRing:cameraRing progress:MIN((CGFloat)((now - s->tDown) / IOSTOUCH_SELFIE_HOLD), 1.0)];
         }
         else if (s->button == BTN_MENU && !s->bFired) {
             if (![self isPoint:s->last onButton:BTN_MENU]) {
@@ -3222,6 +3335,7 @@ static int iosTouch_WheelSliceHasRow(int i)
         iosGame_SetHold(0);
         wheelView.hidden = YES;
     }
+    [self endSelfie]; // (all put back: the overlay is going, a menu or the background)
     [self setTrayOpen:0];
     [self endBurst];
     memset(iosTouch_aSlots, 0, sizeof(iosTouch_aSlots));
@@ -3241,6 +3355,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     [self setRing:loadRing progress:0.0];
     [self setRing:menuRing progress:0.0];
     [self setRing:camOptRing progress:0.0];
+    [self setRing:cameraRing progress:0.0];
     [self setRing:wheelRing progress:0.0];
     [self setRing:weaponRing progress:0.0];
     iosTouch_RecomputeKeys();
@@ -3370,9 +3485,9 @@ UIView* iosTouch_OverlayView(void)
     return iosTouch_pOverlay;
 }
 
-void iosTouch_CameraFeedback(int bBurst)
+void iosTouch_CameraFeedback(int mode)
 {
-    if (iosTouch_pOverlay) [iosTouch_pOverlay cameraFeedback:bBurst];
+    if (iosTouch_pOverlay) [iosTouch_pOverlay cameraFeedback:mode];
 }
 
 int iosTouch_GetTopTextRectPt(float* pTop, float* pLeft, float* pRight)

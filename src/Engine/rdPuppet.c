@@ -7,6 +7,9 @@
 #include "Engine/rdThing.h"
 #include "stdPlatform.h"
 #include "jk.h"
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosSelfie.h" // Added
+#endif
 
 // Un-inlined: Clear track node flags with bounds check (added in Grim Fandango).
 static void rdPuppet_ClearTrackNodes(rdPuppet *puppet, int trackNum)
@@ -157,6 +160,11 @@ void rdPuppet_BuildJointMatrices(rdThing *prdThing, rdMatrix34 *pPlacement)
         for (int i = 0; i < model->numHNodes; i++)
         {
             rdMatrix_Copy34(&prdThing->paJointMatrices[i], &model->aHierarchyNodes[i].posRotMatrix);
+#ifdef TARGET_IOS
+            // Added: a selfie poses people from their rest pose (iosSelfie)
+            if ( iosSelfie_IsActive() )
+                iosSelfie_PoseNode(prdThing, i, &prdThing->paJointMatrices[i]);
+#endif
         }
         goto accumulate_finalize;
     }
