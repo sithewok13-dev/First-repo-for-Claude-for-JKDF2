@@ -43,8 +43,12 @@
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosSelfie.h" // Added
 #define JKPLAYER_SELFIE_LOOKING() iosSelfie_IsActive()
+// Added: a saber blade right across a selfie's lens is left out of it
+#define JKPLAYER_SELFIE_HIDES_BLADE(pMat, pLine) \
+    (iosSelfie_IsActive() && (pLine)->polyline && iosSelfie_HidesBlade((pMat), (pLine)->polyline->length))
 #else
 #define JKPLAYER_SELFIE_LOOKING() 0
+#define JKPLAYER_SELFIE_HIDES_BLADE(pMat, pLine) 0
 #endif
 
 // DSi has *plenty* of time to read the text.
@@ -1105,9 +1109,9 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
             {
                 if (!JKPLAYER_SELFIE_LOOKING()) // Added: no game random numbers used in a selfie
                     jkSaber_PolylineRand(&playerInfo->polylineThing);
-                rdThing_Draw(&playerInfo->polylineThing, primaryMat);
+                if (!JKPLAYER_SELFIE_HIDES_BLADE(primaryMat, &playerInfo->polylineThing)) rdThing_Draw(&playerInfo->polylineThing, primaryMat);
                 if ( thing->jkFlags & JKFLAG_DUALSABERS)
-                    rdThing_Draw(&playerInfo->polylineThing, secondaryMat);
+                    if (!JKPLAYER_SELFIE_HIDES_BLADE(secondaryMat, &playerInfo->polylineThing)) rdThing_Draw(&playerInfo->polylineThing, secondaryMat);
             }
         }
         else
@@ -1125,9 +1129,9 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
         {
             if (!JKPLAYER_SELFIE_LOOKING()) // Added: no game random numbers used in a selfie
                 jkSaber_PolylineRand(&playerInfo->polylineThing);
-            rdThing_Draw(&playerInfo->polylineThing, primaryMat);
+            if (!JKPLAYER_SELFIE_HIDES_BLADE(primaryMat, &playerInfo->polylineThing)) rdThing_Draw(&playerInfo->polylineThing, primaryMat);
             if (thing->jkFlags & JKFLAG_DUALSABERS)
-                rdThing_Draw(&playerInfo->polylineThing, secondaryMat);
+                if (!JKPLAYER_SELFIE_HIDES_BLADE(secondaryMat, &playerInfo->polylineThing)) rdThing_Draw(&playerInfo->polylineThing, secondaryMat);
         }
     }
 }

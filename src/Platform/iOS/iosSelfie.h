@@ -40,6 +40,8 @@ enum {
     IOSSELFIE_PART_RUPPER = 0, IOSSELFIE_PART_RFORE, IOSSELFIE_PART_RHAND,
     IOSSELFIE_PART_LUPPER, IOSSELFIE_PART_LFORE, IOSSELFIE_PART_LHAND,
     IOSSELFIE_PART_NECK, IOSSELFIE_PART_HEAD, IOSSELFIE_PART_TORSO,
+    IOSSELFIE_PART_RTHIGH, IOSSELFIE_PART_RCALF, IOSSELFIE_PART_RFOOT,
+    IOSSELFIE_PART_LTHIGH, IOSSELFIE_PART_LCALF, IOSSELFIE_PART_LFOOT,
     IOSSELFIE_PART_NUM
 };
 
@@ -57,6 +59,11 @@ int iosSelfie_IsActive(void);
 // The renderer, while a selfie is up: whether to leave this thing out (a
 // shot or blast frozen in front of someone's face).
 int iosSelfie_HidesThing(struct SithThing* pThing);
+
+// The saber drawing, while a selfie is up: whether to leave out a blade
+// (from m's place along its forward axis, this long) that passes right by
+// the camera, across the whole photo.
+int iosSelfie_HidesBlade(const struct rdMatrix34* m, float length);
 
 // Each frame, after the game sets the view's lens: the selfie camera's own
 // lens instead, while a selfie is up. 0 (nothing changed) for any other.

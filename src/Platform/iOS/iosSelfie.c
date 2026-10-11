@@ -13,6 +13,7 @@
 #include "World/sithSector.h"
 #include "Engine/sithCamera.h"
 #include "Engine/sithCollision.h"
+#include "Engine/sithIntersect.h"
 #include "Engine/rdPuppet.h"
 #include "Primitives/rdMatrix.h"
 #include "Primitives/rdVector.h"
@@ -28,7 +29,15 @@
 // and no further than IOSSELFIE_CAM_MAX
 #define IOSSELFIE_CAM_MIN 0.04f
 #define IOSSELFIE_CAM_MAX 0.6f
+// ...for a group photo, no further than this (else fewer people in it)
+#define IOSSELFIE_CAM_GOOD 0.3f
 #define IOSSELFIE_CAM_STEP 0.005f
+// A saber blade passing nearer the camera than this is left out
+#define IOSSELFIE_BLADE_CLEARANCE 0.05f
+// ...or nearer the camera than this much of the player's face's depth
+#define IOSSELFIE_BLADE_FRONT 0.6f
+// ...and this far from any wall or opening of the room it is in
+#define IOSSELFIE_CAM_CLEARANCE 0.012f
 #define IOSSELFIE_CAM_LIFT 0.008f
 // ...or this much above the head, to see over shoulders
 #define IOSSELFIE_CAM_LIFT_HIGH 0.035f
@@ -54,7 +63,33 @@
 // A wall this close in front of a head doesn't hide it
 #define IOSSELFIE_SIGHT_SLACK 0.03f
 // Joints a pose turns, per person
-#define IOSSELFIE_MAX_TURNS 8
+#define IOSSELFIE_MAX_TURNS 16
+// How people stand: in a group, some of the front row crouch or kneel on
+// one knee (in percent, each)
+enum { IOSSELFIE_STANCE_STAND = 0, IOSSELFIE_STANCE_CROUCH, IOSSELFIE_STANCE_KNEEL_R, IOSSELFIE_STANCE_KNEEL_L };
+#define IOSSELFIE_FRONT_ROW_CHANCE 50
+#define IOSSELFIE_ALONE_CROUCH_CHANCE 15
+// A crouch: the hips this much of the leg's length lower
+#define IOSSELFIE_CROUCH_DROP 0.3f
+// Turned three-quarters to the camera (percent; radians, at most), or
+// else only a little; and leaning to one side (percent; radians, at most)
+#define IOSSELFIE_TURN_CHANCE 45
+#define IOSSELFIE_TURN_MAX 0.6f
+#define IOSSELFIE_TURN_SMALL 0.12f
+#define IOSSELFIE_LEAN_CHANCE 40
+#define IOSSELFIE_LEAN_MAX 0.16f
+// The player turned this much away from the phone hand (radians)
+#define IOSSELFIE_PHONE_TURN 0.35f
+// The phone in the left hand (percent)
+#define IOSSELFIE_LEFT_HAND_CHANCE 30
+// The camera held higher or lower than the head (percent each), and
+// tilted (percent; degrees, at most)
+#define IOSSELFIE_CAM_HIGH_CHANCE 20
+#define IOSSELFIE_CAM_LOW_CHANCE 15
+#define IOSSELFIE_CAM_LIFT_UP 0.025f
+#define IOSSELFIE_CAM_LIFT_DOWN (-0.010f)
+#define IOSSELFIE_TILT_CHANCE 30
+#define IOSSELFIE_TILT_MAX 6.0f
 // How far a head (neck and head together) turns from straight ahead to look
 // at the camera (radians)
 #define IOSSELFIE_NECK_MAX 0.95f
@@ -77,9 +112,13 @@ typedef struct {
     rdPuppet puppet;        // the animation tracks as they were
     int aPart[IOSSELFIE_PART_NUM]; // node index per part, -1: none
     int pose;               // -1: only turns to the camera; else posing...
-    int armR, armL;         // ...these gestures (IOSSELFIE_ARM_*; armR -1: the phone, toward the camera)
+    int armR, armL;         // ...these gestures (IOSSELFIE_ARM_*; -1: the phone, toward the camera)
     flex_t headTilt;        // ...and the head this much on one side (radians)
     flex_t light;           // the light it gave off, as it was
+    int stance;             // IOSSELFIE_STANCE_*
+    flex_t lean;            // the body leant to one side this much (radians)
+    int shiftNode;          // this joint (the root, -1: none) moved by...
+    rdVector3 shift;        // ...this, in its own parent's frame (crouching)
     rdVector3 head;         // where the head is (world)...
     SithSector* headSector; // ...and the sector it is in
     int numTurns;           // the pose: these joints turned this much (only drawn)
@@ -275,6 +314,15 @@ static int iosSelfie_PartOf(const char* name)
         if (iosSelfie_EndsWith(n, up1)) return base;
         if (iosSelfie_EndsWith(n, up2) && !iosSelfie_EndsWith(n, "earm")) return base; // "rarm", not "forearm"
         if (iosSelfie_EndsWith(n, ha1) || iosSelfie_EndsWith(n, ha2)) return base + 2;
+        char th1[16], th2[16], ca[16], ft[16];
+        snprintf(th1, sizeof(th1), "%cthigh", c);
+        snprintf(th2, sizeof(th2), "_%cleg", c); // ("rleg" above "rcalf"; not "...upperleg")
+        snprintf(ca, sizeof(ca), "%ccalf", c);
+        snprintf(ft, sizeof(ft), "%cfoot", c);
+        const int leg = side ? IOSSELFIE_PART_LTHIGH : IOSSELFIE_PART_RTHIGH;
+        if (iosSelfie_EndsWith(n, th1) || iosSelfie_EndsWith(n, th2) || !strcmp(n, th2 + 1)) return leg;
+        if (iosSelfie_EndsWith(n, ca)) return leg + 1;
+        if (iosSelfie_EndsWith(n, ft)) return leg + 2;
     }
     if (iosSelfie_EndsWith(n, "head")) return IOSSELFIE_PART_HEAD;
     if (iosSelfie_EndsWith(n, "neck")) return IOSSELFIE_PART_NECK;
@@ -399,7 +447,14 @@ typedef struct {
     rdVector3 pos;
     rdVector3 look;
     SithSector* sector;
+    flex_t tilt;            // degrees round the line of sight
 } iosSelfieCam;
+
+// This selfie's phone: in the left hand (else the right), and held
+// this much above the head
+static int iosSelfie_bPhoneLeft = 0;
+static rdVector3 iosSelfie_camPos; // where it is (while a selfie is up)
+static flex_t iosSelfie_camLift = IOSSELFIE_CAM_LIFT;
 
 // The camera spot for the people in it: out from the player's head, in the
 // direction away from the others (or straight ahead, alone), turned a bit
@@ -476,7 +531,7 @@ static int iosSelfie_PlaceCamera(iosSelfieCam* out)
     // held as usual
     for (int high = 0; high < 2 && bestVisible < iosSelfie_numPeople; high++)
     for (int k = 0; k < IOSSELFIE_NUM_DIRS; k++) {
-        int step = aStep[k];
+        int step = iosSelfie_bPhoneLeft ? -aStep[k] : aStep[k]; // (the other way round for the other hand)
         flex_t a = (flex_t)step * (flex_t)(2.0 * M_PI / IOSSELFIE_NUM_DIRS);
         rdVector3 dir = { away.x * cosf(a) - away.y * sinf(a), away.x * sinf(a) + away.y * cosf(a), 0 };
 
@@ -484,7 +539,8 @@ static int iosSelfie_PlaceCamera(iosSelfieCam* out)
             iosSelfieCam c;
             rdVector_Copy3(&c.pos, &me->head);
             rdVector_ScaleAdd3Acc(&c.pos, &dir, D);
-            c.pos.z += high ? IOSSELFIE_CAM_LIFT_HIGH : IOSSELFIE_CAM_LIFT;
+            c.pos.z += high ? IOSSELFIE_CAM_LIFT_HIGH : iosSelfie_camLift;
+            c.tilt = 0;
             c.look = mid;
             // Everyone inside the frame?
             rdVector3 f;
@@ -509,6 +565,12 @@ static int iosSelfie_PlaceCamera(iosSelfieCam* out)
             if (!iosSelfie_Clear(me->headSector, &me->head, &c.pos, 0.0f, &c.sector)) {
                 IOSSELFIE_LOG("camera try: step %d, %.3f out: no room\n", step, (double)D);
                 break; // further only hits it too
+            }
+            // Not right up against a wall or an opening (too near one, the
+            // view past it can come out black)
+            if (!sithIntersect_IsSphereInSector(&c.pos, IOSSELFIE_CAM_CLEARANCE, c.sector)) {
+                IOSSELFIE_LOG("camera try: step %d, %.3f out: too near a wall\n", step, (double)D);
+                continue;
             }
             // Who is seen: not behind a wall, nor right behind the player
             int visible = 0;
@@ -540,8 +602,71 @@ static int iosSelfie_PlaceCamera(iosSelfieCam* out)
         }
         if (bestVisible == iosSelfie_numPeople) break; // everyone seen: good enough
     }
-    IOSSELFIE_LOG("camera chosen: %.3f out, %d of %d seen\n", (double)bestDist, bestVisible, iosSelfie_numPeople);
+    // Now and then tilted a little, as a hand holds it
+    if (bestVisible >= 1 && iosSelfie_Rand() % 100 < IOSSELFIE_TILT_CHANCE)
+        out->tilt = (iosSelfie_Rand01() * 2.0f - 1.0f) * IOSSELFIE_TILT_MAX;
+    IOSSELFIE_LOG("camera chosen: %.3f out, %d of %d seen, lift %.3f, tilt %.1f, phone in the %s hand\n", (double)bestDist, bestVisible,
+                  iosSelfie_numPeople, (double)iosSelfie_camLift, (double)out->tilt, iosSelfie_bPhoneLeft ? "left" : "right");
+    // A good selfie: most of them seen, from not too far (else fewer people)
+    if (iosSelfie_numPeople > 1 && (bestVisible * 2 <= iosSelfie_numPeople || bestDist > IOSSELFIE_CAM_GOOD))
+        return 0;
     return bestVisible >= 1;
+}
+
+// Whether a head is well inside the photo (looser than when placing the
+// camera: someone crouching is lower in it)
+static int iosSelfie_InFrame(const iosSelfieCam* c, const rdVector3* head)
+{
+    rdVector3 f, r, u, v, up = { 0, 0, 1 };
+    rdVector_Sub3(&f, &c->look, &c->pos);
+    if (rdVector_Normalize3Acc(&f) < 1e-6f) return 0;
+    rdVector_Cross3(&r, &f, &up);
+    if (rdVector_Normalize3Acc(&r) < 1e-6f) return 0;
+    rdVector_Cross3(&u, &r, &f);
+    rdVector_Sub3(&v, head, &c->pos);
+    const flex_t z = rdVector_Dot3(&v, &f);
+    if (z < 0.03f) return 0;
+    const flex_t tanY = tanf(IOSSELFIE_FOV * 0.5f * (flex_t)M_PI / 180.0f);
+    const flex_t tanX = (Window_xSize > 0 && Window_ySize > 0) ? tanY * Window_xSize / Window_ySize : tanY / 0.46f;
+    return fabsf(rdVector_Dot3(&v, &r)) / z < tanX * 0.75f && fabsf(rdVector_Dot3(&v, &u)) / z < tanY * 0.75f;
+}
+
+// How someone stands for the photo: some of the front row (the nearer half
+// of the others, as the camera sees them) crouch or kneel; someone alone
+// with the player now and then
+#ifdef IOSSELFIE_DEBUG
+int iosSelfie_debugStance = -1; // (the rig: everyone else stands so)
+#endif
+static int iosSelfie_PickStance(int i, const iosSelfieCam* c)
+{
+#ifdef IOSSELFIE_DEBUG
+    if (iosSelfie_debugStance >= 0) return iosSelfie_debugStance;
+#endif
+    const int numOthers = iosSelfie_numPeople - 1;
+    if (numOthers < 1) return IOSSELFIE_STANCE_STAND;
+    rdVector3 f;
+    rdVector_Sub3(&f, &c->look, &c->pos);
+    rdVector_Normalize3Acc(&f);
+    int chance = IOSSELFIE_ALONE_CROUCH_CHANCE;
+    if (numOthers >= 2) {
+        rdVector3 v;
+        rdVector_Sub3(&v, &iosSelfie_aPeople[i].head, &c->pos);
+        const flex_t depth = rdVector_Dot3(&v, &f);
+        int nearer = 0;
+        for (int k = 1; k < iosSelfie_numPeople; k++) {
+            if (k == i) continue;
+            rdVector_Sub3(&v, &iosSelfie_aPeople[k].head, &c->pos);
+            if (rdVector_Dot3(&v, &f) < depth) nearer++;
+        }
+        if (nearer >= (numOthers + 1) / 2) return IOSSELFIE_STANCE_STAND; // the back row
+        chance = IOSSELFIE_FRONT_ROW_CHANCE;
+    }
+    if (iosSelfie_Rand() % 100 >= (uint32_t)chance) return IOSSELFIE_STANCE_STAND;
+    switch (iosSelfie_Rand() % 4) {
+        case 0: return IOSSELFIE_STANCE_KNEEL_R;
+        case 1: return IOSSELFIE_STANCE_KNEEL_L;
+        default: return IOSSELFIE_STANCE_CROUCH;
+    }
 }
 
 // ------------------------------------------------------------ posing
@@ -557,6 +682,18 @@ static void iosSelfie_Face(SithThing* t, const rdVector3* at)
     t->orient.lvec = l;
     t->orient.uvec = up;
     rdVector_Cross3(&t->orient.rvec, &l, &up);
+    rdVector_Normalize3Acc(&t->orient.rvec);
+}
+
+// Turns a person this much further round the vertical (+: to their left)
+static void iosSelfie_Turn(SithThing* t, flex_t angle)
+{
+    if (angle == 0) return;
+    const flex_t c = cosf(angle), s = sinf(angle);
+    rdVector3 l = t->orient.lvec;
+    t->orient.lvec = (rdVector3){ l.x * c - l.y * s, l.x * s + l.y * c, 0 };
+    rdVector_Normalize3Acc(&t->orient.lvec);
+    rdVector_Cross3(&t->orient.rvec, &t->orient.lvec, &t->orient.uvec);
     rdVector_Normalize3Acc(&t->orient.rvec);
 }
 
@@ -653,6 +790,7 @@ void iosSelfie_PoseNode(struct rdThing* pThing, int node, struct rdMatrix34* m)
     for (int i = 0; i < iosSelfie_numPeople; i++) {
         iosSelfiePerson* p = &iosSelfie_aPeople[i];
         if (&p->thing->renderData != pThing) continue;
+        if (node == p->shiftNode) rdVector_Add3Acc(&m->scale, &p->shift);
         for (int k = 0; k < p->numTurns; k++) {
             if (p->aTurnNode[k] != node) continue;
             rdMatrix34 r;
@@ -770,17 +908,210 @@ static int iosSelfie_NeighbourDirs(const iosSelfiePerson* p, int side, rdVector3
 // Works out the joint turns for the person's pose, from their rest pose:
 // each arm, upper arm first; then the neck and head to look straight into
 // the camera, the head tilted a little to one side
+// ------------------------------------------------------------ legs
+
+// The parent of a joint (-1: none)
+static int iosSelfie_ParentOf(const rdModel3* m, int node)
+{
+    const rdHierarchyNode* up = m->aHierarchyNodes[node].parent;
+    return up ? (int)(up - m->aHierarchyNodes) : -1;
+}
+
+// Whether joint a is b, or holds it (somewhere up b's chain)
+static int iosSelfie_Holds(const rdModel3* m, int a, int b)
+{
+    for (int n = b, k = 0; n >= 0 && k < 64; n = iosSelfie_ParentOf(m, n), k++)
+        if (n == a) return 1;
+    return 0;
+}
+
+// Whether the legs can bend: hip to knee to ankle on both sides
+static int iosSelfie_CanBendLegs(const iosSelfiePerson* p)
+{
+    const rdModel3* m = p->thing->renderData.model3;
+    for (int side = 0; side < 2; side++) {
+        const int leg = side ? IOSSELFIE_PART_LTHIGH : IOSSELFIE_PART_RTHIGH;
+        const int thigh = p->aPart[leg], calf = p->aPart[leg + 1], foot = p->aPart[leg + 2];
+        if (thigh < 0 || calf < 0 || foot < 0) return 0;
+        if (iosSelfie_ParentOf(m, calf) != thigh || iosSelfie_ParentOf(m, foot) != calf) return 0;
+        // (and the body above doesn't hang from the legs)
+        if (p->aPart[IOSSELFIE_PART_TORSO] >= 0 && iosSelfie_Holds(m, thigh, p->aPart[IOSSELFIE_PART_TORSO])) return 0;
+    }
+    return 1;
+}
+
+// Aims a bone at a point
+static void iosSelfie_AimAt(iosSelfiePerson* p, int node, int toward, const rdVector3* at)
+{
+    rdVector3 from, want;
+    iosSelfie_JointAt(&from, &p->thing->renderData, node);
+    rdVector_Sub3(&want, at, &from);
+    if (rdVector_Len3(&want) < 1e-6f) return;
+    iosSelfie_Aim(p, node, toward, &want);
+}
+
+// Turns a joint back to how it was facing (rest: its world turn then):
+// a foot kept flat on the floor
+static void iosSelfie_Keep(iosSelfiePerson* p, int node, const rdMatrix34* rest)
+{
+    if (node < 0 || p->numTurns >= IOSSELFIE_MAX_TURNS) return;
+    const rdMatrix34* w = &p->thing->renderData.paJointMatrices[node];
+    rdMatrix34* turn = &p->aTurn[p->numTurns];
+    rdMatrix_Identity34(turn);
+    iosSelfie_Unrotate(&turn->rvec, w, &rest->rvec);
+    iosSelfie_Unrotate(&turn->lvec, w, &rest->lvec);
+    iosSelfie_Unrotate(&turn->uvec, w, &rest->uvec);
+    p->aTurnNode[p->numTurns] = node;
+    p->numTurns++;
+    iosSelfie_Build(p->thing);
+}
+
+// One leg, hip to ankle: the ankle at `at`, the knee bending toward `pole`
+static void iosSelfie_Leg(iosSelfiePerson* p, int side, const rdVector3* at, const rdVector3* pole)
+{
+    const rdThing* r = &p->thing->renderData;
+    const int leg = side ? IOSSELFIE_PART_LTHIGH : IOSSELFIE_PART_RTHIGH;
+    const int thigh = p->aPart[leg], calf = p->aPart[leg + 1], foot = p->aPart[leg + 2];
+    rdVector3 hip, knee, ankle, d;
+    iosSelfie_JointAt(&hip, r, thigh);
+    iosSelfie_JointAt(&knee, r, calf);
+    iosSelfie_JointAt(&ankle, r, foot);
+    rdVector_Sub3(&d, &knee, &hip);
+    const flex_t a = rdVector_Len3(&d);
+    rdVector_Sub3(&d, &ankle, &knee);
+    const flex_t b = rdVector_Len3(&d);
+    rdVector_Sub3(&d, at, &hip);
+    flex_t len = rdVector_Normalize3Acc(&d);
+    if (a < 1e-4f || b < 1e-4f || len < 1e-5f) return;
+    // (as far as the leg reaches, and no nearer than it folds)
+    len = fmaxf(fabsf(a - b) + 1e-4f, fminf(len, (a + b) * 0.999f));
+    // the knee: off the hip-to-ankle line, toward the pole
+    rdVector3 bend = *pole;
+    rdVector_ScaleAdd3Acc(&bend, &d, -rdVector_Dot3(pole, &d));
+    if (rdVector_Normalize3Acc(&bend) < 1e-5f) bend = p->thing->orient.lvec;
+    flex_t cosA = (a * a + len * len - b * b) / (2.0f * a * len);
+    cosA = fmaxf(-1.0f, fminf(1.0f, cosA));
+    const flex_t sinA = sqrtf(fmaxf(0.0f, 1.0f - cosA * cosA));
+    rdVector3 kneeAt = hip, ankleAt = hip;
+    rdVector_ScaleAdd3Acc(&kneeAt, &d, a * cosA);
+    rdVector_ScaleAdd3Acc(&kneeAt, &bend, a * sinA);
+    rdVector_ScaleAdd3Acc(&ankleAt, &d, len);
+    iosSelfie_AimAt(p, thigh, calf, &kneeAt);
+    iosSelfie_AimAt(p, calf, foot, &ankleAt);
+}
+
+// Crouching, or kneeling on one knee: the hips lowered and the legs bent
+// under them, the feet (but a kneeling one) flat where they were
+static void iosSelfie_Stance(iosSelfiePerson* p)
+{
+    SithThing* t = p->thing;
+    const rdThing* r = &t->renderData;
+    const rdModel3* m = r->model3;
+    const int aThigh[2] = { p->aPart[IOSSELFIE_PART_RTHIGH], p->aPart[IOSSELFIE_PART_LTHIGH] };
+    const int aCalf[2] = { p->aPart[IOSSELFIE_PART_RCALF], p->aPart[IOSSELFIE_PART_LCALF] };
+    const int aFoot[2] = { p->aPart[IOSSELFIE_PART_RFOOT], p->aPart[IOSSELFIE_PART_LFOOT] };
+    rdVector3 hip[2], knee[2], ankle[2];
+    rdMatrix34 footRest[2];
+    flex_t a[2], b[2];
+    for (int side = 0; side < 2; side++) {
+        rdVector3 d;
+        iosSelfie_JointAt(&hip[side], r, aThigh[side]);
+        iosSelfie_JointAt(&knee[side], r, aCalf[side]);
+        iosSelfie_JointAt(&ankle[side], r, aFoot[side]);
+        rdVector_Sub3(&d, &knee[side], &hip[side]);
+        a[side] = rdVector_Len3(&d);
+        rdVector_Sub3(&d, &ankle[side], &knee[side]);
+        b[side] = rdVector_Len3(&d);
+        footRest[side] = r->paJointMatrices[aFoot[side]];
+    }
+    const rdVector3 fwd = t->orient.lvec, right = t->orient.rvec;
+    const flex_t floorZ = fminf(ankle[0].z, ankle[1].z); // (the ankles' height, standing)
+    const flex_t hipZ = (hip[0].z + hip[1].z) * 0.5f;
+    const int kneel = p->stance == IOSSELFIE_STANCE_KNEEL_R ? 0 : (p->stance == IOSSELFIE_STANCE_KNEEL_L ? 1 : -1);
+    flex_t drop = kneel >= 0
+        ? hipZ - (floorZ + a[kneel] * 0.95f)           // the thigh upright over the knee
+        : IOSSELFIE_CROUCH_DROP * (a[0] + b[0]);
+    drop = fmaxf(0.0f, fminf(drop, 0.8f * (a[0] + b[0])));
+    if (drop < 1e-4f) return;
+
+    // The whole body down, from the joint at the top of the tree
+    int root = aThigh[0];
+    for (int k = 0; k < 64 && iosSelfie_ParentOf(m, root) >= 0; k++) root = iosSelfie_ParentOf(m, root);
+    const rdVector3 down = { 0, 0, -drop };
+    p->shiftNode = root;
+    iosSelfie_Unrotate(&p->shift, &t->orient, &down); // (the root's parent: the thing's own frame)
+    iosSelfie_Build(t);
+
+    for (int side = 0; side < 2; side++) {
+        const flex_t out = side ? -1.0f : 1.0f; // (toward this side)
+        if (side == kneel) {
+            // the knee on the floor a little forward of the hip, the shin
+            // flat behind it
+            rdVector3 at, now, back;
+            iosSelfie_JointAt(&now, r, aThigh[side]);
+            at = now;
+            rdVector_ScaleAdd3Acc(&at, &fwd, a[side] * 0.15f);
+            at.z = floorZ;
+            iosSelfie_AimAt(p, aThigh[side], aCalf[side], &at);
+            rdVector_Neg3(&back, &fwd);
+            back.z -= 0.05f;
+            iosSelfie_Aim(p, aCalf[side], aFoot[side], &back);
+            continue;
+        }
+        rdVector3 at = ankle[side], pole = fwd;
+        if (kneel >= 0) {
+            // the other foot planted forward, its knee up
+            rdVector_ScaleAdd3Acc(&at, &fwd, a[side] * 0.6f);
+            pole.z += 0.6f;
+        }
+        else {
+            // both knees forward and a little apart
+            rdVector_ScaleAdd3Acc(&pole, &right, 0.35f * out);
+        }
+        iosSelfie_Leg(p, side, &at, &pole);
+        iosSelfie_Keep(p, aFoot[side], &footRest[side]);
+    }
+}
+
+// Leaning to one side, from the waist: only for a body whose legs don't
+// hang from the chest (they would lean too, off the floor)
+static void iosSelfie_Lean(iosSelfiePerson* p)
+{
+    const int torso = p->aPart[IOSSELFIE_PART_TORSO];
+    if (p->lean == 0 || torso < 0 || p->numTurns >= IOSSELFIE_MAX_TURNS) return;
+    const rdModel3* m = p->thing->renderData.model3;
+    for (int part = IOSSELFIE_PART_RTHIGH; part <= IOSSELFIE_PART_LFOOT; part++)
+        if (p->aPart[part] >= 0 && iosSelfie_Holds(m, torso, p->aPart[part])) return;
+    const rdMatrix34* w = &p->thing->renderData.paJointMatrices[torso];
+    rdVector3 axis;
+    iosSelfie_Unrotate(&axis, w, &p->thing->orient.lvec);
+    if (rdVector_Normalize3Acc(&axis) < 1e-6f) return;
+    iosSelfie_AxisAngle(&p->aTurn[p->numTurns], &axis, p->lean);
+    p->aTurnNode[p->numTurns] = torso;
+    p->numTurns++;
+    iosSelfie_Build(p->thing);
+}
+
 static void iosSelfie_SolvePose(iosSelfiePerson* p, const rdVector3* camPos)
 {
     SithThing* t = p->thing;
     rdThing* r = &t->renderData;
     p->numTurns = 0;
+    p->shiftNode = -1;
+    rdVector_Zero3(&p->shift);
     iosSelfie_Build(t);
     if (p->pose < 0) return;
+    if (p->stance != IOSSELFIE_STANCE_STAND) {
+        if (iosSelfie_CanBendLegs(p))
+            iosSelfie_Stance(p);
+        else
+            p->stance = IOSSELFIE_STANCE_STAND;
+    }
+    iosSelfie_Lean(p);
     for (int side = 0; side < 2; side++) {
         const int partUp = side ? IOSSELFIE_PART_LUPPER : IOSSELFIE_PART_RUPPER;
         rdVector3 up, fore;
-        if (!side && p->armR < 0) {
+        if ((side ? p->armL : p->armR) < 0) {
             // The phone: the whole arm reaching straight for the camera
             rdVector3 shoulder;
             iosSelfie_JointAt(&shoulder, r, p->aPart[partUp]);
@@ -937,10 +1268,23 @@ int iosSelfie_Begin(int pose, int* pNumPeople)
         iosSelfie_HeadOf(p);
     }
 
+    // How this one is held: which hand, how high
+    iosSelfie_bPhoneLeft = iosSelfie_Rand() % 100 < IOSSELFIE_LEFT_HAND_CHANCE;
+    {
+        uint32_t h = iosSelfie_Rand() % 100;
+        iosSelfie_camLift = h < IOSSELFIE_CAM_HIGH_CHANCE ? IOSSELFIE_CAM_LIFT_UP
+            : (h < IOSSELFIE_CAM_HIGH_CHANCE + IOSSELFIE_CAM_LOW_CHANCE ? IOSSELFIE_CAM_LIFT_DOWN : IOSSELFIE_CAM_LIFT);
+    }
+    // No room for a camera with everyone in it: the furthest away left out,
+    // one by one (down to a selfie alone)
     iosSelfieCam cam;
-    if (!iosSelfie_PlaceCamera(&cam)) {
-        iosSelfie_numPeople = 0;
-        return 0;
+    while (!iosSelfie_PlaceCamera(&cam)) {
+        if (iosSelfie_numPeople <= 1) {
+            iosSelfie_numPeople = 0;
+            return 0;
+        }
+        iosSelfie_numPeople--;
+        IOSSELFIE_LOG("no room for everyone: %d people now\n", iosSelfie_numPeople);
     }
 
     // From here on everything changed is saved first, and put back by End
@@ -967,13 +1311,30 @@ int iosSelfie_Begin(int pose, int* pNumPeople)
         iosSelfiePerson* p = &iosSelfie_aPeople[i];
         SithThing* t = p->thing;
         p->light = t->light;
+        p->shiftNode = -1;
         iosSelfie_Face(t, &cam.pos);
+        // Square on, or turned three-quarters; the player turned a little
+        // away from the phone hand, so that arm reaches out to the side and
+        // not across the face
+        {
+            flex_t turn = (iosSelfie_Rand01() * 2.0f - 1.0f) * IOSSELFIE_TURN_SMALL;
+            if (i == 0) turn += iosSelfie_bPhoneLeft ? -IOSSELFIE_PHONE_TURN : IOSSELFIE_PHONE_TURN;
+            if (i > 0 && iosSelfie_Rand() % 100 < IOSSELFIE_TURN_CHANCE)
+                turn = (iosSelfie_Rand() & 1 ? 1.0f : -1.0f) * IOSSELFIE_TURN_MAX * (0.5f + 0.5f * iosSelfie_Rand01());
+            iosSelfie_Turn(t, turn);
+        }
+        p->lean = 0;
+        if (iosSelfie_Rand() % 100 < IOSSELFIE_LEAN_CHANCE)
+            p->lean = (iosSelfie_Rand01() * 2.0f - 1.0f) * IOSSELFIE_LEAN_MAX * (i == 0 ? 0.5f : 1.0f);
+        p->stance = i > 0 ? iosSelfie_PickStance(i, &cam) : IOSSELFIE_STANCE_STAND;
         p->headTilt = (iosSelfie_Rand01() - 0.5f) * 0.35f;
         if (i == 0) {
             p->pose = 0;
-            p->armR = -1; // the phone
-            p->armL = pose >= 0 ? pose : iosSelfie_PickFreeArm();
-            if (group >= 0) p->armL = iosSelfie_aGesture[group].bPairOnly ? IOSSELFIE_ARM_HIP : group;
+            int free = pose >= 0 ? pose : iosSelfie_PickFreeArm();
+            if (group >= 0) free = iosSelfie_aGesture[group].bPairOnly ? IOSSELFIE_ARM_HIP : group;
+            // the phone (-1) in one hand, the other free
+            p->armR = iosSelfie_bPhoneLeft ? free : -1;
+            p->armL = iosSelfie_bPhoneLeft ? -1 : free;
             t->flags &= ~SITH_TF_RENDERWEAPON; // holstered, for the photo only
             // The flash: light from the phone in the player's hand
             t->flags |= SITH_TF_EMITLIGHT;
@@ -995,9 +1356,22 @@ int iosSelfie_Begin(int pose, int* pNumPeople)
         else
             iosSelfie_Stand(p);
         iosSelfie_SolvePose(p, &cam.pos);
-        IOSSELFIE_LOG("person %d (%s): %s / %s, %d joints turned\n", i, t->renderData.model3->filename,
+        if (p->stance != IOSSELFIE_STANCE_STAND) {
+            // Down low, a face can end up behind someone in front: then
+            // standing after all
+            iosSelfie_HeadOf(p);
+            if (iosSelfie_Hidden(&cam.pos, i) || !iosSelfie_InFrame(&cam, &p->head)) {
+                IOSSELFIE_LOG("person %d: stands after all (hidden down there)\n", i);
+                p->stance = IOSSELFIE_STANCE_STAND;
+                iosSelfie_SolvePose(p, &cam.pos);
+            }
+        }
+        iosSelfie_HeadOf(p);
+        IOSSELFIE_LOG("person %d (%s): %s / %s, %s, lean %.2f, %d joints turned\n", i, t->renderData.model3->filename,
                       p->pose < 0 ? "-" : (p->armR < 0 ? "phone" : iosSelfie_aGesture[p->armR].name),
-                      p->pose < 0 ? "-" : iosSelfie_aGesture[p->armL].name, p->numTurns);
+                      p->pose < 0 ? "-" : (p->armL < 0 ? "phone" : iosSelfie_aGesture[p->armL].name),
+                      p->stance == IOSSELFIE_STANCE_CROUCH ? "crouching" : (p->stance >= IOSSELFIE_STANCE_KNEEL_R ? "kneeling" : "standing"),
+                      (double)p->lean, p->numTurns);
     }
 
     // Shots and blasts frozen in front of a face are left out of the photo
@@ -1038,7 +1412,11 @@ int iosSelfie_Begin(int pose, int* pNumPeople)
     iosSelfie_savedShakePosDelta = sithCamera_g_cameraPosDelta;
     iosSelfie_savedShakeAngleDelta = sithCamera_g_cameraAngleDelta;
     c->pSecondaryFocusThing = NULL;
-    rdMatrix_LookAt(&c->orient, &cam.pos, &cam.look, 0.0f);
+    rdMatrix_LookAt(&c->orient, &cam.pos, &cam.look, cam.tilt);
+    iosSelfie_camPos = cam.pos;
+    IOSSELFIE_LOG("camera in sector %d (inside: %d) at %f %f %f looking at %f %f %f\n", cam.sector ? (int)(cam.sector - w->aSectors) : -1,
+                  cam.sector ? sithIntersect_IsSphereInSector(&cam.pos, 0.0f, cam.sector) : 0,
+                  (double)cam.pos.x, (double)cam.pos.y, (double)cam.pos.z, (double)cam.look.x, (double)cam.look.y, (double)cam.look.z);
     c->sector = cam.sector;
     c->pPrimaryFocusThing = me;
     sithCamera_SetCurrentCamera(c);
@@ -1095,10 +1473,29 @@ void iosSelfie_End(void)
 
 #ifdef IOSSELFIE_DEBUG
 // The rig: everyone in the selfie drawn in their model's rest pose
+// (the rig: the selfie camera put here, in whichever sector holds it)
+void iosSelfie_DebugCam(float x, float y, float z, float lx, float ly, float lz)
+{
+    if (!iosSelfie_bActive) return;
+    SithCamera* c = &sithCamera_g_aCameras[2];
+    rdVector3 pos = { x, y, z }, look = { lx, ly, lz };
+    SithSector* sec = NULL;
+    iosSelfie_Clear(iosSelfie_aPeople[0].headSector, &iosSelfie_aPeople[0].head, &pos, 0.0f, &sec);
+    rdMatrix_LookAt(&c->orient, &pos, &look, 0.0f);
+    if (sec) c->sector = sec;
+    IOSSELFIE_LOG("debug camera in sector %d\n", sec ? (int)(sec - sithWorld_g_pCurrentWorld->aSectors) : -1);
+}
+
+void iosSelfie_DebugSeed(unsigned int seed)
+{
+    iosSelfie_seed = seed ? seed : 1;
+}
+
 void iosSelfie_DebugRest(void)
 {
     for (int i = 0; i < iosSelfie_numPeople; i++) {
         iosSelfie_aPeople[i].numTurns = 0;
+        iosSelfie_aPeople[i].shiftNode = -1;
         rdPuppet* rp = iosSelfie_aPeople[i].thing->renderData.puppet;
         if (rp) rp->bPaused = 1;
         iosSelfie_aPeople[i].thing->renderData.rdFrameNum = 0;
@@ -1141,6 +1538,25 @@ int iosSelfie_HidesThing(SithThing* pThing)
     for (int i = 0; i < iosSelfie_numHidden; i++)
         if (iosSelfie_apHidden[i] == pThing) return 1;
     return 0;
+}
+
+int iosSelfie_HidesBlade(const rdMatrix34* m, float length)
+{
+    if (!iosSelfie_bActive || !m) return 0;
+    // the nearest point of the blade to the camera
+    rdVector3 v;
+    rdVector_Sub3(&v, &iosSelfie_camPos, &m->scale);
+    flex_t along = rdVector_Dot3(&v, &m->lvec);
+    along = fmaxf(0.0f, fminf((flex_t)length, along));
+    rdVector3 at = m->scale;
+    rdVector_ScaleAdd3Acc(&at, &m->lvec, along);
+    rdVector_Sub3(&v, &at, &iosSelfie_camPos);
+    if (rdVector_Len3(&v) < IOSSELFIE_BLADE_CLEARANCE) return 1;
+    // or well in front of the player's face (across the front of the photo)
+    rdVector3 me;
+    rdVector_Sub3(&me, &iosSelfie_aPeople[0].head, &iosSelfie_camPos);
+    const flex_t faceDepth = rdVector_Normalize3Acc(&me);
+    return faceDepth > 1e-4f && rdVector_Dot3(&v, &me) < faceDepth * IOSSELFIE_BLADE_FRONT;
 }
 
 int iosSelfie_SetLens(struct rdCamera* pCamera)
