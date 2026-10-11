@@ -20,6 +20,11 @@ extern "C" {
 // videoW x videoH HUD. All 0 if the window or its safe area isn't known yet.
 void iosSafeArea_GetHudMargins(int videoW, int videoH, int* pLeft, int* pRight, int* pBottom);
 
+// Where the game's top message text goes, in HUD units: the left edge and
+// width its lines are wrapped and centred in, and the top of the first line
+// (under the touch overlay's top button row, clear of its buttons).
+void iosSafeArea_GetTopTextRect(int videoW, int videoH, int* pX, int* pY, int* pW);
+
 #ifdef __cplusplus
 }
 #endif

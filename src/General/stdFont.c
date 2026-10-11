@@ -2193,3 +2193,129 @@ LABEL_26:
     }
     return (blit_y - orig_blit_y) + INT_FLOAT_SCALED(a5a.height, scale);//v9 - blit_x;
 }
+
+// Added: centred lines wrapped between words, for the iOS top message text.
+// A word wider than the whole line is still broken between letters. Draws only
+// when bDraw is set; returns the height used either way.
+static int stdFont_WrapAdvance(stdFont *font, char16_t ch, int* pGlyphX, int* pGlyphW)
+{
+    int adv;
+    *pGlyphX = 0;
+    *pGlyphW = 0;
+    if ( _iswspace(ch) )
+    {
+        adv = font->marginX;
+    }
+    else
+    {
+        uint16_t c = ch;
+        stdFontCharset* charset = stdFont_FindCharset(font, &c);
+        if ( charset )
+        {
+            *pGlyphX = charset->pEntries[c - charset->charFirst].glyphTexX;
+            *pGlyphW = charset->pEntries[c - charset->charFirst].glyphWidth;
+        }
+        adv = *pGlyphW + font->marginY;
+    }
+    if ( adv < font->monospaceW )
+        adv = font->monospaceW;
+    return adv;
+}
+
+int stdFont_DrawWrappedCenteredGPU(stdFont *font, int x, int y, int w, const char16_t *str, int alpha, flex_t scale, int bDraw)
+{
+    int gx, gw;
+    int startY = y;
+    const char16_t* p = str;
+
+    if ( !font || !str || w <= 0 )
+        return 0;
+    int lineH = INT_FLOAT_SCALED(stdFont_GetHeight(font), scale);
+
+    while ( *p )
+    {
+        // Skip the spaces a line would start with; a newline ends a line
+        while ( *p && *p != '\n' && _iswspace(*p) )
+            p++;
+        if ( !*p )
+            break;
+
+        // Take whole words while they fit
+        const char16_t* lineStart = p;
+        const char16_t* lineEnd = p;
+        int lineW = 0;
+        const char16_t* q = p;
+        while ( *q && *q != '\n' )
+        {
+            int gapW = 0;
+            while ( *q && *q != '\n' && _iswspace(*q) )
+                gapW += INT_FLOAT_SCALED(stdFont_WrapAdvance(font, *q++, &gx, &gw), scale);
+            if ( !*q || *q == '\n' )
+                break;
+            int wordW = 0;
+            const char16_t* wordEnd = q;
+            while ( *wordEnd && !_iswspace(*wordEnd) )
+                wordW += INT_FLOAT_SCALED(stdFont_WrapAdvance(font, *wordEnd++, &gx, &gw), scale);
+
+            if ( lineEnd == lineStart )
+            {
+                if ( wordW > w )
+                {
+                    // Too long for any line: as many letters as fit (at least one)
+                    wordEnd = q;
+                    wordW = 0;
+                    do
+                    {
+                        int a = INT_FLOAT_SCALED(stdFont_WrapAdvance(font, *wordEnd, &gx, &gw), scale);
+                        if ( wordEnd != q && wordW + a > w )
+                            break;
+                        wordW += a;
+                        wordEnd++;
+                    }
+                    while ( *wordEnd && !_iswspace(*wordEnd) );
+                }
+                lineW = wordW;
+                lineEnd = wordEnd;
+                q = wordEnd;
+                if ( *q && !_iswspace(*q) )
+                    break; // broke inside a word
+            }
+            else if ( lineW + gapW + wordW <= w )
+            {
+                lineW += gapW + wordW;
+                lineEnd = wordEnd;
+                q = wordEnd;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        if ( bDraw )
+        {
+            int px = x + (w - lineW) / 2;
+            for ( const char16_t* c = lineStart; c < lineEnd; c++ )
+            {
+                int a = INT_FLOAT_SCALED(stdFont_WrapAdvance(font, *c, &gx, &gw), scale);
+                if ( gw > 0 )
+                {
+                    rdRect r;
+                    r.x = gx;
+                    r.y = 0;
+                    r.width = gw;
+                    r.height = stdFont_GetHeight(font);
+                    std3D_DrawUIBitmap(font->pBitmap, 0, px, y, &r, scale, alpha);
+                }
+                px += a;
+            }
+        }
+        y += lineH;
+
+        p = lineEnd;
+        if ( *p == '\n' )
+            p++;
+    }
+
+    return y - startY;
+}

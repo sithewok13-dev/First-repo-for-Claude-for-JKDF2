@@ -112,6 +112,11 @@ void iosTouch_UpdateGyro(void);
 // Whether the overlay is holding down this SDL scancode.
 int iosTouch_IsScancodeDown(int scancode);
 
+// Where the game's top message text goes, in window points: the top of its
+// first line and the left and right edges it is wrapped between (under the
+// top button row, clear of the buttons). 0 until the overlay is laid out.
+int iosTouch_GetTopTextRectPt(float* pTop, float* pLeft, float* pRight);
+
 #ifdef __cplusplus
 }
 #endif

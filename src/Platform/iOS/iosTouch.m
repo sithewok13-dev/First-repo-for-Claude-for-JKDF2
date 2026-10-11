@@ -138,6 +138,12 @@ extern int jkHud_bChatOpen;
 // The FPS readout counts frames over at least this many seconds; whether it
 // shows is kept in the app's settings under this key
 #define IOSTOUCH_FPS_PERIOD 0.5
+// The game's top message text sits this far under the top row, and keeps
+// clear sideways of any other button whose top is less than
+// IOSTOUCH_TOPTEXT_DEPTH below the text's top (about three lines)
+#define IOSTOUCH_TOPTEXT_GAP 6.0
+#define IOSTOUCH_TOPTEXT_DEPTH 70.0
+#define IOSTOUCH_TOPTEXT_SIDE 8.0
 #define IOSTOUCH_FPS_DEFAULTS_KEY @"iosTouchShowFps"
 // Gyro aiming (see iosTouch_GyroUpdate). CoreMotion's device motion gives the
 // rotation rate with the gyro's bias already taken out, IOSTOUCH_GYRO_HZ
@@ -431,6 +437,9 @@ static CGFloat iosTouch_runDeg = 90.0;
 static int iosTouch_bStickRunning = 0;
 // The HUD gauge rectangle and cutout side the current layout was made for
 static int iosTouch_bLayoutGauge = 0;
+// Where the game's top message text goes, in points: top, left, right
+static int iosTouch_bTopText = 0;
+static float iosTouch_aTopText[3];
 static float iosTouch_aLayoutGauge[4];
 static int iosTouch_layoutCutoutRight = -1;
 // The wheel: open or not (and whether it is open to tap a slice), which one
@@ -1510,6 +1519,30 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     // The FPS readout where the keyboard button used to be, left of QUICK
     // SAVE: the game draws its messages and typing line centred at the top
     fpsLabel.center = CGPointMake(right - 216, top + 26);
+
+    // The game's top message text and typing line (iosTouch_GetTopTextRectPt):
+    // just under the top row, centred on the screen, and only as wide as keeps
+    // it clear of any other button up near it (FORCE or ALT, on smaller screens)
+    {
+        const CGFloat textTop = top + 26 + iosTouch_aButtons[BTN_MENU].radius + IOSTOUCH_TOPTEXT_GAP;
+        CGFloat half = MIN(W * 0.5 - (left + IOSTOUCH_TOPTEXT_SIDE), (right - IOSTOUCH_TOPTEXT_SIDE) - W * 0.5);
+        for (int i = 0; i < IOSTOUCH_NUM_BUTTONS; i++) {
+            if (i >= BTN_TRAY_FIRST && i <= BTN_TRAY_LAST) continue; // only over the text while open
+            int bTopRow = 0;
+            for (int t = 0; t < IOSTOUCH_COUNT(aTopRow); t++) {
+                if (aTopRow[t] == i) bTopRow = 1;
+            }
+            if (bTopRow) continue;
+            iosTouchButton* q = &iosTouch_aButtons[i];
+            if (q->y - q->radius - IOSTOUCH_TOUCH_SLOP > textTop + IOSTOUCH_TOPTEXT_DEPTH) continue;
+            half = MIN(half, fabs(q->x - W * 0.5) - q->radius - IOSTOUCH_TOUCH_SLOP);
+        }
+        half = MAX(half, 60.0);
+        iosTouch_aTopText[0] = textTop;
+        iosTouch_aTopText[1] = W * 0.5 - half;
+        iosTouch_aTopText[2] = W * 0.5 + half;
+        iosTouch_bTopText = 1;
+    }
 
     for (int i = 0; i < IOSTOUCH_NUM_BUTTONS; i++) {
         aButtonViews[i].center = CGPointMake(iosTouch_aButtons[i].x, iosTouch_aButtons[i].y);
@@ -3008,6 +3041,15 @@ void iosTouch_UpdateGyro(void)
             [iosTouch_pOverlay refreshButtonLooks];
         }
     }
+}
+
+int iosTouch_GetTopTextRectPt(float* pTop, float* pLeft, float* pRight)
+{
+    if (!iosTouch_bTopText) return 0;
+    *pTop = iosTouch_aTopText[0];
+    *pLeft = iosTouch_aTopText[1];
+    *pRight = iosTouch_aTopText[2];
+    return 1;
 }
 
 // Called once per scancode each time the game reads the keyboard. Held

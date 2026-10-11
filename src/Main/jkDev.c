@@ -24,6 +24,12 @@
 #include "Dss/sithGamesave.h"
 #include "Dss/jkDSS.h"
 #include "../jk.h"
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosSafeArea.h" // Added
+
+// Added: the top message text on iOS, relative to the HUD scale
+#define JKDEV_IOS_TEXT_SCALE ((flex_t)1.33)
+#endif
 
 
 void jkDev_DrawEntriesGPU();
@@ -311,6 +317,30 @@ void jkDev_BlitLogToScreenGPU()
         return;
 
     if (!jkDev_vbuf) return;
+
+#ifdef TARGET_IOS
+    // Added: on iOS the lines go under the touch overlay's top button row, a
+    // third bigger than the rest of the HUD, wrapped between words
+    {
+        int textX, textY, textW;
+        iosSafeArea_GetTopTextRect(Video_format.width, Video_format.height, &textX, &textY, &textW);
+        flex_t textScale = jkPlayer_hudScale * JKDEV_IOS_TEXT_SCALE;
+        v1 = textY;
+        v3 = &jkDev_aEntries[0];
+        for (int i = 0; i < 5 && i < jkDev_log_55A4A4; i++)
+        {
+            int h = stdFont_DrawWrappedCenteredGPU(jkHud_pMsgFontSft, textX, v1, textW, v3->text, 1, textScale, 1);
+            if ( h <= 0 ) // a blank entry still takes its line, as before
+                h = (int)((flex_t)stdFont_GetHeight(jkHud_pMsgFontSft) * textScale);
+            v1 += h;
+            if ( v3->bDrawEntry > 0 )
+                --v3->bDrawEntry;
+            ++v3;
+        }
+        jkDev_dword_55A9D0 = (jkDev_dword_55A9D0 + 1) % 2;
+        return;
+    }
+#endif
 
     v7.x = 0;
     v7.y = 0;
