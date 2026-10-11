@@ -102,6 +102,8 @@ macro(postcompile_ios)
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/${BIN_NAME} ${BUNDLE}/${BIN_NAME}
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/Info.plist ${BUNDLE}/Info.plist
         COMMAND cp ${PROJECT_SOURCE_DIR}/packaging/icon-256.png ${BUNDLE}/AppIcon.png
+        # The CAMERA button's burst tick (iosTouch.m); made for this port
+        COMMAND cp ${PROJECT_SOURCE_DIR}/packaging/ios/burst_tick.wav ${BUNDLE}/burst_tick.wav
 
         # ANGLE. Both frameworks ship: the app links libGLESv2 for the gl* entry
         # points and libEGL for context/surface management, and libEGL resolves

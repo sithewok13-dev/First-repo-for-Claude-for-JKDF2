@@ -161,7 +161,8 @@ extern int jkHud_bChatOpen;
 #define IOSTOUCH_SELFIE_HOLD 0.5
 #define IOSTOUCH_BURST_GAP 0.2
 #define IOSTOUCH_BURST_MAX 10
-// iOS's camera shutter sound (not a documented ID, but long stable)
+// iOS's camera shutter sound (not a documented ID, but long stable); a burst
+// plays its own short tick instead (burst_tick.wav in the app)
 #define IOSTOUCH_CAMERA_SOUND 1108
 // Gyro aiming (see iosTouch_GyroUpdate). CoreMotion's device motion gives the
 // rotation rate with the gyro's bias already taken out, IOSTOUCH_GYRO_HZ
@@ -503,6 +504,7 @@ static int iosTouch_cameraKinds = IOSCAPTURE_CLEAN;
 static int iosTouch_bCamOptsOpen = 0;
 static UITouch* iosTouch_pBurstTouch = nil; // the finger a burst goes on for (not retained; only compared)
 static int iosTouch_burstShots = 0;
+static SystemSoundID iosTouch_burstSound = 0; // (0: not loaded; then the shutter)
 static CFTimeInterval iosTouch_tBurstNext = 0;
 // Gyro aiming: its mode, its sensitivity (an index into iosTouch_aGyroSens),
 // the motion manager (one for the app, as Apple asks) and the queue its
@@ -1230,6 +1232,9 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         burstLabel.hidden = YES;
         [self addSubview:burstLabel];
         cameraTap = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
+        NSURL* tickUrl = [[NSBundle mainBundle] URLForResource:@"burst_tick" withExtension:@"wav"];
+        if (tickUrl && AudioServicesCreateSystemSoundID((__bridge CFURLRef)tickUrl, &iosTouch_burstSound) != kAudioServicesNoError)
+            iosTouch_burstSound = 0;
 
         // The FPS readout, shown if it was left on
         fpsLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 54, 18)];
@@ -2022,7 +2027,7 @@ static void iosTouch_PhotosAsked(void)
     [UIView animateWithDuration:(bBurst ? 0.12 : 0.3) delay:0 options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionAllowUserInteraction
                      animations:^{ self->cameraFlash.alpha = 0.0; }
                      completion:^(BOOL done) { if (done) self->cameraFlash.hidden = YES; }];
-    AudioServicesPlaySystemSound(IOSTOUCH_CAMERA_SOUND);
+    AudioServicesPlaySystemSound((bBurst && iosTouch_burstSound) ? iosTouch_burstSound : IOSTOUCH_CAMERA_SOUND);
     [cameraTap impactOccurred];
 }
 
