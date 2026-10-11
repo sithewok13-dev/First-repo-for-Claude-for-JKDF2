@@ -21,6 +21,9 @@
 #include "Platform/GL/jkgm.h"
 
 #include "SDL2_helper.h"
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosCapture.h" // Added
+#endif
 
 #ifdef WIN32
 // Force Optimus/AMD to use non-integrated GPUs by default.
@@ -1200,6 +1203,9 @@ void std3D_DrawMenu()
     //printf("Draw menu\n");
     std3D_DrawSceneFbo();
     //glFlush();
+#ifdef TARGET_IOS
+    iosCapture_AfterScene(); // Added: the CAMERA button's clean photo
+#endif
 
     // When the software renderer presented the world this frame, its buffer already contains the HUD
     // (Video_swCompositeOverlaysIntoWorld folded it in), so the in-game menu-overlay quad is skipped.
@@ -1557,6 +1563,9 @@ void std3D_DrawMenu()
 
     std3D_DrawMapOverlay();
     std3D_DrawUIRenderList();
+#ifdef TARGET_IOS
+    iosCapture_AfterHud(); // Added: the CAMERA button's photo with the HUD
+#endif
 
     last_flags = 0;
 }

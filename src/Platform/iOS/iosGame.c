@@ -380,17 +380,25 @@ int iosGame_SelectWeapon(int bin)
     return 1;
 }
 
-static int iosGame_bHoldWanted = 0;
+static int iosGame_holdReasons = 0;
 static int iosGame_bHolding = 0;
+
+void iosGame_SetHoldReason(int reason, int bHold)
+{
+    if (bHold)
+        iosGame_holdReasons |= reason;
+    else
+        iosGame_holdReasons &= ~reason;
+}
 
 void iosGame_SetHold(int bHold)
 {
-    iosGame_bHoldWanted = bHold;
+    iosGame_SetHoldReason(IOSGAME_HOLD_WHEEL, bHold);
 }
 
 int iosGame_HoldGameplay(void)
 {
-    int bHold = iosGame_bHoldWanted && !sithNet_isMulti;
+    int bHold = iosGame_holdReasons && !sithNet_isMulti;
     if (bHold && !iosGame_bHolding)
     {
         // Sounds pause with the clock, as when the Esc menu opens
@@ -493,6 +501,16 @@ void iosGame_GetMouseLookDegrees(float* pTurn, float* pPitch)
     // far the head tilts up
     *pTurn = -iosGame_MouseAxisScale(INPUT_FUNC_TURN, AXIS_MOUSE_X);
     *pPitch = -iosGame_MouseAxisScale(INPUT_FUNC_PITCH, AXIS_MOUSE_Y);
+}
+
+void iosGame_ShowMessage(const char* pAscii)
+{
+    char16_t msg[128];
+    int i = 0;
+    for (; pAscii[i] && i < 127; i++)
+        msg[i] = (unsigned char)pAscii[i];
+    msg[i] = 0;
+    jkDev_PrintUniString(msg);
 }
 
 void iosGame_ToggleChat(void)

@@ -78,5 +78,10 @@
 	     ever starts asking for one. -->
 	<key>NSMotionUsageDescription</key>
 	<string>Turning the device aims, while gyro aiming is on (hold MENU to set it).</string>
+	<!-- The CAMERA button (iosPhotos.m) adds its photos to the library, and
+	     asks for add-only access when CAMERA is switched on in MENU's tray.
+	     Without this key iOS ends the app at that question. -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>The CAMERA button saves its photos to your library.</string>
 </dict>
 </plist>

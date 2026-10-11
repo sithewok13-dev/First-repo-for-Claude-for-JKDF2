@@ -81,8 +81,14 @@ int iosGame_GetItem(int bin, int* pAmount, int* pActive);
 // Makes an item the selected one, so the use-item key uses it.
 void iosGame_SelectItem(int bin);
 
-// While set, gameplay holds still (single player only): the world is drawn
-// but not updated. For the touch overlay's force and weapon wheels.
+// While any reason is set, gameplay holds still (single player only): the
+// world is drawn but not updated. Each reason is set and cleared on its own,
+// so one ending never lets go of another.
+#define IOSGAME_HOLD_WHEEL  1 // the touch overlay's force or weapon wheel is open
+#define IOSGAME_HOLD_PHOTOS 2 // the system is asking for Photos access
+void iosGame_SetHoldReason(int reason, int bHold);
+
+// The wheels' reason (IOSGAME_HOLD_WHEEL).
 void iosGame_SetHold(int bHold);
 
 // Called once per gameplay tick: returns 1 if this tick should not update the
@@ -96,6 +102,9 @@ int iosGame_IsHolding(void);
 
 // Opens the typing line (where cheats go), or closes it if it is open.
 void iosGame_ToggleChat(void);
+
+// A line on the game's message line, as "Game saved" is (plain ASCII).
+void iosGame_ShowMessage(const char* pAscii);
 
 // How full the force meter is, 0..1 (*pbFull: as full as it gets right now),
 // or -1 when there is no player.

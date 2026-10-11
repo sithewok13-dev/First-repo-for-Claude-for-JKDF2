@@ -230,6 +230,8 @@ if(TARGET_IOS)
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_IOS_SRCS})
     file(GLOB TARGET_IOS_M_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/iOS/*.m)
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_IOS_M_SRCS})
+    # Added: the photo saving code manages its memory with ARC
+    set_source_files_properties(${PROJECT_SOURCE_DIR}/src/Platform/iOS/iosPhotos.m PROPERTIES COMPILE_FLAGS -fobjc-arc)
 
     # No nativefiledialog-extended backend exists for iOS (nfd_cocoa.m is
     # NSOpenPanel/AppKit), so InstallHelper's folder-picker path is compiled out

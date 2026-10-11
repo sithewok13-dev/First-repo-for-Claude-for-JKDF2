@@ -18,7 +18,7 @@ function(ios_target_add_standard_deps target_name)
     foreach(fw
             UIKit Foundation CoreGraphics QuartzCore Metal
             AudioToolbox CoreAudio AVFoundation CoreMedia CoreVideo
-            CoreMotion CoreBluetooth GameController ImageIO)
+            CoreMotion CoreBluetooth GameController ImageIO Photos)
         target_link_libraries(${target_name} PRIVATE "-framework ${fw}")
     endforeach()
 
