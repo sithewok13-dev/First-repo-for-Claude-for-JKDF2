@@ -17,6 +17,8 @@
 #include "Primitives/rdMatrix.h"
 #include "Primitives/rdVector.h"
 #include "Dss/sithMulti.h"
+#include "Win95/Window.h"
+#include "Engine/rdCamera.h"
 #include "stdPlatform.h"
 #include "jk.h"
 
@@ -28,18 +30,34 @@
 #define IOSSELFIE_CAM_MAX 0.6f
 #define IOSSELFIE_CAM_STEP 0.005f
 #define IOSSELFIE_CAM_LIFT 0.008f
-// Everyone's head inside this much of the view's half-width / half-height
-// (tan of the half angle, with a margin)
-#define IOSSELFIE_FIT_X 0.72f
-#define IOSSELFIE_FIT_Y 0.38f
+// ...or this much above the head, to see over shoulders
+#define IOSSELFIE_CAM_LIFT_HIGH 0.035f
+// Everyone's head inside this share of the view's half-width and
+// half-height (near the middle, with room for the bodies below)
+#define IOSSELFIE_FIT_X 0.45f
+#define IOSSELFIE_FIT_Y 0.35f
+// The selfie camera's lens (degrees top to bottom, as the game's own lens
+// is set by default): narrower than the game's 90 (on a wide phone screen
+// some 130 across), so faces and hands near it don't bulge as in a fisheye
+#ifndef IOSSELFIE_FOV
+#define IOSSELFIE_FOV 70.0f
+#endif
+// The flash: the player gives off this much light while it is up
+#define IOSSELFIE_FLASH_LIGHT 1.6f
 #define IOSSELFIE_NUM_DIRS 16
-// Seen from the camera, another head this close to the player's (radians)
-// is hidden behind it
-#define IOSSELFIE_HIDDEN_ANGLE 0.16f
+// Seen from the camera, a face is hidden behind someone nearer within their
+// head (this much of their size: how wide they stand) or their chest and
+// shoulders (this much), with this margin (radians) for the face itself
+#define IOSSELFIE_HEAD_SIZE 0.6f
+#define IOSSELFIE_CHEST_SIZE 1.1f
+#define IOSSELFIE_FACE_MARGIN 0.05f
 // A wall this close in front of a head doesn't hide it
 #define IOSSELFIE_SIGHT_SLACK 0.03f
 // Joints a pose turns, per person
 #define IOSSELFIE_MAX_TURNS 8
+// How far a head (neck and head together) turns from straight ahead to look
+// at the camera (radians)
+#define IOSSELFIE_NECK_MAX 0.95f
 
 // The rig's log (not on the device)
 #ifdef IOSSELFIE_DEBUG
@@ -61,6 +79,7 @@ typedef struct {
     int pose;               // -1: only turns to the camera; else posing...
     int armR, armL;         // ...these gestures (IOSSELFIE_ARM_*; armR -1: the phone, toward the camera)
     flex_t headTilt;        // ...and the head this much on one side (radians)
+    flex_t light;           // the light it gave off, as it was
     rdVector3 head;         // where the head is (world)...
     SithSector* headSector; // ...and the sector it is in
     int numTurns;           // the pose: these joints turned this much (only drawn)
@@ -75,6 +94,12 @@ static SithCamera* iosSelfie_pPrevCamera = NULL;
 // The camera slot the selfie borrows, and the camera shake, as they were
 // (scripts can use slot 2; the shake winds down whenever a camera updates)
 static SithCamera iosSelfie_savedCamera;
+// Blaster bolts, sparks and blasts in front of someone's face: not drawn in
+// the selfie (iosSelfie_HidesThing)
+#define IOSSELFIE_MAX_HIDDEN 64
+#define IOSSELFIE_FACE_RADIUS 0.028f
+static SithThing* iosSelfie_apHidden[IOSSELFIE_MAX_HIDDEN];
+static int iosSelfie_numHidden = 0;
 static rdVector3 iosSelfie_savedShakePos, iosSelfie_savedShakeAngle;
 static flex_t iosSelfie_savedShakePosDelta, iosSelfie_savedShakeAngleDelta;
 // Which sectors the map had as seen (the selfie's camera looks round places
@@ -94,29 +119,39 @@ typedef struct {
     const char* name;
     rdVector3 upper, fore; // both zero: hanging down as in the rest pose
     int bPairOnly;         // only with the same gesture on the other arm
+    int weight;            // how often it comes up (arms in the air less often)
+    int bGroup;            // one a whole group can do together
 } iosSelfieGesture;
 
 enum {
     IOSSELFIE_ARM_DOWN = 0, IOSSELFIE_ARM_WAVE, IOSSELFIE_ARM_FIST, IOSSELFIE_ARM_HIP,
     IOSSELFIE_ARM_POINT, IOSSELFIE_ARM_FLEX, IOSSELFIE_ARM_SALUTE, IOSSELFIE_ARM_BEHINDHEAD,
     IOSSELFIE_ARM_OUT, IOSSELFIE_ARM_UP, IOSSELFIE_ARM_VICTORY, IOSSELFIE_ARM_PRESENT,
-    IOSSELFIE_ARM_CROSS, IOSSELFIE_ARM_NUM
+    IOSSELFIE_ARM_CROSS, IOSSELFIE_ARM_FISTFWD, IOSSELFIE_ARM_SHRUG, IOSSELFIE_ARM_CHIN,
+    IOSSELFIE_ARM_HEART, IOSSELFIE_ARM_NEIGHBOUR, IOSSELFIE_ARM_NUM
 };
 
+// (the arm round a neighbour's shoulders is worked out from where the
+// neighbour stands: iosSelfie_NeighbourDirs; without one, a hand on the hip)
 static iosSelfieGesture iosSelfie_aGesture[IOSSELFIE_ARM_NUM] = {
-    [IOSSELFIE_ARM_DOWN]       = { "down" },
-    [IOSSELFIE_ARM_WAVE]       = { "wave",         { 0.55f, 0.15f, 0.80f },  { -0.15f, 0.20f, 1.0f } },
-    [IOSSELFIE_ARM_FIST]       = { "fist up",      { 0.20f, 0.10f, 1.0f },   { 0.05f, 0.05f, 1.0f } },
-    [IOSSELFIE_ARM_HIP]        = { "hand on hip",  { 0.75f, -0.10f, -0.65f }, { -0.70f, 0.15f, -0.55f } },
-    [IOSSELFIE_ARM_POINT]      = { "point",        { 0.25f, 0.95f, 0.10f },  { 0.20f, 1.0f, 0.15f } },
-    [IOSSELFIE_ARM_FLEX]       = { "flex",         { 1.0f, 0.05f, 0.05f },   { 0.0f, 0.15f, 1.0f } },
-    [IOSSELFIE_ARM_SALUTE]     = { "salute",       { 0.70f, 0.50f, 0.20f },  { -0.60f, 0.10f, 0.80f } },
-    [IOSSELFIE_ARM_BEHINDHEAD] = { "behind head",  { 0.80f, 0.10f, 0.60f },  { -0.70f, -0.25f, 0.50f } },
-    [IOSSELFIE_ARM_OUT]        = { "arm out",      { 1.0f, 0.10f, -0.20f },  { 1.0f, 0.15f, -0.05f } },
-    [IOSSELFIE_ARM_UP]         = { "hand up",      { 0.80f, 0.0f, 0.60f },   { 0.0f, 0.05f, 1.0f } },
-    [IOSSELFIE_ARM_VICTORY]    = { "victory",      { 0.60f, 0.10f, 0.80f },  { 0.60f, 0.10f, 0.80f } },
-    [IOSSELFIE_ARM_PRESENT]    = { "present",      { 0.20f, 0.30f, -0.90f }, { 0.15f, 1.0f, 0.30f } },
-    [IOSSELFIE_ARM_CROSS]      = { "arms crossed", { 0.15f, 0.45f, -0.85f }, { -1.0f, 0.35f, 0.15f }, 1 },
+    [IOSSELFIE_ARM_DOWN]       = { "down",          { 0 }, { 0 }, 0, 3 },
+    [IOSSELFIE_ARM_WAVE]       = { "wave",          { 0.55f, 0.15f, 0.80f },  { -0.15f, 0.20f, 1.0f },  0, 2, 1 },
+    [IOSSELFIE_ARM_FIST]       = { "fist up",       { 0.20f, 0.10f, 1.0f },   { 0.05f, 0.05f, 1.0f },   0, 1 },
+    [IOSSELFIE_ARM_HIP]        = { "hand on hip",   { 0.75f, -0.10f, -0.65f }, { -0.70f, 0.15f, -0.55f }, 0, 4, 1 },
+    [IOSSELFIE_ARM_POINT]      = { "point",         { 0.25f, 0.95f, 0.10f },  { 0.20f, 1.0f, 0.15f },   0, 3 },
+    [IOSSELFIE_ARM_FLEX]       = { "flex",          { 1.0f, 0.05f, 0.05f },   { 0.0f, 0.15f, 1.0f },    0, 2, 1 },
+    [IOSSELFIE_ARM_SALUTE]     = { "salute",        { 0.70f, 0.50f, 0.20f },  { -0.60f, 0.10f, 0.80f }, 0, 1, 1 },
+    [IOSSELFIE_ARM_BEHINDHEAD] = { "behind head",   { 0.80f, 0.10f, 0.60f },  { -0.70f, -0.25f, 0.50f }, 0, 1 },
+    [IOSSELFIE_ARM_OUT]        = { "arm out",       { 1.0f, 0.10f, -0.20f },  { 1.0f, 0.15f, -0.05f },  0, 2 },
+    [IOSSELFIE_ARM_UP]         = { "hand up",       { 0.80f, 0.0f, 0.60f },   { 0.0f, 0.05f, 1.0f },    0, 1 },
+    [IOSSELFIE_ARM_VICTORY]    = { "victory",       { 0.60f, 0.10f, 0.80f },  { 0.60f, 0.10f, 0.80f },  0, 1, 1 },
+    [IOSSELFIE_ARM_PRESENT]    = { "present",       { 0.20f, 0.30f, -0.90f }, { 0.15f, 1.0f, 0.30f },   0, 2 },
+    [IOSSELFIE_ARM_CROSS]      = { "arms crossed",  { 0.15f, 0.45f, -0.85f }, { -1.0f, 0.35f, 0.15f },  1, 3, 1 },
+    [IOSSELFIE_ARM_FISTFWD]    = { "fist forward",  { 0.20f, 0.20f, -0.95f }, { 0.05f, 0.85f, 0.50f },  0, 3 },
+    [IOSSELFIE_ARM_SHRUG]      = { "shrug",         { 0.55f, 0.0f, -0.85f },  { 0.70f, 0.45f, 0.55f },  0, 3, 1 },
+    [IOSSELFIE_ARM_CHIN]       = { "hand on chin",  { 0.15f, 0.55f, -0.80f }, { -0.35f, 0.35f, 0.85f }, 0, 3 },
+    [IOSSELFIE_ARM_HEART]      = { "hand on heart", { 0.25f, 0.25f, -0.95f }, { -0.85f, 0.35f, 0.35f }, 0, 2 },
+    [IOSSELFIE_ARM_NEIGHBOUR]  = { "arm round",     { 0.75f, -0.10f, -0.65f }, { -0.70f, 0.15f, -0.55f }, 0, 4 },
 };
 
 // How far each direction is turned at random, so no two photos are quite
@@ -142,6 +177,21 @@ static flex_t iosSelfie_Rand01(void)
     return (flex_t)(iosSelfie_Rand() & 0xFFFFFF) / (flex_t)0xFFFFFF;
 }
 
+// A gesture at random, by weight (not a paired one unless bPaired)
+static int iosSelfie_RandGesture(int bPaired)
+{
+    int total = 0;
+    for (int g = 0; g < IOSSELFIE_ARM_NUM; g++)
+        if (bPaired || !iosSelfie_aGesture[g].bPairOnly) total += iosSelfie_aGesture[g].weight;
+    int k = (int)(iosSelfie_Rand() % (uint32_t)total);
+    for (int g = 0; g < IOSSELFIE_ARM_NUM; g++) {
+        if (!bPaired && iosSelfie_aGesture[g].bPairOnly) continue;
+        k -= iosSelfie_aGesture[g].weight;
+        if (k < 0) return g;
+    }
+    return IOSSELFIE_ARM_HIP;
+}
+
 // A random pose: a gesture for each arm (not both hanging down; a paired
 // gesture on both arms). `pose` >= 0 (tests): that gesture on both arms.
 static void iosSelfie_PickGestures(int pose, int* pRight, int* pLeft)
@@ -151,16 +201,12 @@ static void iosSelfie_PickGestures(int pose, int* pRight, int* pLeft)
         return;
     }
     for (;;) {
-        int r = iosSelfie_Rand() % IOSSELFIE_ARM_NUM;
-        int l = iosSelfie_Rand() % IOSSELFIE_ARM_NUM;
+        int r = iosSelfie_RandGesture(1);
+        int l = iosSelfie_RandGesture(1);
         if (iosSelfie_aGesture[r].bPairOnly || iosSelfie_aGesture[l].bPairOnly) {
-            // half the time the pair, else pick again
             int g = iosSelfie_aGesture[r].bPairOnly ? r : l;
-            if (iosSelfie_Rand() & 1) {
-                *pRight = *pLeft = g;
-                return;
-            }
-            continue;
+            *pRight = *pLeft = g;
+            return;
         }
         if (r == IOSSELFIE_ARM_DOWN && l == IOSSELFIE_ARM_DOWN) continue;
         *pRight = r;
@@ -172,9 +218,17 @@ static void iosSelfie_PickGestures(int pose, int* pRight, int* pLeft)
 // For the player: the free arm's gesture (the right one holds the phone)
 static int iosSelfie_PickFreeArm(void)
 {
+    return iosSelfie_RandGesture(0);
+}
+
+// Now and then the whole group does the same thing, like a team photo
+#define IOSSELFIE_GROUP_CHANCE 5 // one selfie in this many (with 2 or more others)
+
+static int iosSelfie_PickGroupGesture(void)
+{
     for (;;) {
-        int g = iosSelfie_Rand() % IOSSELFIE_ARM_NUM;
-        if (!iosSelfie_aGesture[g].bPairOnly) return g;
+        int g = (int)(iosSelfie_Rand() % IOSSELFIE_ARM_NUM);
+        if (iosSelfie_aGesture[g].bGroup) return g;
     }
 }
 
@@ -350,6 +404,41 @@ typedef struct {
 // The camera spot for the people in it: out from the player's head, in the
 // direction away from the others (or straight ahead, alone), turned a bit
 // either way if that is blocked; as near as everyone fits in the frame.
+// Whether, seen from the camera at pos, person i's face is behind someone
+// nearer: their head, or the player's chest and shoulders below it
+static int iosSelfie_Hidden(const rdVector3* pos, int i)
+{
+    rdVector3 v;
+    rdVector_Sub3(&v, &iosSelfie_aPeople[i].head, pos);
+    const flex_t depth = rdVector_Len3(&v);
+    if (depth < 0.0001f) return 1;
+    rdVector_InvScale3Acc(&v, depth);
+    for (int j = 0; j < iosSelfie_numPeople; j++) {
+        if (j == i) continue;
+        SithThing* t = iosSelfie_aPeople[j].thing;
+        flex_t size = t->collideSize > 0.005f ? t->collideSize : 0.02f;
+        // (behind another of them in the group, a face only needs to
+        // clear their head: peeking over a shoulder is fine)
+        for (int k = 0; k < (j == 0 ? 2 : 1); k++) {
+            // k 0: the head; 1: the chest, a body's width below it
+            rdVector3 b = iosSelfie_aPeople[j].head;
+            flex_t radius = size * IOSSELFIE_HEAD_SIZE;
+            if (k == 1) {
+                b.z -= size;
+                radius = size * IOSSELFIE_CHEST_SIZE;
+            }
+            rdVector3 w;
+            rdVector_Sub3(&w, &b, pos);
+            flex_t d = rdVector_Len3(&w);
+            if (d < 0.0001f || d >= depth) continue; // not in front
+            rdVector_InvScale3Acc(&w, d);
+            flex_t cover = atanf(radius / d) + IOSSELFIE_FACE_MARGIN;
+            if (acosf(fmaxf(-1.0f, fminf(1.0f, rdVector_Dot3(&v, &w)))) < cover) return 1;
+        }
+    }
+    return 0;
+}
+
 static int iosSelfie_PlaceCamera(iosSelfieCam* out)
 {
     iosSelfiePerson* me = &iosSelfie_aPeople[0];
@@ -372,6 +461,10 @@ static int iosSelfie_PlaceCamera(iosSelfieCam* out)
         rdVector_Normalize3Acc(&away);
     }
 
+    // How far off the middle a head may be, as a share of its distance
+    const flex_t tanY = tanf(IOSSELFIE_FOV * 0.5f * (flex_t)M_PI / 180.0f);
+    const flex_t tanX = (Window_xSize > 0 && Window_ySize > 0) ? tanY * Window_xSize / Window_ySize : tanY / 0.46f;
+    const flex_t fitX = tanX * IOSSELFIE_FIT_X, fitY = tanY * IOSSELFIE_FIT_Y;
     int bestVisible = -1;
     flex_t bestDist = 0;
     // The directions tried, in steps of 360/IOSSELFIE_NUM_DIRS from straight
@@ -379,6 +472,9 @@ static int iosSelfie_PlaceCamera(iosSelfieCam* out)
     // the player at one side, the others beside), then straight, then further
     // round
     static const int aStep[IOSSELFIE_NUM_DIRS] = { 2, -2, 1, -1, 3, -3, 0, 4, -4, 5, -5, 6, -6, 7, -7, 8 };
+    // Held up high (to see over shoulders) only if not everyone is seen
+    // held as usual
+    for (int high = 0; high < 2 && bestVisible < iosSelfie_numPeople; high++)
     for (int k = 0; k < IOSSELFIE_NUM_DIRS; k++) {
         int step = aStep[k];
         flex_t a = (flex_t)step * (flex_t)(2.0 * M_PI / IOSSELFIE_NUM_DIRS);
@@ -388,7 +484,7 @@ static int iosSelfie_PlaceCamera(iosSelfieCam* out)
             iosSelfieCam c;
             rdVector_Copy3(&c.pos, &me->head);
             rdVector_ScaleAdd3Acc(&c.pos, &dir, D);
-            c.pos.z += IOSSELFIE_CAM_LIFT;
+            c.pos.z += high ? IOSSELFIE_CAM_LIFT_HIGH : IOSSELFIE_CAM_LIFT;
             c.look = mid;
             // Everyone inside the frame?
             rdVector3 f;
@@ -404,9 +500,9 @@ static int iosSelfie_PlaceCamera(iosSelfieCam* out)
                 rdVector_Sub3(&v, &iosSelfie_aPeople[i].head, &c.pos);
                 flex_t z = rdVector_Dot3(&v, &f);
                 if (z < 0.03f) { bFits = 0; break; }
-                if (fabsf(rdVector_Dot3(&v, &r)) / z > IOSSELFIE_FIT_X) bFits = 0;
+                if (fabsf(rdVector_Dot3(&v, &r)) / z > fitX) bFits = 0;
                 // the head with some of the body below it
-                if (fabsf(rdVector_Dot3(&v, &u) - 0.01f) / z > IOSSELFIE_FIT_Y) bFits = 0;
+                if (fabsf(rdVector_Dot3(&v, &u) - 0.01f) / z > fitY) bFits = 0;
             }
             if (!bFits) continue;
             // Room for it: the player's arm reaches there through open space
@@ -416,20 +512,25 @@ static int iosSelfie_PlaceCamera(iosSelfieCam* out)
             }
             // Who is seen: not behind a wall, nor right behind the player
             int visible = 0;
-            rdVector3 toMe;
-            rdVector_Sub3(&toMe, &me->head, &c.pos);
-            rdVector_Normalize3Acc(&toMe);
+            rdVector3 cf;
+            rdVector_Sub3(&cf, &c.look, &c.pos);
+            rdVector_Normalize3Acc(&cf);
+            rdVector3 meV;
+            rdVector_Sub3(&meV, &me->head, &c.pos);
+            const flex_t meDepth = rdVector_Dot3(&meV, &cf);
             for (int i = 0; i < iosSelfie_numPeople; i++) {
                 if (!iosSelfie_Clear(c.sector, &c.pos, &iosSelfie_aPeople[i].head, IOSSELFIE_SIGHT_SLACK, NULL)) continue;
                 if (i > 0) {
-                    rdVector3 v;
-                    rdVector_Sub3(&v, &iosSelfie_aPeople[i].head, &c.pos);
-                    rdVector_Normalize3Acc(&v);
-                    if (acosf(fminf(1.0f, rdVector_Dot3(&v, &toMe))) < IOSSELFIE_HIDDEN_ANGLE) continue;
+                    // only counted behind the player: it's the player's
+                    // selfie, nobody stands between them and the camera
+                    rdVector3 hv;
+                    rdVector_Sub3(&hv, &iosSelfie_aPeople[i].head, &c.pos);
+                    if (rdVector_Dot3(&hv, &cf) < meDepth + 0.012f) continue;
+                    if (iosSelfie_Hidden(&c.pos, i)) continue;
                 }
                 visible++;
             }
-            IOSSELFIE_LOG("camera try: step %d, %.3f out, %d of %d seen\n", step, (double)D, visible, iosSelfie_numPeople);
+            IOSSELFIE_LOG("camera try: %sstep %d, %.3f out, %d of %d seen\n", high ? "high, " : "", step, (double)D, visible, iosSelfie_numPeople);
             if (visible > bestVisible || (visible == bestVisible && D < bestDist - 0.05f)) {
                 bestVisible = visible;
                 bestDist = D;
@@ -439,6 +540,7 @@ static int iosSelfie_PlaceCamera(iosSelfieCam* out)
         }
         if (bestVisible == iosSelfie_numPeople) break; // everyone seen: good enough
     }
+    IOSSELFIE_LOG("camera chosen: %.3f out, %d of %d seen\n", (double)bestDist, bestVisible, iosSelfie_numPeople);
     return bestVisible >= 1;
 }
 
@@ -628,6 +730,43 @@ static int iosSelfie_GestureDirs(const iosSelfiePerson* p, int gesture, int side
     return 1;
 }
 
+// The arm round a neighbour's shoulders: the nearest other person on that
+// side, close enough to reach; 0 if there is none
+#define IOSSELFIE_NEIGHBOUR_REACH 0.09f
+static int iosSelfie_NeighbourDirs(const iosSelfiePerson* p, int side, rdVector3* pUpper, rdVector3* pFore)
+{
+    const SithThing* t = p->thing;
+    const iosSelfiePerson* best = NULL;
+    flex_t bestDist = IOSSELFIE_NEIGHBOUR_REACH;
+    for (int j = 0; j < iosSelfie_numPeople; j++) {
+        const iosSelfiePerson* q = &iosSelfie_aPeople[j];
+        if (q == p) continue;
+        rdVector3 d;
+        rdVector_Sub3(&d, &q->thing->position, &t->position);
+        d.z = 0;
+        flex_t across = rdVector_Dot3(&d, &t->orient.rvec);
+        if (side ? across > -0.01f : across < 0.01f) continue; // not on that side
+        flex_t dist = rdVector_Len3(&d);
+        if (dist < bestDist) {
+            bestDist = dist;
+            best = q;
+        }
+    }
+    if (!best) return 0;
+    // the upper arm toward their shoulders, the forearm on round behind them
+    rdVector3 shoulder, target;
+    iosSelfie_JointAt(&shoulder, &t->renderData, p->aPart[side ? IOSSELFIE_PART_LUPPER : IOSSELFIE_PART_RUPPER]);
+    target = best->head;
+    target.z -= 0.012f;
+    rdVector_Sub3(pUpper, &target, &shoulder);
+    if (rdVector_Normalize3Acc(pUpper) < 1e-6f) return 0;
+    *pFore = *pUpper;
+    rdVector_ScaleAdd3Acc(pFore, &t->orient.lvec, -0.7f);
+    pFore->z -= 0.2f;
+    rdVector_Normalize3Acc(pFore);
+    return 1;
+}
+
 // Works out the joint turns for the person's pose, from their rest pose:
 // each arm, upper arm first; then the neck and head to look straight into
 // the camera, the head tilted a little to one side
@@ -649,6 +788,9 @@ static void iosSelfie_SolvePose(iosSelfiePerson* p, const rdVector3* camPos)
             if (rdVector_Normalize3Acc(&up) < 1e-6f) continue;
             fore = up;
         }
+        else if ((side ? p->armL : p->armR) == IOSSELFIE_ARM_NEIGHBOUR && iosSelfie_NeighbourDirs(p, side, &up, &fore)) {
+            // (round the neighbour's shoulders)
+        }
         else if (!iosSelfie_GestureDirs(p, side ? p->armL : p->armR, side, &up, &fore)) {
             continue;
         }
@@ -660,14 +802,35 @@ static void iosSelfie_SolvePose(iosSelfiePerson* p, const rdVector3* camPos)
     // turns it half way to the camera, the head the rest of the way.
     rdVector3 face = t->orient.lvec;
     const int aNode[2] = { p->aPart[IOSSELFIE_PART_NECK], p->aPart[IOSSELFIE_PART_HEAD] };
+    // Where to look: the camera, but no further round from straight ahead
+    // than a neck turns (the body is already turned to the camera)
+    rdVector3 look = { 0, 0, 0 };
+    {
+        const int at = aNode[1] >= 0 ? aNode[1] : aNode[0];
+        if (at >= 0) {
+            rdVector3 from;
+            iosSelfie_JointAt(&from, r, at);
+            rdVector_Sub3(&look, camPos, &from);
+            rdVector_Normalize3Acc(&look);
+            flex_t ang = acosf(fmaxf(-1.0f, fminf(1.0f, rdVector_Dot3(&look, &face))));
+            if (ang > IOSSELFIE_NECK_MAX) {
+                // part way from straight ahead toward the camera
+                rdVector3 axis;
+                rdVector_Cross3(&axis, &face, &look);
+                if (rdVector_Normalize3Acc(&axis) > 1e-6f) {
+                    rdMatrix34 turn;
+                    iosSelfie_AxisAngle(&turn, &axis, IOSSELFIE_NECK_MAX);
+                    iosSelfie_Rotate(&look, &turn, &face);
+                }
+            }
+        }
+    }
     for (int k = 0; k < 2; k++) {
         const int node = aNode[k];
         if (node < 0 || p->numTurns >= IOSSELFIE_MAX_TURNS) continue;
         const rdMatrix34* w = &r->paJointMatrices[node];
-        rdVector3 at, to, a, b;
-        iosSelfie_JointAt(&at, r, node);
-        rdVector_Sub3(&to, camPos, &at);
-        if (rdVector_Normalize3Acc(&to) < 1e-6f) continue;
+        rdVector3 to = look, a, b;
+        if (rdVector_Len3(&to) < 1e-6f) continue;
         iosSelfie_Unrotate(&a, w, &face);
         iosSelfie_Unrotate(&b, w, &to);
         if (rdVector_Normalize3Acc(&a) < 1e-6f || rdVector_Normalize3Acc(&b) < 1e-6f) continue;
@@ -796,20 +959,32 @@ int iosSelfie_Begin(int pose, int* pNumPeople)
     for (int i = 0; iosSelfie_aSectorSeen && i < w->numSectors; i++)
         iosSelfie_aSectorSeen[i] = (w->aSectors[i].flags & SITH_SECTOR_SEEN) != 0;
     iosSelfie_bActive = 1;
+    // Now and then everyone does the same, like a team photo
+    int group = -1;
+    if (pose < 0 && iosSelfie_numPeople >= 3 && iosSelfie_Rand() % IOSSELFIE_GROUP_CHANCE == 0)
+        group = iosSelfie_PickGroupGesture();
     for (int i = 0; i < iosSelfie_numPeople; i++) {
         iosSelfiePerson* p = &iosSelfie_aPeople[i];
         SithThing* t = p->thing;
+        p->light = t->light;
         iosSelfie_Face(t, &cam.pos);
         p->headTilt = (iosSelfie_Rand01() - 0.5f) * 0.35f;
         if (i == 0) {
             p->pose = 0;
             p->armR = -1; // the phone
             p->armL = pose >= 0 ? pose : iosSelfie_PickFreeArm();
+            if (group >= 0) p->armL = iosSelfie_aGesture[group].bPairOnly ? IOSSELFIE_ARM_HIP : group;
             t->flags &= ~SITH_TF_RENDERWEAPON; // holstered, for the photo only
+            // The flash: light from the phone in the player's hand
+            t->flags |= SITH_TF_EMITLIGHT;
+            if (t->light < IOSSELFIE_FLASH_LIGHT) t->light = IOSSELFIE_FLASH_LIGHT;
         }
         else {
             p->pose = 0;
-            iosSelfie_PickGestures(pose, &p->armR, &p->armL);
+            if (group >= 0)
+                p->armR = p->armL = group;
+            else
+                iosSelfie_PickGestures(pose, &p->armR, &p->armL);
         }
         // Posed from the model's rest pose (standing, arms down: the same
         // start for every pose and every body); anyone who can't pose on
@@ -825,6 +1000,36 @@ int iosSelfie_Begin(int pose, int* pNumPeople)
                       p->pose < 0 ? "-" : iosSelfie_aGesture[p->armL].name, p->numTurns);
     }
 
+    // Shots and blasts frozen in front of a face are left out of the photo
+    // (the rest of the action stays in it)
+    iosSelfie_numHidden = 0;
+    {
+        rdVector3 f;
+        rdVector_Sub3(&f, &cam.look, &cam.pos);
+        rdVector_Normalize3Acc(&f);
+        for (int i = 0; i < w->numThings && iosSelfie_numHidden < IOSSELFIE_MAX_HIDDEN; i++) {
+            SithThing* t = &w->aThings[i];
+            if (t->type != SITH_THING_WEAPON && t->type != SITH_THING_EXPLOSION
+                && t->type != SITH_THING_PARTICLE && t->type != SITH_THING_DEBRIS) continue;
+            rdVector3 v;
+            rdVector_Sub3(&v, &t->position, &cam.pos);
+            flex_t z = rdVector_Dot3(&v, &f);
+            if (z < 0.002f || z > IOSSELFIE_CAM_MAX + IOSSELFIE_RANGE) continue;
+            rdVector_Normalize3Acc(&v);
+            for (int k = 0; k < iosSelfie_numPeople; k++) {
+                rdVector3 hv;
+                rdVector_Sub3(&hv, &iosSelfie_aPeople[k].head, &cam.pos);
+                flex_t zh = rdVector_Dot3(&hv, &f);
+                if (zh <= z) continue; // behind the face
+                flex_t dist = rdVector_Normalize3Acc(&hv);
+                if (acosf(fminf(1.0f, rdVector_Dot3(&v, &hv))) < atanf(IOSSELFIE_FACE_RADIUS / dist)) {
+                    iosSelfie_apHidden[iosSelfie_numHidden++] = t;
+                    break;
+                }
+            }
+        }
+    }
+
     SithCamera* c = &sithCamera_g_aCameras[2];
     iosSelfie_pPrevCamera = sithCamera_g_pCurCamera;
     iosSelfie_savedCamera = *c;
@@ -837,6 +1042,7 @@ int iosSelfie_Begin(int pose, int* pNumPeople)
     c->sector = cam.sector;
     c->pPrimaryFocusThing = me;
     sithCamera_SetCurrentCamera(c);
+    iosSelfie_SetLens(&c->rdCamera);
 
     iosGame_SetHoldReason(IOSGAME_HOLD_SELFIE, 1);
     if (pNumPeople) *pNumPeople = iosSelfie_numPeople - 1;
@@ -860,10 +1066,12 @@ void iosSelfie_End(void)
         if (t->signature != p->signature) continue;
         t->orient = p->orient;
         t->flags = p->flags;
+        t->light = p->light;
         if (p->bPuppet && t->renderData.puppet) *t->renderData.puppet = p->puppet;
         t->renderData.rdFrameNum = 0;
     }
     iosSelfie_numPeople = 0;
+    iosSelfie_numHidden = 0;
     SithWorld* w = sithWorld_g_pCurrentWorld;
     if (w && iosSelfie_aSectorSeen && w->numSectors == iosSelfie_numSectorSeen) {
         for (int i = 0; i < w->numSectors; i++) {
@@ -873,6 +1081,7 @@ void iosSelfie_End(void)
     free(iosSelfie_aSectorSeen);
     iosSelfie_aSectorSeen = NULL;
     sithCamera_g_aCameras[2] = iosSelfie_savedCamera;
+    rdCamera_BuildFOV(&sithCamera_g_aCameras[2].rdCamera); // (its view shape, from the lens put back)
     if (iosSelfie_pPrevCamera) sithCamera_SetCurrentCamera(iosSelfie_pPrevCamera);
     iosSelfie_pPrevCamera = NULL;
     // (switching back updates the camera, which winds the shake down: put
@@ -925,6 +1134,27 @@ void iosSelfie_DebugFocus(int person, float dist, float side)
     if (sec) c->sector = sec;
 }
 #endif
+
+int iosSelfie_HidesThing(SithThing* pThing)
+{
+    if (!iosSelfie_bActive) return 0;
+    for (int i = 0; i < iosSelfie_numHidden; i++)
+        if (iosSelfie_apHidden[i] == pThing) return 1;
+    return 0;
+}
+
+int iosSelfie_SetLens(struct rdCamera* pCamera)
+{
+    if (!iosSelfie_bActive || !pCamera || pCamera != &sithCamera_g_aCameras[2].rdCamera) return 0;
+    // (a lens is kept as degrees across: from top to bottom, through the
+    // view's shape, whichever way round the player's own lens is set)
+    flex_t across = IOSSELFIE_FOV;
+    if (pCamera->aspectRatio > 0.0001f)
+        across = 2.0f * atanf(tanf(IOSSELFIE_FOV * 0.5f * (flex_t)M_PI / 180.0f) / pCamera->aspectRatio) * 180.0f / (flex_t)M_PI;
+    pCamera->fov = across;
+    rdCamera_BuildFOV(pCamera);
+    return 1;
+}
 
 int iosSelfie_IsActive(void)
 {

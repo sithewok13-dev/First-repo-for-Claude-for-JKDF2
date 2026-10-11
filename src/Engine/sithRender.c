@@ -402,6 +402,10 @@ void sithRender_Draw()
         sithRender_bResetCameraAspect = 0;
     }
 #endif
+#ifdef TARGET_IOS
+    // Added: the selfie's camera keeps its own lens (under water too)
+    iosSelfie_SetLens(&sithCamera_g_pCurCamera->rdCamera);
+#endif
 
     rdSetSortingMethod(0);
     rdSetMipDistances(&sithWorld_g_pCurrentWorld->mipmapDistance);
@@ -2996,6 +3000,12 @@ void sithRender_RenderThings()
 int sithRender_RenderThing(SithThing *pThing)
 {
     int ret;
+
+#ifdef TARGET_IOS
+    // Added: a shot or blast frozen in front of a face in a selfie: left out
+    if (SITHRENDER_SELFIE_LOOKING() && iosSelfie_HidesThing(pThing))
+        return 0;
+#endif
 
     // Added: Ensure the clipping frustum doesn't get mutated
     //rdClipFrustum* pFullCameraFrustum = rdCamera_g_pCurCamera->pClipFrustum;

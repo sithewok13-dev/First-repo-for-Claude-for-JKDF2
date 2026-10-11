@@ -14,6 +14,8 @@
 // (No engine headers: the touch overlay, UIKit code, includes this too)
 struct rdThing;
 struct rdMatrix34;
+struct SithThing;
+struct rdCamera;
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,6 +53,14 @@ int iosSelfie_Begin(int pose, int* pNumPeople);
 void iosSelfie_End(void);
 
 int iosSelfie_IsActive(void);
+
+// The renderer, while a selfie is up: whether to leave this thing out (a
+// shot or blast frozen in front of someone's face).
+int iosSelfie_HidesThing(struct SithThing* pThing);
+
+// Each frame, after the game sets the view's lens: the selfie camera's own
+// lens instead, while a selfie is up. 0 (nothing changed) for any other.
+int iosSelfie_SetLens(struct rdCamera* pCamera);
 
 // Each drawn frame while it's going: has everyone in it drawn afresh.
 void iosSelfie_Frame(void);
