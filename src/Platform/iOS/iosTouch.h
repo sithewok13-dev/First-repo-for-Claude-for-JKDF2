@@ -88,6 +88,9 @@
 //     its buttons.
 //     The tray closes after a choice (SENS and GYRO leave it open for another
 //     tap), or at a touch off it.
+// While a game controller is connected, FIRE, ALT, DUCK, ACT, JUMP and FORCE
+// (and FORCE's meter ring) hide: the controller does all of that. The rest
+// stays, and they come back when it disconnects.
 // In menus and cutscenes the overlay hides, so touches reach SDL as mouse
 // clicks like before. If SDL's window is recreated the overlay follows it.
 
