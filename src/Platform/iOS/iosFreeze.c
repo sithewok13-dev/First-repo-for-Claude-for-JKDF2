@@ -85,7 +85,7 @@ static int iosFreeze_FitsAt(const rdVector3* dir, float d, rdVector3* pPos, Sith
 // on that line. Found to the nearest IOSFREEZE_FIT_HALVINGS halving of a
 // step, not just the step: sliding along a wall, coarse steps made the
 // camera jump in and out (seen as jitter on an iPhone).
-static int iosFreeze_Find(int bApply, float* pDist)
+static int iosFreeze_Find(int bApply, float* pDist, rdVector3* pPosOut, SithSector** pSectorOut)
 {
     rdVector3 dir, want, pos;
     SithSector* sector = NULL;
@@ -118,6 +118,8 @@ static int iosFreeze_Find(int bApply, float* pDist)
         d = lo;
     }
     if (pDist) *pDist = d;
+    if (pPosOut) *pPosOut = pos;
+    if (pSectorOut) *pSectorOut = sector;
     if (!bApply) return 1;
     iosFreeze_targetDist = d;
     // Moved by a finger, back out from a wall: glides out (in, it goes at
@@ -143,7 +145,7 @@ static int iosFreeze_Find(int bApply, float* pDist)
 
 static int iosFreeze_Place(void)
 {
-    return iosFreeze_Find(1, NULL);
+    return iosFreeze_Find(1, NULL, NULL, NULL);
 }
 
 float iosFreeze_Probe(float yawDegrees, float pitchDegrees)
@@ -155,10 +157,91 @@ float iosFreeze_Probe(float yawDegrees, float pitchDegrees)
     if (iosFreeze_pitch > IOSFREEZE_PITCH_MAX) iosFreeze_pitch = IOSFREEZE_PITCH_MAX;
     if (iosFreeze_pitch < -IOSFREEZE_PITCH_MAX) iosFreeze_pitch = -IOSFREEZE_PITCH_MAX;
     float d = -1.0f;
-    if (!iosFreeze_Find(0, &d)) d = -1.0f;
+    if (!iosFreeze_Find(0, &d, NULL, NULL)) d = -1.0f;
     iosFreeze_yaw = yaw;
     iosFreeze_pitch = pitch;
     return d;
+}
+
+float iosFreeze_ProbeAt(float yawDegrees, float pitchDegrees, float dist, struct rdVector3* pPos, struct SithSector** pSector)
+{
+    if (!iosFreeze_bActive) return -1.0f;
+    const float yaw = iosFreeze_yaw, pitch = iosFreeze_pitch, want = iosFreeze_dist;
+    iosFreeze_yaw = fmodf(iosFreeze_yaw + yawDegrees, 360.0f);
+    iosFreeze_pitch += pitchDegrees;
+    if (iosFreeze_pitch > IOSFREEZE_PITCH_MAX) iosFreeze_pitch = IOSFREEZE_PITCH_MAX;
+    if (iosFreeze_pitch < -IOSFREEZE_PITCH_MAX) iosFreeze_pitch = -IOSFREEZE_PITCH_MAX;
+    if (dist > 0.0f) iosFreeze_dist = dist;
+    float d = -1.0f;
+    if (!iosFreeze_Find(0, &d, pPos, pSector)) d = -1.0f;
+    iosFreeze_yaw = yaw;
+    iosFreeze_pitch = pitch;
+    iosFreeze_dist = want;
+    return d;
+}
+
+void iosFreeze_GetOrbit(float* pYaw, float* pPitch, float* pDist)
+{
+    if (pYaw) *pYaw = iosFreeze_yaw;
+    if (pPitch) *pPitch = iosFreeze_pitch;
+    if (pDist) *pDist = iosFreeze_dist;
+}
+
+int iosFreeze_GetInsideMe(void)
+{
+    return iosFreeze_bInsideMe;
+}
+
+void iosFreeze_SetInsideMe(int bInside)
+{
+    iosFreeze_bInsideMe = bInside != 0;
+}
+
+void iosFreeze_SetWantedDist(float dist)
+{
+    if (dist > 0.0f) iosFreeze_dist = dist;
+}
+
+void iosFreeze_GetFocus(struct rdVector3* pFocus, struct SithSector** pSector)
+{
+    if (pFocus) *pFocus = iosFreeze_focus;
+    if (pSector) *pSector = iosFreeze_pFocusSector;
+}
+
+int iosFreeze_SetOrbit(const struct rdVector3* focus, float yawDegrees, float pitchDegrees, float dist)
+{
+    if (!iosFreeze_bActive || !focus || dist <= 0.0f) return 0;
+    rdVector3 cam, v;
+    SithSector* camSector = sithCamera_g_aCameras[2].sector;
+    iosPhotoCam_GetPos(&cam, NULL);
+    // (the new focus must be in sight of where the camera is, through no
+    // wall: its sector is found along that line)
+    rdVector_Sub3(&v, focus, &cam);
+    const float len = rdVector_Len3(&v);
+    SithSector* sector = camSector;
+    if (!camSector) return 0;
+    if (len > 0.001f && (iosPhotoCam_ClearDist(camSector, &cam, focus, &sector) < len - 0.005f || !sector)) return 0;
+    const rdVector3 oldFocus = iosFreeze_focus;
+    SithSector* oldSector = iosFreeze_pFocusSector;
+    const float yaw = iosFreeze_yaw, pitch = iosFreeze_pitch, want = iosFreeze_dist;
+    iosFreeze_focus = *focus;
+    iosFreeze_pFocusSector = sector;
+    iosFreeze_yaw = fmodf(yawDegrees, 360.0f);
+    iosFreeze_pitch = pitchDegrees;
+    if (iosFreeze_pitch > IOSFREEZE_PITCH_MAX) iosFreeze_pitch = IOSFREEZE_PITCH_MAX;
+    if (iosFreeze_pitch < -IOSFREEZE_PITCH_MAX) iosFreeze_pitch = -IOSFREEZE_PITCH_MAX;
+    iosFreeze_dist = dist;
+    if (iosFreeze_Place()) {
+        iosFreeze_bInsideMe = 0; // (moved: out of the player)
+        return 1;
+    }
+    iosFreeze_focus = oldFocus;
+    iosFreeze_pFocusSector = oldSector;
+    iosFreeze_yaw = yaw;
+    iosFreeze_pitch = pitch;
+    iosFreeze_dist = want;
+    iosFreeze_Place();
+    return 0;
 }
 
 float iosFreeze_GetWantedDist(void)

@@ -49,6 +49,26 @@ void iosFreeze_Zoom(float factor);
 float iosFreeze_Probe(float yawDegrees, float pitchDegrees);
 float iosFreeze_GetWantedDist(void);
 
+// For the cinematic burst. ProbeAt: as Probe, wanted dist away (0: as now),
+// and where the camera would be (*pPos, in *pSector). SetWantedDist: how far
+// from the focus the next move puts it. GetFocus: what it turns round.
+// SetOrbit: turns round this focus from now on, the camera moved to look at
+// it from this way round (yaw, pitch: as for Orbit, but whole, not more of
+// them) and this far (or nearer, for walls); 0, and nothing changed, if the
+// focus is behind a wall from where the camera is, or there is no place for
+// the camera.
+struct rdVector3;
+struct SithSector;
+float iosFreeze_ProbeAt(float yawDegrees, float pitchDegrees, float dist, struct rdVector3* pPos, struct SithSector** pSector);
+void iosFreeze_SetWantedDist(float dist);
+void iosFreeze_GetFocus(struct rdVector3* pFocus, struct SithSector** pSector);
+int iosFreeze_SetOrbit(const struct rdVector3* focus, float yawDegrees, float pitchDegrees, float dist);
+void iosFreeze_GetOrbit(float* pYaw, float* pPitch, float* pDist); // (as SetOrbit takes them)
+// Whether the player's body is left out as round a first person camera
+// (the cinematic burst puts the camera back at the player's eye)
+int iosFreeze_GetInsideMe(void);
+void iosFreeze_SetInsideMe(int bInside);
+
 // Moved by a finger (the touch overlay): the camera glides back out from a
 // wall rather than jumping (off by default: the cinematic burst's photos go
 // exactly where they are put). And once per frame drawn, to carry that on.
