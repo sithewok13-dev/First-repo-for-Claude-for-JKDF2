@@ -30,8 +30,10 @@ extern "C" {
 int iosFreeze_Begin(void);
 
 // One finger: turns the camera round the focus, by these degrees (yaw:
-// round the up axis; pitch: up and down, kept short of straight up or down).
-void iosFreeze_Orbit(float yawDegrees, float pitchDegrees);
+// round the up axis; pitch: the way it looks, up or down -- more is a camera
+// lower down, looking up -- kept short of straight up or down). 0 if it
+// couldn't go there (walls): it stays.
+int iosFreeze_Orbit(float yawDegrees, float pitchDegrees);
 
 // Two fingers: moves the focus (and the camera with it) across the view, by
 // these fractions of the screen's height (right, down), so what is on screen
@@ -40,6 +42,12 @@ void iosFreeze_Pan(float right, float down);
 
 // A pinch: the lens zoomed by this factor (2: twice as close).
 void iosFreeze_Zoom(float factor);
+
+// How far from the focus the camera could be, turned this much further
+// round it (as iosFreeze_Orbit), without moving it; -1 if it couldn't be
+// there at all. And how far it is wanted (the room it has in the open).
+float iosFreeze_Probe(float yawDegrees, float pitchDegrees);
+float iosFreeze_GetWantedDist(void);
 
 // Puts everything back; the game goes on. Safe to call when not up.
 void iosFreeze_End(void);
@@ -51,8 +59,8 @@ int iosFreeze_IsActive(void);
 void iosFreeze_GetState(float* pDist, float* pFov);
 
 // sithRender: whether to leave this thing out of the view -- the player's
-// own body round the camera, when Action Freeze started from first person,
-// until the camera first moves (out of it)
+// own body round the camera, when Action Freeze started from first person
+// (until the camera first moves out of it), or the camera right by their head
 struct SithThing;
 int iosFreeze_HidesThing(struct SithThing* pThing);
 

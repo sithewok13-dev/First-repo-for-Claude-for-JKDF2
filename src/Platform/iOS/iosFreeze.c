@@ -33,6 +33,8 @@
 // the focus, in this many steps, until it can.
 #define IOSFREEZE_CAM_ROOM    0.012f
 #define IOSFREEZE_STEPS_IN    12
+// The player is left out of the view with the camera this near their head
+#define IOSFREEZE_NEAR_HEAD   0.07f
 // Up and down, kept this short of straight up or down (degrees)
 #define IOSFREEZE_PITCH_MAX   80.0f
 
@@ -52,10 +54,11 @@ static void iosFreeze_Dir(rdVector3* pDir)
     pDir->z = sinf(p);
 }
 
-// The camera put where it is wanted, or as near it as the walls let it
-// (coming in towards the focus); 0, and the camera left where it was, if it
-// can't be anywhere on that line
-static int iosFreeze_Place(void)
+// Where the camera can be, as near where it is wanted as the walls let it
+// (coming in towards the focus): put there if bApply, and how far it is
+// from the focus in *pDist; 0, and nothing changed, if it can't be anywhere
+// on that line
+static int iosFreeze_Find(int bApply, float* pDist)
 {
     rdVector3 dir, want;
     iosFreeze_Dir(&dir);
@@ -73,6 +76,8 @@ static int iosFreeze_Place(void)
         SithSector* sector = NULL;
         iosPhotoCam_ClearDist(iosFreeze_pFocusSector, &iosFreeze_focus, &pos, &sector);
         if (!sector || !sithIntersect_IsSphereInSector(&pos, IOSFREEZE_CAM_ROOM, sector)) continue;
+        if (pDist) *pDist = d;
+        if (!bApply) return 1;
         // (looking at the focus; from right on it, along the direction)
         rdVector3 look = iosFreeze_focus;
         if (d < 0.01f) rdVector_ScaleAdd3Acc(&look, &dir, 0.05f);
@@ -81,6 +86,31 @@ static int iosFreeze_Place(void)
         return 1;
     }
     return 0;
+}
+
+static int iosFreeze_Place(void)
+{
+    return iosFreeze_Find(1, NULL);
+}
+
+float iosFreeze_Probe(float yawDegrees, float pitchDegrees)
+{
+    if (!iosFreeze_bActive) return -1.0f;
+    const float yaw = iosFreeze_yaw, pitch = iosFreeze_pitch;
+    iosFreeze_yaw = fmodf(iosFreeze_yaw + yawDegrees, 360.0f);
+    iosFreeze_pitch += pitchDegrees;
+    if (iosFreeze_pitch > IOSFREEZE_PITCH_MAX) iosFreeze_pitch = IOSFREEZE_PITCH_MAX;
+    if (iosFreeze_pitch < -IOSFREEZE_PITCH_MAX) iosFreeze_pitch = -IOSFREEZE_PITCH_MAX;
+    float d = -1.0f;
+    if (!iosFreeze_Find(0, &d)) d = -1.0f;
+    iosFreeze_yaw = yaw;
+    iosFreeze_pitch = pitch;
+    return d;
+}
+
+float iosFreeze_GetWantedDist(void)
+{
+    return iosFreeze_dist;
 }
 
 // The nearest thing straight ahead (a person, a thrown or fired thing, an
@@ -162,9 +192,9 @@ int iosFreeze_Begin(void)
     return 1;
 }
 
-void iosFreeze_Orbit(float yawDegrees, float pitchDegrees)
+int iosFreeze_Orbit(float yawDegrees, float pitchDegrees)
 {
-    if (!iosFreeze_bActive) return;
+    if (!iosFreeze_bActive) return 0;
     const float yaw = iosFreeze_yaw, pitch = iosFreeze_pitch;
     iosFreeze_yaw = fmodf(iosFreeze_yaw + yawDegrees, 360.0f);
     iosFreeze_pitch += pitchDegrees;
@@ -174,8 +204,10 @@ void iosFreeze_Orbit(float yawDegrees, float pitchDegrees)
         // (nowhere for it that way: it stays)
         iosFreeze_yaw = yaw;
         iosFreeze_pitch = pitch;
+        return 0;
     }
-    else if (yawDegrees != 0.0f || pitchDegrees != 0.0f) iosFreeze_bInsideMe = 0; // (moved out of the player)
+    if (yawDegrees != 0.0f || pitchDegrees != 0.0f) iosFreeze_bInsideMe = 0; // (moved out of the player)
+    return 1;
 }
 
 void iosFreeze_Pan(float right, float down)
@@ -236,14 +268,18 @@ void iosFreeze_End(void)
 
 int iosFreeze_HidesThing(SithThing* pThing)
 {
-    if (!iosFreeze_bActive || !iosFreeze_bInsideMe || !pThing || pThing != sithPlayer_g_pLocalPlayerThing) return 0;
+    if (!iosFreeze_bActive || !pThing || pThing != sithPlayer_g_pLocalPlayerThing) return 0;
     rdVector3 pos, v;
     iosPhotoCam_GetPos(&pos, NULL);
     rdVector_Sub3(&v, &pos, &pThing->position);
-    // (within its height of its middle, and inside its width: the head and
-    // shoulders round a first person eye)
+    // Started from first person, until the camera moves: within its height
+    // of its middle, inside its width (the head and shoulders round the eye)
     const float r = pThing->collideSize > 0.02f ? pThing->collideSize : 0.02f;
-    return rdVector_Len3(&v) < r * 2.0f;
+    if (iosFreeze_bInsideMe && rdVector_Len3(&v) < r * 2.0f) return 1;
+    // Any time: the camera right by the player's head (a cut-off half face
+    // filling the edge of the photo, the near clip through it)
+    v.z -= pThing->actorParams.eyeOffset.z > 0.0f ? pThing->actorParams.eyeOffset.z : 0.03f;
+    return rdVector_Len3(&v) < IOSFREEZE_NEAR_HEAD;
 }
 
 int iosFreeze_IsActive(void)
