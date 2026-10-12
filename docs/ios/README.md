@@ -9,6 +9,8 @@ with on-screen touch controls, using your own copy of the game. Its expansion,
 - **Mysteries of the Sith:** a separate app, OpenMoTS
   (`OpenJKDF2-MotS-iOS-unsigned.ipa`, new in v0.4). See
   [Mysteries of the Sith](#mysteries-of-the-sith).
+- **New in v0.5: the selfie camera.** Freeze the game and take a selfie with
+  everyone nearby, posing. See [The selfie camera](#the-selfie-camera).
 - **Problems?** [Open an issue](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/issues)
   (see [Reporting bugs](#reporting-bugs))
 
@@ -19,6 +21,7 @@ Contents: [What this is](#what-this-is) ·
 [3. Copy the game files to your iPhone](#3-copy-the-game-files-to-your-iphone) ·
 [4. Play](#4-play) ·
 [Touch controls](#touch-controls) ·
+[The selfie camera](#the-selfie-camera) ·
 [Tilt aiming](#tilt-aiming) ·
 [The Force wheel](#the-force-wheel) ·
 [The weapon wheel](#the-weapon-wheel) ·
@@ -262,10 +265,12 @@ The layout looks roughly like this. Exact positions shift a little to fit your
 screen, the camera cutout and the HUD.
 
 ```
- NEXT   FORCE   LIGHT  IR  BACTA         (FPS)  QUICK  QUICK  MENU
- WPN    WHEEL   (only items you have)            SAVE   LOAD
-                                     [SENS] [GYRO] [FPS] [keyboard]
-                                     (MENU's tray, when held)
+ NEXT   FORCE   LIGHT  IR  BACTA  (CAMERA)    (FPS)  QUICK  QUICK  MENU
+ WPN    WHEEL   (only items you have)               SAVE   LOAD
+                            [SENS] [GYRO] [FPS] [CAMERA] [keyboard]
+                            (MENU's tray, when held)
+                               [CLEAN] [HUD] [HUD+BTNS]
+                               (CAMERA's options, when CAMERA is held in the tray)
 
       (^^)  run marker                              JUMP   FORCE
        |                                     ACT
@@ -274,7 +279,9 @@ screen, the camera cutout and the HUD.
                                                          [ammo gauge]
 ```
 
-Buttons are slightly see-through until you touch them.
+Buttons are slightly see-through until you touch them. The game's messages
+and mission text appear just below the top row of buttons, so the buttons
+never cover them, and long lines wrap between words.
 
 ### Moving and looking
 
@@ -312,17 +319,19 @@ Buttons are slightly see-through until you touch them.
 | **QUICK SAVE** | top right | **Hold** for about a third of a second: a ring fills, then the game quick saves. See [Saving and loading](#saving-and-loading). |
 | **QUICK LOAD** | top right | **Hold** for about a third of a second: a ring fills, then your quick save loads. To cancel, lift or slide off before the ring fills. |
 | **MENU** | top right corner | **Tap** opens the game's menu (objectives, map, Jedi powers, save, load, setup and more). **Hold** opens a small tray just under it, see below. |
+| **CAMERA** (the camera symbol) | top, in the middle (only once switched on in MENU's tray) | **Hold still:** a selfie. **Tap:** a photo. **Slide off:** a burst. See [The selfie camera](#the-selfie-camera). |
 
 FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them.
-LIGHT, IR, BACTA, MENU and the tray buttons act when you **lift** your finger
-on them, so if you touch one by mistake, slide off before you lift. NEXT WPN
+LIGHT, IR, BACTA, MENU, CAMERA and the tray buttons act when you **lift** your finger
+on them, so if you touch one by mistake, slide off before you lift (on CAMERA,
+sliding off starts a burst instead). NEXT WPN
 and FORCE WHEEL act on a quick tap when you lift, or open their wheel when
 you slide or hold (see [Tap, slide or hold](#tap-slide-or-hold)).
 
-### MENU's tray: tilt aiming, FPS and keyboard
+### MENU's tray: tilt aiming, FPS, camera and keyboard
 
 Hold **MENU** until its ring fills (about half a second). A small tray opens just under it
-with four buttons, from left to right **SENS**, **GYRO**, **FPS** and the
+with five buttons, from left to right **SENS**, **GYRO**, **FPS**, **CAMERA** and the
 **keyboard**. Either slide your thumb down onto one and lift, or lift first and
 then tap one. Anywhere on the tray's dark backing counts as the nearest button.
 
@@ -331,16 +340,92 @@ then tap one. Anywhere on the tray's dark backing counts as the nearest button.
   tray stays open, so you can tap again.
 - **FPS:** shows or hides a frame-rate counter, to the left of QUICK SAVE. The FPS
   button is yellow while the counter is on.
+- **CAMERA** (the camera symbol): a tap shows or hides the CAMERA button
+  (yellow while it's on). Touch and hold it until its ring fills for
+  CAMERA's options: see
+  [The selfie camera](#the-selfie-camera).
 - **Keyboard** (the keyboard symbol, at the right end of the tray): opens the
   game's typing line with the iPhone keyboard, for [cheats](#cheats). While
   it's open, MENU and the keyboard button are lit yellow.
 
-The app remembers SENS, GYRO and FPS next time you open it. The tray usually
+The app remembers SENS, GYRO, FPS, CAMERA and its options next time you open it. The tray usually
 sits right under MENU. On smaller screens (with the camera cutout on the
 right, with Display Zoom, or at a large HUD Scale) it sits further left, so
 that it never covers FORCE or the buttons around FIRE. The tray closes after
-you pick FPS or the keyboard, or when you touch anywhere else. Touching MENU
+you pick FPS, CAMERA or the keyboard, or when you touch anywhere else. Touching MENU
 again just closes it. If you slide off MENU while holding it, nothing happens.
+
+## The selfie camera
+
+Hold the camera button for a selfie with everyone nearby, frozen mid-fight
+and posing for you. Tap it for ordinary photos of your game. Both go straight
+into your Photos app.
+
+**Switching it on:** hold **MENU**, then tap the **camera symbol** in the
+tray. A camera button (**CAMERA** in this guide) appears in the middle of the
+top row, and stays (the app remembers) until you tap the camera symbol in the
+tray again. The first time, iOS asks whether the app may **add photos** to
+your library: say yes. The game holds still while iOS asks. The app can only
+add photos; it can't see the ones already in your library.
+
+### Selfies
+
+**Hold CAMERA still** for half a second (a ring fills around it).
+
+- The whole game freezes, enemies and bosses included, and the HUD and touch
+  buttons hide.
+- The view switches to the phone, held out at arm's length and facing you.
+  Up to **8 people near you**, in sight, turn to it and strike a **random
+  pose**: wave, fist up, hand on hip, point, flex, salute, hands behind the
+  head, victory sign, shrug, hand on the chin or the heart, arms crossed, an
+  arm round a neighbour, and more. Some of the front row kneel on one knee or
+  crouch, some turn three-quarters to the camera or lean, and now and then a
+  whole group strikes the same pose. Droids and creatures just turn to the
+  camera.
+- **You** (Kyle, or Mara Jade in her levels of Mysteries of the Sith) put
+  your weapon away for the photo, hold the phone out in your right or left
+  hand, strike a pose with the other, and look toward the lens. The camera
+  angle changes from shot to shot: a little higher or lower, sometimes
+  slightly tilted.
+- **The flash** lights everyone up, and shots or blasts flying in front of
+  someone's face are left out of the photo.
+- After the flash and the shutter, the photo stays on screen for a moment.
+  Then everyone goes back to exactly what they were doing and the game carries
+  on. A selfie changes nothing in your game.
+- **Nobody nearby?** It's a selfie of you alone. If people are spread out too
+  far to fit in one photo, the ones furthest away are left out.
+- A selfie is always one clean photo (*... selfie.png*), whatever the tick
+  boxes say.
+- **When it can't:** with no room to hold the camera out (right up against a
+  wall), during a cutscene, through a scope or another camera, or when you're
+  dead, it says *Can't take a selfie here*. If the last photos are still
+  being saved, it says *Still saving the last photo*: try again in a moment.
+  While the typing line is open, holding CAMERA does nothing (a tap still
+  takes a photo).
+
+### Photos and bursts (the same button, without the hold)
+
+- **Tap CAMERA:** a white flash, the shutter sound, and the photo. A line at
+  the top of the screen says when it's saved (*1 photo saved*).
+- **Burst:** touch CAMERA and slide your finger off it (a short slide is
+  enough). The app takes a photo every fifth of a second while your finger
+  stays down, up to 10, with a quick tick for each and a counter beside the
+  button. Lift to stop. Burst photos are always clean ones.
+- **What a photo shows:** open the tray (hold MENU, then lift), then touch
+  and hold the **camera symbol in the tray** until its ring fills. A row
+  opens under the tray with three tick boxes: **CLEAN** (just the game:
+  ticked unless you change it), **HUD** (with the health and ammo gauges)
+  and **HUD+BTNS** (with the touch buttons too, as you see the screen). Tap
+  each to tick or untick it; at least one stays ticked. With more than one
+  ticked, each tap of CAMERA takes one photo of each, of the same moment.
+  Touch anywhere else to close the row and the tray.
+- Photos are full-screen PNGs named after the app and the time, for example
+  *OpenJKDF2 2026-10-12 14.05.09 clean.png* (a burst's are numbered:
+  *... burst 01.png*; *OpenMoTS ...* in Mysteries of the Sith).
+- **If Photos access is off,** they go to the Files app instead, in
+  *OpenJKDF2 > Screenshots* (or *OpenMoTS > Screenshots*), and the message
+  says so. To use the Photos app again: *Settings > Privacy & Security >
+  Photos*, then the app, then *Add Photos Only*.
 
 ## Tilt aiming
 
@@ -689,7 +774,7 @@ Things to know:
 - **Updating:** install a newer `OpenJKDF2-MotS-iOS-unsigned.ipa` with the same
   tool and Apple ID, as for OpenJKDF2. It replaces the app and keeps your
   files and saves. That includes going from the OpenMoTS test build on the
-  "iOS latest build" pre-release to v0.4.
+  "iOS latest build" pre-release to a release.
 - *Expansions & Mods* in OpenMoTS has no entry for Jedi Knight: open the
   OpenJKDF2 app instead.
 - The **Force wheel** shows the 17 Force powers you can use in Mysteries of
@@ -745,6 +830,13 @@ If something doesn't work in OpenMoTS, please say so in your bug report
   On an iPhone, it has only been checked to start and run so far (see
   [Mysteries of the Sith](#mysteries-of-the-sith)). In OpenJKDF2, please
   ignore *Install Mysteries of the Sith* under *Expansions & Mods*.
+- **The selfie camera is new in v0.5.** They've been tried on an
+  iPhone (photos and lots of selfies in Jedi Knight) and tested on a computer
+  with the real game engine, each selfie checked to put the level back
+  exactly as it was. Selfies in Mysteries of the Sith have only been tested on
+  a computer. With low-detail 1990s models, some poses can look a little odd
+  up close. If a selfie looks strange, or the game doesn't carry on as before
+  after one, please report it.
 - **Finding the files outside `jk1` and `mots`** is new in v0.4, and has
   mostly been tested on a computer. If an app doesn't find your files, put
   them in `jk1` (or `mots`) as this guide shows.

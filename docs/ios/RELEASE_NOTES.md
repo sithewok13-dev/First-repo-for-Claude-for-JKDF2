@@ -13,24 +13,31 @@
   into a visible one.
 -->
 
-**OpenJKDF2 for iOS v0.4**: an unofficial iPhone and iPad build of [OpenJKDF2](https://github.com/shinyquagsire23/OpenJKDF2), the open-source Jedi Knight: Dark Forces II engine, with on-screen touch controls. **New in this release: Mysteries of the Sith**, the expansion, in an app of its own, **OpenMoTS**, with the same touch controls. Both apps also find your game files in more places now. Coming from v0.2? You also get the **`sithewok`** cheat from v0.3. From v0.1? Also the **weapon wheel**, **tilt aiming** and more from v0.2. It's still **experimental**, so expect bugs.
+**OpenJKDF2 for iOS v0.5**: an unofficial iPhone and iPad build of [OpenJKDF2](https://github.com/shinyquagsire23/OpenJKDF2), the open-source Jedi Knight: Dark Forces II engine, with on-screen touch controls. **New in this release: the selfie camera.** Hold the camera button and the whole game freezes, bosses and all. Everyone nearby turns to face you and strikes a pose: they wave, flex, salute, kneel in the front row, throw an arm round a neighbour. You hold the phone out at arm's length, the flash goes off, and you've got a selfie with your enemies. Then everything snaps back exactly as it was and the fight goes on. Tap the same button for ordinary photos of your game, or slide off it for a burst, all straight into your Photos app. It's all in both apps, Jedi Knight and Mysteries of the Sith. Coming from v0.3? You also get **Mysteries of the Sith** in its own app, **OpenMoTS**, from v0.4. From v0.2 or older? Also the **`sithewok`** cheat, the **weapon wheel** and **tilt aiming**. It's still **experimental**, so expect bugs.
 
 **You need your own copy of the game; no game files are included.** OpenJKDF2 needs Star Wars Jedi Knight: Dark Forces II, and OpenMoTS needs Star Wars Jedi Knight: Mysteries of the Sith (GOG and Steam sell both).
 
-**Two apps, one for each game:** **OpenJKDF2** (`OpenJKDF2-iOS-unsigned.ipa`) plays Jedi Knight, and **OpenMoTS** (`OpenJKDF2-MotS-iOS-unsigned.ipa`) plays Mysteries of the Sith. Install the one for the game you have, or both: they sit side by side, each with its own icon and its own folder for its files and saves. **OpenMoTS is new in this release** and has had much less testing than OpenJKDF2: so far it has been tested on a computer and checked to start and run on an iPhone (see *Known limitations*). If something goes wrong in it, please report it (see *Found a bug?*).
+**Two apps, one for each game:** **OpenJKDF2** (`OpenJKDF2-iOS-unsigned.ipa`) plays Jedi Knight, and **OpenMoTS** (`OpenJKDF2-MotS-iOS-unsigned.ipa`) plays Mysteries of the Sith. Install the one for the game you have, or both: they sit side by side, each with its own icon and its own folder for its files and saves. **OpenMoTS** (new in v0.4) has had much less testing than OpenJKDF2 (see *Known limitations*). If something goes wrong in it, please report it (see *Found a bug?*).
 
 **Setup guide:** https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/blob/HEAD/docs/ios/README.md
 
 **New here?** *Known limitations*, *Requirements* and *Install* are near the bottom of this page, just above the download.
 
-### What's in v0.4
+### What's in v0.5
 
-New since v0.3:
+New since v0.4, in both apps:
+
+- **The selfie camera: hold the camera button still for half a second.** The whole game freezes, enemies and bosses included, and the HUD and buttons get out of the way. Up to **8 people near you** turn to the camera and strike a **random pose**: wave, flex, salute, point, shrug, fist up, victory sign, hands behind the head, hand on the heart, arms crossed, an arm round a neighbour, and more.
+- **Every selfie is different.** Some of the front row kneel on one knee or crouch, some turn three-quarters to the camera or lean, and now and then a whole group strikes the same pose, like a team photo. The camera angle changes too: a little higher or lower, sometimes slightly tilted. You (Kyle, or Mara Jade in Mysteries of the Sith) put your weapon away for the photo, hold the phone out in your right or left hand, pose with the other, and look toward the lens.
+- **A real flash** lights everyone up, with the shutter sound, and blaster bolts frozen in front of someone's face are left out of the shot. The photo stays on screen for a moment, then everyone goes back to exactly what they were doing, as if nothing happened. Nobody nearby? Then it's a selfie of you alone.
+- **The camera button** lives in MENU's hidden tray: hold **MENU**, tap the **camera symbol**, and the button appears in the middle of the top row. Your selfies and photos go straight into your **Photos** app (the app asks once, the first time).
+- **Photos and bursts with the same button:** **tap** it for a photo of the game, with a flash and a shutter sound, or **slide off** it for a burst: a photo every fifth of a second for as long as your finger stays down (up to 10), each with its own quick tick. Hold the camera symbol in the tray to choose what a photo shows: **CLEAN** (just the game, the default), **HUD** (with the gauges) or **HUD+BTNS** (with the touch buttons too), or any mix.
+- **Easier-to-read mission text:** the game's messages and mission text now appear just below the top row of buttons instead of behind them, a third bigger, and long lines wrap between words.
+
+Added in v0.4 (if you're coming from v0.3):
 
 - **Mysteries of the Sith, in its own app: OpenMoTS.** The same engine and the same touch controls as Jedi Knight, in a second app with its own icon and its own folder in the Files app, so it installs next to OpenJKDF2 and keeps its files and saves apart. Its Force wheel and weapon wheel show Mysteries of the Sith's own Force powers and weapons, and the `sithewok` cheat works there too. See *Mysteries of the Sith: the OpenMoTS app* below.
 - **Both apps find your game files in more places.** The recommended place is still the game folder the app makes (`jk1` in OpenJKDF2, `mots` in OpenMoTS). But the apps now also find the files straight in the app's own folder in the Files app (*OpenJKDF2* or *OpenMoTS*), or in a folder inside it, such as one made by unpacking a `.zip`. If your files are already in `jk1`, nothing changes.
-
-**The Jedi Knight app is otherwise unchanged:** apart from finding the files in more places, OpenJKDF2 is the same as in v0.3. If v0.3 works for you, you don't need to update OpenJKDF2. Updating keeps your game files and saves (see *Install*).
 
 Added in v0.3 (if you're coming from v0.2):
 
@@ -54,10 +61,12 @@ Still here from v0.1: the floating move stick with its run marker, drag to look,
 The touch controls appear once you're playing a level, and hide in menus and cutscenes (there you just tap, like clicking with a mouse). The game runs in landscape, either way round. **Both apps have the same controls.** What's different in Mysteries of the Sith (its wheels and cheats) is in *Mysteries of the Sith: the OpenMoTS app* below.
 
 ```
- NEXT   FORCE   LIGHT  IR  BACTA         (FPS)  QUICK  QUICK  MENU
- WPN    WHEEL   (only items you have)            SAVE   LOAD
-                                     [SENS] [GYRO] [FPS] [keyboard]
-                                     (MENU's tray, when held)
+ NEXT   FORCE   LIGHT  IR  BACTA  (CAMERA)    (FPS)  QUICK  QUICK  MENU
+ WPN    WHEEL   (only items you have)               SAVE   LOAD
+                            [SENS] [GYRO] [FPS] [CAMERA] [keyboard]
+                            (MENU's tray, when held)
+                               [CLEAN] [HUD] [HUD+BTNS]
+                               (CAMERA's options, when CAMERA is held in the tray)
 
       (^^)  run marker                              JUMP   FORCE
        |                                     ACT
@@ -67,6 +76,29 @@ The touch controls appear once you're playing a level, and hide in menus and cut
 ```
 
 Exact positions shift a little to fit your screen, the camera cutout and the HUD. Buttons are slightly see-through until you touch them.
+
+#### The selfie camera (and photos)
+
+**Switching it on:** hold **MENU**, then tap the **camera symbol** in the tray. A camera button (**CAMERA** in this guide) appears in the middle of the top row, and stays there (the app remembers) until you tap the camera symbol in the tray again. The first time, iOS asks whether the app may **add photos** to your library: say yes, and the photos go straight into your Photos app. The game holds still while iOS asks. The app can only add photos; it can't see the ones already in your library.
+
+**Selfies:** **hold CAMERA still** for half a second (a ring fills around it).
+
+- The whole game freezes, enemies and bosses included, and the HUD and touch buttons hide.
+- The view switches to the phone, held out at arm's length and facing you. Up to **8 people near you**, in sight, turn to it and strike a **random pose**: wave, fist up, hand on hip, point, flex, salute, hands behind the head, victory sign, shrug, hand on the chin or the heart, arms crossed, an arm round a neighbour, and more. Some of the front row kneel on one knee or crouch, some turn three-quarters to the camera or lean, and now and then a whole group strikes the same pose like a team photo. Droids and creatures just turn to face the camera.
+- **You** (Kyle, or Mara Jade in her levels of Mysteries of the Sith) put your weapon away for the photo, hold the phone out in your right or left hand, strike a pose with the other, and look toward the lens. The camera angle changes from shot to shot: sometimes a little higher or lower, sometimes slightly tilted.
+- **The flash** lights everyone up, and shots or blasts flying in front of someone's face are left out of the photo.
+- After the flash and the shutter, the photo stays on screen for a moment. Then everyone goes back to exactly what they were doing, and the game carries on. A selfie changes nothing in your game.
+- **Nobody nearby?** It's a selfie of you alone. If people are spread out too far to fit in one photo, the ones furthest away are left out.
+- A selfie is always one clean photo (*... selfie.png*), whatever the tick boxes say.
+- **When it can't:** if there's no room to hold the camera out (right up against a wall), or the game is showing a cutscene, a scope or another camera, or you're dead, it says *Can't take a selfie here*. If the last photos are still being saved, it says *Still saving the last photo*: try again in a moment. While the typing line is open, holding CAMERA does nothing (a tap still takes a photo).
+
+**Photos and bursts** (the same button, without the hold):
+
+- **Tap CAMERA:** a white flash, the camera's shutter sound, and the photo. A line at the top of the screen says when it's saved (*1 photo saved*).
+- **Burst:** touch CAMERA and slide your finger off it (a short slide is enough). The app takes a photo every fifth of a second for as long as your finger stays down, up to 10, with a quick tick for each and a counter beside the button. Lift your finger to stop. Burst photos are always clean ones, without the HUD.
+- **What a photo shows:** open the tray (hold MENU, then lift), then touch and hold the **camera symbol in the tray** until its ring fills. A row opens under the tray with three tick boxes: **CLEAN** (just the game, no gauges or buttons: ticked unless you change it), **HUD** (the game with its health and ammo gauges) and **HUD+BTNS** (with the touch buttons too, as you see the screen). Tap each to tick or untick it; at least one stays ticked. If you tick more than one, each tap of CAMERA takes one photo of each, all of the same moment. Touch anywhere else to close the row and the tray.
+- Photos are full-screen PNGs, named after the app and the time, for example *OpenJKDF2 2026-10-12 14.05.09 clean.png* (a burst's are numbered: *... burst 01.png*). In Mysteries of the Sith they start with *OpenMoTS*.
+- **If Photos access is off** (you said no, or turned it off in *Settings*), the photos go to the Files app instead, in *OpenJKDF2 > Screenshots* (or *OpenMoTS > Screenshots*), and the message says so. To use the Photos app again: *Settings > Privacy & Security > Photos*, then the app, then *Add Photos Only*.
 
 #### Moving, running and Always Run
 
@@ -97,25 +129,27 @@ Exact positions shift a little to fit your screen, the camera cutout and the HUD
 | **QUICK SAVE** | top right | Hold for about a third of a second. See *Quick save and quick load* below. |
 | **QUICK LOAD** | top right | Hold for about a third of a second. |
 | **MENU** | top right corner | Tap: the game's menu (objectives, map, Jedi powers, save, load, setup). Hold: the hidden tray. |
+| **CAMERA** (the camera symbol) | top, in the middle (only once switched on in the tray) | Hold still: a selfie. Tap: a photo. Slide off: a burst. See *The selfie camera* above. |
 
-FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them. LIGHT, IR, BACTA, MENU and the tray buttons act when you **lift** your finger, so if you touch one by mistake, slide off before you lift.
+FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them. LIGHT, IR, BACTA, MENU, CAMERA and the tray buttons act when you **lift** your finger, so if you touch one by mistake, slide off before you lift (on CAMERA, sliding off starts a burst instead: see *The selfie camera* above).
 
 #### MENU's hidden tray
 
-**Tap MENU** for the game's menu, as before. **Hold MENU** until its ring fills (about half a second) and a small tray opens just under it with four buttons, from left to right:
+**Tap MENU** for the game's menu, as before. **Hold MENU** until its ring fills (about half a second) and a small tray opens just under it with five buttons, from left to right:
 
 | Tray button | What it does |
 | --- | --- |
 | **SENS** | Tilt aiming's sensitivity: **1.0x**, **1.5x** (the default), **2.0x** or **3.0x**. At 1.0x the view turns exactly as far as the phone does. Dimmed while GYRO is off. |
 | **GYRO** | Tilt aiming: **OFF** (the default), **TOUCH** or **ALWAYS**. Lit yellow while tilt aiming is on. See *Tilt aiming* below. |
 | **FPS** | Shows or hides a frame-rate counter, to the left of QUICK SAVE. Yellow while the counter is on. |
+| **CAMERA** (the camera symbol) | **Tap:** shows or hides the CAMERA button (yellow while it's on). **Touch and hold** until its ring fills: CAMERA's options, a row under the tray where you tick which photos a tap takes. See *The selfie camera* above. |
 | **Keyboard** (the keyboard symbol) | Opens the game's typing line with the iPhone keyboard, for cheats. Tap it again to close the line. |
 
 - SENS and GYRO show their current setting on the button (for example *SENS 1.5x*, *GYRO OFF*).
 - Either keep your thumb down, slide it onto a tray button and lift, or lift first and then tap one. Anywhere on the tray's dark backing counts as the nearest button.
-- Each tap on **SENS** or **GYRO** goes on to the next setting, and the tray stays open so you can tap again. The tray closes after **FPS** or the keyboard, or when you touch anywhere else. That touch still counts: touching FIRE closes the tray and fires. Touching MENU again only closes it.
+- Each tap on **SENS** or **GYRO** goes on to the next setting, and the tray stays open so you can tap again. The tray closes after **FPS**, **CAMERA** or the keyboard, or when you touch anywhere else. That touch still counts: touching FIRE closes the tray and fires. Touching MENU again only closes it.
 - If you slide off MENU while holding it, nothing happens.
-- The app **remembers SENS, GYRO and FPS** next time you open it.
+- The app **remembers SENS, GYRO, FPS, CAMERA and its options** next time you open it.
 - On smaller screens (camera cutout on the right, Display Zoom, a large HUD Scale) the tray sits further left, so it stays clear of FORCE and the buttons around FIRE.
 
 #### Tilt aiming (gyro)
@@ -215,6 +249,7 @@ While you're typing, most touch buttons don't work. A swipe or long press on FOR
 
 #### Other things worth knowing
 
+- **Messages and mission text** appear just below the top row of buttons, so the buttons never cover them, and long lines wrap.
 - **The HUD fits rounded, notched screens:** the health and ammo gauges sit above the home bar, the rounded corners never cut into the dials, and the health and shield numbers are drawn bigger so they're easy to read. The HUD Scale is 2.5 by default (*Setup > Display*).
 - **Cutscenes:** tap the screen to skip. **Menus:** tap them as you'd click.
 - **If the game feels slow:** in *Setup > Display*, try an *SSAA Multiplier* below 1 (for example `0.75` or `0.5`), and turn on the FPS counter in MENU's tray to see the difference.
@@ -222,7 +257,7 @@ While you're typing, most touch buttons don't work. A swipe or long press on FOR
 
 ### Mysteries of the Sith: the OpenMoTS app
 
-**Star Wars Jedi Knight: Mysteries of the Sith** (1998), the expansion, plays in its own app, **OpenMoTS**: the same engine and the same touch controls as OpenJKDF2, in a second app with its own icon and its own folder in the Files app. It installs next to OpenJKDF2 and keeps its files, saves and settings apart from Jedi Knight's (SENS, GYRO and FPS too). It only needs Mysteries of the Sith's own files.
+**Star Wars Jedi Knight: Mysteries of the Sith** (1998), the expansion, plays in its own app, **OpenMoTS**: the same engine and the same touch controls as OpenJKDF2, in a second app with its own icon and its own folder in the Files app. It installs next to OpenJKDF2 and keeps its files, saves and settings apart from Jedi Knight's (SENS, GYRO, FPS and CAMERA too). It only needs Mysteries of the Sith's own files.
 
 - **Installing:** download `OpenJKDF2-MotS-iOS-unsigned.ipa` and install it the same way as OpenJKDF2, with the same tool (see *Install* below). With a free Apple ID, it counts as one more of your 3 sideloaded apps. If your tool says you've reached the limit, don't delete OpenJKDF2 to make room: that deletes its game files and saves too. Deactivate or remove a different app instead.
 - **Its files:** open OpenMoTS once, so it makes its folder, then copy the `Episode`, `Resource` and `MUSIC` folders from your Mysteries of the Sith folder into *On My iPhone (or On My iPad) > OpenMoTS > mots*. Like OpenJKDF2, it also finds them straight in the *OpenMoTS* folder, or in a folder inside it, but `mots` is the place the guide uses.
@@ -230,7 +265,7 @@ While you're typing, most touch buttons don't work. A swipe or long press on FOR
 - **Expansions & Mods** in OpenMoTS has no entry for Jedi Knight: open the OpenJKDF2 app instead.
 - The setup guide has the steps, with a picture of the folders: https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/blob/HEAD/docs/ios/README.md#mysteries-of-the-sith
 
-**The same as in Jedi Knight:** the move stick and its run marker, drag to look, every button, MENU's hidden tray, tilt aiming, QUICK SAVE and QUICK LOAD, the LIGHT, IR and BACTA item buttons, the FORCE button with its Force meter ring, tap, swipe or long-press on the wheel buttons, the stars on the Force wheel, and the HUD that fits your screen.
+**The same as in Jedi Knight:** the move stick and its run marker, drag to look, every button, MENU's hidden tray, the selfie camera, tilt aiming, QUICK SAVE and QUICK LOAD, the LIGHT, IR and BACTA item buttons, the FORCE button with its Force meter ring, tap, swipe or long-press on the wheel buttons, the stars on the Force wheel, and the HUD that fits your screen.
 
 **Different in Mysteries of the Sith:**
 
@@ -253,9 +288,10 @@ While you're typing, most touch buttons don't work. A swipe or long press on FOR
 
 ### Known limitations
 
-- **OpenMoTS (Mysteries of the Sith) is new, and has had much less testing than OpenJKDF2.** On an iPhone, it has only been checked to start and run with the files in its folder so far. It hasn't been played through on one, and it hasn't been tried on an iPad.
+- **The selfie camera is new.** It's been tried on an iPhone (lots of selfies and photos in Jedi Knight), and tested on a computer with the real game engine, with each selfie checked to put the whole level back exactly as it was. The last tweak, to how your arm holding the phone sits in the photo, has only been tested on a computer. Selfies in Mysteries of the Sith have only been tested on a computer. With low-detail 1990s models, some poses can look a little odd up close. **If a selfie looks strange, or the game doesn't carry on as before after one, please report it** (see *Found a bug?*).
+- **OpenMoTS (Mysteries of the Sith) is new in v0.4, and has had much less testing than OpenJKDF2.** On an iPhone, it has only been checked to start and run with the files in its folder so far. It hasn't been played through on one, and it hasn't been tried on an iPad.
 - **OpenMoTS on a computer:** it has been tested with the real game engine, the Mysteries of the Sith files and simulated touches: the menus, the first level, the HUD, the main buttons, both wheels, the cheats and `sithewok`, quick save and quick load, the item buttons, finishing a level and starting the next, and Mara Jade's first level. Tilt aiming and the sound haven't been checked in OpenMoTS yet.
-- **Finding the files outside `jk1` and `mots` is new**, and has mostly been tested on a computer. If an app doesn't find your files, put them in `jk1` (or `mots`) as the guide shows.
+- **Finding the files outside `jk1` and `mots` is new in v0.4**, and has mostly been tested on a computer. If an app doesn't find your files, put them in `jk1` (or `mots`) as the guide shows.
 - **In OpenJKDF2, please ignore *Install Mysteries of the Sith*** under *Expansions & Mods*: Mysteries of the Sith plays in OpenMoTS. If you tapped it, close the app and open it again.
 - **No multiplayer.** The iOS build has no networking.
 - **The touch buttons only know the default key bindings** (see above).
@@ -282,13 +318,13 @@ While you're typing, most touch buttons don't work. A swipe or long press on FOR
 
 The setup guide covers each step, including Developer Mode and "Untrusted Developer": https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/blob/HEAD/docs/ios/README.md#2-install-the-app
 
-**Updating from v0.3 or older:** sideload the new `OpenJKDF2-iOS-unsigned.ipa` with the same tool and Apple ID. It replaces OpenJKDF2 and keeps your game files and saves, and files in `jk1` stay where they are. (With a different tool or Apple ID, iOS may install it as a separate app with an empty folder: the guide explains how to move your files over.) **Tried the OpenMoTS test build** from the *iOS latest build* prerelease? Install this `OpenJKDF2-MotS-iOS-unsigned.ipa` over it the same way: it keeps its files and saves too.
+**Updating from an older version:** sideload the new `.ipa` with the same tool and Apple ID. It replaces the app and keeps your game files and saves, and files in `jk1` (or `mots`) stay where they are. (With a different tool or Apple ID, iOS may install it as a separate app with an empty folder: the guide explains how to move your files over.) **Tried a test build** from the *iOS latest build* prerelease? Install this release over it the same way: it keeps its files and saves too.
 
 **Your saves** are in the Files app: *OpenJKDF2 > jk1 > player*, or *OpenMoTS > mots > player*. (If you put the game files somewhere else in the app's folder, the `player` folder is next to them.) Copy it somewhere safe now and then, and always before you delete an app: deleting an app deletes its folder, game files and saves included.
 
 **Download:** under *Assets* below (not the *Source code* files): `OpenJKDF2-iOS-unsigned.ipa` is Jedi Knight (OpenJKDF2), and `OpenJKDF2-MotS-iOS-unsigned.ipa` is Mysteries of the Sith (OpenMoTS). The *iOS latest build* prerelease, also on the Releases page, is rebuilt automatically after every code change and may be broken: use this release.
 
-**Found a bug?** Please report it here, not to the upstream OpenJKDF2 project, and say you're on **v0.4** and which app, OpenJKDF2 or OpenMoTS (AltStore and Settings show 0.9.9 for both: that's the engine's version): https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/issues
+**Found a bug?** Please report it here, not to the upstream OpenJKDF2 project, and say you're on **v0.5** and which app, OpenJKDF2 or OpenMoTS (AltStore and Settings show 0.9.9 for both: that's the engine's version): https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/issues
 
 ---
 
