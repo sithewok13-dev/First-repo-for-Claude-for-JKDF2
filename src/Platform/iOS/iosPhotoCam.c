@@ -12,6 +12,7 @@
 #include "Engine/sithCamera.h"
 #include "Engine/sithCollision.h"
 #include "Engine/rdCamera.h"
+#include "Engine/rdPuppet.h"
 #include "Primitives/rdMatrix.h"
 #include "Primitives/rdVector.h"
 #include "Dss/sithMulti.h"
@@ -31,6 +32,18 @@ static flex_t iosPhotoCam_savedShakePosDelta, iosPhotoCam_savedShakeAngleDelta;
 // must not mark the map: see sithRender's SITHRENDER_PHOTO_LOOKING)
 static unsigned char* iosPhotoCam_aSectorSeen = NULL;
 static int iosPhotoCam_numSectorSeen = 0;
+// Every animated thing's animation tracks as they were: drawing a thing
+// works out its pose from them, and keeps in them where its keyframe search
+// got to (rdPuppet_BuildJointMatrices); a thing first drawn by the photo
+// camera (seen from where the player can't) would keep that afterwards.
+// Harmless as far as the code shows (only where the next search starts),
+// but put back all the same, so the game goes on exactly as it was.
+typedef struct {
+    rdPuppet* puppet;
+    unsigned char aTracks[sizeof(((rdPuppet*)0)->aTracks)];
+} iosPhotoCamTracks;
+static iosPhotoCamTracks* iosPhotoCam_aTracks = NULL;
+static int iosPhotoCam_numThingsSaved = 0;
 
 int iosPhotoCam_Begin(int holdReason)
 {
@@ -47,6 +60,19 @@ int iosPhotoCam_Begin(int holdReason)
     if (!iosPhotoCam_aSectorSeen) return 0;
     for (int i = 0; i < w->numSectors; i++)
         iosPhotoCam_aSectorSeen[i] = (w->aSectors[i].flags & SITH_SECTOR_SEEN) != 0;
+    free(iosPhotoCam_aTracks);
+    iosPhotoCam_numThingsSaved = w->numThings;
+    iosPhotoCam_aTracks = (iosPhotoCamTracks*)calloc(w->numThings > 0 ? w->numThings : 1, sizeof(iosPhotoCamTracks));
+    if (!iosPhotoCam_aTracks) {
+        free(iosPhotoCam_aSectorSeen);
+        iosPhotoCam_aSectorSeen = NULL;
+        return 0;
+    }
+    for (int i = 0; i < w->numThings; i++) {
+        rdPuppet* p = w->aThings[i].type ? w->aThings[i].renderData.puppet : NULL;
+        iosPhotoCam_aTracks[i].puppet = p;
+        if (p) memcpy(iosPhotoCam_aTracks[i].aTracks, p->aTracks, sizeof(p->aTracks));
+    }
 
     SithCamera* c = &sithCamera_g_aCameras[2];
     iosPhotoCam_pPrevCamera = sithCamera_g_pCurCamera;
@@ -110,6 +136,16 @@ void iosPhotoCam_End(void)
     }
     free(iosPhotoCam_aSectorSeen);
     iosPhotoCam_aSectorSeen = NULL;
+    // (the same thing, with the same animation, as when saved: the game was
+    // held, so none can have come or gone)
+    if (w && iosPhotoCam_aTracks && w->numThings == iosPhotoCam_numThingsSaved) {
+        for (int i = 0; i < w->numThings; i++) {
+            rdPuppet* p = w->aThings[i].type ? w->aThings[i].renderData.puppet : NULL;
+            if (p && p == iosPhotoCam_aTracks[i].puppet) memcpy(p->aTracks, iosPhotoCam_aTracks[i].aTracks, sizeof(p->aTracks));
+        }
+    }
+    free(iosPhotoCam_aTracks);
+    iosPhotoCam_aTracks = NULL;
     sithCamera_g_aCameras[2] = iosPhotoCam_savedCamera;
     rdCamera_BuildFOV(&sithCamera_g_aCameras[2].rdCamera); // (its view shape, from the lens put back)
     if (iosPhotoCam_pPrevCamera) sithCamera_SetCurrentCamera(iosPhotoCam_pPrevCamera);
@@ -142,6 +178,14 @@ int iosPhotoCam_SetLens(struct rdCamera* pCamera)
     return 1;
 }
 
+// A door, a lift, a moving wall: a level's moving parts are "cog" things,
+// the only things these searches look for (RAYCAST_2000); they stop the line
+// as a wall does
+static int iosPhotoCam_IsDoor(const SithCollision* c)
+{
+    return (c->type & SITHCOLLISION_THING) && c->pThingCollided && c->pThingCollided->type == SITH_THING_COG;
+}
+
 int iosPhotoCam_Clear(SithSector* from, const rdVector3* a, const rdVector3* b, float slack, SithSector** pEnd)
 {
     rdVector3 dir, start = *a;
@@ -158,7 +202,7 @@ int iosPhotoCam_Clear(SithSector* from, const rdVector3* a, const rdVector3* b, 
         if (c->surface && c->surface->pAdjoin && (c->type & (SITHCOLLISION_ADJOINCROSS | SITHCOLLISION_THINGADJOINCROSS))) {
             if (c->type & SITHCOLLISION_ADJOINCROSS) s = c->surface->pAdjoin->sector;
         }
-        else if ((c->type & SITHCOLLISION_WORLD) && c->distance < dist - slack) {
+        else if (((c->type & SITHCOLLISION_WORLD) || iosPhotoCam_IsDoor(c)) && c->distance < dist - slack) {
             bClear = 0;
             break;
         }
@@ -166,6 +210,31 @@ int iosPhotoCam_Clear(SithSector* from, const rdVector3* a, const rdVector3* b, 
     sithCollision_DecreaseStackLevel();
     if (pEnd) *pEnd = s;
     return bClear && s;
+}
+
+float iosPhotoCam_ClearDist(SithSector* from, const rdVector3* a, const rdVector3* b, SithSector** pEnd)
+{
+    rdVector3 dir, start = *a;
+    rdVector_Sub3(&dir, b, a);
+    const flex_t dist = rdVector_Normalize3Acc(&dir);
+    SithSector* s = from;
+    flex_t clear = dist;
+    if (pEnd) *pEnd = from;
+    if (!from || dist <= 0.0f) return 0.0f;
+    sithCollision_SearchForCollisions(from, NULL, &start, &dir, dist, 0.0f, RAYCAST_2000 | RAYCAST_100 | RAYCAST_20);
+    // (nearest first, as iosPhotoCam_Clear takes them)
+    for (SithCollision* c = sithCollision_PopStack(); c; c = sithCollision_PopStack()) {
+        if (c->surface && c->surface->pAdjoin && (c->type & (SITHCOLLISION_ADJOINCROSS | SITHCOLLISION_THINGADJOINCROSS))) {
+            if (c->type & SITHCOLLISION_ADJOINCROSS) s = c->surface->pAdjoin->sector;
+        }
+        else if ((c->type & SITHCOLLISION_WORLD) || iosPhotoCam_IsDoor(c)) {
+            clear = c->distance < dist ? c->distance : dist;
+            break;
+        }
+    }
+    sithCollision_DecreaseStackLevel();
+    if (pEnd) *pEnd = s;
+    return clear;
 }
 
 #endif // TARGET_IOS

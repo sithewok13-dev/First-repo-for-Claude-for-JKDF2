@@ -43,7 +43,7 @@
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosSelfie.h" // Added
 #include "Platform/iOS/iosPhotoCam.h" // Added
-// Added: the photo camera (the selfie; frozen action planned) only looks (iosPhotoCam)
+// Added: the photo camera (the selfie, Action Freeze) only looks (iosPhotoCam)
 #define JKPLAYER_PHOTO_LOOKING() iosPhotoCam_IsActive()
 // Added: a saber blade right across a selfie's lens is left out of it
 #define JKPLAYER_SELFIE_HIDES_BLADE(pMat, pLine) \

@@ -36,7 +36,8 @@
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosSelfie.h" // Added
 #include "Platform/iOS/iosPhotoCam.h" // Added
-// Added: the photo camera (the selfie; frozen action planned) only looks: what it sees
+#include "Platform/iOS/iosFreeze.h" // Added
+// Added: the photo camera (the selfie, Action Freeze) only looks: what it sees
 // isn't sighted, seen on the map, marked as on screen, or flashed (iosPhotoCam)
 #define SITHRENDER_PHOTO_LOOKING() iosPhotoCam_IsActive()
 #else
@@ -3003,8 +3004,9 @@ int sithRender_RenderThing(SithThing *pThing)
     int ret;
 
 #ifdef TARGET_IOS
-    // Added: a shot or blast frozen in front of a face in a selfie: left out
-    if (SITHRENDER_PHOTO_LOOKING() && iosSelfie_HidesThing(pThing)) // (0 unless a selfie is up)
+    // Added: a shot or blast frozen in front of a face in a selfie, or the
+    // player's own body round the camera at the start of Action Freeze: left out
+    if (SITHRENDER_PHOTO_LOOKING() && (iosSelfie_HidesThing(pThing) || iosFreeze_HidesThing(pThing))) // (0 unless one is up)
         return 0;
 #endif
 

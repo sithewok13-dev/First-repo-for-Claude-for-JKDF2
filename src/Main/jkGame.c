@@ -360,7 +360,7 @@ int jkGame_Update()
 
 #ifdef TARGET_IOS
     // Added: nothing of the HUD (meters, crosshair, messages, items) over the
-    // photo camera's view (the selfie; frozen action planned: iosPhotoCam)
+    // photo camera's view (the selfie, Action Freeze: iosPhotoCam)
     if (!iosPhotoCam_IsActive())
 #endif
     {

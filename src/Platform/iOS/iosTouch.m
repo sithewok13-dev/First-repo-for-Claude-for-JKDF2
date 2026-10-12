@@ -19,6 +19,7 @@
 #include "Platform/iOS/iosPhotos.h"
 #include "Platform/iOS/iosSelfie.h"
 #include "Platform/iOS/iosSelfieShots.h"
+#include "Platform/iOS/iosFreeze.h"
 
 extern SDL_Window* displayWindow;
 extern int stdControl_bControlsActive;
@@ -164,6 +165,16 @@ extern int jkHud_bChatOpen;
 // How many photos a selfie takes (the camera options' SELFIES; remembered,
 // 3 unless changed): its timing is iosSelfieShots'
 #define IOSTOUCH_SELFIES_DEFAULTS_KEY @"iosTouchSelfieShots"
+// Action Freeze (iosFreeze), with FREEZE on in the camera options (on by
+// default): CAMERA slid down this far (mostly down) stops the action to look
+// round it -- further than a burst's slide, so it isn't set off by chance.
+// While it is up: one finger turns the camera round what it looks at, this
+// many degrees per point; two fingers move it (and pinch to zoom); CAMERA
+// takes a clean photo; the X goes back to the game.
+#define IOSTOUCH_FREEZE_DEFAULTS_KEY @"iosTouchFreeze"
+#define IOSTOUCH_FREEZE_SWIPE 36.0
+#define IOSTOUCH_FREEZE_ORBIT 0.3
+#define IOSTOUCH_FREEZE_CLOSE_RADIUS 22.0
 // (the overlay's views, at most, whose see-through-ness a selfie keeps)
 #define IOSTOUCH_MAX_SUBVIEWS 96
 #define IOSTOUCH_BURST_GAP 0.2
@@ -218,6 +229,9 @@ enum {
     ROLE_BUTTON,
     ROLE_WHEEL,   // a touch on the open wheel (force or weapons)
     ROLE_IGNORED, // was down when the wheel opened, or only closed the MENU tray, or a second finger on FORCE WHEEL / NEXT WPN; ignored until it lifts
+    ROLE_FREEZE,      // Action Freeze: moving the camera (one finger turns it, two move and zoom it)
+    ROLE_FREEZESHOT,  // Action Freeze: on CAMERA (a tap takes a photo)
+    ROLE_FREEZECLOSE, // Action Freeze: on its X (a tap goes back to the game)
 };
 
 enum {
@@ -236,6 +250,7 @@ enum {
     KIND_CAMERA,   // tap: the photos ticked in the camera options; slide: a burst; hold: the selfie
     KIND_CAMPHOTO, // (camera options) opens or closes the photo kinds' row under them
     KIND_SELFIES,  // (camera options) how many photos a selfie takes: 1, 3 or 5
+    KIND_FREEZEOPT, // (camera options) Action Freeze on CAMERA's slide down, on or off
     KIND_CAMKIND,  // (photo kinds, under the camera options) ticks or unticks one kind of photo (bin: its IOSCAPTURE_* bit)
 };
 
@@ -278,12 +293,12 @@ enum {
     BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
     // Rows under the tray, one at a time (iosTouch_optRow), hidden until opened:
     BTN_GYROOPT_MODE, BTN_GYROOPT_SENS,  // the gyro options (a hold on the tray's GYRO)
-    BTN_CAMROW_PHOTO, BTN_CAMROW_SELFIES, // the camera options (a hold on the tray's camera switch)
+    BTN_CAMROW_PHOTO, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE, // the camera options (a hold on the tray's camera switch)
     BTN_CAMOPT_CLEAN, BTN_CAMOPT_HUD, BTN_CAMOPT_BTNS, // the photo kinds (PHOTO in the camera options), under those
     BTN_COUNT,
     BTN_TRAY_FIRST = BTN_TRAYGYRO, BTN_TRAY_LAST = BTN_TRAYKEYS,
     BTN_GYROOPT_FIRST = BTN_GYROOPT_MODE, BTN_GYROOPT_LAST = BTN_GYROOPT_SENS,
-    BTN_CAMROW_FIRST = BTN_CAMROW_PHOTO, BTN_CAMROW_LAST = BTN_CAMROW_SELFIES,
+    BTN_CAMROW_FIRST = BTN_CAMROW_PHOTO, BTN_CAMROW_LAST = BTN_CAMROW_FREEZE,
     BTN_CAMOPT_FIRST = BTN_CAMOPT_CLEAN, BTN_CAMOPT_LAST = BTN_CAMOPT_BTNS
 };
 static iosTouchButton iosTouch_aButtons[] = {
@@ -310,6 +325,7 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_GYROOPT_SENS] = { "SENS",     KIND_GYROSENS, -1,                  20.0f, 0 },
     [BTN_CAMROW_PHOTO] = { "PHOTO",    KIND_CAMPHOTO, -1,                  20.0f, 0 },
     [BTN_CAMROW_SELFIES] = { "SELFIES", KIND_SELFIES, -1,                  20.0f, 0 },
+    [BTN_CAMROW_FREEZE] = { "FREEZE",  KIND_FREEZEOPT, -1,                 20.0f, 0 },
     [BTN_CAMOPT_CLEAN] = { "CLEAN",    KIND_CAMKIND,  -1,                  20.0f, 0, IOSCAPTURE_CLEAN },
     [BTN_CAMOPT_HUD]   = { "HUD",      KIND_CAMKIND,  -1,                  20.0f, 0, IOSCAPTURE_HUD },
     [BTN_CAMOPT_BTNS]  = { "HUD+\nBTNS", KIND_CAMKIND, -1,                 20.0f, 0, IOSCAPTURE_HUDBTNS },
@@ -483,6 +499,7 @@ typedef struct {
     int bArmed;           // ...has slid out of the dead zone
     CGPoint wheelOrigin;  // ...where its slide is measured from
     CGFloat wheelAim;     // ...which way it points (degrees, as for slices)
+    int bSwipe;           // CAMERA, with FREEZE on: slid down, on its way to Action Freeze (no tap, no selfie hold)
 } iosTouchSlot;
 
 static iosTouchSlot iosTouch_aSlots[IOSTOUCH_MAX_TOUCHES];
@@ -538,6 +555,8 @@ static int iosTouch_cameraKinds = IOSCAPTURE_CLEAN;
 static int iosTouch_optRow = 0;      // IOSTOUCH_ROW_*: the row open under the tray
 static int iosTouch_bKindsOpen = 0;  // the photo kinds' row, under the camera options
 static int iosTouch_selfieShots = 3; // photos a selfie takes (1, 3 or 5; remembered)
+static int iosTouch_bFreezeOn = 1;   // CAMERA's slide down: Action Freeze (remembered)
+static int iosTouch_bFreezing = 0;   // Action Freeze is up
 static UITouch* iosTouch_pBurstTouch = nil; // the finger a burst goes on for (not retained; only compared)
 static int iosTouch_burstShots = 0;
 static int iosTouch_selfieFlashes = 0; // a selfie's photos taken so far (after the first, a burst's lighter flash and click)
@@ -1044,6 +1063,7 @@ typedef struct {
     CAShapeLayer* camOptRing; // the tray's camera switch, held to open the camera options
     CAShapeLayer* gyroOptRing; // the tray's GYRO, held to open the gyro options
     UILabel* burstLabel;    // beside CAMERA: how many shots a burst has taken
+    UILabel* freezeClose;   // Action Freeze's X (back to the game)
     CAShapeLayer* cameraRing; // CAMERA's, held for the selfie
     CGFloat aSelfieAlpha[IOSTOUCH_MAX_SUBVIEWS]; // the overlay's views as they were, hidden during a selfie
     UILabel* fpsLabel;      // the FPS readout...
@@ -1087,6 +1107,12 @@ typedef struct {
 - (void)setKindsOpen:(int)bOpen;
 - (void)useOptButton:(int)button;
 - (void)releaseOptTouches;
+- (void)hideForPhotosKeeping:(UIView*)keep;
+- (void)showAfterPhotos;
+- (void)startFreeze;
+- (void)endFreeze;
+- (void)moveFreeze:(iosTouchSlot*)s to:(CGPoint)p;
+- (void)takeFreezePhoto;
 - (void)refreshButtonLooks;
 @end
 
@@ -1248,7 +1274,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         iosTouch_GyroSetup();
         // GYRO and SENS say what they are set to on a second line: at the size
         // of a two-line label, condensed so "ALWAYS" fits a circle this small
-        const int aTwoLine[] = { BTN_TRAYGYRO, BTN_GYROOPT_MODE, BTN_GYROOPT_SENS, BTN_CAMROW_SELFIES };
+        const int aTwoLine[] = { BTN_TRAYGYRO, BTN_GYROOPT_MODE, BTN_GYROOPT_SENS, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE };
         for (int k = 0; k < IOSTOUCH_COUNT(aTwoLine); k++) {
             const int i = aTwoLine[k];
             aButtonViews[i].font = IOSTouch_WheelFont(IOSTouch_FontSize("GYRO\nALWAYS", iosTouch_aButtons[i].radius));
@@ -1320,7 +1346,23 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             NSInteger n = [[NSUserDefaults standardUserDefaults] integerForKey:IOSTOUCH_SELFIES_DEFAULTS_KEY];
             iosTouch_selfieShots = (n == 1 || n == 5) ? (int)n : 3;
         }
-        [self refreshGyroLabels]; // (SELFIES, with the count just read)
+        if ([[NSUserDefaults standardUserDefaults] objectForKey:IOSTOUCH_FREEZE_DEFAULTS_KEY])
+            iosTouch_bFreezeOn = [[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_FREEZE_DEFAULTS_KEY] ? 1 : 0;
+        [self refreshGyroLabels]; // (SELFIES and FREEZE, as just read)
+
+        freezeClose = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, IOSTOUCH_FREEZE_CLOSE_RADIUS * 2, IOSTOUCH_FREEZE_CLOSE_RADIUS * 2)];
+        freezeClose.text = @"\u2715";
+        freezeClose.textAlignment = NSTextAlignmentCenter;
+        freezeClose.textColor = [UIColor whiteColor];
+        freezeClose.font = [UIFont systemFontOfSize:20 weight:UIFontWeightBold];
+        freezeClose.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.45];
+        freezeClose.layer.cornerRadius = IOSTOUCH_FREEZE_CLOSE_RADIUS;
+        freezeClose.layer.borderWidth = 1.5;
+        freezeClose.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.6].CGColor;
+        freezeClose.clipsToBounds = YES;
+        freezeClose.userInteractionEnabled = NO;
+        freezeClose.hidden = YES;
+        [self addSubview:freezeClose];
 
         // A burst's count, beside CAMERA while it goes on
         burstLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 30, 18)];
@@ -1757,6 +1799,10 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     burstLabel.center = CGPointMake(iosTouch_aButtons[BTN_CAMERA].x + iosTouch_aButtons[BTN_CAMERA].radius + 20,
                                     iosTouch_aButtons[BTN_CAMERA].y);
 
+    // Action Freeze's X: top right, inside the safe area (clear of the
+    // corner and any cutout)
+    freezeClose.center = CGPointMake(right - IOSTOUCH_FREEZE_CLOSE_RADIUS - 4, top + IOSTOUCH_FREEZE_CLOSE_RADIUS + 4);
+
     // The FPS readout where the keyboard button used to be, left of QUICK
     // SAVE: the game draws its messages and typing line centred at the top
     fpsLabel.center = CGPointMake(right - 216, top + 26);
@@ -1884,6 +1930,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
                   || (i == BTN_TRAYCAM && iosTouch_bShowCamera)
                   || (iosTouch_IsCamOptButton(i) && (iosTouch_cameraKinds & iosTouch_aButtons[i].bin))
                   || (i == BTN_CAMROW_PHOTO && iosTouch_bKindsOpen)
+                  || (i == BTN_CAMROW_FREEZE && iosTouch_bFreezeOn)
                   || (i == BTN_CAMERA && iosTouch_pBurstTouch)
                   || (i == BTN_TRAYGYRO && bGyro && iosTouch_gyroMode != IOSTOUCH_GYRO_OFF);
         int bTray = iosTouch_IsTrayButton(i) || iosTouch_IsOptButton(i); // only there while open
@@ -1892,6 +1939,8 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         if (i == BTN_TRAYGYRO && !bGyro) alpha *= 0.45;                           // no gyro here
         if ((i == BTN_GYROOPT_MODE || i == BTN_GYROOPT_SENS) && (!bGyro || iosTouch_gyroMode == IOSTOUCH_GYRO_OFF))
             alpha *= 0.45; // ...or it's off (still set: they apply once it's on)
+        // (a selfie shows no buttons; Action Freeze only CAMERA)
+        if (iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE || (iosTouch_bFreezing && i != BTN_CAMERA)) alpha = 0.0;
         aButtonViews[i].alpha = alpha;
         if (i != BTN_FIRE) {
             aButtonViews[i].layer.borderColor = bOn ? [UIColor colorWithRed:1.0 green:0.85 blue:0.3 alpha:0.95].CGColor
@@ -2124,6 +2173,10 @@ static void iosTouch_PhotosAsked(void)
         case KIND_CAMKIND:
             [self toggleCameraKind:button];
             break;
+        case KIND_FREEZEOPT:
+            iosTouch_bFreezeOn = !iosTouch_bFreezeOn;
+            [[NSUserDefaults standardUserDefaults] setBool:(iosTouch_bFreezeOn ? YES : NO) forKey:IOSTOUCH_FREEZE_DEFAULTS_KEY];
+            break;
         default:
             break;
     }
@@ -2191,7 +2244,7 @@ static void iosTouch_PhotosAsked(void)
 // on in the middle of it. Then all as it was.
 - (void)startSelfie
 {
-    if (iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE) return;
+    if (iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE || iosTouch_bFreezing) return;
     // (a burst on another finger ends first: its end would take the selfie's
     // photos out of their batch, and its waiting capture would hold the
     // selfie up)
@@ -2203,8 +2256,17 @@ static void iosTouch_PhotosAsked(void)
         return;
     }
     iosTouch_selfieFlashes = 0;
+    iosTouch_selfieStage = IOSTOUCH_SELFIE_POSING;
+    [self hideForPhotosKeeping:nil];
+    [cameraTap prepare];
+}
+
+// A selfie or Action Freeze starting: every touch now down is let go (the
+// game sees no buttons held, no stick), the tray closes and everything is
+// hidden but `keep` (put back by -showAfterPhotos)
+- (void)hideForPhotosKeeping:(UIView*)keep
+{
     [self setTrayOpen:0];
-    // Every touch now down is let go, and the buttons are hidden
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
         if (s->touch) s->role = ROLE_IGNORED;
@@ -2219,10 +2281,92 @@ static void iosTouch_PhotosAsked(void)
     for (UIView* v in self.subviews) {
         if (v == cameraFlash || k >= IOSTOUCH_MAX_SUBVIEWS) continue;
         aSelfieAlpha[k++] = v.alpha;
-        v.alpha = 0.0;
+        if (v != keep) v.alpha = 0.0;
     }
+    [self refreshButtonLooks];
+}
+
+- (void)showAfterPhotos
+{
+    // (a mouse or trackpad moved meanwhile doesn't turn the view afterwards)
+    Window_lastXRel = 0;
+    Window_lastYRel = 0;
+    int k = 0;
+    for (UIView* v in self.subviews) {
+        if (v == cameraFlash || k >= IOSTOUCH_MAX_SUBVIEWS) continue;
+        v.alpha = aSelfieAlpha[k++];
+    }
+    [self refreshButtonLooks];
+}
+
+// Action Freeze (CAMERA slid down, with FREEZE on): the game stops just as
+// it is, and the camera can move round it to take photos; the X goes back
+- (void)startFreeze
+{
+    if (iosTouch_bFreezing || iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE) return;
+    [self endBurst];
+    if (!iosFreeze_Begin()) {
+        iosGame_ShowMessage("Can't freeze here");
+        return;
+    }
+    iosTouch_bFreezing = 1;
+    [self hideForPhotosKeeping:aButtonViews[BTN_CAMERA]];
+    freezeClose.hidden = NO;
+    freezeClose.alpha = 1.0; // (not brought to the front: -showAfterPhotos puts each view back by its place in the order)
     [cameraTap prepare];
-    iosTouch_selfieStage = IOSTOUCH_SELFIE_POSING;
+}
+
+- (void)endFreeze
+{
+    if (!iosTouch_bFreezing) return;
+    iosTouch_bFreezing = 0;
+    // (a photo asked for and not taken yet would be of the game's own view)
+    if (iosTouch_tCameraAsked) {
+        iosCapture_Cancel();
+        iosTouch_tCameraAsked = 0;
+    }
+    iosFreeze_End(); // (all as it was: the game goes on from the same moment)
+    // Its touches are let go (still down, they only lift)
+    for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+        iosTouchSlot* s = &iosTouch_aSlots[i];
+        if (s->touch) s->role = ROLE_IGNORED;
+    }
+    freezeClose.hidden = YES;
+    [self showAfterPhotos];
+}
+
+// A finger moving the Action Freeze camera: alone, it turns it round what
+// it looks at (what is on screen follows the finger); with a second one, the
+// two move it across (by their middle) and zoom (by their spread)
+- (void)moveFreeze:(iosTouchSlot*)s to:(CGPoint)p
+{
+    iosTouchSlot* other = NULL;
+    for (int i = 0; i < IOSTOUCH_MAX_TOUCHES && !other; i++) {
+        iosTouchSlot* o = &iosTouch_aSlots[i];
+        if (o != s && o->touch && o->role == ROLE_FREEZE) other = o;
+    }
+    if (!other) {
+        iosFreeze_Orbit(-(float)(p.x - s->last.x) * IOSTOUCH_FREEZE_ORBIT, -(float)(p.y - s->last.y) * IOSTOUCH_FREEZE_ORBIT);
+        return;
+    }
+    const CGFloat h = self.bounds.size.height > 1.0 ? self.bounds.size.height : 1.0;
+    const CGPoint o = other->last;
+    const CGFloat oldDist = hypot(s->last.x - o.x, s->last.y - o.y), newDist = hypot(p.x - o.x, p.y - o.y);
+    // (the middle moves by half of this finger's move)
+    iosFreeze_Pan((float)((p.x - s->last.x) * 0.5 / h), (float)((p.y - s->last.y) * 0.5 / h));
+    if (oldDist > 8.0 && newDist > 8.0) iosFreeze_Zoom((float)(newDist / oldDist));
+}
+
+// CAMERA tapped in Action Freeze: one clean photo of the frozen moment (the
+// HUD isn't drawn from its camera, so the other kinds would be the same)
+- (void)takeFreezePhoto
+{
+    if (!iosCapture_Request(IOSCAPTURE_CLEAN, IOSCAPTURE_MODE_PHOTO)) {
+        iosGame_ShowMessage("Still saving the last photo");
+        return;
+    }
+    iosTouch_tCameraAsked = CACurrentMediaTime();
+    [cameraTap prepare];
 }
 
 - (void)tickSelfie:(CFTimeInterval)now
@@ -2238,15 +2382,7 @@ static void iosTouch_PhotosAsked(void)
     if (iosTouch_selfieStage == IOSTOUCH_SELFIE_NONE) return;
     iosTouch_selfieStage = IOSTOUCH_SELFIE_NONE;
     iosSelfieShots_Stop(); // (when ended early: the app going to the background...)
-    // (a mouse or trackpad moved meanwhile doesn't turn the view afterwards)
-    Window_lastXRel = 0;
-    Window_lastYRel = 0;
-    int k = 0;
-    for (UIView* v in self.subviews) {
-        if (v == cameraFlash || k >= IOSTOUCH_MAX_SUBVIEWS) continue;
-        v.alpha = aSelfieAlpha[k++];
-    }
-    [self refreshButtonLooks];
+    [self showAfterPhotos];
 }
 
 // Right after photos were taken (iosPhotos), so none of it is in them; a
@@ -2279,6 +2415,7 @@ static void iosTouch_PhotosAsked(void)
     aButtonViews[BTN_GYROOPT_MODE].text = [NSString stringWithFormat:@"MODE\n%s", aModeName[iosTouch_gyroLastMode]];
     aButtonViews[BTN_GYROOPT_SENS].text = [NSString stringWithFormat:@"SENS\n%.1fx", (double)iosTouch_aGyroSens[iosTouch_gyroSens]];
     aButtonViews[BTN_CAMROW_SELFIES].text = [NSString stringWithFormat:@"SELFIES\n%d", iosTouch_selfieShots];
+    aButtonViews[BTN_CAMROW_FREEZE].text = iosTouch_bFreezeOn ? @"FREEZE\nON" : @"FREEZE\nOFF";
 }
 
 // A tray button picked: it does its thing, and the tray closes -- except
@@ -2906,6 +3043,16 @@ static int iosTouch_WheelSliceHasRow(int i)
             s->role = ROLE_IGNORED; // nothing during a selfie
             continue;
         }
+        if (iosTouch_bFreezing) {
+            // Action Freeze: its X, CAMERA, or moving the camera
+            if (hypot(p.x - freezeClose.center.x, p.y - freezeClose.center.y) <= IOSTOUCH_FREEZE_CLOSE_RADIUS + IOSTOUCH_TOUCH_SLOP)
+                s->role = ROLE_FREEZECLOSE;
+            else if ([self isPoint:p onButton:BTN_CAMERA])
+                s->role = ROLE_FREEZESHOT;
+            else
+                s->role = ROLE_FREEZE;
+            continue;
+        }
         if (iosTouch_bWheelOpen) {
             s->role = ROLE_WHEEL;
             s->wheelSlot = iosTouch_WheelSliceAt(p, -1);
@@ -2973,6 +3120,12 @@ static int iosTouch_WheelSliceHasRow(int i)
             if (s->touch != t) continue;
             CGPoint p = [t locationInView:self];
 
+            if (s->role == ROLE_FREEZE) {
+                [self moveFreeze:s to:p];
+                s->last = p;
+                continue;
+            }
+
             // QUICK SAVE, QUICK LOAD: a finger that leaves the button, even
             // between two frames, doesn't save or load, even if it comes back
             // on -- so the places UIKit merged into this move count too (the
@@ -2997,7 +3150,24 @@ static int iosTouch_WheelSliceHasRow(int i)
                     CGPoint q = [c locationInView:self];
                     if (hypot(q.x - s->origin.x, q.y - s->origin.y) >= IOSTOUCH_WHEEL_OPEN_SLIDE) bOut = 1;
                 }
-                if (bOut && s->button == BTN_CAMERA) {
+                // With FREEZE on, a slide mostly down waits for the longer
+                // IOSTOUCH_FREEZE_SWIPE, then stops the action (Action
+                // Freeze); sideways or up, it is the burst as ever
+                const CGFloat dx = p.x - s->origin.x, dy = p.y - s->origin.y;
+                const int bDown = s->button == BTN_CAMERA && iosTouch_bFreezeOn && dy > 0 && dy >= fabs(dx);
+                if (bDown && dy >= IOSTOUCH_FREEZE_SWIPE) {
+                    s->bFired = 1;
+                    [self setRing:cameraRing progress:0.0];
+                    if (!jkHud_bChatOpen && t.timestamp - s->tDownTouch < IOSTOUCH_SELFIE_HOLD) {
+                        [self startFreeze];
+                        if (iosTouch_bFreezing) return; // (every touch now belongs to it)
+                    }
+                }
+                else if (bDown && bOut) {
+                    s->bSwipe = 1; // (on its way: not a tap, nor a hold)
+                    [self setRing:cameraRing progress:0.0];
+                }
+                else if (bOut && s->button == BTN_CAMERA) {
                     s->bFired = 1;
                     [self setRing:cameraRing progress:0.0];
                     // (not a finger already held long enough for the selfie,
@@ -3069,12 +3239,25 @@ static int iosTouch_WheelSliceHasRow(int i)
 // whatever it held, but don't treat it as a finished tap
 - (void)endTouches:(NSSet<UITouch*>*)touches cancelled:(int)bCancelled
 {
+    int bEndFreeze = 0;
     for (UITouch* t in touches) {
         for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
             iosTouchSlot* s = &iosTouch_aSlots[i];
             if (s->touch != t) continue;
             CGPoint p = [t locationInView:self];
             if (t == iosTouch_pBurstTouch) [self endBurst];
+            if (s->role == ROLE_FREEZE || s->role == ROLE_FREEZESHOT || s->role == ROLE_FREEZECLOSE) {
+                // Action Freeze: lifted on its X, back to the game; a tap on
+                // CAMERA, a photo
+                if (!bCancelled && s->role == ROLE_FREEZECLOSE
+                    && hypot(p.x - freezeClose.center.x, p.y - freezeClose.center.y) <= IOSTOUCH_FREEZE_CLOSE_RADIUS + IOSTOUCH_TOUCH_SLOP)
+                    bEndFreeze = 1;
+                if (!bCancelled && s->role == ROLE_FREEZESHOT && [self isPoint:p onButton:BTN_CAMERA]
+                    && t.timestamp - s->tDownTouch < IOSTOUCH_SELFIE_HOLD)
+                    [self takeFreezePhoto];
+                memset(s, 0, sizeof(*s));
+                continue;
+            }
             if (s->role == ROLE_WHEEL && iosTouch_bWheelOpen && bCancelled) {
                 // the opener taken away: the wheel stays open, for tapping
                 if (s->bWheelOpener) iosTouch_bWheelTapMode = 1;
@@ -3167,7 +3350,7 @@ static int iosTouch_WheelSliceHasRow(int i)
                     else if (iosTouch_IsOptButton(s->button) && !aButtonViews[s->button].hidden) {
                         [self useOptButton:s->button];
                     }
-                    else if (b->kind == KIND_CAMERA && !aButtonViews[s->button].hidden && !s->bFired
+                    else if (b->kind == KIND_CAMERA && !aButtonViews[s->button].hidden && !s->bFired && !s->bSwipe
                              && t.timestamp - s->tDownTouch < IOSTOUCH_SELFIE_HOLD) {
                         // A tap (by the touch's own clock); not after a burst or a hold
                         [self takePhotos];
@@ -3197,6 +3380,7 @@ static int iosTouch_WheelSliceHasRow(int i)
             memset(s, 0, sizeof(*s));
         }
     }
+    if (bEndFreeze) [self endFreeze];
     iosTouch_RecomputeKeys();
     [self refreshButtonLooks];
     if (iosTouch_bWheelOpen) [self refreshWheelLooks];
@@ -3245,6 +3429,11 @@ static int iosTouch_WheelSliceHasRow(int i)
     // During a selfie nothing else goes on here
     if (iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE) {
         [self tickSelfie:now];
+        return;
+    }
+    // ...or Action Freeze (its camera moves with the touches themselves)
+    if (iosTouch_bFreezing) {
+        if (!iosFreeze_IsActive()) [self endFreeze];
         return;
     }
     // FORCE WHEEL and NEXT WPN held still (they haven't slid, or the wheel
@@ -3320,7 +3509,7 @@ static int iosTouch_WheelSliceHasRow(int i)
                 [self setRing:ring progress:MIN(progress, 1.0)];
             }
         }
-        else if (s->button == BTN_CAMERA && !s->bFired && !jkHud_bChatOpen) {
+        else if (s->button == BTN_CAMERA && !s->bFired && !s->bSwipe && !jkHud_bChatOpen) {
             // Held still: the ring fills, then the selfie (the lift takes no
             // photos). Not while typing.
             if (known - s->tDown >= IOSTOUCH_SELFIE_HOLD) {
@@ -3486,6 +3675,7 @@ static int iosTouch_WheelSliceHasRow(int i)
         wheelView.hidden = YES;
     }
     [self endSelfie]; // (all put back: the overlay is going, a menu or the background)
+    [self endFreeze];
     [self setTrayOpen:0];
     [self endBurst];
     memset(iosTouch_aSlots, 0, sizeof(iosTouch_aSlots));

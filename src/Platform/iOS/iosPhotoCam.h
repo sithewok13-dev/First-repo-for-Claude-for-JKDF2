@@ -2,7 +2,7 @@
 #define _PLATFORM_IOS_IOSPHOTOCAM_H
 
 // The photo camera: a camera of its own for the touch overlay's photo modes
-// (the selfie now; a frozen-action camera is planned), shared by them all. While it is
+// (the selfie, and Action Freeze: iosFreeze), shared by them all. While it is
 // up the game holds still (iosGame's hold), the view is drawn from it instead
 // of the player's eyes, and that view only looks: it doesn't sight things or
 // sectors for the game (no AI woken, no level script run, no map marked), and
@@ -57,10 +57,16 @@ int iosPhotoCam_IsActive(void);
 // lens instead, while it is up. 0 (nothing changed) for any other camera.
 int iosPhotoCam_SetLens(struct rdCamera* pCamera);
 
-// Whether the line from a to b is clear of walls (people and things in the
-// way don't count; openings between sectors are seen through), up to `slack`
+// Whether the line from a to b is clear of walls, closed doors and lifts
+// (people and other things in the way don't count; openings between sectors
+// are seen through), up to `slack`
 // short of b; *pEnd: the sector b is in, following the line.
 int iosPhotoCam_Clear(struct SithSector* from, const struct rdVector3* a, const struct rdVector3* b, float slack, struct SithSector** pEnd);
+
+// How far along the line from a to b is clear of walls (the whole length if
+// it is: as iosPhotoCam_Clear, openings seen through); *pEnd: the sector the
+// line is in there (NULL if from is). From a point known to be in from.
+float iosPhotoCam_ClearDist(struct SithSector* from, const struct rdVector3* a, const struct rdVector3* b, struct SithSector** pEnd);
 
 #ifdef __cplusplus
 }
