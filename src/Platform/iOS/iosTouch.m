@@ -179,6 +179,12 @@ extern int jkHud_bChatOpen;
 #define IOSTOUCH_FREEZE_EDGE 6.0       // (up: to this near the top of the screen counts as far enough...)
 #define IOSTOUCH_FREEZE_SWIPE_MIN 16.0 // (...but never less than this)
 #define IOSTOUCH_FREEZE_ORBIT 0.3
+// The fingers' moves are gathered as they come and the camera follows them
+// once per frame, smoothly (through two smoothing steps of this many seconds
+// each): touches and frames don't keep step, and moving it at each touch
+// gave frames that moved twice as far as the next (seen as jitter on an
+// iPhone)
+#define IOSTOUCH_FREEZE_SMOOTH 0.03
 #define IOSTOUCH_FREEZE_CLOSE_RADIUS 22.0
 // (the overlay's views, at most, whose see-through-ness a selfie keeps)
 #define IOSTOUCH_MAX_SUBVIEWS 96
@@ -563,6 +569,11 @@ static int iosTouch_selfieShots = 3; // photos a selfie takes (1, 3 or 5; rememb
 static int iosTouch_bFreezeOn = 1;   // CAMERA's slide down: Action Freeze (remembered)
 static int iosTouch_bFreezing = 0;   // Action Freeze is up
 static int iosTouch_bCinema = 0;     // the cinematic burst is running
+// Action Freeze: the fingers' moves not yet followed (degrees round and up,
+// screen heights across and down, and the zoom as a log), and part way
+// through the smoothing
+enum { IOSTOUCH_FZ_YAW = 0, IOSTOUCH_FZ_PITCH, IOSTOUCH_FZ_PANX, IOSTOUCH_FZ_PANY, IOSTOUCH_FZ_ZOOM, IOSTOUCH_FZ_NUM };
+static float iosTouch_aFreezeMove[IOSTOUCH_FZ_NUM], iosTouch_aFreezeMid[IOSTOUCH_FZ_NUM];
 static UITouch* iosTouch_pBurstTouch = nil; // the finger a burst goes on for (not retained; only compared)
 static int iosTouch_burstShots = 0;
 static int iosTouch_selfieFlashes = 0; // a selfie's photos taken so far (after the first, a burst's lighter flash and click)
@@ -1119,6 +1130,7 @@ typedef struct {
 - (void)endFreeze;
 - (void)moveFreeze:(iosTouchSlot*)s to:(CGPoint)p;
 - (void)takeFreezePhoto;
+- (void)tickFreeze:(CFTimeInterval)dt;
 - (void)startCinema;
 - (void)endCinema;
 - (void)refreshButtonLooks;
@@ -2318,6 +2330,9 @@ static void iosTouch_PhotosAsked(void)
         return;
     }
     iosTouch_bFreezing = 1;
+    memset(iosTouch_aFreezeMove, 0, sizeof(iosTouch_aFreezeMove));
+    memset(iosTouch_aFreezeMid, 0, sizeof(iosTouch_aFreezeMid));
+    iosFreeze_SetSmooth(1);
     [self hideForPhotosKeeping:aButtonViews[BTN_CAMERA]];
     freezeClose.hidden = NO;
     freezeClose.alpha = 1.0; // (not brought to the front: -showAfterPhotos puts each view back by its place in the order)
@@ -2354,15 +2369,45 @@ static void iosTouch_PhotosAsked(void)
         if (o != s && o->touch && o->role == ROLE_FREEZE) other = o;
     }
     if (!other) {
-        iosFreeze_Orbit(-(float)(p.x - s->last.x) * IOSTOUCH_FREEZE_ORBIT, -(float)(p.y - s->last.y) * IOSTOUCH_FREEZE_ORBIT);
+        iosTouch_aFreezeMove[IOSTOUCH_FZ_YAW] -= (float)(p.x - s->last.x) * IOSTOUCH_FREEZE_ORBIT;
+        iosTouch_aFreezeMove[IOSTOUCH_FZ_PITCH] -= (float)(p.y - s->last.y) * IOSTOUCH_FREEZE_ORBIT;
         return;
     }
     const CGFloat h = self.bounds.size.height > 1.0 ? self.bounds.size.height : 1.0;
     const CGPoint o = other->last;
     const CGFloat oldDist = hypot(s->last.x - o.x, s->last.y - o.y), newDist = hypot(p.x - o.x, p.y - o.y);
     // (the middle moves by half of this finger's move)
-    iosFreeze_Pan((float)((p.x - s->last.x) * 0.5 / h), (float)((p.y - s->last.y) * 0.5 / h));
-    if (oldDist > 8.0 && newDist > 8.0) iosFreeze_Zoom((float)(newDist / oldDist));
+    iosTouch_aFreezeMove[IOSTOUCH_FZ_PANX] += (float)((p.x - s->last.x) * 0.5 / h);
+    iosTouch_aFreezeMove[IOSTOUCH_FZ_PANY] += (float)((p.y - s->last.y) * 0.5 / h);
+    if (oldDist > 8.0 && newDist > 8.0) iosTouch_aFreezeMove[IOSTOUCH_FZ_ZOOM] += (float)log(newDist / oldDist);
+}
+
+// Once per frame in Action Freeze: the camera follows the fingers' moves so
+// far, part of the way (the rest next frame), so each frame moves it about
+// as much as the last; it glides to a stop after they lift
+- (void)tickFreeze:(CFTimeInterval)dt
+{
+    if (dt > 0.1) dt = 0.1;
+    const float k = (float)(1.0 - exp(-(dt > 0 ? dt : 0.0) / IOSTOUCH_FREEZE_SMOOTH));
+    float a[IOSTOUCH_FZ_NUM];
+    for (int i = 0; i < IOSTOUCH_FZ_NUM; i++) {
+        // (two smoothing steps: what an uneven run of touches leaves
+        // uneven after the first, the second evens out)
+        const float m = iosTouch_aFreezeMove[i] * k;
+        iosTouch_aFreezeMove[i] -= m;
+        iosTouch_aFreezeMid[i] += m;
+        a[i] = iosTouch_aFreezeMid[i] * k;
+        iosTouch_aFreezeMid[i] -= a[i];
+        if (fabsf(iosTouch_aFreezeMove[i]) + fabsf(iosTouch_aFreezeMid[i]) < 1e-5f) iosTouch_aFreezeMove[i] = iosTouch_aFreezeMid[i] = 0;
+    }
+    if ((a[IOSTOUCH_FZ_YAW] != 0 || a[IOSTOUCH_FZ_PITCH] != 0) && !iosFreeze_Orbit(a[IOSTOUCH_FZ_YAW], a[IOSTOUCH_FZ_PITCH])) {
+        // (a wall that way: the rest is dropped)
+        iosTouch_aFreezeMove[IOSTOUCH_FZ_YAW] = iosTouch_aFreezeMid[IOSTOUCH_FZ_YAW] = 0;
+        iosTouch_aFreezeMove[IOSTOUCH_FZ_PITCH] = iosTouch_aFreezeMid[IOSTOUCH_FZ_PITCH] = 0;
+    }
+    if (a[IOSTOUCH_FZ_PANX] != 0 || a[IOSTOUCH_FZ_PANY] != 0) iosFreeze_Pan(a[IOSTOUCH_FZ_PANX], a[IOSTOUCH_FZ_PANY]);
+    if (a[IOSTOUCH_FZ_ZOOM] != 0) iosFreeze_Zoom(expf(a[IOSTOUCH_FZ_ZOOM]));
+    iosFreeze_Frame();
 }
 
 // The cinematic burst (CAMERA slid up, with FREEZE on): the action frozen,
@@ -3477,6 +3522,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     // ...or Action Freeze (its camera moves with the touches themselves)
     if (iosTouch_bFreezing) {
         if (!iosFreeze_IsActive()) [self endFreeze];
+        else [self tickFreeze:now - known];
         return;
     }
     // FORCE WHEEL and NEXT WPN held still (they haven't slid, or the wheel

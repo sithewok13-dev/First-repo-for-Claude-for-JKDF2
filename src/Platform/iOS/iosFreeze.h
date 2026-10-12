@@ -49,6 +49,12 @@ void iosFreeze_Zoom(float factor);
 float iosFreeze_Probe(float yawDegrees, float pitchDegrees);
 float iosFreeze_GetWantedDist(void);
 
+// Moved by a finger (the touch overlay): the camera glides back out from a
+// wall rather than jumping (off by default: the cinematic burst's photos go
+// exactly where they are put). And once per frame drawn, to carry that on.
+void iosFreeze_SetSmooth(int bSmooth);
+void iosFreeze_Frame(void);
+
 // Puts everything back; the game goes on. Safe to call when not up.
 void iosFreeze_End(void);
 

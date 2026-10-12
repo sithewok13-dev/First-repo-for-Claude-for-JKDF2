@@ -33,6 +33,14 @@
 // the focus, in this many steps, until it can.
 #define IOSFREEZE_CAM_ROOM    0.012f
 #define IOSFREEZE_STEPS_IN    12
+#define IOSFREEZE_FIT_HALVINGS 7
+// With the camera moved by a finger (iosFreeze_SetSmooth): back out from a
+// wall, it covers this part of the way each frame
+#define IOSFREEZE_EASE_OUT    0.25f
+// ...once it has been this many frames without being pushed in (sliding
+// along a wall, the room for it can come and go from one step to the next:
+// it would go in and out)
+#define IOSFREEZE_HOLD_IN     12
 // The player is left out of the view with the camera this near their head
 #define IOSFREEZE_NEAR_HEAD   0.07f
 // Up and down, kept this short of straight up or down (degrees)
@@ -45,6 +53,9 @@ static float iosFreeze_yaw = 0, iosFreeze_pitch = 0; // the direction from the c
 static float iosFreeze_dist = 0;           // from the focus, as wanted (walls may bring the camera nearer)
 static float iosFreeze_shownDist = 0;      // ...and as it is
 static int iosFreeze_bInsideMe = 0;        // started from first person, the camera not moved yet
+static float iosFreeze_targetDist = 0;     // where the walls let it be (it may still be gliding out to it)
+static int iosFreeze_bSmooth = 0;          // moved by a finger: glides back out from walls
+static int iosFreeze_holdIn = 0;           // frames to wait before gliding out
 
 static void iosFreeze_Dir(rdVector3* pDir)
 {
@@ -54,13 +65,30 @@ static void iosFreeze_Dir(rdVector3* pDir)
     pDir->z = sinf(p);
 }
 
+// Whether the camera fits this far back from the focus (along -dir): in a
+// sector, with room round it there; and where that is
+static int iosFreeze_FitsAt(const rdVector3* dir, float d, rdVector3* pPos, SithSector** pSector)
+{
+    rdVector3 pos = iosFreeze_focus;
+    rdVector_ScaleAdd3Acc(&pos, dir, -d);
+    SithSector* sector = NULL;
+    iosPhotoCam_ClearDist(iosFreeze_pFocusSector, &iosFreeze_focus, &pos, &sector);
+    if (!sector || !sithIntersect_IsSphereInSector(&pos, IOSFREEZE_CAM_ROOM, sector)) return 0;
+    *pPos = pos;
+    *pSector = sector;
+    return 1;
+}
+
 // Where the camera can be, as near where it is wanted as the walls let it
 // (coming in towards the focus): put there if bApply, and how far it is
 // from the focus in *pDist; 0, and nothing changed, if it can't be anywhere
-// on that line
+// on that line. Found to the nearest IOSFREEZE_FIT_HALVINGS halving of a
+// step, not just the step: sliding along a wall, coarse steps made the
+// camera jump in and out (seen as jitter on an iPhone).
 static int iosFreeze_Find(int bApply, float* pDist)
 {
-    rdVector3 dir, want;
+    rdVector3 dir, want, pos;
+    SithSector* sector = NULL;
     iosFreeze_Dir(&dir);
     want = iosFreeze_focus;
     rdVector_ScaleAdd3Acc(&want, &dir, -iosFreeze_dist);
@@ -68,24 +96,49 @@ static int iosFreeze_Find(int bApply, float* pDist)
     const float clear = iosPhotoCam_ClearDist(iosFreeze_pFocusSector, &iosFreeze_focus, &want, NULL);
     if (clear < d0) d0 = clear - IOSFREEZE_WALL_GAP;
     if (d0 < 0.001f) d0 = 0.001f;
-    for (int k = 0; k <= IOSFREEZE_STEPS_IN; k++) {
-        float d = d0 * (1.0f - (float)k / IOSFREEZE_STEPS_IN);
-        if (d < 0.001f) d = 0.001f;
-        rdVector3 pos = iosFreeze_focus;
-        rdVector_ScaleAdd3Acc(&pos, &dir, -d);
-        SithSector* sector = NULL;
-        iosPhotoCam_ClearDist(iosFreeze_pFocusSector, &iosFreeze_focus, &pos, &sector);
-        if (!sector || !sithIntersect_IsSphereInSector(&pos, IOSFREEZE_CAM_ROOM, sector)) continue;
-        if (pDist) *pDist = d;
-        if (!bApply) return 1;
-        // (looking at the focus; from right on it, along the direction)
-        rdVector3 look = iosFreeze_focus;
-        if (d < 0.01f) rdVector_ScaleAdd3Acc(&look, &dir, 0.05f);
-        iosFreeze_shownDist = d;
-        iosPhotoCam_Place(&pos, &look, 0.0f, sector);
-        return 1;
+    float d = d0;
+    if (!iosFreeze_FitsAt(&dir, d0, &pos, &sector)) {
+        // The first step in that fits, then the farthest between it and the
+        // step before
+        float lo = -1.0f, hi = d0;
+        for (int k = 1; k <= IOSFREEZE_STEPS_IN; k++) {
+            float t = d0 * (1.0f - (float)k / IOSFREEZE_STEPS_IN);
+            if (t < 0.001f) t = 0.001f;
+            if (iosFreeze_FitsAt(&dir, t, &pos, &sector)) { lo = t; break; }
+            hi = t;
+        }
+        if (lo < 0.0f) return 0;
+        for (int h = 0; h < IOSFREEZE_FIT_HALVINGS; h++) {
+            rdVector3 p2;
+            SithSector* s2 = NULL;
+            const float mid = (lo + hi) * 0.5f;
+            if (iosFreeze_FitsAt(&dir, mid, &p2, &s2)) { lo = mid; pos = p2; sector = s2; }
+            else hi = mid;
+        }
+        d = lo;
     }
-    return 0;
+    if (pDist) *pDist = d;
+    if (!bApply) return 1;
+    iosFreeze_targetDist = d;
+    // Moved by a finger, back out from a wall: glides out (in, it goes at
+    // once: nearer is where it fits)
+    if (iosFreeze_bSmooth && d > iosFreeze_shownDist + 0.0005f) {
+        // (where it is, if that still fits, until the wait is over)
+        rdVector3 p2;
+        SithSector* s2 = NULL;
+        const float e = iosFreeze_holdIn > 0 ? iosFreeze_shownDist
+                                             : iosFreeze_shownDist + (d - iosFreeze_shownDist) * IOSFREEZE_EASE_OUT;
+        if (iosFreeze_FitsAt(&dir, e, &p2, &s2)) { d = e; pos = p2; sector = s2; }
+    }
+    else if (iosFreeze_bSmooth && d < iosFreeze_shownDist - 0.0005f) {
+        iosFreeze_holdIn = IOSFREEZE_HOLD_IN; // (pushed in)
+    }
+    // (looking at the focus; from right on it, along the direction)
+    rdVector3 look = iosFreeze_focus;
+    if (d < 0.01f) rdVector_ScaleAdd3Acc(&look, &dir, 0.05f);
+    iosFreeze_shownDist = d;
+    iosPhotoCam_Place(&pos, &look, 0.0f, sector);
+    return 1;
 }
 
 static int iosFreeze_Place(void)
@@ -181,6 +234,8 @@ int iosFreeze_Begin(void)
         fov = 2.0f * atanf(tanf(across * 0.5f) * cur->rdCamera.aspectRatio) * 180.0f / (float)M_PI;
     }
     iosFreeze_bActive = 1;
+    iosFreeze_bSmooth = 0; // (placed at once; the touch overlay turns it on)
+    iosFreeze_holdIn = 0;
     iosFreeze_bInsideMe = cur == &sithCamera_g_aCameras[0];
     iosPhotoCam_SetFov(fov);
     if (!iosFreeze_Place()) {
@@ -259,10 +314,23 @@ void iosFreeze_Zoom(float factor)
     iosPhotoCam_SetFov(2.0f * atanf(tanf(half) / factor) * 180.0f / (float)M_PI);
 }
 
+void iosFreeze_SetSmooth(int bSmooth)
+{
+    iosFreeze_bSmooth = bSmooth != 0;
+}
+
+void iosFreeze_Frame(void)
+{
+    // (still gliding back out from a wall, after the wait)
+    if (iosFreeze_holdIn > 0) iosFreeze_holdIn--;
+    if (iosFreeze_bActive && iosFreeze_bSmooth && iosFreeze_holdIn == 0 && iosFreeze_shownDist < iosFreeze_targetDist - 0.0005f) iosFreeze_Place();
+}
+
 void iosFreeze_End(void)
 {
     if (!iosFreeze_bActive) return;
     iosFreeze_bActive = 0;
+    iosFreeze_bSmooth = 0;
     iosPhotoCam_End();
 }
 
