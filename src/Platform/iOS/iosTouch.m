@@ -18,6 +18,7 @@
 #include "Platform/iOS/iosCapture.h"
 #include "Platform/iOS/iosPhotos.h"
 #include "Platform/iOS/iosSelfie.h"
+#include "Platform/iOS/iosSelfieShots.h"
 
 extern SDL_Window* displayWindow;
 extern int stdControl_bControlsActive;
@@ -160,12 +161,11 @@ extern int jkHud_bChatOpen;
 // held still this long is the selfie; slid IOSTOUCH_WHEEL_OPEN_SLIDE starts a
 // burst of clean shots this far apart, for as long as the finger stays down
 #define IOSTOUCH_SELFIE_HOLD 0.5
-// The selfie: posed this long before the photo (a frame or two to settle),
-// shown this long after it, and given up if the photo hasn't come by
-// IOSTOUCH_SELFIE_GIVEUP
-#define IOSTOUCH_SELFIE_SETTLE 0.35
-#define IOSTOUCH_SELFIE_SHOW 0.9
-#define IOSTOUCH_SELFIE_GIVEUP 3.0
+// How many photos a selfie takes (the camera options' SELFIES; remembered,
+// 3 unless changed): its timing is iosSelfieShots'
+#define IOSTOUCH_SELFIES_DEFAULTS_KEY @"iosTouchSelfieShots"
+// (the overlay's views, at most, whose see-through-ness a selfie keeps)
+#define IOSTOUCH_MAX_SUBVIEWS 96
 #define IOSTOUCH_BURST_GAP 0.2
 #define IOSTOUCH_BURST_MAX 10
 // iOS's camera shutter sound (not a documented ID, but long stable); a burst
@@ -203,6 +203,7 @@ extern int jkHud_bChatOpen;
 #define IOSTOUCH_GYRO_TURN_HOLD 0.35
 #define IOSTOUCH_GYRO_DEFAULTS_KEY @"iosTouchGyroMode"
 #define IOSTOUCH_GYRO_SENS_DEFAULTS_KEY @"iosTouchGyroSens"
+#define IOSTOUCH_GYRO_LAST_DEFAULTS_KEY @"iosTouchGyroLastMode" // the mode GYRO's tap switches back on
 #define IOSTOUCH_GYRO_DEFAULT_SENS 1 // 1.5x
 // A one-off key press is held for this many control reads, then released for one
 #define IOSTOUCH_PULSE_READS 2
@@ -228,11 +229,14 @@ enum {
     KIND_ITEM,     // uses an inventory item when the touch lifts on it; only shown while the player has it
     KIND_CHAT,     // (MENU tray) opens or closes the typing line for cheats, when the touch lifts on it
     KIND_FPS,      // (MENU tray) shows or hides the FPS readout, when the touch lifts on it
-    KIND_GYRO,     // (MENU tray) the next gyro aiming mode, when the touch lifts on it
-    KIND_GYROSENS, // (MENU tray) the next gyro aiming sensitivity, when the touch lifts on it
+    KIND_GYRO,     // (MENU tray) gyro aiming on or off (back to its last mode), when the touch lifts on it; held: its options
+    KIND_GYROMODE, // (gyro options) the mode gyro aiming goes on in: TOUCH or ALWAYS
+    KIND_GYROSENS, // (gyro options) the next gyro aiming sensitivity, when the touch lifts on it
     KIND_CAMSWITCH, // (MENU tray) shows or hides the CAMERA button, when the touch lifts on it
     KIND_CAMERA,   // tap: the photos ticked in the camera options; slide: a burst; hold: the selfie
-    KIND_CAMKIND,  // (camera options, under the tray) ticks or unticks one kind of photo (bin: its IOSCAPTURE_* bit)
+    KIND_CAMPHOTO, // (camera options) opens or closes the photo kinds' row under them
+    KIND_SELFIES,  // (camera options) how many photos a selfie takes: 1, 3 or 5
+    KIND_CAMKIND,  // (photo kinds, under the camera options) ticks or unticks one kind of photo (bin: its IOSCAPTURE_* bit)
 };
 
 // Keys are the game's default keyboard bindings (sithControl_RegisterKeyboardBindings).
@@ -271,10 +275,15 @@ enum {
     BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA,
     BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU,
     BTN_CAMERA, // the middle of the top row, while switched on in the tray
-    BTN_TRAYSENS, BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
-    BTN_CAMOPT_CLEAN, BTN_CAMOPT_HUD, BTN_CAMOPT_BTNS, // the camera options (a hold on the tray's camera switch opens them)
+    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
+    // Rows under the tray, one at a time (iosTouch_optRow), hidden until opened:
+    BTN_GYROOPT_MODE, BTN_GYROOPT_SENS,  // the gyro options (a hold on the tray's GYRO)
+    BTN_CAMROW_PHOTO, BTN_CAMROW_SELFIES, // the camera options (a hold on the tray's camera switch)
+    BTN_CAMOPT_CLEAN, BTN_CAMOPT_HUD, BTN_CAMOPT_BTNS, // the photo kinds (PHOTO in the camera options), under those
     BTN_COUNT,
-    BTN_TRAY_FIRST = BTN_TRAYSENS, BTN_TRAY_LAST = BTN_TRAYKEYS,
+    BTN_TRAY_FIRST = BTN_TRAYGYRO, BTN_TRAY_LAST = BTN_TRAYKEYS,
+    BTN_GYROOPT_FIRST = BTN_GYROOPT_MODE, BTN_GYROOPT_LAST = BTN_GYROOPT_SENS,
+    BTN_CAMROW_FIRST = BTN_CAMROW_PHOTO, BTN_CAMROW_LAST = BTN_CAMROW_SELFIES,
     BTN_CAMOPT_FIRST = BTN_CAMOPT_CLEAN, BTN_CAMOPT_LAST = BTN_CAMOPT_BTNS
 };
 static iosTouchButton iosTouch_aButtons[] = {
@@ -293,11 +302,14 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_QUICKLOAD] = { "QUICK\nLOAD", KIND_HOLDLOAD, -1,                  22.0f, 0 },
     [BTN_MENU]      = { "MENU",        KIND_MENU,     -1,                  22.0f, 0 },
     [BTN_CAMERA]    = { "",            KIND_CAMERA,   -1,                  22.0f, 0 },
-    [BTN_TRAYSENS]  = { "SENS",        KIND_GYROSENS, -1,                  20.0f, 0 },
     [BTN_TRAYGYRO]  = { "GYRO",        KIND_GYRO,     -1,                  20.0f, 0 },
     [BTN_TRAYFPS]   = { "FPS",         KIND_FPS,      -1,                  20.0f, 0 },
     [BTN_TRAYCAM]   = { "",            KIND_CAMSWITCH, -1,                 20.0f, 0 },
     [BTN_TRAYKEYS]  = { "",            KIND_CHAT,     -1,                  20.0f, 0 },
+    [BTN_GYROOPT_MODE] = { "MODE",     KIND_GYROMODE, -1,                  20.0f, 0 },
+    [BTN_GYROOPT_SENS] = { "SENS",     KIND_GYROSENS, -1,                  20.0f, 0 },
+    [BTN_CAMROW_PHOTO] = { "PHOTO",    KIND_CAMPHOTO, -1,                  20.0f, 0 },
+    [BTN_CAMROW_SELFIES] = { "SELFIES", KIND_SELFIES, -1,                  20.0f, 0 },
     [BTN_CAMOPT_CLEAN] = { "CLEAN",    KIND_CAMKIND,  -1,                  20.0f, 0, IOSCAPTURE_CLEAN },
     [BTN_CAMOPT_HUD]   = { "HUD",      KIND_CAMKIND,  -1,                  20.0f, 0, IOSCAPTURE_HUD },
     [BTN_CAMOPT_BTNS]  = { "HUD+\nBTNS", KIND_CAMKIND, -1,                 20.0f, 0, IOSCAPTURE_HUDBTNS },
@@ -313,6 +325,21 @@ static int iosTouch_IsTrayButton(int button)
 static int iosTouch_IsCamOptButton(int button)
 {
     return button >= BTN_CAMOPT_FIRST && button <= BTN_CAMOPT_LAST;
+}
+
+// The rows under the tray: the gyro options or the camera options (one at a
+// time), and the photo kinds under the camera options
+enum { IOSTOUCH_ROW_NONE = 0, IOSTOUCH_ROW_GYRO, IOSTOUCH_ROW_CAMERA };
+static int iosTouch_IsOptButton(int button)
+{
+    return (button >= BTN_GYROOPT_FIRST && button <= BTN_GYROOPT_LAST)
+           || (button >= BTN_CAMROW_FIRST && button <= BTN_CAMROW_LAST) || iosTouch_IsCamOptButton(button);
+}
+
+// A tray button held still opens its row (GYRO, the camera switch)
+static int iosTouch_IsRowOpener(int button)
+{
+    return button == BTN_TRAYGYRO || button == BTN_TRAYCAM;
 }
 
 static int iosTouch_IsQuickHold(int button)
@@ -508,15 +535,18 @@ static int iosTouch_bShowFps = 0;
 static int iosTouch_bShowCamera = 0;
 static CFTimeInterval iosTouch_tCameraAsked = 0; // when the CAMERA button asked for photos (0: not waiting)
 static int iosTouch_cameraKinds = IOSCAPTURE_CLEAN;
-static int iosTouch_bCamOptsOpen = 0;
+static int iosTouch_optRow = 0;      // IOSTOUCH_ROW_*: the row open under the tray
+static int iosTouch_bKindsOpen = 0;  // the photo kinds' row, under the camera options
+static int iosTouch_selfieShots = 3; // photos a selfie takes (1, 3 or 5; remembered)
 static UITouch* iosTouch_pBurstTouch = nil; // the finger a burst goes on for (not retained; only compared)
 static int iosTouch_burstShots = 0;
+static int iosTouch_selfieFlashes = 0; // a selfie's photos taken so far (after the first, a burst's lighter flash and click)
 static SystemSoundID iosTouch_burstSound = 0; // (0: not loaded; then the shutter)
 static CFTimeInterval iosTouch_tBurstNext = 0;
-// The selfie going on: its stage, and when it began / was taken
-enum { IOSTOUCH_SELFIE_NONE = 0, IOSTOUCH_SELFIE_POSING, IOSTOUCH_SELFIE_TAKING, IOSTOUCH_SELFIE_SHOWN };
+// A selfie going on (iosSelfieShots runs it; the overlay hides its buttons
+// and ignores touches meanwhile)
+enum { IOSTOUCH_SELFIE_NONE = 0, IOSTOUCH_SELFIE_POSING };
 static int iosTouch_selfieStage = IOSTOUCH_SELFIE_NONE;
-static CFTimeInterval iosTouch_tSelfie = 0;
 // Gyro aiming: its mode, its sensitivity (an index into iosTouch_aGyroSens),
 // the motion manager (one for the app, as Apple asks) and the queue its
 // samples are handled on, whether its updates are running, whether iOS
@@ -532,6 +562,7 @@ static CFTimeInterval iosTouch_tSelfie = 0;
 enum { IOSTOUCH_GYRO_OFF = 0, IOSTOUCH_GYRO_TOUCH, IOSTOUCH_GYRO_ALWAYS, IOSTOUCH_GYRO_NUM_MODES };
 static const float iosTouch_aGyroSens[] = { 1.0f, 1.5f, 2.0f, 3.0f };
 static int iosTouch_gyroMode = IOSTOUCH_GYRO_OFF; // until it is switched on in MENU's tray
+static int iosTouch_gyroLastMode = IOSTOUCH_GYRO_TOUCH; // the mode GYRO switches back on in
 static int iosTouch_gyroSens = IOSTOUCH_GYRO_DEFAULT_SENS;
 static CMMotionManager* iosTouch_pMotion = nil;
 static NSOperationQueue* iosTouch_pMotionQueue = nil;
@@ -849,6 +880,11 @@ static void iosTouch_GyroSetup(void)
         NSInteger m = [d integerForKey:IOSTOUCH_GYRO_DEFAULTS_KEY];
         iosTouch_gyroMode = (m >= 0 && m < IOSTOUCH_GYRO_NUM_MODES) ? (int)m : IOSTOUCH_GYRO_OFF;
     }
+    if ([d objectForKey:IOSTOUCH_GYRO_LAST_DEFAULTS_KEY]) {
+        NSInteger m = [d integerForKey:IOSTOUCH_GYRO_LAST_DEFAULTS_KEY];
+        iosTouch_gyroLastMode = (m == IOSTOUCH_GYRO_ALWAYS) ? IOSTOUCH_GYRO_ALWAYS : IOSTOUCH_GYRO_TOUCH;
+    }
+    if (iosTouch_gyroMode != IOSTOUCH_GYRO_OFF) iosTouch_gyroLastMode = iosTouch_gyroMode;
     if ([d objectForKey:IOSTOUCH_GYRO_SENS_DEFAULTS_KEY]) {
         float k = [d floatForKey:IOSTOUCH_GYRO_SENS_DEFAULTS_KEY];
         for (int i = 0; i < IOSTOUCH_COUNT(iosTouch_aGyroSens); i++) {
@@ -864,11 +900,31 @@ static int iosTouch_GyroAvailable(void)
     return iosTouch_pMotion && iosTouch_pMotion.deviceMotionAvailable && !iosTouch_bGyroRefused;
 }
 
-// The next mode or sensitivity (MENU's tray), kept in the app's settings
+// GYRO's tap (MENU's tray): off, or back on in the mode it was last on in;
+// the gyro options' MODE: the other of TOUCH and ALWAYS (and on in it, if
+// it is on); all kept in the app's settings
+static void iosTouch_GyroSave(void)
+{
+    NSUserDefaults* d = [NSUserDefaults standardUserDefaults];
+    [d setInteger:iosTouch_gyroMode forKey:IOSTOUCH_GYRO_DEFAULTS_KEY];
+    [d setInteger:iosTouch_gyroLastMode forKey:IOSTOUCH_GYRO_LAST_DEFAULTS_KEY];
+}
+static void iosTouch_GyroToggle(void)
+{
+    if (iosTouch_gyroMode != IOSTOUCH_GYRO_OFF) {
+        iosTouch_gyroLastMode = iosTouch_gyroMode;
+        iosTouch_gyroMode = IOSTOUCH_GYRO_OFF;
+    }
+    else {
+        iosTouch_gyroMode = iosTouch_gyroLastMode;
+    }
+    iosTouch_GyroSave();
+}
 static void iosTouch_GyroNextMode(void)
 {
-    iosTouch_gyroMode = (iosTouch_gyroMode + 1) % IOSTOUCH_GYRO_NUM_MODES;
-    [[NSUserDefaults standardUserDefaults] setInteger:iosTouch_gyroMode forKey:IOSTOUCH_GYRO_DEFAULTS_KEY];
+    iosTouch_gyroLastMode = (iosTouch_gyroLastMode == IOSTOUCH_GYRO_TOUCH) ? IOSTOUCH_GYRO_ALWAYS : IOSTOUCH_GYRO_TOUCH;
+    if (iosTouch_gyroMode != IOSTOUCH_GYRO_OFF) iosTouch_gyroMode = iosTouch_gyroLastMode;
+    iosTouch_GyroSave();
 }
 static void iosTouch_GyroNextSens(void)
 {
@@ -982,11 +1038,14 @@ typedef struct {
     UIView* trayBack;       // behind MENU's tray
     UIView* cameraFlash;    // the CAMERA button's white flash, over everything
     UIImpactFeedbackGenerator* cameraTap;
-    UIView* camOptBack;     // behind the camera options
-    CAShapeLayer* camOptRing; // the tray's camera switch, held to open them
+    UIView* camOptBack;     // behind the photo kinds
+    UIView* camRowBack;     // behind the camera options
+    UIView* gyroOptBack;    // behind the gyro options
+    CAShapeLayer* camOptRing; // the tray's camera switch, held to open the camera options
+    CAShapeLayer* gyroOptRing; // the tray's GYRO, held to open the gyro options
     UILabel* burstLabel;    // beside CAMERA: how many shots a burst has taken
     CAShapeLayer* cameraRing; // CAMERA's, held for the selfie
-    CGFloat aSelfieAlpha[64]; // the overlay's views as they were, hidden during a selfie
+    CGFloat aSelfieAlpha[IOSTOUCH_MAX_SUBVIEWS]; // the overlay's views as they were, hidden during a selfie
     UILabel* fpsLabel;      // the FPS readout...
     int bFpsBase;           // ...counting frames since fpsBaseFrames, at fpsBaseTime
     unsigned int fpsBaseFrames;
@@ -1024,6 +1083,10 @@ typedef struct {
 - (void)cameraFeedback:(int)mode;
 - (void)endSelfie;
 - (void)refreshGyroLabels;
+- (void)setOptRow:(int)row;
+- (void)setKindsOpen:(int)bOpen;
+- (void)useOptButton:(int)button;
+- (void)releaseOptTouches;
 - (void)refreshButtonLooks;
 @end
 
@@ -1185,7 +1248,9 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         iosTouch_GyroSetup();
         // GYRO and SENS say what they are set to on a second line: at the size
         // of a two-line label, condensed so "ALWAYS" fits a circle this small
-        for (int i = BTN_TRAYSENS; i <= BTN_TRAYGYRO; i++) {
+        const int aTwoLine[] = { BTN_TRAYGYRO, BTN_GYROOPT_MODE, BTN_GYROOPT_SENS, BTN_CAMROW_SELFIES };
+        for (int k = 0; k < IOSTOUCH_COUNT(aTwoLine); k++) {
+            const int i = aTwoLine[k];
             aButtonViews[i].font = IOSTouch_WheelFont(IOSTouch_FontSize("GYRO\nALWAYS", iosTouch_aButtons[i].radius));
         }
         [self refreshGyroLabels];
@@ -1233,6 +1298,29 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         for (int i = BTN_CAMOPT_FIRST; i <= BTN_CAMOPT_LAST; i++) aButtonViews[i].hidden = YES;
         camOptRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_TRAYCAM].radius);
         [aButtonViews[BTN_TRAYCAM].layer addSublayer:camOptRing];
+        // ...and the camera options and the gyro options, rows like it
+        UIView** aBack[2] = { &camRowBack, &gyroOptBack }; // (manual retain and release: the ivars keep the +1 from alloc, as the others)
+        const int aBackFirst[2] = { BTN_CAMROW_FIRST, BTN_GYROOPT_FIRST };
+        const int aBackLast[2] = { BTN_CAMROW_LAST, BTN_GYROOPT_LAST };
+        for (int k = 0; k < 2; k++) {
+            UIView* v = [[UIView alloc] initWithFrame:CGRectZero];
+            v.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.55];
+            v.layer.cornerRadius = 26.0;
+            v.layer.borderWidth = 1.5;
+            v.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.4].CGColor;
+            v.userInteractionEnabled = NO;
+            v.hidden = YES;
+            [self insertSubview:v belowSubview:aButtonViews[aBackFirst[k]]];
+            *aBack[k] = v;
+            for (int i = aBackFirst[k]; i <= aBackLast[k]; i++) aButtonViews[i].hidden = YES;
+        }
+        gyroOptRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_TRAYGYRO].radius);
+        [aButtonViews[BTN_TRAYGYRO].layer addSublayer:gyroOptRing];
+        if ([[NSUserDefaults standardUserDefaults] objectForKey:IOSTOUCH_SELFIES_DEFAULTS_KEY]) {
+            NSInteger n = [[NSUserDefaults standardUserDefaults] integerForKey:IOSTOUCH_SELFIES_DEFAULTS_KEY];
+            iosTouch_selfieShots = (n == 1 || n == 5) ? (int)n : 3;
+        }
+        [self refreshGyroLabels]; // (SELFIES, with the count just read)
 
         // A burst's count, beside CAMERA while it goes on
         burstLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 30, 18)];
@@ -1621,8 +1709,8 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         f->y = best.y;
     }
 
-    // MENU's tray: a row just under the corner -- SENS, GYRO, FPS and the
-    // keyboard, right below MENU (a held thumb slides straight down onto it).
+    // MENU's tray: a row just under the corner -- GYRO, FPS, the camera
+    // switch and the keyboard, right below MENU (a held thumb slides straight down onto it).
     // Where the buttons round FIRE reach up into that corner (FORCE, on a
     // smaller screen with the cutout on the right; any of them with Display
     // Zoom or a large HUD scale) the row moves left until its backing is
@@ -1642,21 +1730,29 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         }
         trayBack.frame = CGRectMake(k.x - len - 26, k.y - 26, len + 52, 52);
     }
-    // The camera options: a row under the tray, centred under its camera
-    // switch (kept on screen)
+    // The rows under the tray, each centred under the button that opens it
+    // (kept on screen): the gyro options under GYRO and the camera options
+    // under the camera switch, a row down; the photo kinds under PHOTO, a
+    // row further
     {
-        iosTouchButton* c = &iosTouch_aButtons[BTN_TRAYCAM];
-        const int num = BTN_CAMOPT_LAST - BTN_CAMOPT_FIRST + 1;
-        const CGFloat len = IOSTOUCH_TRAY_STEP * (num - 1);
-        CGFloat x0 = c->x - len * 0.5;
-        x0 = MIN(x0, right - 26 - len);
-        x0 = MAX(x0, left + 26);
-        CGFloat y = c->y + 52;
-        for (int i = BTN_CAMOPT_FIRST; i <= BTN_CAMOPT_LAST; i++) {
-            iosTouch_aButtons[i].x = x0 + IOSTOUCH_TRAY_STEP * (i - BTN_CAMOPT_FIRST);
-            iosTouch_aButtons[i].y = y;
+        const int aFirst[3] = { BTN_GYROOPT_FIRST, BTN_CAMROW_FIRST, BTN_CAMOPT_FIRST };
+        const int aLast[3] = { BTN_GYROOPT_LAST, BTN_CAMROW_LAST, BTN_CAMOPT_LAST };
+        const int aUnder[3] = { BTN_TRAYGYRO, BTN_TRAYCAM, BTN_CAMROW_PHOTO };
+        UIView* aRowBack[3] = { gyroOptBack, camRowBack, camOptBack };
+        for (int k = 0; k < 3; k++) {
+            iosTouchButton* c = &iosTouch_aButtons[aUnder[k]]; // (PHOTO is laid out by the time its row is)
+            const int num = aLast[k] - aFirst[k] + 1;
+            const CGFloat len = IOSTOUCH_TRAY_STEP * (num - 1);
+            CGFloat x0 = c->x - len * 0.5;
+            x0 = MIN(x0, right - 26 - len);
+            x0 = MAX(x0, left + 26);
+            CGFloat y = c->y + 52;
+            for (int i = aFirst[k]; i <= aLast[k]; i++) {
+                iosTouch_aButtons[i].x = x0 + IOSTOUCH_TRAY_STEP * (i - aFirst[k]);
+                iosTouch_aButtons[i].y = y;
+            }
+            aRowBack[k].frame = CGRectMake(x0 - 26, y - 26, len + 52, 52);
         }
-        camOptBack.frame = CGRectMake(x0 - 26, y - 26, len + 52, 52);
     }
     burstLabel.center = CGPointMake(iosTouch_aButtons[BTN_CAMERA].x + iosTouch_aButtons[BTN_CAMERA].radius + 20,
                                     iosTouch_aButtons[BTN_CAMERA].y);
@@ -1672,7 +1768,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         const CGFloat textTop = top + 26 + iosTouch_aButtons[BTN_MENU].radius + IOSTOUCH_TOPTEXT_GAP;
         CGFloat half = MIN(W * 0.5 - (left + IOSTOUCH_TOPTEXT_SIDE), (right - IOSTOUCH_TOPTEXT_SIDE) - W * 0.5);
         for (int i = 0; i < IOSTOUCH_NUM_BUTTONS; i++) {
-            if (iosTouch_IsTrayButton(i) || iosTouch_IsCamOptButton(i)) continue; // only over the text while open
+            if (iosTouch_IsTrayButton(i) || iosTouch_IsOptButton(i)) continue; // only over the text while open
             int bTopRow = 0;
             for (int t = 0; t < IOSTOUCH_COUNT(aTopRow); t++) {
                 if (aTopRow[t] == i) bTopRow = 1;
@@ -1720,11 +1816,16 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             }
         }
     }
-    // ...and the camera options under it, likewise
-    l = &iosTouch_aButtons[BTN_CAMOPT_FIRST];
-    r = &iosTouch_aButtons[BTN_CAMOPT_LAST];
-    if (best < 0 && iosTouch_bCamOptsOpen && iosTouch_DistToSegment(p, l->x, l->y, r->x, r->y) <= 26) {
-        for (int i = BTN_CAMOPT_FIRST; i <= BTN_CAMOPT_LAST; i++) {
+    // ...and the rows open under it, likewise
+    const int aFirst[3] = { BTN_GYROOPT_FIRST, BTN_CAMROW_FIRST, BTN_CAMOPT_FIRST };
+    const int aLast[3] = { BTN_GYROOPT_LAST, BTN_CAMROW_LAST, BTN_CAMOPT_LAST };
+    const int aOpen[3] = { iosTouch_optRow == IOSTOUCH_ROW_GYRO, iosTouch_optRow == IOSTOUCH_ROW_CAMERA,
+                           iosTouch_optRow == IOSTOUCH_ROW_CAMERA && iosTouch_bKindsOpen };
+    for (int k = 0; k < 3 && best < 0; k++) {
+        l = &iosTouch_aButtons[aFirst[k]];
+        r = &iosTouch_aButtons[aLast[k]];
+        if (!aOpen[k] || iosTouch_DistToSegment(p, l->x, l->y, r->x, r->y) > 26) continue;
+        for (int i = aFirst[k]; i <= aLast[k]; i++) {
             CGFloat d = fabs(p.x - iosTouch_aButtons[i].x);
             if (best < 0 || d < bestDist) {
                 best = i;
@@ -1782,13 +1883,15 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
                   || (i == BTN_TRAYFPS && iosTouch_bShowFps)
                   || (i == BTN_TRAYCAM && iosTouch_bShowCamera)
                   || (iosTouch_IsCamOptButton(i) && (iosTouch_cameraKinds & iosTouch_aButtons[i].bin))
+                  || (i == BTN_CAMROW_PHOTO && iosTouch_bKindsOpen)
                   || (i == BTN_CAMERA && iosTouch_pBurstTouch)
                   || (i == BTN_TRAYGYRO && bGyro && iosTouch_gyroMode != IOSTOUCH_GYRO_OFF);
-        int bTray = iosTouch_IsTrayButton(i) || iosTouch_IsCamOptButton(i); // only there while open
+        int bTray = iosTouch_IsTrayButton(i) || iosTouch_IsOptButton(i); // only there while open
         CGFloat alpha = (bHeld || bOn || bWheel || bTray) ? 1.0 : IOSTOUCH_IDLE_ALPHA;
         if (i == BTN_FORCE && bForceLabelSet && !forceLabelName) alpha *= 0.45; // no power to use yet
         if (i == BTN_TRAYGYRO && !bGyro) alpha *= 0.45;                           // no gyro here
-        if (i == BTN_TRAYSENS && (!bGyro || iosTouch_gyroMode == IOSTOUCH_GYRO_OFF)) alpha *= 0.45; // ...or it's off
+        if ((i == BTN_GYROOPT_MODE || i == BTN_GYROOPT_SENS) && (!bGyro || iosTouch_gyroMode == IOSTOUCH_GYRO_OFF))
+            alpha *= 0.45; // ...or it's off (still set: they apply once it's on)
         aButtonViews[i].alpha = alpha;
         if (i != BTN_FIRE) {
             aButtonViews[i].layer.borderColor = bOn ? [UIColor colorWithRed:1.0 green:0.85 blue:0.3 alpha:0.95].CGColor
@@ -1912,7 +2015,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     bOpen = bOpen != 0;
     if (iosTouch_bTrayOpen == bOpen) return;
     iosTouch_bTrayOpen = bOpen;
-    if (!bOpen) [self setCamOptsOpen:0];
+    if (!bOpen) [self setOptRow:IOSTOUCH_ROW_NONE];
     trayBack.hidden = !bOpen;
     for (int i = BTN_TRAY_FIRST; i <= BTN_TRAY_LAST; i++) aButtonViews[i].hidden = !bOpen;
     if (!bOpen) {
@@ -1920,6 +2023,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             iosTouchSlot* s = &iosTouch_aSlots[i];
             if (!s->touch || s->role != ROLE_BUTTON) continue;
             if (s->button == BTN_TRAYCAM) [self setRing:camOptRing progress:0.0];
+            if (s->button == BTN_TRAYGYRO) [self setRing:gyroOptRing progress:0.0];
             if (iosTouch_IsTrayButton(s->button)) {
                 if (iosTouch_aButtonHeld[s->button] > 0) iosTouch_aButtonHeld[s->button]--;
                 s->role = ROLE_IGNORED;
@@ -1957,24 +2061,73 @@ static void iosTouch_PhotosAsked(void)
         iosGame_SetHoldReason(IOSGAME_HOLD_PHOTOS, 1);
 }
 
-// Opens or closes the camera options under the tray. Closing them lets go of
-// any touch on them.
-- (void)setCamOptsOpen:(int)bOpen
+// Lets go of any touch on a row's buttons that is going away
+- (void)releaseOptTouches
 {
-    bOpen = bOpen != 0;
-    if (iosTouch_bCamOptsOpen == bOpen) return;
-    iosTouch_bCamOptsOpen = bOpen;
-    camOptBack.hidden = !bOpen;
-    for (int i = BTN_CAMOPT_FIRST; i <= BTN_CAMOPT_LAST; i++) aButtonViews[i].hidden = !bOpen;
-    if (!bOpen) {
-        for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
-            iosTouchSlot* s = &iosTouch_aSlots[i];
-            if (s->touch && s->role == ROLE_BUTTON && iosTouch_IsCamOptButton(s->button)) {
-                if (iosTouch_aButtonHeld[s->button] > 0) iosTouch_aButtonHeld[s->button]--;
-                s->role = ROLE_IGNORED;
-            }
+    for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+        iosTouchSlot* s = &iosTouch_aSlots[i];
+        if (s->touch && s->role == ROLE_BUTTON && iosTouch_IsOptButton(s->button) && aButtonViews[s->button].hidden) {
+            if (iosTouch_aButtonHeld[s->button] > 0) iosTouch_aButtonHeld[s->button]--;
+            s->role = ROLE_IGNORED;
         }
     }
+}
+
+// Opens a row under the tray (IOSTOUCH_ROW_*), closing any other: only one
+// is open at a time (the photo kinds go with the camera options)
+- (void)setOptRow:(int)row
+{
+    if (iosTouch_optRow == row) return;
+    iosTouch_optRow = row;
+    if (row != IOSTOUCH_ROW_CAMERA) iosTouch_bKindsOpen = 0;
+    gyroOptBack.hidden = row != IOSTOUCH_ROW_GYRO;
+    for (int i = BTN_GYROOPT_FIRST; i <= BTN_GYROOPT_LAST; i++) aButtonViews[i].hidden = row != IOSTOUCH_ROW_GYRO;
+    camRowBack.hidden = row != IOSTOUCH_ROW_CAMERA;
+    for (int i = BTN_CAMROW_FIRST; i <= BTN_CAMROW_LAST; i++) aButtonViews[i].hidden = row != IOSTOUCH_ROW_CAMERA;
+    camOptBack.hidden = !iosTouch_bKindsOpen;
+    for (int i = BTN_CAMOPT_FIRST; i <= BTN_CAMOPT_LAST; i++) aButtonViews[i].hidden = !iosTouch_bKindsOpen;
+    [self releaseOptTouches];
+    [self refreshGyroLabels];
+    [self refreshButtonLooks];
+}
+
+// Opens or closes the photo kinds' row, under the camera options
+- (void)setKindsOpen:(int)bOpen
+{
+    bOpen = bOpen != 0 && iosTouch_optRow == IOSTOUCH_ROW_CAMERA;
+    if (iosTouch_bKindsOpen == bOpen) return;
+    iosTouch_bKindsOpen = bOpen;
+    camOptBack.hidden = !bOpen;
+    for (int i = BTN_CAMOPT_FIRST; i <= BTN_CAMOPT_LAST; i++) aButtonViews[i].hidden = !bOpen;
+    [self releaseOptTouches];
+    [self refreshButtonLooks];
+}
+
+// A row's button tapped. The row stays open for another tap (a touch
+// anywhere else closes it).
+- (void)useOptButton:(int)button
+{
+    switch (iosTouch_aButtons[button].kind) {
+        case KIND_GYROMODE:
+            if (iosTouch_GyroAvailable()) iosTouch_GyroNextMode();
+            break;
+        case KIND_GYROSENS:
+            if (iosTouch_GyroAvailable()) iosTouch_GyroNextSens();
+            break;
+        case KIND_CAMPHOTO:
+            [self setKindsOpen:!iosTouch_bKindsOpen];
+            break;
+        case KIND_SELFIES:
+            iosTouch_selfieShots = iosTouch_selfieShots == 1 ? 3 : (iosTouch_selfieShots == 3 ? 5 : 1);
+            [[NSUserDefaults standardUserDefaults] setInteger:iosTouch_selfieShots forKey:IOSTOUCH_SELFIES_DEFAULTS_KEY];
+            break;
+        case KIND_CAMKIND:
+            [self toggleCameraKind:button];
+            break;
+        default:
+            break;
+    }
+    [self refreshGyroLabels];
     [self refreshButtonLooks];
 }
 
@@ -2031,19 +2184,25 @@ static void iosTouch_PhotosAsked(void)
 }
 
 // The selfie: the CAMERA button held still IOSTOUCH_SELFIE_HOLD. The game
-// holds still and everyone near poses for a camera held out at arm's length
-// (iosSelfie); the touch buttons go while it is up, and touches are ignored,
-// so nothing can let the game go on in the middle of it. Posed, then the
-// photo (the clean kind only), shown a moment, then all as it was.
+// holds still and everyone near poses for a camera held out at arm's length,
+// for one photo or several (the camera options' SELFIES), each posed afresh
+// (iosSelfieShots runs it, with iosSelfie and iosCapture); the touch buttons
+// go while it is up, and touches are ignored, so nothing can let the game go
+// on in the middle of it. Then all as it was.
 - (void)startSelfie
 {
     if (iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE) return;
+    // (a burst on another finger ends first: its end would take the selfie's
+    // photos out of their batch, and its waiting capture would hold the
+    // selfie up)
+    [self endBurst];
     int numPeople = 0;
-    if (iosCapture_IsBusy() || !iosSelfie_Begin(IOSSELFIE_POSE_RANDOM, &numPeople)) {
-        iosGame_ShowMessage(iosCapture_IsBusy() ? "Still saving the last photo" : "Can't take a selfie here");
+    const int r = iosSelfieShots_Start(iosTouch_selfieShots, CACurrentMediaTime(), &numPeople);
+    if (r != IOSSELFIESHOTS_STARTED) {
+        iosGame_ShowMessage(r == IOSSELFIESHOTS_BUSY ? "Still saving the last photo" : "Can't take a selfie here");
         return;
     }
-    [self endBurst];
+    iosTouch_selfieFlashes = 0;
     [self setTrayOpen:0];
     // Every touch now down is let go, and the buttons are hidden
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
@@ -2058,33 +2217,19 @@ static void iosTouch_PhotosAsked(void)
     // (counted without the flash, which moves to the top when it goes off)
     int k = 0;
     for (UIView* v in self.subviews) {
-        if (v == cameraFlash || k >= 64) continue;
+        if (v == cameraFlash || k >= IOSTOUCH_MAX_SUBVIEWS) continue;
         aSelfieAlpha[k++] = v.alpha;
         v.alpha = 0.0;
     }
     [cameraTap prepare];
     iosTouch_selfieStage = IOSTOUCH_SELFIE_POSING;
-    iosTouch_tSelfie = CACurrentMediaTime();
 }
 
 - (void)tickSelfie:(CFTimeInterval)now
 {
     if (iosTouch_selfieStage == IOSTOUCH_SELFIE_NONE) return;
-    iosSelfie_Frame();
-    if (iosTouch_selfieStage == IOSTOUCH_SELFIE_POSING && now - iosTouch_tSelfie >= IOSTOUCH_SELFIE_SETTLE) {
-        if (iosCapture_Request(IOSCAPTURE_CLEAN, IOSCAPTURE_MODE_SELFIE)) {
-            iosTouch_selfieStage = IOSTOUCH_SELFIE_TAKING;
-            iosTouch_tCameraAsked = 0; // (the selfie keeps its own time)
-        }
-    }
-    if (iosTouch_selfieStage == IOSTOUCH_SELFIE_SHOWN && now - iosTouch_tSelfie >= IOSTOUCH_SELFIE_SHOW)
-        [self endSelfie];
-    else if (iosTouch_selfieStage == IOSTOUCH_SELFIE_TAKING && !iosCapture_IsBusy())
-        [self endSelfie]; // the photo couldn't be taken (the message line says so)
-    else if (iosTouch_selfieStage != IOSTOUCH_SELFIE_SHOWN && now - iosTouch_tSelfie >= IOSTOUCH_SELFIE_GIVEUP) {
-        iosCapture_Cancel();
-        [self endSelfie];
-    }
+    // (all put back by it once the last photo has been shown, or it gave up)
+    if (iosSelfieShots_Tick(now) == IOSSELFIESHOTS_IDLE) [self endSelfie];
 }
 
 // Everything as it was; the game goes on
@@ -2092,13 +2237,13 @@ static void iosTouch_PhotosAsked(void)
 {
     if (iosTouch_selfieStage == IOSTOUCH_SELFIE_NONE) return;
     iosTouch_selfieStage = IOSTOUCH_SELFIE_NONE;
-    iosSelfie_End();
+    iosSelfieShots_Stop(); // (when ended early: the app going to the background...)
     // (a mouse or trackpad moved meanwhile doesn't turn the view afterwards)
     Window_lastXRel = 0;
     Window_lastYRel = 0;
     int k = 0;
     for (UIView* v in self.subviews) {
-        if (v == cameraFlash || k >= 64) continue;
+        if (v == cameraFlash || k >= IOSTOUCH_MAX_SUBVIEWS) continue;
         v.alpha = aSelfieAlpha[k++];
     }
     [self refreshButtonLooks];
@@ -2108,12 +2253,10 @@ static void iosTouch_PhotosAsked(void)
 // lighter flash for each shot of a burst
 - (void)cameraFeedback:(int)mode
 {
-    const int bBurst = mode == IOSCAPTURE_MODE_BURST;
+    // (a selfie's photos come a frame apart: after its first, the lighter
+    // flash and click a burst's take)
+    const int bBurst = mode == IOSCAPTURE_MODE_BURST || (mode == IOSCAPTURE_MODE_SELFIE && iosTouch_selfieFlashes++ > 0);
     iosTouch_tCameraAsked = 0;
-    if (mode == IOSCAPTURE_MODE_SELFIE && iosTouch_selfieStage == IOSTOUCH_SELFIE_TAKING) {
-        iosTouch_selfieStage = IOSTOUCH_SELFIE_SHOWN;
-        iosTouch_tSelfie = CACurrentMediaTime();
-    }
     [cameraFlash.layer removeAllAnimations];
     [self addSubview:cameraFlash]; // on top
     cameraFlash.frame = self.bounds;
@@ -2126,17 +2269,20 @@ static void iosTouch_PhotosAsked(void)
     [cameraTap impactOccurred];
 }
 
-// What the tray's gyro buttons say: the mode and the sensitivity
+// What the tray's GYRO and its options say (the mode it is on in, or OFF;
+// the mode it goes on in; the sensitivity), and the camera options' SELFIES
 - (void)refreshGyroLabels
 {
     static const char* aModeName[IOSTOUCH_GYRO_NUM_MODES] = { "OFF", "TOUCH", "ALWAYS" };
     aButtonViews[BTN_TRAYGYRO].text = iosTouch_GyroAvailable() ? [NSString stringWithFormat:@"GYRO\n%s", aModeName[iosTouch_gyroMode]]
                                                                : @"NO\nGYRO";
-    aButtonViews[BTN_TRAYSENS].text = [NSString stringWithFormat:@"SENS\n%.1fx", (double)iosTouch_aGyroSens[iosTouch_gyroSens]];
+    aButtonViews[BTN_GYROOPT_MODE].text = [NSString stringWithFormat:@"MODE\n%s", aModeName[iosTouch_gyroLastMode]];
+    aButtonViews[BTN_GYROOPT_SENS].text = [NSString stringWithFormat:@"SENS\n%.1fx", (double)iosTouch_aGyroSens[iosTouch_gyroSens]];
+    aButtonViews[BTN_CAMROW_SELFIES].text = [NSString stringWithFormat:@"SELFIES\n%d", iosTouch_selfieShots];
 }
 
 // A tray button picked: it does its thing, and the tray closes -- except
-// after GYRO and SENS, which stay for another tap to go on to the next
+// after GYRO, which stays for another tap
 - (void)useTrayButton:(int)button
 {
     int kind = iosTouch_aButtons[button].kind;
@@ -2149,12 +2295,11 @@ static void iosTouch_PhotosAsked(void)
     else if (kind == KIND_CAMSWITCH) {
         [self setShowCamera:!iosTouch_bShowCamera];
     }
-    else if ((kind == KIND_GYRO || kind == KIND_GYROSENS) && iosTouch_GyroAvailable()) {
-        if (kind == KIND_GYRO) iosTouch_GyroNextMode();
-        else iosTouch_GyroNextSens();
+    else if (kind == KIND_GYRO && iosTouch_GyroAvailable()) {
+        iosTouch_GyroToggle();
         [self refreshGyroLabels];
     }
-    if (kind == KIND_GYRO || kind == KIND_GYROSENS) [self refreshButtonLooks];
+    if (kind == KIND_GYRO) [self refreshButtonLooks];
     else [self setTrayOpen:0];
 }
 
@@ -2770,10 +2915,11 @@ static int iosTouch_WheelSliceHasRow(int i)
         s->button = [self buttonAt:p];
         // An open tray closes at a touch anywhere else, which then does what
         // it would anyway -- except on MENU, where it only closes the tray
-        // ...and the camera options at a touch anywhere but on them (on the
-        // tray, the tray stays)
-        if (iosTouch_bCamOptsOpen && !iosTouch_IsCamOptButton(s->button)) [self setCamOptsOpen:0];
-        if (iosTouch_bTrayOpen && !iosTouch_IsTrayButton(s->button) && !iosTouch_IsCamOptButton(s->button)) {
+        // ...and a row open under it at a touch anywhere but on the rows
+        // (on the tray, the tray stays: holding GYRO or the camera switch
+        // there opens its row instead)
+        if (iosTouch_optRow != IOSTOUCH_ROW_NONE && !iosTouch_IsOptButton(s->button)) [self setOptRow:IOSTOUCH_ROW_NONE];
+        if (iosTouch_bTrayOpen && !iosTouch_IsTrayButton(s->button) && !iosTouch_IsOptButton(s->button)) {
             [self setTrayOpen:0];
             if (s->button == BTN_MENU) {
                 s->role = ROLE_IGNORED;
@@ -2844,8 +2990,8 @@ static int iosTouch_WheelSliceHasRow(int i)
             // too), the wheel opens at once, to slide to a slice
             // CAMERA: slid IOSTOUCH_WHEEL_OPEN_SLIDE (anywhere), before its hold
             // was up, starts a burst that goes on until this finger lifts.
-            // The tray's camera switch slid off isn't held any more.
-            if (s->role == ROLE_BUTTON && !s->bFired && (s->button == BTN_CAMERA || s->button == BTN_TRAYCAM)) {
+            // The tray's camera switch or GYRO slid off isn't held any more.
+            if (s->role == ROLE_BUTTON && !s->bFired && (s->button == BTN_CAMERA || iosTouch_IsRowOpener(s->button))) {
                 int bOut = hypot(p.x - s->origin.x, p.y - s->origin.y) >= IOSTOUCH_WHEEL_OPEN_SLIDE;
                 for (UITouch* c in [event coalescedTouchesForTouch:t]) {
                     CGPoint q = [c locationInView:self];
@@ -2861,7 +3007,7 @@ static int iosTouch_WheelSliceHasRow(int i)
                 }
                 else if (bOut) {
                     s->bFired = 1;
-                    [self setRing:camOptRing progress:0.0];
+                    [self setRing:(s->button == BTN_TRAYGYRO ? gyroOptRing : camOptRing) progress:0.0];
                 }
             }
 
@@ -3004,7 +3150,7 @@ static int iosTouch_WheelSliceHasRow(int i)
                 // the tray's buttons (MENU and the keyboard close the line):
                 // the game isn't reading the controls then, so the rest would
                 // only go off later.
-                int bWhileTyping = b->kind == KIND_MENU || iosTouch_IsTrayButton(s->button) || iosTouch_IsCamOptButton(s->button);
+                int bWhileTyping = b->kind == KIND_MENU || iosTouch_IsTrayButton(s->button) || iosTouch_IsOptButton(s->button);
                 if (!bCancelled && [self isPoint:p onButton:s->button] && (!jkHud_bChatOpen || bWhileTyping)) {
                     if (b->kind == KIND_ITEM && !aButtonViews[s->button].hidden
                              // one item at a time: the use key acts on whichever item is selected when it is read
@@ -3013,12 +3159,13 @@ static int iosTouch_WheelSliceHasRow(int i)
                         iosGame_SelectItem(b->bin);
                         iosTouch_QueuePress(b->scancode);
                     }
-                    else if (iosTouch_IsTrayButton(s->button) && !(s->button == BTN_TRAYCAM && s->bFired)) {
-                        // (the camera switch held until its options opened: not a tap)
+                    else if (iosTouch_IsTrayButton(s->button) && !(iosTouch_IsRowOpener(s->button) && s->bFired)) {
+                        // (GYRO or the camera switch held until its row opened, or
+                        // slid off: not a tap)
                         [self useTrayButton:s->button];
                     }
-                    else if (iosTouch_IsCamOptButton(s->button)) {
-                        [self toggleCameraKind:s->button];
+                    else if (iosTouch_IsOptButton(s->button) && !aButtonViews[s->button].hidden) {
+                        [self useOptButton:s->button];
                     }
                     else if (b->kind == KIND_CAMERA && !aButtonViews[s->button].hidden && !s->bFired
                              && t.timestamp - s->tDownTouch < IOSTOUCH_SELFIE_HOLD) {
@@ -3039,6 +3186,7 @@ static int iosTouch_WheelSliceHasRow(int i)
                 if (s->button == BTN_QUICKLOAD) [self setRing:loadRing progress:0.0];
                 if (s->button == BTN_MENU) [self setRing:menuRing progress:0.0];
                 if (s->button == BTN_TRAYCAM) [self setRing:camOptRing progress:0.0];
+                if (s->button == BTN_TRAYGYRO) [self setRing:gyroOptRing progress:0.0];
                 if (s->button == BTN_CAMERA) [self setRing:cameraRing progress:0.0];
             }
             else if (s->role == ROLE_STICK) {
@@ -3157,17 +3305,19 @@ static int iosTouch_WheelSliceHasRow(int i)
                 else loadProgress = MAX(loadProgress, progress);
             }
         }
-        else if (s->button == BTN_TRAYCAM && !s->bFired) {
-            // The tray's camera switch held still: its options open (the
+        else if (iosTouch_IsRowOpener(s->button) && !s->bFired && iosTouch_bTrayOpen
+                 && (s->button != BTN_TRAYGYRO || iosTouch_GyroAvailable())) {
+            // The tray's camera switch or GYRO held still: its row opens (the
             // lift then doesn't switch it)
+            CAShapeLayer* ring = s->button == BTN_TRAYGYRO ? gyroOptRing : camOptRing;
             CGFloat progress = (CGFloat)((now - s->tDown) / IOSTOUCH_MENU_HOLD);
             if (known - s->tDown >= IOSTOUCH_MENU_HOLD) {
                 s->bFired = 1;
-                [self setRing:camOptRing progress:0.0];
-                [self setCamOptsOpen:1];
+                [self setRing:ring progress:0.0];
+                [self setOptRow:(s->button == BTN_TRAYGYRO ? IOSTOUCH_ROW_GYRO : IOSTOUCH_ROW_CAMERA)];
             }
             else {
-                [self setRing:camOptRing progress:MIN(progress, 1.0)];
+                [self setRing:ring progress:MIN(progress, 1.0)];
             }
         }
         else if (s->button == BTN_CAMERA && !s->bFired && !jkHud_bChatOpen) {
@@ -3478,6 +3628,12 @@ void iosTouch_UpdateGyro(void)
             [iosTouch_pOverlay refreshButtonLooks];
         }
     }
+}
+
+// iosPhotos: whether the FPS readout is on (photo timings go with it)
+int iosTouch_IsFpsShown(void)
+{
+    return iosTouch_bShowFps;
 }
 
 UIView* iosTouch_OverlayView(void)

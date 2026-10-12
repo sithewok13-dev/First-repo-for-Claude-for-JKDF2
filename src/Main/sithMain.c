@@ -41,7 +41,7 @@
 #include "stdPlatform.h"
 #include "jk.h"
 #ifdef TARGET_IOS
-#include "Platform/iOS/iosSelfie.h" // Added
+#include "Platform/iOS/iosPhotoCam.h" // Added
 #endif
 
 #ifdef FIXED_TIMESTEP_PHYS
@@ -473,8 +473,8 @@ void sithDrawScene()
             //}
 #endif
 #ifdef TARGET_IOS
-            // Added: the selfie's camera has a lens of its own
-            iosSelfie_SetLens(&sithCamera_g_pCurCamera->rdCamera);
+            // Added: the photo camera (iosPhotoCam) has a lens of its own
+            iosPhotoCam_SetLens(&sithCamera_g_pCurCamera->rdCamera);
 #endif
 
             sithMain_lastAspect = aspect;

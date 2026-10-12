@@ -35,11 +35,12 @@
 #include "stdPlatform.h"
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosSelfie.h" // Added
-// Added: a selfie's camera only looks: what it sees isn't sighted, seen on
-// the map, marked as on screen, or flashed (iosSelfie)
-#define SITHRENDER_SELFIE_LOOKING() iosSelfie_IsActive()
+#include "Platform/iOS/iosPhotoCam.h" // Added
+// Added: the photo camera (the selfie; frozen action planned) only looks: what it sees
+// isn't sighted, seen on the map, marked as on screen, or flashed (iosPhotoCam)
+#define SITHRENDER_PHOTO_LOOKING() iosPhotoCam_IsActive()
 #else
-#define SITHRENDER_SELFIE_LOOKING() 0
+#define SITHRENDER_PHOTO_LOOKING() 0
 #endif
 
 #if defined(TARGET_TWL)
@@ -403,8 +404,8 @@ void sithRender_Draw()
     }
 #endif
 #ifdef TARGET_IOS
-    // Added: the selfie's camera keeps its own lens (under water too)
-    iosSelfie_SetLens(&sithCamera_g_pCurCamera->rdCamera);
+    // Added: the photo camera keeps its own lens (under water too)
+    iosPhotoCam_SetLens(&sithCamera_g_pCurCamera->rdCamera);
 #endif
 
     rdSetSortingMethod(0);
@@ -693,7 +694,7 @@ void sithRender_BuildVisibleSectorList(SithSector *pSector, rdClipFrustum *pFrus
         }
 
         sithRender_aVisibleSectors[sithRender_g_numVisibleSectors++] = pSector;
-        if (!(pSector->flags & SITH_SECTOR_SEEN) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP) && !SITHRENDER_SELFIE_LOOKING()) // Added: don't send sighted stuff in noclip, otherwise the whole map reveals
+        if (!(pSector->flags & SITH_SECTOR_SEEN) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP) && !SITHRENDER_PHOTO_LOOKING()) // Added: don't send sighted stuff in noclip, otherwise the whole map reveals
         {
             pSector->flags |= SITH_SECTOR_SEEN;
             if ( (pSector->flags & SITH_SECTOR_COGLINKED) != 0 )
@@ -1040,7 +1041,7 @@ void sithRender_NoClip(SithSector *sector, rdClipFrustum *frustumArg, flex_t pre
         }
 
         sithRender_aVisibleSectors[sithRender_g_numVisibleSectors++] = sector;
-        if (!(sector->flags & SITH_SECTOR_SEEN) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP) && !SITHRENDER_SELFIE_LOOKING()) // Added: don't send sighted stuff in noclip, otherwise the whole map reveals
+        if (!(sector->flags & SITH_SECTOR_SEEN) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP) && !SITHRENDER_PHOTO_LOOKING()) // Added: don't send sighted stuff in noclip, otherwise the whole map reveals
         {
             sector->flags |= SITH_SECTOR_SEEN;
             if ( (sector->flags & SITH_SECTOR_COGLINKED) != 0 )
@@ -1276,7 +1277,7 @@ void sithRender_KindaClipAssignFrustum(SithSector *sector, rdClipFrustum *frustu
     }
 
     sithRender_aVisibleSectors[sithRender_g_numVisibleSectors++] = sector;
-    if (!(sector->flags & SITH_SECTOR_SEEN) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP) && !SITHRENDER_SELFIE_LOOKING()) // Added: don't send sighted stuff in noclip, otherwise the whole map reveals
+    if (!(sector->flags & SITH_SECTOR_SEEN) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP) && !SITHRENDER_PHOTO_LOOKING()) // Added: don't send sighted stuff in noclip, otherwise the whole map reveals
     {
         sector->flags |= SITH_SECTOR_SEEN;
         if ( (sector->flags & SITH_SECTOR_COGLINKED) != 0 )
@@ -3003,7 +3004,7 @@ int sithRender_RenderThing(SithThing *pThing)
 
 #ifdef TARGET_IOS
     // Added: a shot or blast frozen in front of a face in a selfie: left out
-    if (SITHRENDER_SELFIE_LOOKING() && iosSelfie_HidesThing(pThing))
+    if (SITHRENDER_PHOTO_LOOKING() && iosSelfie_HidesThing(pThing)) // (0 unless a selfie is up)
         return 0;
 #endif
 
@@ -3011,7 +3012,7 @@ int sithRender_RenderThing(SithThing *pThing)
     //rdClipFrustum* pFullCameraFrustum = rdCamera_g_pCurCamera->pClipFrustum;
 
     int bSighting = !(pThing->flags & SITH_TF_INCAMFOV) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP); // Added: don't send sighted stuff in noclip
-    if (SITHRENDER_SELFIE_LOOKING()) // Added
+    if (SITHRENDER_PHOTO_LOOKING()) // Added
         bSighting = 0;
     if (bSighting)
     {
@@ -3026,7 +3027,7 @@ int sithRender_RenderThing(SithThing *pThing)
         pThing->flags |= SITH_TF_INCAMFOV;
     }
 
-    if (!SITHRENDER_SELFIE_LOOKING()) // Added
+    if (!SITHRENDER_PHOTO_LOOKING()) // Added
         pThing->renderFrame = jkPlayer_currentTickIdx;
     pThing->orient.scale = pThing->position;
 
@@ -3063,7 +3064,7 @@ int sithRender_RenderThing(SithThing *pThing)
 #endif
 
     if (pThing->type == SITH_THING_EXPLOSION && (pThing->explosionParams.flags & SITHEXPLOSION_FLAG_FLASH_BLINDS_THINGS)
-        && !SITHRENDER_SELFIE_LOOKING()) // Added
+        && !SITHRENDER_PHOTO_LOOKING()) // Added
     {
         flex_t cameraDist = stdMath_Dist3D1(pThing->transformedPos.x, pThing->transformedPos.y, pThing->transformedPos.z);
         uint32_t flashG = pThing->explosionParams.flashG;

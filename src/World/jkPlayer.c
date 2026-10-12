@@ -42,12 +42,14 @@
 #endif
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosSelfie.h" // Added
-#define JKPLAYER_SELFIE_LOOKING() iosSelfie_IsActive()
+#include "Platform/iOS/iosPhotoCam.h" // Added
+// Added: the photo camera (the selfie; frozen action planned) only looks (iosPhotoCam)
+#define JKPLAYER_PHOTO_LOOKING() iosPhotoCam_IsActive()
 // Added: a saber blade right across a selfie's lens is left out of it
 #define JKPLAYER_SELFIE_HIDES_BLADE(pMat, pLine) \
     (iosSelfie_IsActive() && (pLine)->polyline && iosSelfie_HidesBlade((pMat), (pLine)->polyline->length))
 #else
-#define JKPLAYER_SELFIE_LOOKING() 0
+#define JKPLAYER_PHOTO_LOOKING() 0
 #define JKPLAYER_SELFIE_HIDES_BLADE(pMat, pLine) 0
 #endif
 
@@ -1041,7 +1043,7 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
     if (!playerInfo) {
         // Added: hackfix for weird blades? (not while a selfie is drawn: it
         // only looks, and changes nothing)
-        if ((thing->actorParams.flags & SITH_AF_BOSS) && !JKPLAYER_SELFIE_LOOKING()) {
+        if ((thing->actorParams.flags & SITH_AF_BOSS) && !JKPLAYER_PHOTO_LOOKING()) {
             jk_printf("OpenJKDF2: Boss w/o a blade? Fixing... %p\n", thing);
 
             jkPlayer_FUN_00404fe0(thing);
@@ -1107,7 +1109,7 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
 
             if (thing->jkFlags & JKFLAG_SABERON)
             {
-                if (!JKPLAYER_SELFIE_LOOKING()) // Added: no game random numbers used in a selfie
+                if (!JKPLAYER_PHOTO_LOOKING()) // Added: no game random numbers used in a selfie
                     jkSaber_PolylineRand(&playerInfo->polylineThing);
                 if (!JKPLAYER_SELFIE_HIDES_BLADE(primaryMat, &playerInfo->polylineThing)) rdThing_Draw(&playerInfo->polylineThing, primaryMat);
                 if ( thing->jkFlags & JKFLAG_DUALSABERS)
@@ -1116,7 +1118,7 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
         }
         else
         {
-            if (!JKPLAYER_SELFIE_LOOKING()) // Added: makes things and uses random numbers
+            if (!JKPLAYER_PHOTO_LOOKING()) // Added: makes things and uses random numbers
                 jkPlayer_renderSaberTwinkle(thing);
         }
     }
@@ -1127,7 +1129,7 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
         
         if (thing->jkFlags & JKFLAG_SABERON)
         {
-            if (!JKPLAYER_SELFIE_LOOKING()) // Added: no game random numbers used in a selfie
+            if (!JKPLAYER_PHOTO_LOOKING()) // Added: no game random numbers used in a selfie
                 jkSaber_PolylineRand(&playerInfo->polylineThing);
             if (!JKPLAYER_SELFIE_HIDES_BLADE(primaryMat, &playerInfo->polylineThing)) rdThing_Draw(&playerInfo->polylineThing, primaryMat);
             if (thing->jkFlags & JKFLAG_DUALSABERS)

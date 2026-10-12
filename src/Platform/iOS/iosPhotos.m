@@ -8,6 +8,8 @@
 #import <UIKit/UIKit.h>
 #import <Photos/Photos.h>
 #import <ImageIO/ImageIO.h>
+#import <QuartzCore/QuartzCore.h>
+#include <mach/mach.h>
 
 #include "Platform/iOS/iosCapture.h"
 #include "Platform/iOS/iosPhotos.h"
@@ -16,6 +18,29 @@
 // iosTouch.m
 UIView* iosTouch_OverlayView(void);
 void iosTouch_CameraFeedback(int mode);
+int iosTouch_IsFpsShown(void);
+
+// Encoding and saving, one capture after another in the order they were
+// taken (so a burst's photos are saved in order), off the game's thread
+static dispatch_queue_t iosPhotos_Queue(void)
+{
+    static dispatch_queue_t q = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        q = dispatch_queue_create("openjkdf2.photos", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0));
+    });
+    return q;
+}
+
+// The app's memory now (what iOS counts against it), in MB; -1 if unknown
+static double iosPhotos_FootprintMB(void)
+{
+    task_vm_info_data_t info;
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    if (task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&info, &count) != KERN_SUCCESS) return -1.0;
+    return (double)info.phys_footprint / (1024.0 * 1024.0);
+}
+static double iosPhotos_peakFootprintMB = 0;
 
 static void iosPhotos_FreeBytes(void* info, const void* data, size_t size)
 {
@@ -96,21 +121,39 @@ static void iosPhotos_Report(void)
     if (iosPhotos_numFailed && n < (int)sizeof(msg))
         n += snprintf(msg + n, sizeof(msg) - n, "%s%d couldn't be saved", n ? ", " : "", iosPhotos_numFailed);
     if (!msg[0]) return;
+    // (taken whether shown or not, so a later message shows only its own)
+    iosCaptureStats st;
+    iosCapture_TakeStats(&st);
+    if (iosTouch_IsFpsShown() && n < (int)sizeof(msg)) {
+        // With the FPS readout on, how the photos went: the frame read back,
+        // the save (from the frame read to saved, waiting behind any earlier
+        // photos included), the held images and the app's memory at their
+        // most, and how long a selfie held the game
+        n += snprintf(msg + n, sizeof(msg) - n, " [read %.0f ms, save %.2f s, held %.0f MB, app %.0f MB", st.readSeconds * 1000.0,
+                      st.saveSeconds, (double)st.peakBytes / (1024.0 * 1024.0), iosPhotos_peakFootprintMB);
+        if (st.freezeSeconds > 0 && n < (int)sizeof(msg))
+            n += snprintf(msg + n, sizeof(msg) - n, ", freeze %.2f s", st.freezeSeconds);
+        if (n < (int)sizeof(msg)) snprintf(msg + n, sizeof(msg) - n, "]");
+    }
+    iosPhotos_peakFootprintMB = 0;
     iosGame_ShowMessage(msg);
     iosPhotos_numToPhotos = iosPhotos_numToFiles = iosPhotos_numFailed = 0;
     iosPhotos_bPhotosOff = 0;
 }
 
-// One capture's photos are saved (toPhotos), or in Files (toFiles), or not
-static void iosPhotos_Finish(int toPhotos, int toFiles, int failed, int bPhotosOff)
+// One capture's photos are saved (toPhotos), or in Files (toFiles), or not;
+// the capture held `bytes` of images, taken at t0 (CACurrentMediaTime)
+static void iosPhotos_Finish(int toPhotos, int toFiles, int failed, int bPhotosOff, long bytes, double t0)
 {
+    const double mb = iosPhotos_FootprintMB();
     dispatch_async(dispatch_get_main_queue(), ^{
+        if (mb > iosPhotos_peakFootprintMB) iosPhotos_peakFootprintMB = mb;
         iosPhotos_numToPhotos += toPhotos;
         iosPhotos_numToFiles += toFiles;
         iosPhotos_numFailed += failed;
         if (bPhotosOff) iosPhotos_bPhotosOff = 1;
         if (iosPhotos_numPending > 0) iosPhotos_numPending--;
-        iosCapture_Done();
+        iosCapture_Done(bytes, CACurrentMediaTime() - t0);
         iosPhotos_Report();
     });
 }
@@ -137,13 +180,13 @@ static int iosPhotos_SaveToFiles(NSArray<NSData*>* aData, NSArray<NSString*>* aN
 }
 
 // (numBad: photos of this capture already lost, counted with the rest)
-static void iosPhotos_Save(NSArray<NSData*>* aData, NSArray<NSString*>* aName, NSDate* when, int numBad)
+static void iosPhotos_Save(NSArray<NSData*>* aData, NSArray<NSString*>* aName, NSDate* when, int numBad, long bytes, double t0)
 {
     int n = (int)aData.count;
     PHAuthorizationStatus st = [PHPhotoLibrary authorizationStatusForAccessLevel:PHAccessLevelAddOnly];
     if (st != PHAuthorizationStatusAuthorized && st != PHAuthorizationStatusLimited) {
         int k = iosPhotos_SaveToFiles(aData, aName);
-        iosPhotos_Finish(0, k, n - k + numBad, 1);
+        iosPhotos_Finish(0, k, n - k + numBad, 1, bytes, t0);
         return;
     }
     [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
@@ -156,11 +199,11 @@ static void iosPhotos_Save(NSArray<NSData*>* aData, NSArray<NSString*>* aName, N
         }
     } completionHandler:^(BOOL bOk, NSError* err) {
         if (bOk) {
-            iosPhotos_Finish(n, 0, numBad, 0);
+            iosPhotos_Finish(n, 0, numBad, 0, bytes, t0);
         }
         else {
             int k = iosPhotos_SaveToFiles(aData, aName);
-            iosPhotos_Finish(0, k, n - k + numBad, 0);
+            iosPhotos_Finish(0, k, n - k + numBad, 0, bytes, t0);
         }
     }];
 }
@@ -168,6 +211,10 @@ static void iosPhotos_Save(NSArray<NSData*>* aData, NSArray<NSString*>* aName, N
 void iosPhotos_SaveCapture(unsigned char* pClean, unsigned char* pHud, int w, int h, int kinds, int mode)
 {
     const int bBurst = mode == IOSCAPTURE_MODE_BURST;
+    // (counted against the capture budget until saved: iosCapture_Done)
+    // (the HUD with the buttons is a third image, made here from the HUD one)
+    const long bytes = (long)w * h * 4 * ((pClean ? 1 : 0) + (pHud ? 1 : 0) + ((pHud && (kinds & IOSCAPTURE_HUDBTNS)) ? 1 : 0));
+    const double t0 = CACurrentMediaTime();
     @autoreleasepool {
         iosPhotos_numPending++;
         CGImageRef clean = pClean ? iosPhotos_MakeImage(pClean, w, h) : NULL;
@@ -206,7 +253,7 @@ void iosPhotos_SaveCapture(unsigned char* pClean, unsigned char* pHud, int w, in
         CGImageRelease(hudBtns);
         for (int i = 0; i < 3; i++) n += aImg[i] != NULL;
         if (!n) {
-            iosPhotos_Finish(0, 0, numMissing ? numMissing : 1, 0);
+            iosPhotos_Finish(0, 0, numMissing ? numMissing : 1, 0, bytes, t0);
             return;
         }
 
@@ -218,9 +265,12 @@ void iosPhotos_SaveCapture(unsigned char* pClean, unsigned char* pHud, int w, in
         NSString* base = iosPhotos_BaseName(when);
         if (bBurst)
             base = [base stringByAppendingFormat:@" burst %02d", ++iosPhotos_burstShot];
+        else if (mode == IOSCAPTURE_MODE_SELFIE && iosPhotos_bBatch)
+            base = [base stringByAppendingFormat:@" selfie %d", ++iosPhotos_burstShot]; // (one of several)
         // (Blocks can't take C arrays)
         CGImageRef img0 = aImg[0], img1 = aImg[1], img2 = aImg[2];
-        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        const BOOL bNumbered = bBurst || (mode == IOSCAPTURE_MODE_SELFIE && iosPhotos_bBatch);
+        dispatch_async(iosPhotos_Queue(), ^{
             NSMutableArray<NSData*>* aData = [NSMutableArray array];
             NSMutableArray<NSString*>* aName = [NSMutableArray array];
             int numBad = numMissing;
@@ -232,7 +282,7 @@ void iosPhotos_SaveCapture(unsigned char* pClean, unsigned char* pHud, int w, in
                     NSData* png = iosPhotos_Png(aJob[i]);
                     if (png) {
                         [aData addObject:png];
-                        [aName addObject:bBurst ? [base stringByAppendingString:@".png"]
+                        [aName addObject:bNumbered ? [base stringByAppendingString:@".png"]
                                                 : [NSString stringWithFormat:@"%@ %@.png", base, mode == IOSCAPTURE_MODE_SELFIE ? @"selfie" : aJobSuffix[i]]];
                     }
                     else {
@@ -242,10 +292,10 @@ void iosPhotos_SaveCapture(unsigned char* pClean, unsigned char* pHud, int w, in
                 CGImageRelease(aJob[i]);
             }
             if (!aData.count) {
-                iosPhotos_Finish(0, 0, numBad, 0);
+                iosPhotos_Finish(0, 0, numBad, 0, bytes, t0);
                 return;
             }
-            iosPhotos_Save(aData, aName, when, numBad);
+            iosPhotos_Save(aData, aName, when, numBad, bytes, t0);
         });
     }
 }

@@ -8,6 +8,7 @@
 #include <math.h>
 
 #include "Platform/iOS/iosGame.h"
+#include "Platform/iOS/iosPhotoCam.h"
 #include "World/sithThing.h"
 #include "World/sithWorld.h"
 #include "World/sithSector.h"
@@ -15,6 +16,7 @@
 #include "Engine/sithCollision.h"
 #include "Engine/sithIntersect.h"
 #include "Engine/rdPuppet.h"
+#include "World/jkPlayer.h"
 #include "Primitives/rdMatrix.h"
 #include "Primitives/rdVector.h"
 #include "Dss/sithMulti.h"
@@ -45,12 +47,9 @@
 // half-height (near the middle, with room for the bodies below)
 #define IOSSELFIE_FIT_X 0.45f
 #define IOSSELFIE_FIT_Y 0.35f
-// The selfie camera's lens (degrees top to bottom, as the game's own lens
-// is set by default): narrower than the game's 90 (on a wide phone screen
-// some 130 across), so faces and hands near it don't bulge as in a fisheye
-#ifndef IOSSELFIE_FOV
-#define IOSSELFIE_FOV 70.0f
-#endif
+// The selfie camera's lens: the photo camera's (iosPhotoCam), 70 degrees top
+// to bottom
+#define IOSSELFIE_FOV IOSPHOTOCAM_FOV_DEFAULT
 // The flash: the player gives off this much light while it is up
 #define IOSSELFIE_FLASH_LIGHT 1.6f
 #define IOSSELFIE_NUM_DIRS 16
@@ -84,8 +83,18 @@ enum { IOSSELFIE_STANCE_STAND = 0, IOSSELFIE_STANCE_CROUCH, IOSSELFIE_STANCE_KNE
 // edge of the photo there (1: right on the edge)
 #define IOSSELFIE_PHONE_AIM_DEPTH 0.02f
 #define IOSSELFIE_PHONE_AIM_OUT 1.3f
+// The player shows their weapon off (percent of photos with the phone in
+// the left hand: the game draws the weapon in the right one)
+#define IOSSELFIE_WEAPON_CHANCE 45
+// A rare moment (one photo in this many): everyone points at the player,
+// someone didn't get the memo, or they all stare at the photobomber
+#define IOSSELFIE_RARE_CHANCE 20
+// Someone from outside the group sneaks in (one selfie in this many), from
+// no further than this
+#define IOSSELFIE_PHOTOBOMB_CHANCE 6
+#define IOSSELFIE_PHOTOBOMB_RANGE 2.0f
 // The phone in the left hand (percent)
-#define IOSSELFIE_LEFT_HAND_CHANCE 30
+#define IOSSELFIE_LEFT_HAND_CHANCE 40
 // The camera held higher or lower than the head (percent each), and
 // tilted (percent; degrees, at most)
 #define IOSSELFIE_CAM_HIGH_CHANCE 20
@@ -106,6 +115,16 @@ enum { IOSSELFIE_STANCE_STAND = 0, IOSSELFIE_STANCE_CROUCH, IOSSELFIE_STANCE_KNE
 #define IOSSELFIE_LOG(...) do {} while (0)
 #endif
 
+// The rig: forces the random choices, to photograph each one (bits: 1 the
+// weapon shown, 2 everyone points at the player, 4 someone didn't get the
+// memo, 8 a photobomber, 16 everyone stares at the photobomber)
+#ifdef IOSSELFIE_DEBUG
+int iosSelfie_debugForce = 0;
+#define IOSSELFIE_FORCED(bit) (iosSelfie_debugForce & (bit))
+#else
+#define IOSSELFIE_FORCED(bit) 0
+#endif
+
 // One person in the selfie and what to put back
 typedef struct {
     SithThing* thing;
@@ -123,6 +142,11 @@ typedef struct {
     flex_t lean;            // the body leant to one side this much (radians)
     int shiftNode;          // this joint (the root, -1: none) moved by...
     rdVector3 shift;        // ...this, in its own parent's frame (crouching)
+    int bWeapon;            // (the player) holding the weapon for this photo
+    int bOblivious;         // left as they were, mid-action, for this photo
+    int bPhotobomb;         // joined from outside the group, for a laugh
+    int bLookAt;            // looks at lookAt for this photo (else the camera)
+    rdVector3 lookAt;
     rdVector3 head;         // where the head is (world)...
     SithSector* headSector; // ...and the sector it is in
     int numTurns;           // the pose: these joints turned this much (only drawn)
@@ -130,25 +154,19 @@ typedef struct {
     rdMatrix34 aTurn[IOSSELFIE_MAX_TURNS];
 } iosSelfiePerson;
 
-static iosSelfiePerson iosSelfie_aPeople[IOSSELFIE_MAX_PEOPLE + 1]; // [0]: the player
+static iosSelfiePerson iosSelfie_aPeople[IOSSELFIE_MAX_PEOPLE + 2]; // [0]: the player; (and a photobomber)
 static int iosSelfie_numPeople = 0;
 static int iosSelfie_bActive = 0;
-static SithCamera* iosSelfie_pPrevCamera = NULL;
 // The camera slot the selfie borrows, and the camera shake, as they were
 // (scripts can use slot 2; the shake winds down whenever a camera updates)
-static SithCamera iosSelfie_savedCamera;
 // Blaster bolts, sparks and blasts in front of someone's face: not drawn in
 // the selfie (iosSelfie_HidesThing)
 #define IOSSELFIE_MAX_HIDDEN 64
 #define IOSSELFIE_FACE_RADIUS 0.028f
 static SithThing* iosSelfie_apHidden[IOSSELFIE_MAX_HIDDEN];
 static int iosSelfie_numHidden = 0;
-static rdVector3 iosSelfie_savedShakePos, iosSelfie_savedShakeAngle;
-static flex_t iosSelfie_savedShakePosDelta, iosSelfie_savedShakeAngleDelta;
 // Which sectors the map had as seen (the selfie's camera looks round places
 // the player may not have been yet: it doesn't count)
-static unsigned char* iosSelfie_aSectorSeen = NULL;
-static int iosSelfie_numSectorSeen = 0;
 
 // ------------------------------------------------------------ the poses
 
@@ -164,6 +182,8 @@ typedef struct {
     int bPairOnly;         // only with the same gesture on the other arm
     int weight;            // how often it comes up (arms in the air less often)
     int bGroup;            // one a whole group can do together
+    rdVector3 hold;        // (the player's weapon poses) which way the weapon
+                           // in the hand points; zero: not a weapon pose
 } iosSelfieGesture;
 
 enum {
@@ -171,7 +191,12 @@ enum {
     IOSSELFIE_ARM_POINT, IOSSELFIE_ARM_FLEX, IOSSELFIE_ARM_SALUTE, IOSSELFIE_ARM_BEHINDHEAD,
     IOSSELFIE_ARM_OUT, IOSSELFIE_ARM_UP, IOSSELFIE_ARM_VICTORY, IOSSELFIE_ARM_PRESENT,
     IOSSELFIE_ARM_CROSS, IOSSELFIE_ARM_FISTFWD, IOSSELFIE_ARM_SHRUG, IOSSELFIE_ARM_CHIN,
-    IOSSELFIE_ARM_HEART, IOSSELFIE_ARM_NEIGHBOUR, IOSSELFIE_ARM_NUM
+    IOSSELFIE_ARM_HEART, IOSSELFIE_ARM_NEIGHBOUR,
+    // Never picked at random (weight 0): the player's weapon poses (right
+    // arm only, where the game draws the weapon), and pointing at the player
+    IOSSELFIE_ARM_WPN_OVERHEAD, IOSSELFIE_ARM_WPN_SHOULDER, IOSSELFIE_ARM_WPN_SKY,
+    IOSSELFIE_ARM_WPN_SIDE, IOSSELFIE_ARM_WPN_AIM, IOSSELFIE_ARM_POINTAT,
+    IOSSELFIE_ARM_NUM
 };
 
 // (the arm round a neighbour's shoulders is worked out from where the
@@ -195,6 +220,15 @@ static iosSelfieGesture iosSelfie_aGesture[IOSSELFIE_ARM_NUM] = {
     [IOSSELFIE_ARM_CHIN]       = { "hand on chin",  { 0.15f, 0.55f, -0.80f }, { -0.35f, 0.35f, 0.85f }, 0, 3 },
     [IOSSELFIE_ARM_HEART]      = { "hand on heart", { 0.25f, 0.25f, -0.95f }, { -0.85f, 0.35f, 0.35f }, 0, 2 },
     [IOSSELFIE_ARM_NEIGHBOUR]  = { "arm round",     { 0.75f, -0.10f, -0.65f }, { -0.70f, 0.15f, -0.55f }, 0, 4 },
+    // (assumed, checked on the rig by eye: the weapon in the hand points
+    // along its joint's forward axis, as the saber blade is drawn: see
+    // rdPolyline, the blade's tip at y = length)
+    [IOSSELFIE_ARM_WPN_OVERHEAD] = { "weapon raised", { 0.85f, 0.20f, 0.45f }, { 0.10f, 0.25f, 1.0f }, 0, 0, 0, { 0.15f, 0.20f, 1.0f } },
+    [IOSSELFIE_ARM_WPN_SHOULDER] = { "weapon on shoulder", { 0.55f, 0.45f, -0.70f }, { -0.20f, -0.10f, 1.0f }, 0, 0, 0, { -0.15f, -0.55f, 0.80f } },
+    [IOSSELFIE_ARM_WPN_SKY]      = { "weapon to the sky", { 0.80f, 0.35f, 0.40f }, { 0.45f, 0.40f, 0.80f }, 0, 0, 0, { 0.35f, 0.45f, 0.82f } },
+    [IOSSELFIE_ARM_WPN_SIDE]     = { "weapon at the side", { 0.25f, 0.10f, -0.95f }, { 0.20f, 0.60f, -0.75f }, 0, 0, 0, { 0.20f, 0.75f, -0.60f } },
+    [IOSSELFIE_ARM_WPN_AIM]      = { "weapon aimed away", { 0.75f, 0.60f, 0.10f }, { 0.65f, 0.75f, 0.10f }, 0, 0, 0, { 0.85f, 0.50f, 0.05f } },
+    [IOSSELFIE_ARM_POINTAT]      = { "points at you", { 0 }, { 0 }, 0, 0 },
 };
 
 // How far each direction is turned at random, so no two photos are quite
@@ -416,35 +450,7 @@ static void iosSelfie_HeadOf(iosSelfiePerson* p)
 // wall it stands under); *pEnd: the sector b is in, following the line
 static int iosSelfie_Clear(SithSector* from, const rdVector3* a, const rdVector3* b, flex_t slack, SithSector** pEnd)
 {
-    rdVector3 dir, start = *a;
-    rdVector_Sub3(&dir, b, a);
-    flex_t dist = rdVector_Normalize3Acc(&dir);
-    SithSector* s = from;
-    int bClear = 1;
-    if (pEnd) *pEnd = NULL;
-    if (!from) return 0;
-    sithCollision_SearchForCollisions(from, NULL, &start, &dir, dist, 0.0f, RAYCAST_2000 | RAYCAST_100 | RAYCAST_20);
-    for (SithCollision* c = sithCollision_PopStack(); c; c = sithCollision_PopStack()) {
-        // Through an opening between sectors, even one that can't be walked
-        // through (bars, a force field): it can be seen through
-        if (c->surface && c->surface->pAdjoin && (c->type & (SITHCOLLISION_ADJOINCROSS | SITHCOLLISION_THINGADJOINCROSS))) {
-            if (c->type & SITHCOLLISION_ADJOINCROSS) s = c->surface->pAdjoin->sector;
-        }
-        else if ((c->type & SITHCOLLISION_WORLD) && c->distance < dist - slack) {
-            IOSSELFIE_LOG("  blocked: type %x at %.3f of %.3f, thing %p surface %p adjoin %p\n", c->type, (double)c->distance, (double)dist,
-                          (void*)c->pThingCollided, (void*)c->surface, c->surface ? (void*)c->surface->pAdjoin : NULL);
-            if (c->surface)
-                IOSSELFIE_LOG("  surface flags %x geo %d mat %p normal %.2f %.2f %.2f, sector %p (start %p)\n", c->surface->flags,
-                              (int)c->surface->surfaceInfo.face.geometryMode, (void*)c->surface->surfaceInfo.face.material,
-                              (double)c->surface->surfaceInfo.face.normal.x, (double)c->surface->surfaceInfo.face.normal.y,
-                              (double)c->surface->surfaceInfo.face.normal.z, (void*)c->surface->pSector, (void*)from);
-            bClear = 0;
-            break;
-        }
-    }
-    sithCollision_DecreaseStackLevel();
-    if (pEnd) *pEnd = s;
-    return bClear && s;
+    return iosPhotoCam_Clear(from, a, b, slack, pEnd);
 }
 
 typedef struct {
@@ -1097,6 +1103,54 @@ static void iosSelfie_Lean(iosSelfiePerson* p)
     iosSelfie_Build(p->thing);
 }
 
+// The joint the game draws the player's weapon on (the puppet's primary
+// weapon joint), if there is a weapon drawn there and the joint hangs from
+// the right arm (where the weapon poses put it); else -1. Confirmed in the
+// code: jkPlayer_renderSaberWeaponMesh draws playerInfo->rd_thing (the weapon
+// in the hand) and the saber blade at that joint, when the thing has
+// SITH_TF_RENDERWEAPON.
+static int iosSelfie_WeaponNode(const SithThing* t, const iosSelfiePerson* p)
+{
+    if (!t || !t->playerInfo || !t->playerInfo->rd_thing.model3 || !t->pPuppetClass) return -1;
+    const rdModel3* m = t->renderData.model3;
+    const int node = t->pPuppetClass->aJoints[JOINTTYPE_PRIMARYWEAP];
+    if (!m || node < 0 || node >= m->numHNodes) return -1;
+    const int upper = p->aPart[IOSSELFIE_PART_RUPPER];
+    if (upper < 0 || !iosSelfie_Holds(m, upper, node)) return -1;
+    return node;
+}
+
+// Turns a joint so its forward axis (its local y, along which the weapon and
+// the saber's blade point) points the way given (world)
+static void iosSelfie_AimForward(iosSelfiePerson* p, int node, const rdVector3* want)
+{
+    if (node < 0 || p->numTurns >= IOSSELFIE_MAX_TURNS) return;
+    const rdMatrix34* w = &p->thing->renderData.paJointMatrices[node];
+    rdVector3 a = { 0, 1, 0 }, b;
+    iosSelfie_Unrotate(&b, w, want);
+    if (rdVector_Normalize3Acc(&b) < 1e-6f) return;
+    // (one turn per joint: replace one the arm already gave it)
+    int k = 0;
+    while (k < p->numTurns && p->aTurnNode[k] != node) k++;
+    rdMatrix34 turn;
+    iosSelfie_TurnBetween(&turn, &a, &b); // (from where it points now: w is as built)
+    if (k < p->numTurns) {
+        // already turned: the old turn, then this one in the turned frame
+        rdMatrix34 both;
+        iosSelfie_Rotate(&both.rvec, &p->aTurn[k], &turn.rvec);
+        iosSelfie_Rotate(&both.lvec, &p->aTurn[k], &turn.lvec);
+        iosSelfie_Rotate(&both.uvec, &p->aTurn[k], &turn.uvec);
+        rdVector_Zero3(&both.scale);
+        p->aTurn[k] = both;
+    }
+    else {
+        p->aTurnNode[p->numTurns] = node;
+        p->aTurn[p->numTurns] = turn;
+        p->numTurns++;
+    }
+    iosSelfie_Build(p->thing);
+}
+
 // Where the phone arm reaches: a point just outside the photo, off its
 // bottom corner on the shoulder's side, a little in front of the camera
 static void iosSelfie_PhoneAim(rdVector3* out, const rdVector3* shoulder, const rdVector3* camPos)
@@ -1151,11 +1205,31 @@ static void iosSelfie_SolvePose(iosSelfiePerson* p, const rdVector3* camPos)
         else if ((side ? p->armL : p->armR) == IOSSELFIE_ARM_NEIGHBOUR && iosSelfie_NeighbourDirs(p, side, &up, &fore)) {
             // (round the neighbour's shoulders)
         }
+        else if ((side ? p->armL : p->armR) == IOSSELFIE_ARM_POINTAT) {
+            // the whole arm straight at the player's face
+            rdVector3 shoulder;
+            iosSelfie_JointAt(&shoulder, r, p->aPart[partUp]);
+            rdVector_Sub3(&up, &iosSelfie_aPeople[0].head, &shoulder);
+            if (rdVector_Normalize3Acc(&up) < 1e-6f) continue;
+            fore = up;
+        }
         else if (!iosSelfie_GestureDirs(p, side ? p->armL : p->armR, side, &up, &fore)) {
             continue;
         }
         iosSelfie_Aim(p, p->aPart[partUp], p->aPart[partUp + 1], &up);
         iosSelfie_Aim(p, p->aPart[partUp + 1], p->aPart[partUp + 2], &fore);
+    }
+    // The player's weapon, pointing the gesture's way
+    if (p->bWeapon && p->armR >= 0 && p->armR < IOSSELFIE_ARM_NUM) {
+        const rdVector3* h = &iosSelfie_aGesture[p->armR].hold;
+        const int node = iosSelfie_WeaponNode(t, p);
+        if (node >= 0 && (h->x || h->y || h->z)) {
+            rdVector3 want = { 0, 0, 0 };
+            rdVector_ScaleAdd3Acc(&want, &t->orient.rvec, h->x);
+            rdVector_ScaleAdd3Acc(&want, &t->orient.lvec, h->y);
+            rdVector_ScaleAdd3Acc(&want, &t->orient.uvec, h->z);
+            iosSelfie_AimForward(p, node, &want);
+        }
     }
 
     // The face points along the body's forwards in the rest pose. The neck
@@ -1170,7 +1244,7 @@ static void iosSelfie_SolvePose(iosSelfiePerson* p, const rdVector3* camPos)
         if (at >= 0) {
             rdVector3 from;
             iosSelfie_JointAt(&from, r, at);
-            rdVector_Sub3(&look, camPos, &from);
+            rdVector_Sub3(&look, p->bLookAt ? &p->lookAt : camPos, &from);
             rdVector_Normalize3Acc(&look);
             flex_t ang = acosf(fmaxf(-1.0f, fminf(1.0f, rdVector_Dot3(&look, &face))));
             if (ang > IOSSELFIE_NECK_MAX) {
@@ -1220,6 +1294,296 @@ static void iosSelfie_SolvePose(iosSelfiePerson* p, const rdVector3* camPos)
         p->numTurns++;
         iosSelfie_Build(t);
     }
+}
+
+
+// ------------------------------------------------------------ posing everyone
+
+// The camera of the selfie going on, and the pose asked for (tests; -1: at
+// random)
+static iosSelfieCam iosSelfie_cam;
+static int iosSelfie_posePick = -1;
+
+// A rare moment instead of the usual photo (one in IOSSELFIE_RARE_CHANCE)
+enum { IOSSELFIE_RARE_NONE = 0, IOSSELFIE_RARE_POINTAT, IOSSELFIE_RARE_OBLIVIOUS, IOSSELFIE_RARE_STARE };
+
+// The player's weapon pose (the weapon in the right hand): sabers are held
+// up or rested on the shoulder, guns raised, shouldered or held down
+static int iosSelfie_PickWeaponGesture(const SithThing* t)
+{
+    if (t->jkFlags & JKFLAG_SABERON) {
+        static const int aSaber[] = { IOSSELFIE_ARM_WPN_OVERHEAD, IOSSELFIE_ARM_WPN_OVERHEAD, IOSSELFIE_ARM_WPN_SHOULDER, IOSSELFIE_ARM_WPN_SIDE };
+        return aSaber[iosSelfie_Rand() % 4];
+    }
+    static const int aGun[] = { IOSSELFIE_ARM_WPN_SKY, IOSSELFIE_ARM_WPN_SHOULDER, IOSSELFIE_ARM_WPN_SIDE, IOSSELFIE_ARM_WPN_AIM };
+    return aGun[iosSelfie_Rand() % 4];
+}
+
+// Everyone posed for one photo, picked afresh at random: who turns how,
+// leans, kneels, which gestures, the player's weapon, and now and then a
+// rare moment. Only what is drawn changes (facing, flags for drawing, the
+// joints' turns); all of it was saved by Begin and is put back by End. Run
+// again for each photo of a several-photo selfie, with the game held, so
+// nothing in the level moves between them.
+static void iosSelfie_PoseAll(void)
+{
+    const iosSelfieCam* cam = &iosSelfie_cam;
+    const int pose = iosSelfie_posePick;
+    SithWorld* w = sithWorld_g_pCurrentWorld;
+    int numOthers = 0, bomber = -1;
+    for (int i = 1; i < iosSelfie_numPeople; i++) {
+        if (iosSelfie_aPeople[i].bPhotobomb) bomber = i;
+        else numOthers++;
+    }
+    // Now and then everyone does the same, like a team photo...
+    int group = -1;
+    if (pose < 0 && numOthers >= 2 && iosSelfie_Rand() % IOSSELFIE_GROUP_CHANCE == 0)
+        group = iosSelfie_PickGroupGesture();
+    // ...or something rarer: everyone points at the player, one of them
+    // didn't get the memo and carries on, or they all stare at the
+    // photobomber
+    int rare = IOSSELFIE_RARE_NONE, oblivious = -1;
+    if (pose < 0 && numOthers >= 1 && (IOSSELFIE_FORCED(2 | 4 | 16) || iosSelfie_Rand() % IOSSELFIE_RARE_CHANCE == 0)) {
+        int aCan[3], numCan = 0;
+        aCan[numCan++] = IOSSELFIE_RARE_POINTAT;
+        if (numOthers >= 2) aCan[numCan++] = IOSSELFIE_RARE_OBLIVIOUS;
+        if (bomber > 0 && numOthers >= 1) aCan[numCan++] = IOSSELFIE_RARE_STARE;
+        rare = aCan[iosSelfie_Rand() % numCan];
+        if (IOSSELFIE_FORCED(2)) rare = IOSSELFIE_RARE_POINTAT;
+        if (IOSSELFIE_FORCED(4) && numOthers >= 2) rare = IOSSELFIE_RARE_OBLIVIOUS;
+        if (IOSSELFIE_FORCED(16) && bomber > 0) rare = IOSSELFIE_RARE_STARE;
+        if (rare == IOSSELFIE_RARE_OBLIVIOUS) {
+            int k = (int)(iosSelfie_Rand() % (uint32_t)numOthers);
+            for (int i = 1; i < iosSelfie_numPeople; i++)
+                if (!iosSelfie_aPeople[i].bPhotobomb && k-- == 0) oblivious = i;
+        }
+        group = -1;
+        IOSSELFIE_LOG("rare moment %d\n", rare);
+    }
+    for (int i = 0; i < iosSelfie_numPeople; i++) {
+        iosSelfiePerson* p = &iosSelfie_aPeople[i];
+        SithThing* t = p->thing;
+        p->shiftNode = -1;
+        p->bWeapon = 0;
+        p->bLookAt = 0;
+        p->bOblivious = i == oblivious;
+        if (p->bOblivious) {
+            // As they were, mid-action, not even looking
+            t->orient = p->orient;
+            if (p->bPuppet && t->renderData.puppet) *t->renderData.puppet = p->puppet;
+            p->numTurns = 0;
+            p->pose = -1;
+            t->renderData.rdFrameNum = 0;
+            iosSelfie_HeadOf(p); // (as they are: framing and the others' checks use it)
+            IOSSELFIE_LOG("person %d (%s): didn't get the memo\n", i, t->renderData.model3->filename);
+            continue;
+        }
+        iosSelfie_Face(t, &cam->pos);
+        // Square on, or turned three-quarters; the player turned a little
+        // away from the phone hand, so that arm reaches out to the side and
+        // not across the face
+        {
+            flex_t turn = (iosSelfie_Rand01() * 2.0f - 1.0f) * IOSSELFIE_TURN_SMALL;
+            if (i == 0) turn += iosSelfie_bPhoneLeft ? -IOSSELFIE_PHONE_TURN : IOSSELFIE_PHONE_TURN;
+            if (i > 0 && !p->bPhotobomb && iosSelfie_Rand() % 100 < IOSSELFIE_TURN_CHANCE)
+                turn = (iosSelfie_Rand() & 1 ? 1.0f : -1.0f) * IOSSELFIE_TURN_MAX * (0.5f + 0.5f * iosSelfie_Rand01());
+            iosSelfie_Turn(t, turn);
+        }
+        p->lean = 0;
+        if (iosSelfie_Rand() % 100 < IOSSELFIE_LEAN_CHANCE || p->bPhotobomb)
+            p->lean = (iosSelfie_Rand01() * 2.0f - 1.0f) * IOSSELFIE_LEAN_MAX * (i == 0 ? 0.5f : 1.0f);
+        p->stance = (i > 0 && !p->bPhotobomb) ? iosSelfie_PickStance(i, cam) : IOSSELFIE_STANCE_STAND;
+        p->headTilt = (iosSelfie_Rand01() - 0.5f) * 0.35f;
+        if (i == 0) {
+            p->pose = 0;
+            int free = pose >= 0 ? pose : iosSelfie_PickFreeArm();
+            if (group >= 0) free = iosSelfie_aGesture[group].bPairOnly ? IOSSELFIE_ARM_HIP : group;
+            // With the phone in the left hand, the right one (where the game
+            // draws the weapon) now and then shows the weapon off
+            if (pose < 0 && iosSelfie_bPhoneLeft && iosSelfie_WeaponNode(t, p) >= 0
+                && (IOSSELFIE_FORCED(1) || iosSelfie_Rand() % 100 < IOSSELFIE_WEAPON_CHANCE)) {
+                p->bWeapon = 1;
+                free = iosSelfie_PickWeaponGesture(t);
+            }
+            // the phone (-1) in one hand, the other free
+            p->armR = iosSelfie_bPhoneLeft ? free : -1;
+            p->armL = iosSelfie_bPhoneLeft ? -1 : free;
+            // The weapon put away for the photo (or shown off); the flash:
+            // light from the phone in the player's hand
+            t->flags = p->flags;
+            if (!p->bWeapon) t->flags &= ~SITH_TF_RENDERWEAPON;
+            t->flags |= SITH_TF_EMITLIGHT;
+            t->light = p->light < IOSSELFIE_FLASH_LIGHT ? IOSSELFIE_FLASH_LIGHT : p->light;
+        }
+        else if (p->bPhotobomb) {
+            // Arms up and waving, at the edge of the photo
+            static const int aBomb[] = { IOSSELFIE_ARM_WAVE, IOSSELFIE_ARM_VICTORY, IOSSELFIE_ARM_FIST, IOSSELFIE_ARM_UP };
+            p->pose = 0;
+            p->armR = aBomb[iosSelfie_Rand() % 4];
+            p->armL = aBomb[iosSelfie_Rand() % 4];
+        }
+        else {
+            p->pose = 0;
+            if (rare == IOSSELFIE_RARE_POINTAT) {
+                p->armR = IOSSELFIE_ARM_POINTAT;
+                p->armL = iosSelfie_RandGesture(0);
+            }
+            else if (group >= 0)
+                p->armR = p->armL = group;
+            else
+                iosSelfie_PickGestures(pose, &p->armR, &p->armL);
+            if (rare == IOSSELFIE_RARE_STARE && bomber > 0) {
+                p->bLookAt = 1;
+                p->lookAt = iosSelfie_aPeople[bomber].head;
+            }
+        }
+        // Posed from the model's rest pose (standing, arms down: the same
+        // start for every pose and every body); anyone who can't pose on
+        // their standing frame
+        if (!iosSelfie_CanPose(p) || !t->renderData.puppet) p->pose = -1;
+        if (p->pose >= 0)
+            t->renderData.puppet->bPaused = 1;
+        else
+            iosSelfie_Stand(p);
+        iosSelfie_SolvePose(p, &cam->pos);
+        if (p->stance != IOSSELFIE_STANCE_STAND) {
+            // Down low, a face can end up behind someone in front: then
+            // standing after all
+            iosSelfie_HeadOf(p);
+            if (iosSelfie_Hidden(&cam->pos, i) || !iosSelfie_InFrame(cam, &p->head)) {
+                IOSSELFIE_LOG("person %d: stands after all (hidden down there)\n", i);
+                p->stance = IOSSELFIE_STANCE_STAND;
+                iosSelfie_SolvePose(p, &cam->pos);
+            }
+        }
+        iosSelfie_HeadOf(p);
+        IOSSELFIE_LOG("person %d (%s)%s: %s / %s, %s, lean %.2f, %d joints turned%s\n", i, t->renderData.model3->filename,
+                      p->bPhotobomb ? " [photobomber]" : "",
+                      p->pose < 0 ? "-" : (p->armR < 0 ? "phone" : iosSelfie_aGesture[p->armR].name),
+                      p->pose < 0 ? "-" : (p->armL < 0 ? "phone" : iosSelfie_aGesture[p->armL].name),
+                      p->stance == IOSSELFIE_STANCE_CROUCH ? "crouching" : (p->stance >= IOSSELFIE_STANCE_KNEEL_R ? "kneeling" : "standing"),
+                      (double)p->lean, p->numTurns, p->bWeapon ? ", weapon shown" : "");
+    }
+
+#ifdef IOSSELFIE_DEBUG
+    {
+        // where each head is in the photo (-1..1 across and up, the frame's
+        // edges), to check the framing against the picture
+        rdVector3 f, r, u, up = { 0, 0, 1 };
+        rdVector_Sub3(&f, &cam->look, &cam->pos);
+        rdVector_Normalize3Acc(&f);
+        rdVector_Cross3(&r, &f, &up);
+        rdVector_Normalize3Acc(&r);
+        rdVector_Cross3(&u, &r, &f);
+        const flex_t tanY = tanf(IOSSELFIE_FOV * 0.5f * (flex_t)M_PI / 180.0f);
+        const flex_t tanX = (Window_xSize > 0 && Window_ySize > 0) ? tanY * Window_xSize / Window_ySize : tanY / 0.46f;
+        for (int i = 0; i < iosSelfie_numPeople; i++) {
+            rdVector3 v;
+            rdVector_Sub3(&v, &iosSelfie_aPeople[i].head, &cam->pos);
+            flex_t z = rdVector_Dot3(&v, &f);
+            IOSSELFIE_LOG("head %d in the photo at %.2f across, %.2f up (%.3f away)\n", i, (double)(rdVector_Dot3(&v, &r) / z / tanX),
+                          (double)(rdVector_Dot3(&v, &u) / z / tanY), (double)z);
+        }
+    }
+#endif
+    // Shots and blasts frozen in front of a face are left out of the photo
+    // (the rest of the action stays in it)
+    iosSelfie_numHidden = 0;
+    if (w) {
+        rdVector3 f;
+        rdVector_Sub3(&f, &cam->look, &cam->pos);
+        rdVector_Normalize3Acc(&f);
+        for (int i = 0; i < w->numThings && iosSelfie_numHidden < IOSSELFIE_MAX_HIDDEN; i++) {
+            SithThing* t = &w->aThings[i];
+            if (t->type != SITH_THING_WEAPON && t->type != SITH_THING_EXPLOSION
+                && t->type != SITH_THING_PARTICLE && t->type != SITH_THING_DEBRIS) continue;
+            rdVector3 v;
+            rdVector_Sub3(&v, &t->position, &cam->pos);
+            flex_t z = rdVector_Dot3(&v, &f);
+            if (z < 0.002f || z > IOSSELFIE_CAM_MAX + IOSSELFIE_RANGE) continue;
+            rdVector_Normalize3Acc(&v);
+            for (int k = 0; k < iosSelfie_numPeople; k++) {
+                rdVector3 hv;
+                rdVector_Sub3(&hv, &iosSelfie_aPeople[k].head, &cam->pos);
+                flex_t zh = rdVector_Dot3(&hv, &f);
+                if (zh <= z) continue; // behind the face
+                flex_t dist = rdVector_Normalize3Acc(&hv);
+                if (acosf(fminf(1.0f, rdVector_Dot3(&v, &hv))) < atanf(IOSSELFIE_FACE_RADIUS / dist)) {
+                    iosSelfie_apHidden[iosSelfie_numHidden++] = t;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// Turns the camera (not moving it) so the posed heads sit in the middle of
+// the photo, between the outermost ones
+static void iosSelfie_Recentre(iosSelfieCam* cam)
+{
+    rdVector3 f, r, u, up = { 0, 0, 1 };
+    rdVector_Sub3(&f, &cam->look, &cam->pos);
+    const flex_t dist = rdVector_Normalize3Acc(&f);
+    rdVector_Cross3(&r, &f, &up);
+    if (dist < 1e-4f || rdVector_Normalize3Acc(&r) < 1e-6f) return;
+    rdVector_Cross3(&u, &r, &f);
+    flex_t minX = 1e9f, maxX = -1e9f, minY = 1e9f, maxY = -1e9f;
+    for (int i = 0; i < iosSelfie_numPeople; i++) {
+        rdVector3 v;
+        rdVector_Sub3(&v, &iosSelfie_aPeople[i].head, &cam->pos);
+        const flex_t z = rdVector_Dot3(&v, &f);
+        if (z < 0.01f) continue;
+        const flex_t x = rdVector_Dot3(&v, &r) / z, y = rdVector_Dot3(&v, &u) / z;
+        minX = fminf(minX, x); maxX = fmaxf(maxX, x);
+        minY = fminf(minY, y); maxY = fmaxf(maxY, y);
+    }
+    if (minX > maxX) return;
+    // (heads a little above the middle: bodies below them)
+    const flex_t cx = (minX + maxX) * 0.5f, cy = (minY + maxY) * 0.5f - 0.04f;
+    rdVector3 dir = f;
+    rdVector_ScaleAdd3Acc(&dir, &r, cx);
+    rdVector_ScaleAdd3Acc(&dir, &u, cy);
+    rdVector_Normalize3Acc(&dir);
+    cam->look = cam->pos;
+    rdVector_ScaleAdd3Acc(&cam->look, &dir, dist);
+}
+
+// Someone from outside the group sneaking into the photo: in range, alive,
+// in sight of the camera, inside the frame and not hidden; added to the
+// people (saved and put back like them)
+static void iosSelfie_FindPhotobomber(SithWorld* w, const iosSelfieCam* cam)
+{
+    SithThing* me = iosSelfie_aPeople[0].thing;
+    if (!w || !me || iosSelfie_numPeople >= IOSSELFIE_MAX_PEOPLE + 2) return; // (no room left)
+    iosSelfiePerson* bomb = &iosSelfie_aPeople[iosSelfie_numPeople];
+    for (int i = 0; i < w->numThings; i++) {
+        SithThing* t = &w->aThings[i];
+        if (t == me || t->type != SITH_THING_ACTOR) continue;
+        if ((t->flags & (SITH_TF_DEAD | SITH_TF_DESTROYED | SITH_TF_DISABLED | SITH_TF_10))
+            || t->actorParams.health <= 0 || !iosSelfie_HasBody(t) || !t->sector || !t->renderData.puppet) continue;
+        int bIn = 0;
+        for (int k = 1; k < iosSelfie_numPeople; k++) if (iosSelfie_aPeople[k].thing == t) bIn = 1;
+        if (bIn) continue;
+        rdVector3 v;
+        rdVector_Sub3(&v, &t->position, &me->position);
+        if (rdVector_Len3(&v) > IOSSELFIE_PHOTOBOMB_RANGE) continue;
+        memset(bomb, 0, sizeof(*bomb));
+        bomb->thing = t;
+        iosSelfie_FindParts(bomb);
+        if (!iosSelfie_CanPose(bomb)) continue;
+        iosSelfie_HeadOf(bomb);
+        if (!iosSelfie_InFrame(cam, &bomb->head)) continue;
+        if (!iosSelfie_Clear(cam->sector, &cam->pos, &bomb->head, IOSSELFIE_SIGHT_SLACK, NULL)) continue;
+        iosSelfie_numPeople++;
+        if (iosSelfie_Hidden(&cam->pos, iosSelfie_numPeople - 1)) {
+            iosSelfie_numPeople--;
+            continue;
+        }
+        bomb->bPhotobomb = 1;
+        IOSSELFIE_LOG("photobomber: thing %d (%s)\n", i, t->renderData.model3->filename);
+        return;
+    }
+    memset(bomb, 0, sizeof(*bomb));
 }
 
 // ------------------------------------------------------------ begin, end
@@ -1298,7 +1662,7 @@ int iosSelfie_Begin(int pose, int* pNumPeople)
     }
 
     // How this one is held: which hand, how high
-    iosSelfie_bPhoneLeft = iosSelfie_Rand() % 100 < IOSSELFIE_LEFT_HAND_CHANCE;
+    iosSelfie_bPhoneLeft = IOSSELFIE_FORCED(1) || iosSelfie_Rand() % 100 < IOSSELFIE_LEFT_HAND_CHANCE;
     {
         uint32_t h = iosSelfie_Rand() % 100;
         iosSelfie_camLift = h < IOSSELFIE_CAM_HIGH_CHANCE ? IOSSELFIE_CAM_LIFT_UP
@@ -1316,6 +1680,9 @@ int iosSelfie_Begin(int pose, int* pNumPeople)
         IOSSELFIE_LOG("no room for everyone: %d people now\n", iosSelfie_numPeople);
     }
 
+    // Now and then someone from outside the group sneaks into the photo
+    if (IOSSELFIE_FORCED(8) || iosSelfie_Rand() % IOSSELFIE_PHOTOBOMB_CHANCE == 0) iosSelfie_FindPhotobomber(w, &cam);
+
     // From here on everything changed is saved first, and put back by End
     for (int i = 0; i < iosSelfie_numPeople; i++) {
         iosSelfiePerson* p = &iosSelfie_aPeople[i];
@@ -1325,138 +1692,44 @@ int iosSelfie_Begin(int pose, int* pNumPeople)
         p->flags = t->flags;
         p->bPuppet = t->renderData.puppet != NULL;
         if (p->bPuppet) p->puppet = *t->renderData.puppet;
+        p->light = t->light;
     }
-    free(iosSelfie_aSectorSeen);
-    iosSelfie_numSectorSeen = w->numSectors;
-    iosSelfie_aSectorSeen = (unsigned char*)malloc(w->numSectors > 0 ? w->numSectors : 1);
-    for (int i = 0; iosSelfie_aSectorSeen && i < w->numSectors; i++)
-        iosSelfie_aSectorSeen[i] = (w->aSectors[i].flags & SITH_SECTOR_SEEN) != 0;
+    // The camera taken over, the game held (put back by iosSelfie_End)
+    if (!iosPhotoCam_Begin(IOSGAME_HOLD_SELFIE)) {
+        iosSelfie_numPeople = 0;
+        return 0;
+    }
     iosSelfie_bActive = 1;
     iosSelfie_camPos = cam.pos;
     iosSelfie_camLook = cam.look;
-    // Now and then everyone does the same, like a team photo
-    int group = -1;
-    if (pose < 0 && iosSelfie_numPeople >= 3 && iosSelfie_Rand() % IOSSELFIE_GROUP_CHANCE == 0)
-        group = iosSelfie_PickGroupGesture();
-    for (int i = 0; i < iosSelfie_numPeople; i++) {
-        iosSelfiePerson* p = &iosSelfie_aPeople[i];
-        SithThing* t = p->thing;
-        p->light = t->light;
-        p->shiftNode = -1;
-        iosSelfie_Face(t, &cam.pos);
-        // Square on, or turned three-quarters; the player turned a little
-        // away from the phone hand, so that arm reaches out to the side and
-        // not across the face
-        {
-            flex_t turn = (iosSelfie_Rand01() * 2.0f - 1.0f) * IOSSELFIE_TURN_SMALL;
-            if (i == 0) turn += iosSelfie_bPhoneLeft ? -IOSSELFIE_PHONE_TURN : IOSSELFIE_PHONE_TURN;
-            if (i > 0 && iosSelfie_Rand() % 100 < IOSSELFIE_TURN_CHANCE)
-                turn = (iosSelfie_Rand() & 1 ? 1.0f : -1.0f) * IOSSELFIE_TURN_MAX * (0.5f + 0.5f * iosSelfie_Rand01());
-            iosSelfie_Turn(t, turn);
-        }
-        p->lean = 0;
-        if (iosSelfie_Rand() % 100 < IOSSELFIE_LEAN_CHANCE)
-            p->lean = (iosSelfie_Rand01() * 2.0f - 1.0f) * IOSSELFIE_LEAN_MAX * (i == 0 ? 0.5f : 1.0f);
-        p->stance = i > 0 ? iosSelfie_PickStance(i, &cam) : IOSSELFIE_STANCE_STAND;
-        p->headTilt = (iosSelfie_Rand01() - 0.5f) * 0.35f;
-        if (i == 0) {
-            p->pose = 0;
-            int free = pose >= 0 ? pose : iosSelfie_PickFreeArm();
-            if (group >= 0) free = iosSelfie_aGesture[group].bPairOnly ? IOSSELFIE_ARM_HIP : group;
-            // the phone (-1) in one hand, the other free
-            p->armR = iosSelfie_bPhoneLeft ? free : -1;
-            p->armL = iosSelfie_bPhoneLeft ? -1 : free;
-            t->flags &= ~SITH_TF_RENDERWEAPON; // holstered, for the photo only
-            // The flash: light from the phone in the player's hand
-            t->flags |= SITH_TF_EMITLIGHT;
-            if (t->light < IOSSELFIE_FLASH_LIGHT) t->light = IOSSELFIE_FLASH_LIGHT;
-        }
-        else {
-            p->pose = 0;
-            if (group >= 0)
-                p->armR = p->armL = group;
-            else
-                iosSelfie_PickGestures(pose, &p->armR, &p->armL);
-        }
-        // Posed from the model's rest pose (standing, arms down: the same
-        // start for every pose and every body); anyone who can't pose on
-        // their standing frame
-        if (!iosSelfie_CanPose(p) || !t->renderData.puppet) p->pose = -1;
-        if (p->pose >= 0)
-            t->renderData.puppet->bPaused = 1;
-        else
-            iosSelfie_Stand(p);
-        iosSelfie_SolvePose(p, &cam.pos);
-        if (p->stance != IOSSELFIE_STANCE_STAND) {
-            // Down low, a face can end up behind someone in front: then
-            // standing after all
-            iosSelfie_HeadOf(p);
-            if (iosSelfie_Hidden(&cam.pos, i) || !iosSelfie_InFrame(&cam, &p->head)) {
-                IOSSELFIE_LOG("person %d: stands after all (hidden down there)\n", i);
-                p->stance = IOSSELFIE_STANCE_STAND;
-                iosSelfie_SolvePose(p, &cam.pos);
-            }
-        }
-        iosSelfie_HeadOf(p);
-        IOSSELFIE_LOG("person %d (%s): %s / %s, %s, lean %.2f, %d joints turned\n", i, t->renderData.model3->filename,
-                      p->pose < 0 ? "-" : (p->armR < 0 ? "phone" : iosSelfie_aGesture[p->armR].name),
-                      p->pose < 0 ? "-" : (p->armL < 0 ? "phone" : iosSelfie_aGesture[p->armL].name),
-                      p->stance == IOSSELFIE_STANCE_CROUCH ? "crouching" : (p->stance >= IOSSELFIE_STANCE_KNEEL_R ? "kneeling" : "standing"),
-                      (double)p->lean, p->numTurns);
-    }
+    iosSelfie_cam = cam;
+    iosSelfie_posePick = pose;
+    iosSelfie_PoseAll();
+    // Posing moves the heads a little (the player turns from the phone
+    // hand, people lean, kneel): the camera turned to frame them as posed
+    // (and again for each pose of a several-photo selfie: iosSelfie_Repose)
+    iosSelfie_Recentre(&iosSelfie_cam);
+    cam = iosSelfie_cam;
 
-    // Shots and blasts frozen in front of a face are left out of the photo
-    // (the rest of the action stays in it)
-    iosSelfie_numHidden = 0;
-    {
-        rdVector3 f;
-        rdVector_Sub3(&f, &cam.look, &cam.pos);
-        rdVector_Normalize3Acc(&f);
-        for (int i = 0; i < w->numThings && iosSelfie_numHidden < IOSSELFIE_MAX_HIDDEN; i++) {
-            SithThing* t = &w->aThings[i];
-            if (t->type != SITH_THING_WEAPON && t->type != SITH_THING_EXPLOSION
-                && t->type != SITH_THING_PARTICLE && t->type != SITH_THING_DEBRIS) continue;
-            rdVector3 v;
-            rdVector_Sub3(&v, &t->position, &cam.pos);
-            flex_t z = rdVector_Dot3(&v, &f);
-            if (z < 0.002f || z > IOSSELFIE_CAM_MAX + IOSSELFIE_RANGE) continue;
-            rdVector_Normalize3Acc(&v);
-            for (int k = 0; k < iosSelfie_numPeople; k++) {
-                rdVector3 hv;
-                rdVector_Sub3(&hv, &iosSelfie_aPeople[k].head, &cam.pos);
-                flex_t zh = rdVector_Dot3(&hv, &f);
-                if (zh <= z) continue; // behind the face
-                flex_t dist = rdVector_Normalize3Acc(&hv);
-                if (acosf(fminf(1.0f, rdVector_Dot3(&v, &hv))) < atanf(IOSSELFIE_FACE_RADIUS / dist)) {
-                    iosSelfie_apHidden[iosSelfie_numHidden++] = t;
-                    break;
-                }
-            }
-        }
-    }
-
-    SithCamera* c = &sithCamera_g_aCameras[2];
-    iosSelfie_pPrevCamera = sithCamera_g_pCurCamera;
-    iosSelfie_savedCamera = *c;
-    iosSelfie_savedShakePos = sithCamera_g_vecCameraPosOffset;
-    iosSelfie_savedShakeAngle = sithCamera_g_vecCameraAngleOffset;
-    iosSelfie_savedShakePosDelta = sithCamera_g_cameraPosDelta;
-    iosSelfie_savedShakeAngleDelta = sithCamera_g_cameraAngleDelta;
-    c->pSecondaryFocusThing = NULL;
-    rdMatrix_LookAt(&c->orient, &cam.pos, &cam.look, cam.tilt);
+    iosPhotoCam_Place(&cam.pos, &cam.look, cam.tilt, cam.sector);
     iosSelfie_camPos = cam.pos;
     iosSelfie_camLook = cam.look;
     IOSSELFIE_LOG("camera in sector %d (inside: %d) at %f %f %f looking at %f %f %f\n", cam.sector ? (int)(cam.sector - w->aSectors) : -1,
                   cam.sector ? sithIntersect_IsSphereInSector(&cam.pos, 0.0f, cam.sector) : 0,
                   (double)cam.pos.x, (double)cam.pos.y, (double)cam.pos.z, (double)cam.look.x, (double)cam.look.y, (double)cam.look.z);
-    c->sector = cam.sector;
-    c->pPrimaryFocusThing = me;
-    sithCamera_SetCurrentCamera(c);
-    iosSelfie_SetLens(&c->rdCamera);
-
-    iosGame_SetHoldReason(IOSGAME_HOLD_SELFIE, 1);
     if (pNumPeople) *pNumPeople = iosSelfie_numPeople - 1;
     return 1;
+}
+
+void iosSelfie_Repose(void)
+{
+    if (!iosSelfie_bActive) return;
+    iosSelfie_PoseAll();
+    for (int i = 0; i < iosSelfie_numPeople; i++) iosSelfie_aPeople[i].thing->renderData.rdFrameNum = 0;
+    // Turned (not moved: the clearance found for it holds) to frame this pose
+    iosSelfie_Recentre(&iosSelfie_cam);
+    iosPhotoCam_Place(&iosSelfie_cam.pos, &iosSelfie_cam.look, iosSelfie_cam.tilt, iosSelfie_cam.sector);
+    iosSelfie_camLook = iosSelfie_cam.look;
 }
 
 void iosSelfie_Frame(void)
@@ -1482,25 +1755,7 @@ void iosSelfie_End(void)
     }
     iosSelfie_numPeople = 0;
     iosSelfie_numHidden = 0;
-    SithWorld* w = sithWorld_g_pCurrentWorld;
-    if (w && iosSelfie_aSectorSeen && w->numSectors == iosSelfie_numSectorSeen) {
-        for (int i = 0; i < w->numSectors; i++) {
-            if (!iosSelfie_aSectorSeen[i]) w->aSectors[i].flags &= ~SITH_SECTOR_SEEN;
-        }
-    }
-    free(iosSelfie_aSectorSeen);
-    iosSelfie_aSectorSeen = NULL;
-    sithCamera_g_aCameras[2] = iosSelfie_savedCamera;
-    rdCamera_BuildFOV(&sithCamera_g_aCameras[2].rdCamera); // (its view shape, from the lens put back)
-    if (iosSelfie_pPrevCamera) sithCamera_SetCurrentCamera(iosSelfie_pPrevCamera);
-    iosSelfie_pPrevCamera = NULL;
-    // (switching back updates the camera, which winds the shake down: put
-    // it back after)
-    sithCamera_g_vecCameraPosOffset = iosSelfie_savedShakePos;
-    sithCamera_g_vecCameraAngleOffset = iosSelfie_savedShakeAngle;
-    sithCamera_g_cameraPosDelta = iosSelfie_savedShakePosDelta;
-    sithCamera_g_cameraAngleDelta = iosSelfie_savedShakeAngleDelta;
-    iosGame_SetHoldReason(IOSGAME_HOLD_SELFIE, 0);
+    iosPhotoCam_End(); // (the camera, the view and the game's hold as they were)
 }
 
 #ifdef IOSSELFIE_DEBUG
@@ -1509,12 +1764,10 @@ void iosSelfie_End(void)
 void iosSelfie_DebugCam(float x, float y, float z, float lx, float ly, float lz)
 {
     if (!iosSelfie_bActive) return;
-    SithCamera* c = &sithCamera_g_aCameras[2];
     rdVector3 pos = { x, y, z }, look = { lx, ly, lz };
     SithSector* sec = NULL;
     iosSelfie_Clear(iosSelfie_aPeople[0].headSector, &iosSelfie_aPeople[0].head, &pos, 0.0f, &sec);
-    rdMatrix_LookAt(&c->orient, &pos, &look, 0.0f);
-    if (sec) c->sector = sec;
+    iosPhotoCam_Place(&pos, &look, 0.0f, sec);
     IOSSELFIE_LOG("debug camera in sector %d\n", sec ? (int)(sec - sithWorld_g_pCurrentWorld->aSectors) : -1);
 }
 
@@ -1537,11 +1790,10 @@ void iosSelfie_DebugRest(void)
 // The rig: works the poses out again (after posepart changes)
 void iosSelfie_DebugRepose(int pose)
 {
-    SithCamera* c = &sithCamera_g_aCameras[2];
     for (int i = 0; i < iosSelfie_numPeople; i++) {
         iosSelfiePerson* p = &iosSelfie_aPeople[i];
         if (i > 0 && p->pose >= 0 && pose >= 0) p->pose = pose;
-        iosSelfie_SolvePose(p, &c->orient.scale);
+        iosSelfie_SolvePose(p, &iosSelfie_camPos);
     }
 }
 
@@ -1556,11 +1808,9 @@ void iosSelfie_DebugFocus(int person, float dist, float side)
     rdVector3 pos = look;
     rdVector_ScaleAdd3Acc(&pos, &t->orient.lvec, dist);
     rdVector_ScaleAdd3Acc(&pos, &t->orient.rvec, side);
-    SithCamera* c = &sithCamera_g_aCameras[2];
     SithSector* sec = NULL;
     iosSelfie_Clear(p->headSector, &look, &pos, 0.0f, &sec);
-    rdMatrix_LookAt(&c->orient, &pos, &look, 0.0f);
-    if (sec) c->sector = sec;
+    iosPhotoCam_Place(&pos, &look, 0.0f, sec);
 }
 #endif
 
@@ -1584,6 +1834,12 @@ int iosSelfie_HidesBlade(const rdMatrix34* m, float length)
     rdVector_ScaleAdd3Acc(&at, &m->lvec, along);
     rdVector_Sub3(&v, &at, &iosSelfie_camPos);
     if (rdVector_Len3(&v) < IOSSELFIE_BLADE_CLEARANCE) return 1;
+    // (the player's own blade, shown off for the photo, isn't across it)
+    {
+        const iosSelfiePerson* me = &iosSelfie_aPeople[0];
+        const int node = me->bWeapon ? iosSelfie_WeaponNode(me->thing, me) : -1;
+        if (node >= 0 && m == &me->thing->renderData.paJointMatrices[node]) return 0;
+    }
     // or well in front of the player's face (across the front of the photo)
     rdVector3 me;
     rdVector_Sub3(&me, &iosSelfie_aPeople[0].head, &iosSelfie_camPos);
@@ -1591,18 +1847,6 @@ int iosSelfie_HidesBlade(const rdMatrix34* m, float length)
     return faceDepth > 1e-4f && rdVector_Dot3(&v, &me) < faceDepth * IOSSELFIE_BLADE_FRONT;
 }
 
-int iosSelfie_SetLens(struct rdCamera* pCamera)
-{
-    if (!iosSelfie_bActive || !pCamera || pCamera != &sithCamera_g_aCameras[2].rdCamera) return 0;
-    // (a lens is kept as degrees across: from top to bottom, through the
-    // view's shape, whichever way round the player's own lens is set)
-    flex_t across = IOSSELFIE_FOV;
-    if (pCamera->aspectRatio > 0.0001f)
-        across = 2.0f * atanf(tanf(IOSSELFIE_FOV * 0.5f * (flex_t)M_PI / 180.0f) / pCamera->aspectRatio) * 180.0f / (flex_t)M_PI;
-    pCamera->fov = across;
-    rdCamera_BuildFOV(pCamera);
-    return 1;
-}
 
 int iosSelfie_IsActive(void)
 {

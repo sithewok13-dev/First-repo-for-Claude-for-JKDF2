@@ -26,7 +26,7 @@
 #include "stdPlatform.h"
 #include "jk.h"
 #ifdef TARGET_IOS
-#include "Platform/iOS/iosSelfie.h" // Added
+#include "Platform/iOS/iosPhotoCam.h" // Added
 #endif
 
 #if defined(TARGET_TWL)
@@ -359,9 +359,9 @@ int jkGame_Update()
 #endif
 
 #ifdef TARGET_IOS
-    // Added: nothing of the HUD (meters, crosshair, messages, items) over a
-    // selfie (iosSelfie)
-    if (!iosSelfie_IsActive())
+    // Added: nothing of the HUD (meters, crosshair, messages, items) over the
+    // photo camera's view (the selfie; frozen action planned: iosPhotoCam)
+    if (!iosPhotoCam_IsActive())
 #endif
     {
     // MOTS added: scope/security cam overlays
