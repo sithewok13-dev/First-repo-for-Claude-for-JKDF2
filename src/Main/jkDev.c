@@ -71,6 +71,10 @@ static int jkDev_Custom_PutWeaponBack(SithThing *pPlayer);
 // Added: the last weapon other than the saber the player had in hand (or was switching to), for when a
 // saber only the cheat gave is taken back (jkDev_Custom_TakeCheatSaber)
 static int jkDev_lastOtherWeapon = -1;
+// Added: sithewok keeps the Force power selected from level to level, as it keeps the weapon: the one
+// selected as last seen, and the one to select again in a new level (once its powers are given again)
+static int jkDev_sithEwokPower = -1;
+static int jkDev_sithEwokPowerBack = -1;
 static void jkDev_Custom_TakeCheatSaber(SithThing *pPlayer);
 static void jkDev_Custom_KeepForceFull();
 static void jkDev_Custom_SithEwokOn(SithThing *pPlayer, int bAgain);
@@ -1436,7 +1440,18 @@ static void jkDev_Custom_KeepForceFull()
             jkDev_sithEwokWait = JKDEV_SITHEWOK_WAIT;
         }
         if ( jkDev_sithEwokWait > 0 && --jkDev_sithEwokWait == 0 )
+        {
             jkDev_Custom_SithEwokOn(pPlayer, 1);
+            // the power selected in the last level, selected again (now it is had)
+            const int power = jkDev_sithEwokPowerBack;
+            jkDev_sithEwokPowerBack = -1;
+            if ( power > 0 && pPlayer->actorParams.pPlayer && power != pPlayer->actorParams.pPlayer->curPower
+                 && sithInventory_GetInventory(pPlayer, power) > 0.0 && sithInventory_IsInventoryAvailable(pPlayer, power) )
+                sithInventory_SelectPower(pPlayer, power);
+        }
+        else if ( jkDev_sithEwokWait == 0 && jkDev_sithEwokPowerBack < 0 && pPlayer->actorParams.pPlayer
+                  && pPlayer->actorParams.pPlayer->curPower > 0 )
+            jkDev_sithEwokPower = pPlayer->actorParams.pPlayer->curPower;
 
         // the weapon in hand kept for the next level; in a new one, put back (as soon as the
         // player has it: carried over, or given again with everything after the wait above)
@@ -1644,6 +1659,8 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
         jkDev_sithEwokWait = 0;
         jkDev_sithEwokWeapon = -1;
         jkDev_sithEwokWeaponBack = -1;
+        jkDev_sithEwokPower = -1;
+        jkDev_sithEwokPowerBack = -1;
         jkDev_bEndlessForce = 0;
         jkDev_bNoFallHurt = 0;
         // (noclip because of it: off; flying because of it: back down)
@@ -1699,6 +1716,7 @@ void jkDev_Custom_GameLoaded()
 {
     jkDev_Custom_SithEwokRestored();
     jkDev_sithEwokWeaponBack = -1;
+    jkDev_sithEwokPowerBack = -1; // (the loaded game's own power selected)
 
     // A game saved with sithewok on, loaded with it off: none of it kept -- a saber only it gave taken
     // back, and not invincible (the level scripts only make the player so in end-of-level sequences,
@@ -1778,11 +1796,15 @@ static int jkDev_Custom_PutWeaponBack(SithThing *pPlayer)
 }
 
 // Added: a level opened (jkMain, single player; not a loaded game): with sithewok on, the weapon that was
-// in hand is put back, right away where it can be
+// in hand is put back, right away where it can be; and the Force power selected, once given again
 void jkDev_Custom_LevelOpened()
 {
     jkDev_sithEwokWeaponBack = -1;
-    if ( !jkDev_bSithEwokOn || sithNet_isMulti || jkDev_sithEwokWeapon < 0 || !sithWorld_g_pCurrentWorld )
+    jkDev_sithEwokPowerBack = -1;
+    if ( !jkDev_bSithEwokOn || sithNet_isMulti || !sithWorld_g_pCurrentWorld )
+        return;
+    jkDev_sithEwokPowerBack = jkDev_sithEwokPower; // (selected again once sithewok has given its powers)
+    if ( jkDev_sithEwokWeapon < 0 )
         return;
     jkDev_sithEwokWeaponBack = jkDev_sithEwokWeapon;
     jkDev_sithEwokWeaponTries = JKDEV_SITHEWOK_WEAPON_TRIES;
