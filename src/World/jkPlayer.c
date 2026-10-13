@@ -43,6 +43,10 @@
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosSelfie.h" // Added
 #include "Platform/iOS/iosPhotoCam.h" // Added
+#include "Platform/iOS/iosSaber.h" // Added
+// Added: a blade drawn in the colour the player chose for it (iosSaber)
+#define JKPLAYER_DRAW_BLADE(pThing, pLine, pMat, blade) \
+    do { iosSaber_BeginBlade((pThing), (pLine), (blade)); rdThing_Draw((pLine), (pMat)); iosSaber_EndBlade(pLine); } while (0)
 // Added: the photo camera (the selfie, Action Freeze) only looks (iosPhotoCam)
 #define JKPLAYER_PHOTO_LOOKING() iosPhotoCam_IsActive()
 // Added: a saber blade right across a selfie's lens is left out of it
@@ -51,6 +55,7 @@
 #else
 #define JKPLAYER_PHOTO_LOOKING() 0
 #define JKPLAYER_SELFIE_HIDES_BLADE(pMat, pLine) 0
+#define JKPLAYER_DRAW_BLADE(pThing, pLine, pMat, blade) rdThing_Draw((pLine), (pMat))
 #endif
 
 // DSi has *plenty* of time to read the text.
@@ -1111,9 +1116,9 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
             {
                 if (!JKPLAYER_PHOTO_LOOKING()) // Added: no game random numbers used in a selfie
                     jkSaber_PolylineRand(&playerInfo->polylineThing);
-                if (!JKPLAYER_SELFIE_HIDES_BLADE(primaryMat, &playerInfo->polylineThing)) rdThing_Draw(&playerInfo->polylineThing, primaryMat);
+                if (!JKPLAYER_SELFIE_HIDES_BLADE(primaryMat, &playerInfo->polylineThing)) JKPLAYER_DRAW_BLADE(thing, &playerInfo->polylineThing, primaryMat, 0);
                 if ( thing->jkFlags & JKFLAG_DUALSABERS)
-                    if (!JKPLAYER_SELFIE_HIDES_BLADE(secondaryMat, &playerInfo->polylineThing)) rdThing_Draw(&playerInfo->polylineThing, secondaryMat);
+                    if (!JKPLAYER_SELFIE_HIDES_BLADE(secondaryMat, &playerInfo->polylineThing)) JKPLAYER_DRAW_BLADE(thing, &playerInfo->polylineThing, secondaryMat, 1);
             }
         }
         else
@@ -1131,9 +1136,9 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
         {
             if (!JKPLAYER_PHOTO_LOOKING()) // Added: no game random numbers used in a selfie
                 jkSaber_PolylineRand(&playerInfo->polylineThing);
-            if (!JKPLAYER_SELFIE_HIDES_BLADE(primaryMat, &playerInfo->polylineThing)) rdThing_Draw(&playerInfo->polylineThing, primaryMat);
+            if (!JKPLAYER_SELFIE_HIDES_BLADE(primaryMat, &playerInfo->polylineThing)) JKPLAYER_DRAW_BLADE(thing, &playerInfo->polylineThing, primaryMat, 0);
             if (thing->jkFlags & JKFLAG_DUALSABERS)
-                if (!JKPLAYER_SELFIE_HIDES_BLADE(secondaryMat, &playerInfo->polylineThing)) rdThing_Draw(&playerInfo->polylineThing, secondaryMat);
+                if (!JKPLAYER_SELFIE_HIDES_BLADE(secondaryMat, &playerInfo->polylineThing)) JKPLAYER_DRAW_BLADE(thing, &playerInfo->polylineThing, secondaryMat, 1);
         }
     }
 }

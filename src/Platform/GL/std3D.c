@@ -3048,6 +3048,7 @@ int std3D_AddToTextureCache(tVBuffer *vbuf, rdDDrawSurface *texture, int is_alph
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
 
+    if (vbuf->pTrueColour) texture->is_16bit = 1; // Added: (below) so it is filtered as the 16-bit ones are
     if (jkPlayer_enableTextureFilter && texture->is_16bit)
     {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -3059,7 +3060,15 @@ int std3D_AddToTextureCache(tVBuffer *vbuf, rdDDrawSurface *texture, int is_alph
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     }
 
-    if (vbuf->format.format.is16bit)
+    if (vbuf->pTrueColour)
+    {
+        // Added: true-colour texels made for this one (read as TEX_MODE_16BPP:
+        // B, G, R, A), uploaded in a format GLES takes too
+        texture->is_16bit = 1;
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, vbuf->pTrueColour);
+        texture->pDataDepthConverted = NULL;
+    }
+    else if (vbuf->format.format.is16bit)
     {
         texture->is_16bit = 1;
 #if 1

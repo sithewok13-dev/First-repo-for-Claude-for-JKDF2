@@ -1182,6 +1182,9 @@ typedef struct tVBuffer
 #ifndef OPTIMIZE_AWAY_UNUSED_FIELDS
     uint8_t desc[0x6c];
 #endif
+#ifdef SDL2_RENDER
+    uint8_t* pTrueColour; // Added: if set, texels to upload in place of the 8-bit ones (B, G, R, A, as wide and high), owned by whoever set it (iosSaber's blade colours)
+#endif
 } tVBuffer;
 
 typedef struct rdColor24

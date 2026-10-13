@@ -21,6 +21,7 @@
 #include "Platform/iOS/iosSelfieShots.h"
 #include "Platform/iOS/iosFreeze.h"
 #include "Platform/iOS/iosCinema.h"
+#include "Platform/iOS/iosSaber.h"
 
 extern SDL_Window* displayWindow;
 extern int stdControl_bControlsActive;
@@ -159,6 +160,18 @@ extern int jkHud_bChatOpen;
 // Which photos a tap takes (IOSCAPTURE_* bits), set by holding the tray's
 // camera switch: CLEAN alone unless changed (remembered)
 #define IOSTOUCH_CAMKINDS_DEFAULTS_KEY @"iosTouchCameraKinds"
+// The SABER button (between CAMERA and QUICK SAVE): shown while switched on
+// in MENU's tray (off unless switched on; remembered), it opens the saber
+// wheel (iosSaber: the blade's colour). The colour picked for each blade of
+// each style is remembered by its key, the style by its name.
+#define IOSTOUCH_SABER_DEFAULTS_KEY @"iosTouchShowSaber"
+#define IOSTOUCH_SABERSTYLE_DEFAULTS_KEY @"iosTouchSaberStyle"
+#define IOSTOUCH_SABERCOLOUR_DEFAULTS_KEY @"iosTouchSaberColour" // + style name + blade number
+// Where the FPS readout (54 pt wide) and the burst's count (30 pt) sit, which
+// SABER keeps clear of
+#define IOSTOUCH_FPS_LABEL_X 216.0     // (its middle, this far in from the right)
+#define IOSTOUCH_FPS_LABEL_HALF 27.0
+#define IOSTOUCH_BURST_LABEL_HALF 15.0
 // On the CAMERA button: lifted sooner than this (not slid) takes the photos;
 // held still this long is the selfie; slid IOSTOUCH_WHEEL_OPEN_SLIDE starts a
 // burst of clean shots this far apart, for as long as the finger stays down
@@ -260,7 +273,7 @@ enum {
     KIND_MENU,     // Escape (via stdControl_bControllerEscapeKey) when the touch lifts on it; held, opens the tray
     KIND_HOLDSAVE, // hold IOSTOUCH_QUICKSAVE_HOLD seconds for one press of its key (quick save)
     KIND_HOLDLOAD, // hold IOSTOUCH_QUICKLOAD_HOLD seconds to quick load
-    KIND_WHEEL,    // tap: one press of its key; slide or hold: opens its wheel (FORCE WHEEL: force, NEXT WPN: weapons)
+    KIND_WHEEL,    // tap: one press of its key; slide or hold: opens its wheel (FORCE WHEEL: force, NEXT WPN: weapons; SABER, which has no key: a tap opens it too, to tap)
     KIND_ITEM,     // uses an inventory item when the touch lifts on it; only shown while the player has it
     KIND_CHAT,     // (MENU tray) opens or closes the typing line for cheats, when the touch lifts on it
     KIND_FPS,      // (MENU tray) shows or hides the FPS readout, when the touch lifts on it
@@ -268,6 +281,7 @@ enum {
     KIND_GYROMODE, // (gyro options) the mode gyro aiming goes on in: TOUCH or ALWAYS
     KIND_GYROSENS, // (gyro options) the next gyro aiming sensitivity, when the touch lifts on it
     KIND_CAMSWITCH, // (MENU tray) shows or hides the CAMERA button, when the touch lifts on it
+    KIND_SABERSWITCH, // (MENU tray) shows or hides the SABER button, when the touch lifts on it
     KIND_CAMERA,   // tap: the photos ticked in the camera options; slide: a burst; hold: the selfie
     KIND_CAMPHOTO, // (camera options) opens or closes the photo kinds' row under them
     KIND_SELFIES,  // (camera options) how many photos a selfie takes: 1, 3 or 5
@@ -302,16 +316,19 @@ typedef struct {
 // light, IR goggles, bacta), each always in its own place. Top right: quick
 // save and quick load (short holds) and the menu. Holding MENU opens a tray
 // just under it: gyro aiming's sensitivity and mode, FPS, which shows or hides
-// a frame rate readout left of QUICK SAVE, and the keyboard, for the typing
-// line (cheats). ACT is the door/switch key. NEXT WPN and FORCE WHEEL: a tap
-// is the next weapon / learned power (G, E: the game's own keys for them), a
-// slide or a hold opens the weapon / force wheel.
+// a frame rate readout left of QUICK SAVE, the camera and saber switches
+// (the CAMERA and SABER buttons along the top), and the keyboard, for the
+// typing line (cheats). ACT is the door/switch key. NEXT WPN and FORCE WHEEL:
+// a tap is the next weapon / learned power (G, E: the game's own keys for
+// them), a slide or a hold opens the weapon / force wheel. SABER: a tap or a
+// hold opens the saber wheel to tap a colour, a slide to slide to one.
 enum {
     BTN_FIRE, BTN_ALT, BTN_DUCK, BTN_ACT, BTN_JUMP, BTN_FORCE,
     BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA,
     BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU,
     BTN_CAMERA, // the middle of the top row, while switched on in the tray
-    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
+    BTN_SABER,  // between CAMERA and QUICK SAVE, while switched on in the tray
+    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYSABER, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
     // Rows under the tray, one at a time (iosTouch_optRow), hidden until opened:
     BTN_GYROOPT_MODE, BTN_GYROOPT_SENS,  // the gyro options (a hold on the tray's GYRO)
     BTN_CAMROW_PHOTO, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE, // the camera options (a hold on the tray's camera switch)
@@ -338,9 +355,11 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_QUICKLOAD] = { "QUICK\nLOAD", KIND_HOLDLOAD, -1,                  22.0f, 0 },
     [BTN_MENU]      = { "MENU",        KIND_MENU,     -1,                  22.0f, 0 },
     [BTN_CAMERA]    = { "",            KIND_CAMERA,   -1,                  22.0f, 0 },
+    [BTN_SABER]     = { "",            KIND_WHEEL,    -1,                  22.0f, 0 },
     [BTN_TRAYGYRO]  = { "GYRO",        KIND_GYRO,     -1,                  20.0f, 0 },
     [BTN_TRAYFPS]   = { "FPS",         KIND_FPS,      -1,                  20.0f, 0 },
     [BTN_TRAYCAM]   = { "",            KIND_CAMSWITCH, -1,                 20.0f, 0 },
+    [BTN_TRAYSABER] = { "",            KIND_SABERSWITCH, -1,               20.0f, 0 },
     [BTN_TRAYKEYS]  = { "",            KIND_CHAT,     -1,                  20.0f, 0 },
     [BTN_GYROOPT_MODE] = { "MODE",     KIND_GYROMODE, -1,                  20.0f, 0 },
     [BTN_GYROOPT_SENS] = { "SENS",     KIND_GYROSENS, -1,                  20.0f, 0 },
@@ -499,7 +518,32 @@ typedef char iosTouch_assertWheelSize[(IOSTOUCH_COUNT(iosTouch_aJkWheelSlices) <
                                        && IOSTOUCH_COUNT(iosTouch_aMotsWeaponSlices) <= IOSTOUCH_WHEEL_MAX
                                        && IOSTOUCH_COUNT(iosTouch_aMotsWheelGroups) <= IOSTOUCH_WHEEL_MAX_GROUPS
                                        && IOSTOUCH_COUNT(iosTouch_aWeaponGroups) <= IOSTOUCH_WHEEL_MAX_GROUPS) ? 1 : -1];
-enum { IOSTOUCH_WHEEL_FORCE = 0, IOSTOUCH_WHEEL_WEAPONS, IOSTOUCH_WHEEL_NUM_KINDS };
+// The saber wheel: every blade colour (iosSaber) in its own slice and in its
+// own colour, the game's own by the gap on the left, then red round through
+// the hues to pink, white and black by the gap on the right. Filled in as the
+// overlay starts (iosTouch_SetupSaberWheel).
+#define IOSTOUCH_SABER_SLICE_DEG 18.0f
+static iosTouchWheelSlice iosTouch_aSaberSlices[IOSTOUCH_WHEEL_MAX];
+static iosTouchWheelGroup iosTouch_aSaberGroups[IOSTOUCH_WHEEL_MAX]; // (one per slice: its colour)
+static iosTouchWheelMap iosTouch_saberWheel = {
+    iosTouch_aSaberSlices, 0, iosTouch_aSaberGroups, 0, IOSTOUCH_SABER_SLICE_DEG, 0.0f
+};
+static void iosTouch_SetupSaberWheel(void)
+{
+    const int n = MIN(iosSaber_NumColours(), IOSTOUCH_WHEEL_MAX);
+    for (int i = 0; i < n; i++) {
+        iosTouchWheelGroup* g = &iosTouch_aSaberGroups[i];
+        g->title = NULL;
+        g->titleDeg = 0.0f;
+        iosSaber_ColourRGB(i, &g->r, &g->g, &g->b);
+        iosTouch_aSaberSlices[i].bin = i;
+        iosTouch_aSaberSlices[i].group = i;
+        iosTouch_aSaberSlices[i].deg = 90.0f + IOSTOUCH_SABER_SLICE_DEG * ((n - 1) * 0.5f - i);
+    }
+    iosTouch_saberWheel.numSlices = n;
+    iosTouch_saberWheel.numGroups = n;
+}
+enum { IOSTOUCH_WHEEL_FORCE = 0, IOSTOUCH_WHEEL_WEAPONS, IOSTOUCH_WHEEL_SABER, IOSTOUCH_WHEEL_NUM_KINDS };
 
 // ------------------------------------------------------------ state
 
@@ -574,6 +618,8 @@ static int iosTouch_bTrayOpen = 0;
 static int iosTouch_menuPulse = 0;
 static int iosTouch_bShowFps = 0;
 static int iosTouch_bShowCamera = 0;
+static int iosTouch_bShowSaber = 0;
+static int iosTouch_bBurstUnder = 0; // the burst's count under CAMERA, not beside it (making room for SABER)
 static CFTimeInterval iosTouch_tCameraAsked = 0; // when the CAMERA button asked for photos (0: not waiting)
 static int iosTouch_cameraKinds = IOSCAPTURE_CLEAN;
 static int iosTouch_optRow = 0;      // IOSTOUCH_ROW_*: the row open under the tray
@@ -639,11 +685,20 @@ static void iosTouch_QueuePress(int scancode)
 // The name of a slice's power or weapon on the open wheel
 static const char* iosTouch_WheelSlotName(int bin)
 {
+    if (iosTouch_wheelKind == IOSTOUCH_WHEEL_SABER) return iosSaber_ColourName(bin);
     return (iosTouch_wheelKind == IOSTOUCH_WHEEL_WEAPONS) ? iosGame_GetWeaponName(bin) : iosGame_GetPowerName(bin);
 }
 
 // A press on FORCE WHEEL or NEXT WPN still waiting to see which gesture it
 // is: a tap, a slide or a hold
+// The wheel a KIND_WHEEL button opens
+static int iosTouch_WheelKindOf(int button)
+{
+    if (button == BTN_NEXTWPN) return IOSTOUCH_WHEEL_WEAPONS;
+    if (button == BTN_SABER) return IOSTOUCH_WHEEL_SABER;
+    return IOSTOUCH_WHEEL_FORCE;
+}
+
 static int iosTouch_IsWheelPress(const iosTouchSlot* s)
 {
     return s->touch && s->role == ROLE_BUTTON && iosTouch_aButtons[s->button].kind == KIND_WHEEL;
@@ -1087,6 +1142,12 @@ typedef struct {
     CAShapeLayer* menuRing; // MENU's
     CAShapeLayer* wheelRing;  // FORCE WHEEL's (held still, it opens the wheel to tap)
     CAShapeLayer* weaponRing; // NEXT WPN's
+    CAShapeLayer* saberRing;  // SABER's
+    // The saber's picture, on SABER and on the tray's saber switch: a hilt and
+    // its blade, in the blade's colour (refreshSaberIcons)
+    CAShapeLayer* aSaberBlade[2];
+    CAShapeLayer* aSaberCore[2];
+    int saberIconRGB; // the colour they are in (-1: none yet)
     UIView* trayBack;       // behind MENU's tray
     UIView* cameraFlash;    // the CAMERA button's white flash, over everything
     UIImpactFeedbackGenerator* cameraTap;
@@ -1186,6 +1247,45 @@ static CAShapeLayer* IOSTouch_MakeHoldRing(CGFloat r)
     return ring;
 }
 
+// A lightsaber drawn on a button r points round, pointing up to the right:
+// the hilt, then the blade in a colour (refreshSaberIcons) with its white
+// middle; returns the blade and its middle
+static void IOSTouch_AddSaberIcon(UIView* v, CGFloat r, CAShapeLayer** pBlade, CAShapeLayer** pCore)
+{
+    CGPoint hilt0 = CGPointMake(r * 0.58, r * 1.42), hilt1 = CGPointMake(r * 0.82, r * 1.18);
+    CGPoint tip = CGPointMake(r * 1.46, r * 0.54);
+    UIBezierPath* hp = [UIBezierPath bezierPath];
+    [hp moveToPoint:hilt0];
+    [hp addLineToPoint:hilt1];
+    UIBezierPath* bp = [UIBezierPath bezierPath];
+    [bp moveToPoint:hilt1];
+    [bp addLineToPoint:tip];
+    CAShapeLayer* hilt = [CAShapeLayer layer];
+    hilt.frame = CGRectMake(0, 0, r * 2, r * 2);
+    hilt.path = hp.CGPath;
+    hilt.strokeColor = [UIColor colorWithWhite:0.78 alpha:1.0].CGColor;
+    hilt.lineWidth = MAX(r * 0.2, 3.5);
+    CAShapeLayer* blade = [CAShapeLayer layer];
+    blade.frame = hilt.frame;
+    blade.path = bp.CGPath;
+    blade.lineWidth = MAX(r * 0.17, 3.0);
+    blade.lineCap = kCALineCapRound;
+    blade.shadowOffset = CGSizeZero;
+    blade.shadowRadius = 3.0;
+    blade.shadowOpacity = 0.9;
+    CAShapeLayer* core = [CAShapeLayer layer];
+    core.frame = hilt.frame;
+    core.path = bp.CGPath;
+    core.strokeColor = [UIColor colorWithWhite:1.0 alpha:0.9].CGColor;
+    core.lineWidth = MAX(r * 0.06, 1.2);
+    core.lineCap = kCALineCapRound;
+    [v.layer addSublayer:blade];
+    [v.layer addSublayer:core];
+    [v.layer addSublayer:hilt];
+    *pBlade = blade;
+    *pCore = core;
+}
+
 // The wheel's labels are in the condensed system font, so the long names fit
 static UIFont* IOSTouch_WheelFont(CGFloat size)
 {
@@ -1280,6 +1380,19 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         [aButtonViews[BTN_WHEEL].layer addSublayer:wheelRing];
         weaponRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_NEXTWPN].radius);
         [aButtonViews[BTN_NEXTWPN].layer addSublayer:weaponRing];
+        saberRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_SABER].radius);
+        [aButtonViews[BTN_SABER].layer addSublayer:saberRing];
+
+        // SABER and the tray's saber switch: the saber's picture; SABER
+        // shown if switched on; the colours picked, from last time
+        saberIconRGB = -1;
+        IOSTouch_AddSaberIcon(aButtonViews[BTN_SABER], iosTouch_aButtons[BTN_SABER].radius, &aSaberBlade[0], &aSaberCore[0]);
+        IOSTouch_AddSaberIcon(aButtonViews[BTN_TRAYSABER], iosTouch_aButtons[BTN_TRAYSABER].radius, &aSaberBlade[1], &aSaberCore[1]);
+        iosTouch_SetupSaberWheel();
+        [self loadSaberChoices];
+        iosTouch_bShowSaber = [[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_SABER_DEFAULTS_KEY] ? 1 : 0;
+        aButtonViews[BTN_SABER].hidden = !iosTouch_bShowSaber;
+        [self refreshSaberIcons];
 
         // Around FORCE: the force meter, a ring that empties as the meter does
         // (QUICK LOAD's ring the other way round) and glows when full
@@ -1408,7 +1521,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         [self addSubview:freezeClose];
 
         // A burst's count, beside CAMERA while it goes on
-        burstLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 30, 18)];
+        burstLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 2.0 * IOSTOUCH_BURST_LABEL_HALF, 18)];
         burstLabel.textAlignment = NSTextAlignmentCenter;
         burstLabel.textColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.3 alpha:0.95];
         burstLabel.font = [UIFont monospacedDigitSystemFontOfSize:12 weight:UIFontWeightBold];
@@ -1426,7 +1539,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             iosTouch_burstSound = 0;
 
         // The FPS readout, shown if it was left on
-        fpsLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 54, 18)];
+        fpsLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 2.0 * IOSTOUCH_FPS_LABEL_HALF, 18)];
         fpsLabel.textAlignment = NSTextAlignmentCenter;
         fpsLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.85];
         fpsLabel.font = [UIFont monospacedDigitSystemFontOfSize:11 weight:UIFontWeightSemibold];
@@ -1709,8 +1822,28 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     // CAMERA in the middle of the screen (well clear of BACTA and the FPS
     // readout even on the narrowest iPhone, 667 pt)
     iosTouch_aButtons[BTN_CAMERA].x = W * 0.5;
+    // SABER about halfway from CAMERA to QUICK SAVE: halfway between the
+    // burst's count (right of CAMERA) and the FPS readout (left of QUICK
+    // SAVE), where they leave it room. On the narrowest screens (667 pt)
+    // they don't: it goes halfway between CAMERA and the FPS readout, and,
+    // while SABER is shown, the burst's count under CAMERA.
+    iosTouch_bBurstUnder = 0;
+    {
+        iosTouchButton* cam = &iosTouch_aButtons[BTN_CAMERA];
+        iosTouchButton* sab = &iosTouch_aButtons[BTN_SABER];
+        const CGFloat camEdge = cam->x + cam->radius;
+        const CGFloat burstEdge = camEdge + 20.0 + IOSTOUCH_BURST_LABEL_HALF;
+        const CGFloat hi = right - IOSTOUCH_FPS_LABEL_X - IOSTOUCH_FPS_LABEL_HALF;
+        if (hi - burstEdge >= 2.0 * sab->radius + 8.0) {
+            sab->x = (burstEdge + hi) * 0.5;
+        }
+        else {
+            sab->x = (camEdge + hi) * 0.5;
+            iosTouch_bBurstUnder = iosTouch_bShowSaber;
+        }
+    }
     const int aTopRow[] = { BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA,
-                            BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU, BTN_CAMERA };
+                            BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU, BTN_CAMERA, BTN_SABER };
     for (int i = 0; i < IOSTOUCH_COUNT(aTopRow); i++) {
         iosTouch_aButtons[aTopRow[i]].y = top + 26;
     }
@@ -1839,8 +1972,9 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             aRowBack[k].frame = CGRectMake(x0 - 26, y - 26, len + 52, 52);
         }
     }
-    burstLabel.center = CGPointMake(iosTouch_aButtons[BTN_CAMERA].x + iosTouch_aButtons[BTN_CAMERA].radius + 20,
-                                    iosTouch_aButtons[BTN_CAMERA].y);
+    burstLabel.center = iosTouch_bBurstUnder
+        ? CGPointMake(iosTouch_aButtons[BTN_CAMERA].x, iosTouch_aButtons[BTN_CAMERA].y + iosTouch_aButtons[BTN_CAMERA].radius + 12)
+        : CGPointMake(iosTouch_aButtons[BTN_CAMERA].x + iosTouch_aButtons[BTN_CAMERA].radius + 20, iosTouch_aButtons[BTN_CAMERA].y);
 
     // Action Freeze's X: top right, inside the safe area (clear of the
     // corner and any cutout)
@@ -1848,7 +1982,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
 
     // The FPS readout where the keyboard button used to be, left of QUICK
     // SAVE: the game draws its messages and typing line centred at the top
-    fpsLabel.center = CGPointMake(right - 216, top + 26);
+    fpsLabel.center = CGPointMake(right - IOSTOUCH_FPS_LABEL_X, top + 26);
 
     // The game's top message text and typing line (iosTouch_GetTopTextRectPt):
     // just under the top row, centred on the screen, and only as wide as keeps
@@ -1971,6 +2105,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
                   || ((i == BTN_TRAYKEYS || i == BTN_MENU) && jkHud_bChatOpen)
                   || (i == BTN_TRAYFPS && iosTouch_bShowFps)
                   || (i == BTN_TRAYCAM && iosTouch_bShowCamera)
+                  || (i == BTN_TRAYSABER && iosTouch_bShowSaber)
                   || (iosTouch_IsCamOptButton(i) && (iosTouch_cameraKinds & iosTouch_aButtons[i].bin))
                   || (i == BTN_CAMROW_PHOTO && iosTouch_bKindsOpen)
                   || (i == BTN_CAMROW_FREEZE && iosTouch_bFreezeOn)
@@ -2151,6 +2286,73 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
 static void iosTouch_PhotosAsked(void)
 {
     iosGame_SetHoldReason(IOSGAME_HOLD_PHOTOS, 0);
+}
+
+// SABER shown or hidden (the tray's saber switch), and remembered
+- (void)setShowSaber:(int)bShow
+{
+    iosTouch_bShowSaber = bShow != 0;
+    aButtonViews[BTN_SABER].hidden = !iosTouch_bShowSaber;
+    [[NSUserDefaults standardUserDefaults] setBool:(iosTouch_bShowSaber ? YES : NO) forKey:IOSTOUCH_SABER_DEFAULTS_KEY];
+    [self setNeedsLayout]; // (the burst's count makes room for it on the narrowest screens)
+    [self refreshButtonLooks];
+}
+
+// The style and each blade's colour, as last picked (by name: a colour that
+// is no more is the game's own)
+- (void)loadSaberChoices
+{
+    NSUserDefaults* d = [NSUserDefaults standardUserDefaults];
+    for (int st = 0; st < IOSSABER_NUM_STYLES; st++) {
+        for (int b = 0; b < iosSaber_StyleNumBlades(st); b++) {
+            NSString* key = [NSString stringWithFormat:@"%@.%s.%d", IOSTOUCH_SABERCOLOUR_DEFAULTS_KEY, iosSaber_StyleName(st), b];
+            NSString* v = [d stringForKey:key];
+            int id = v ? iosSaber_ColourByKey([v UTF8String]) : -1;
+            iosSaber_SetColour(st, b, id >= 0 ? id : IOSSABER_COLOUR_GAME);
+        }
+    }
+    NSString* style = [d stringForKey:IOSTOUCH_SABERSTYLE_DEFAULTS_KEY];
+    for (int st = 0; style && st < IOSSABER_NUM_STYLES; st++) {
+        if (!strcmp([style UTF8String], iosSaber_StyleName(st))) iosSaber_SetStyle(st);
+    }
+}
+
+// The colour picked on the saber wheel: for the style's blade, remembered,
+// and shown on SABER
+- (void)setSaberColour:(int)id
+{
+    const int st = iosSaber_GetStyle();
+    iosSaber_SetColour(st, 0, id);
+    NSString* key = [NSString stringWithFormat:@"%@.%s.0", IOSTOUCH_SABERCOLOUR_DEFAULTS_KEY, iosSaber_StyleName(st)];
+    [[NSUserDefaults standardUserDefaults] setObject:[NSString stringWithUTF8String:iosSaber_ColourKey(id)] forKey:key];
+    [self refreshSaberIcons];
+}
+
+// The saber's picture in the colour picked (the game's own: as near as can
+// be told, iosSaber_ColourRGB)
+- (void)refreshSaberIcons
+{
+    unsigned char r, g, b;
+    iosSaber_ColourRGB(iosSaber_GetColour(iosSaber_GetStyle(), 0), &r, &g, &b);
+    const int rgb = (r << 16) | (g << 8) | b;
+    if (rgb == saberIconRGB) return;
+    saberIconRGB = rgb;
+    UIColor* c = [UIColor colorWithRed:r / 255.0 green:g / 255.0 blue:b / 255.0 alpha:1.0];
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    for (int k = 0; k < 2; k++) {
+        aSaberBlade[k].strokeColor = c.CGColor;
+        aSaberBlade[k].shadowColor = c.CGColor;
+    }
+    [CATransaction commit];
+}
+
+// The ring a wheel button fills while held still
+- (CAShapeLayer*)wheelRingOf:(int)button
+{
+    if (button == BTN_NEXTWPN) return weaponRing;
+    if (button == BTN_SABER) return saberRing;
+    return wheelRing;
 }
 
 - (void)setShowCamera:(int)bShow
@@ -2545,6 +2747,9 @@ static void iosTouch_PhotosAsked(void)
     else if (kind == KIND_CAMSWITCH) {
         [self setShowCamera:!iosTouch_bShowCamera];
     }
+    else if (kind == KIND_SABERSWITCH) {
+        [self setShowSaber:!iosTouch_bShowSaber];
+    }
     else if (kind == KIND_GYRO && iosTouch_GyroAvailable()) {
         iosTouch_GyroToggle();
         [self refreshGyroLabels];
@@ -2568,9 +2773,11 @@ static void iosTouch_PhotosAsked(void)
 }
 
 // Whether a slice of the open wheel ever has a row under its name: every
-// power (once learned); every weapon but the ones with no ammo (group 0)
+// power (once learned); every weapon but the ones with no ammo (group 0); no
+// colour
 static int iosTouch_WheelSliceHasRow(int i)
 {
+    if (iosTouch_wheelKind == IOSTOUCH_WHEEL_SABER) return 0;
     return iosTouch_wheelKind != IOSTOUCH_WHEEL_WEAPONS || iosTouch_pWheelMap->aSlices[i].group != 0;
 }
 
@@ -2699,7 +2906,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     [CATransaction setDisableActions:YES];
     for (int i = 0; i < IOSTOUCH_WHEEL_MAX; i++) {
         UILabel* l = aSliceLabels[i];
-        int bRow = i < m->numSlices && F->font[i][1] > 0.0
+        int bRow = i < m->numSlices && F->font[i][1] > 0.0 && iosTouch_WheelSliceHasRow(i)
                    && (bWeapons ? iosTouch_aWheelAmmo[i] >= 0 : iosTouch_aWheelEarned[i]);
         int bStars = bRow && !bWeapons;
         aSliceStars[i][0].hidden = !bStars;
@@ -2867,7 +3074,9 @@ static int iosTouch_WheelSliceHasRow(int i)
         bCancel = hot < 0;
     }
 
-    int cur = bWeapons ? iosGame_GetCurWeapon() : iosGame_GetCurPower(), curSlice = -1, bAnyEarned = 0;
+    const int bSaber = iosTouch_wheelKind == IOSTOUCH_WHEEL_SABER;
+    int cur = bSaber ? iosSaber_GetColour(iosSaber_GetStyle(), 0) : bWeapons ? iosGame_GetCurWeapon() : iosGame_GetCurPower();
+    int curSlice = -1, bAnyEarned = 0;
     for (int i = 0; i < m->numSlices; i++) {
         if (iosTouch_aWheelEarned[i]) bAnyEarned = 1;
         if (m->aSlices[i].bin == cur) curSlice = i;
@@ -2961,9 +3170,10 @@ static int iosTouch_WheelSliceHasRow(int i)
         wheelHint.text = @"none learned yet";
     }
     else {
-        name = (curSlice >= 0) ? iosTouch_WheelSlotName(cur) : (bWeapons ? "WEAPONS" : "FORCE");
+        name = (curSlice >= 0) ? iosTouch_WheelSlotName(cur) : (bSaber ? "SABER" : bWeapons ? "WEAPONS" : "FORCE");
         wheelTitle.textColor = (curSlice >= 0) ? IOSTouch_WheelColour(&m->aGroups[m->aSlices[curSlice].group], 1.0) : [UIColor whiteColor];
-        if (bWeapons) wheelHint.text = iosTouch_bWheelTapMode ? @"tap a weapon" : @"slide toward a weapon";
+        if (bSaber) wheelHint.text = iosTouch_bWheelTapMode ? @"tap a colour" : @"slide toward a colour";
+        else if (bWeapons) wheelHint.text = iosTouch_bWheelTapMode ? @"tap a weapon" : @"slide toward a weapon";
         else wheelHint.text = iosTouch_bWheelTapMode ? @"tap a power" : @"slide toward a power";
     }
     if (!bWheelTitleSet || name != wheelTitleName) [self setWheelTitle:name];
@@ -3024,10 +3234,20 @@ static int iosTouch_WheelSliceHasRow(int i)
     iosTouch_wheelKind = kind;
     iosTouch_wheelButton = button;
     if (kind == IOSTOUCH_WHEEL_WEAPONS) iosTouch_pWheelMap = bMots ? &iosTouch_motsWeaponWheel : &iosTouch_jkWeaponWheel;
+    else if (kind == IOSTOUCH_WHEEL_SABER) {
+        iosTouch_SetupSaberWheel(); // (the game's own colour, as it is now)
+        iosTouch_pWheelMap = &iosTouch_saberWheel;
+    }
     else iosTouch_pWheelMap = bMots ? &iosTouch_motsWheel : &iosTouch_jkWheel;
     for (int i = 0; i < iosTouch_pWheelMap->numSlices; i++) {
         int bin = iosTouch_pWheelMap->aSlices[i].bin;
-        if (kind == IOSTOUCH_WHEEL_WEAPONS) {
+        if (kind == IOSTOUCH_WHEEL_SABER) {
+            // (every colour can be picked, saber or not: it is only how it looks)
+            iosTouch_aWheelEarned[i] = iosTouch_aWheelOwned[i] = 1;
+            iosTouch_aWheelAmmo[i] = -1;
+            iosTouch_aWheelLevel[i] = 0;
+        }
+        else if (kind == IOSTOUCH_WHEEL_WEAPONS) {
             int ammo = -1, bSelectable = 0;
             iosTouch_aWheelOwned[i] = iosGame_GetWeapon(bin, &ammo, &bSelectable) != 0;
             iosTouch_aWheelEarned[i] = iosTouch_aWheelOwned[i] && bSelectable;
@@ -3058,6 +3278,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     }
     [self setRing:wheelRing progress:0.0];
     [self setRing:weaponRing progress:0.0];
+    [self setRing:saberRing progress:0.0];
     // A tap on either wheel button the game hasn't read yet (a slow frame:
     // it is only read by a gameplay update, which the hold now skips) would
     // go off after the wheel closes and undo its pick: the wheel is the newer
@@ -3089,7 +3310,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     int button = s->button;
     [self endBurst]; // the game holds still: no more shots
     if (jkHud_bChatOpen) iosGame_ToggleChat();
-    [self openWheel:(button == BTN_NEXTWPN ? IOSTOUCH_WHEEL_WEAPONS : IOSTOUCH_WHEEL_FORCE) button:button tapMode:bHeld];
+    [self openWheel:iosTouch_WheelKindOf(button) button:button tapMode:bHeld];
     s->role = ROLE_WHEEL;
     s->button = button;
     s->bWheelOpener = 1;
@@ -3100,13 +3321,15 @@ static int iosTouch_WheelSliceHasRow(int i)
 }
 
 // Closes the wheel, selecting what is in slice (if it is one that can be
-// picked): the power, or the weapon (unless it is the one in hand already)
+// picked): the power, the weapon (unless it is the one in hand already), or
+// the blade colour
 - (void)closeWheelSelecting:(int)slice
 {
     const iosTouchWheelMap* m = iosTouch_pWheelMap;
     if (m && slice >= 0 && slice < m->numSlices && iosTouch_aWheelEarned[slice]) {
         int bin = m->aSlices[slice].bin;
-        if (iosTouch_wheelKind != IOSTOUCH_WHEEL_WEAPONS) iosGame_SelectPower(bin);
+        if (iosTouch_wheelKind == IOSTOUCH_WHEEL_SABER) [self setSaberColour:bin];
+        else if (iosTouch_wheelKind != IOSTOUCH_WHEEL_WEAPONS) iosGame_SelectPower(bin);
         else if (bin != iosGame_GetCurWeapon()) iosGame_SelectWeapon(bin); // the game takes it once it is running again
     }
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
@@ -3410,7 +3633,7 @@ static int iosTouch_WheelSliceHasRow(int i)
                 // FORCE WHEEL, NEXT WPN lifted before its wheel opened
                 iosTouchButton* b = &iosTouch_aButtons[s->button];
                 if (iosTouch_aButtonHeld[s->button] > 0) iosTouch_aButtonHeld[s->button]--;
-                [self setRing:(s->button == BTN_NEXTWPN ? weaponRing : wheelRing) progress:0.0];
+                [self setRing:[self wheelRingOf:s->button] progress:0.0];
                 if (bCancelled) {
                     // iOS took it: nothing
                 }
@@ -3420,6 +3643,10 @@ static int iosTouch_WheelSliceHasRow(int i)
                     [self aimWheel:s at:p];
                     if (s->bArmed) [self closeWheelSelecting:s->wheelSlot];
                     else iosTouch_bWheelTapMode = 1;
+                }
+                else if (t.timestamp - s->tDownTouch < IOSTOUCH_WHEEL_HOLD && s->button == BTN_SABER) {
+                    // SABER has no key: a tap opens its wheel, to tap a colour
+                    [self openWheelFrom:s held:1];
                 }
                 else if (t.timestamp - s->tDownTouch < IOSTOUCH_WHEEL_HOLD) {
                     // A quick tap (by the touch's own clock, so a slow frame
@@ -3549,6 +3776,9 @@ static int iosTouch_WheelSliceHasRow(int i)
     CFTimeInterval now = CACurrentMediaTime();
     CFTimeInterval known = lastTickTime;
     lastTickTime = now;
+    // SABER's picture in the blade's colour (the game's own one can change:
+    // a new level, a cutscene, Mysteries of the Sith's own)
+    if (iosTouch_bShowSaber) [self refreshSaberIcons];
     // DUCK's level pick: dropped (DUCK's label back) once its finger is no
     // longer a button press -- a wheel, Action Freeze, the burst or a selfie
     // took every touch; and a level lifted for loads only when none of those
@@ -3591,22 +3821,24 @@ static int iosTouch_WheelSliceHasRow(int i)
     // with a wheel button at about the same time) is then dropped by the
     // wheel opening, which ignores every other touch, rather than saving or
     // loading under the wheel.
-    CGFloat wheelProgress = 0.0, weaponProgress = 0.0;
+    CGFloat wheelProgress = 0.0, weaponProgress = 0.0, saberProgress = 0.0;
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
         if (!iosTouch_IsWheelPress(s)) continue;
         if (known - s->tDown >= IOSTOUCH_WHEEL_HOLD) {
             [self openWheelFrom:s held:1];
-            wheelProgress = weaponProgress = 0.0;
+            wheelProgress = weaponProgress = saberProgress = 0.0;
             break; // (every other touch is ignored now)
         }
         CGFloat progress = MIN((CGFloat)((now - s->tDown) / IOSTOUCH_WHEEL_HOLD), 1.0);
         if (s->button == BTN_NEXTWPN) weaponProgress = progress;
+        else if (s->button == BTN_SABER) saberProgress = progress;
         else wheelProgress = progress;
     }
     if (!iosTouch_bWheelOpen) {
         [self setRing:wheelRing progress:wheelProgress];
         [self setRing:weaponRing progress:weaponProgress];
+        [self setRing:saberRing progress:saberProgress];
     }
 
     // JUMP or ACT held still (it jumps or acts as ever, and holds the key, as
@@ -3905,6 +4137,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     [self setRing:cameraRing progress:0.0];
     [self setRing:wheelRing progress:0.0];
     [self setRing:weaponRing progress:0.0];
+    [self setRing:saberRing progress:0.0];
     iosTouch_RecomputeKeys();
     stdControl_bControllerEscapeKey = 0;
     [self refreshButtonLooks];

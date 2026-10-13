@@ -9,6 +9,9 @@
 #include "World/sithSurface.h"
 #include "Engine/sithPuppet.h"
 #include "Dss/sithMulti.h"
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosSaber.h" // Added
+#endif
 #include "World/sithTemplate.h"
 #include "World/sithModel.h"
 #include "Engine/sithKeyFrame.h"
@@ -87,11 +90,25 @@ void jkSaber_Draw(rdMatrix34 *posRotMat)
         }
 
         jkSaber_PolylineRand(&playerThings[playerThingIdx].polylineThing);
+#ifdef TARGET_IOS
+        iosSaber_BeginBlade(playerThings[playerThingIdx].actorThing, &playerThings[playerThingIdx].polylineThing, 0); // Added: in the player's colour
+#endif
         rdThing_Draw(&playerThings[playerThingIdx].polylineThing, &playerThings[playerThingIdx].povModel.paJointMatrices[5]); // aaaaa hardcoded K_Rhand
+#ifdef TARGET_IOS
+        iosSaber_EndBlade(&playerThings[playerThingIdx].polylineThing);
+#endif
         
         // Added: Dual sabers
         if (playerThings[playerThingIdx].actorThing->jkFlags & JKFLAG_DUALSABERS)
+        {
+#ifdef TARGET_IOS
+            iosSaber_BeginBlade(playerThings[playerThingIdx].actorThing, &playerThings[playerThingIdx].polylineThing, 1); // Added
+#endif
             rdThing_Draw(&playerThings[playerThingIdx].polylineThing, &playerThings[playerThingIdx].povModel.paJointMatrices[2]); // K_Lhand
+#ifdef TARGET_IOS
+            iosSaber_EndBlade(&playerThings[playerThingIdx].polylineThing);
+#endif
+        }
     }
 }
 
