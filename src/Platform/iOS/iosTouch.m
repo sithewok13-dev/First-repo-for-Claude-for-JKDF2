@@ -647,7 +647,7 @@ static int iosTouch_bShowFps = 0;
 static int iosTouch_bShowCamera = 0;
 static int iosTouch_bShowSaber = 0;
 static int iosTouch_bShowCheat = 0;
-static int iosTouch_bCheatOn = 0;   // the sithewok cheat, as last read (CHEAT's red glow)
+static int iosTouch_bCheatOn = 0;   // the sithewok cheat, as last read (CHEAT red)
 static int iosTouch_bFpsBottom = 0; // the FPS readout at the bottom of the screen, making room for SABER and CHEAT
 // With two blades, the one a colour picked on the saber wheel goes to
 enum { IOSTOUCH_SABER_RIGHT = 0, IOSTOUCH_SABER_LEFT = 1, IOSTOUCH_SABER_BOTH = 2 };
@@ -1177,7 +1177,7 @@ typedef struct {
     CAShapeLayer* weaponRing; // NEXT WPN's
     CAShapeLayer* saberRing;  // SABER's
     CAShapeLayer* cheatRing;  // CHEAT's hold progress
-    CAShapeLayer* cheatGlow;  // CHEAT's red glow, while the cheat is on
+    CAShapeLayer* cheatEmblem; // CHEAT's Sith emblem (red, with its edge, while the cheat is on)
     // The saber's picture, on SABER and on the tray's saber switch: a hilt and
     // its blade, in the blade's colour (refreshSaberIcons)
     CAShapeLayer* aSaberBlade[2];
@@ -1252,6 +1252,51 @@ typedef struct {
 - (void)endCinema;
 - (void)refreshButtonLooks;
 @end
+
+// CHEAT's picture: the Sith emblem, as drawn from the owner's picture of it:
+// the outer hexagon (broken at each side's middle), six spokes from a round
+// middle, each ending in a chevron. Points for the top's piece of each,
+// turned six ways; the unit is the hexagon's corner radius, y up.
+static const CGPoint iosTouch_aSithRing[6] = {
+    { 0.4019, 0.7680 }, { 0.0000, 1.0000 }, { -0.4019, 0.7680 }, { -0.3610, 0.6972 }, { 0.0000, 0.9057 }, { 0.3610, 0.6972 }
+};
+static const CGPoint iosTouch_aSithSpoke[13] = {
+    { 0.0438, 0.1961 }, { 0.0980, 0.6679 }, { 0.2026, 0.6075 }, { 0.2026, 0.5761 }, { 0.2288, 0.5761 }, { 0.2288, 0.6491 },
+    { 0.0000, 0.7811 },
+    { -0.2288, 0.6491 }, { -0.2288, 0.5761 }, { -0.2026, 0.5761 }, { -0.2026, 0.6075 }, { -0.0980, 0.6679 }, { -0.0438, 0.1961 }
+};
+#define IOSTOUCH_SITH_DISC 0.2843f
+// (its size on CHEAT: the hexagon's corners at this much of the button's radius)
+#define IOSTOUCH_SITH_SIZE 0.64f
+
+static UIBezierPath* IOSTouch_SithEmblemPath(CGPoint c, CGFloat r)
+{
+    UIBezierPath* path = [UIBezierPath bezierPath];
+    for (int k = 0; k < 6; k++) {
+        const CGFloat a = k * M_PI / 3.0, ca = cos(a), sa = sin(a);
+        for (int piece = 0; piece < 2; piece++) {
+            const CGPoint* aPt = piece ? iosTouch_aSithSpoke : iosTouch_aSithRing;
+            const int n = piece ? 13 : 6;
+            for (int i = 0; i < n; i++) {
+                // (turned, then y flipped for the screen)
+                CGPoint q = CGPointMake(c.x + r * (aPt[i].x * ca - aPt[i].y * sa), c.y - r * (aPt[i].x * sa + aPt[i].y * ca));
+                if (i == 0) [path moveToPoint:q]; else [path addLineToPoint:q];
+            }
+            [path closePath];
+        }
+    }
+    // the round middle, wound the same way as the spokes it overlaps (so,
+    // filled by the non-zero rule, the overlaps stay filled)
+    for (int i = 0; i < 48; i++) {
+        const CGFloat a = -i * 2.0 * M_PI / 48.0;
+        CGPoint q = CGPointMake(c.x + r * IOSTOUCH_SITH_DISC * cos(a), c.y + r * IOSTOUCH_SITH_DISC * sin(a));
+        if (i == 0) [path moveToPoint:q]; else [path addLineToPoint:q];
+    }
+    [path closePath];
+    return path;
+}
+
+static void iosTouch_PhotosAsked(void);
 
 @implementation IOSTouchOverlay
 
@@ -1436,42 +1481,27 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         }
         iosTouch_SetupSaberWheel();
         [self loadSaberChoices];
-        iosTouch_bShowSaber = [[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_SABER_DEFAULTS_KEY] ? 1 : 0;
+        // (shown unless the player has switched it off)
+        iosTouch_bShowSaber = [[NSUserDefaults standardUserDefaults] objectForKey:IOSTOUCH_SABER_DEFAULTS_KEY]
+                              ? ([[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_SABER_DEFAULTS_KEY] ? 1 : 0) : 1;
         aButtonViews[BTN_SABER].hidden = !iosTouch_bShowSaber;
         [self refreshSaberIcons];
 
-        // CHEAT and its tray switch: a magic wand (CHEAT's word where there
-        // are no symbols), the hold's ring, and the red glow round it while
-        // the cheat is on (a ring of its own, under the button: the button
-        // clips its own layers to its circle)
+        // CHEAT: the Sith emblem, in the white of the other buttons' labels
+        // (red, with the button's edge, while the cheat is on), under the
+        // hold's ring; its tray switch just says CHEAT
+        {
+            const CGFloat r = iosTouch_aButtons[BTN_CHEAT].radius;
+            cheatEmblem = [CAShapeLayer layer];
+            cheatEmblem.frame = CGRectMake(0, 0, 2 * r, 2 * r);
+            cheatEmblem.path = IOSTouch_SithEmblemPath(CGPointMake(r, r), r * IOSTOUCH_SITH_SIZE).CGPath;
+            cheatEmblem.fillColor = [UIColor colorWithWhite:1.0 alpha:0.85].CGColor;
+            [aButtonViews[BTN_CHEAT].layer addSublayer:cheatEmblem];
+        }
         cheatRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_CHEAT].radius);
         [aButtonViews[BTN_CHEAT].layer addSublayer:cheatRing];
-        {
-            const int aCheatBtn[2] = { BTN_CHEAT, BTN_TRAYCHEAT };
-            for (int c = 0; c < 2; c++) {
-                UIImageSymbolConfiguration* wcfg = [UIImageSymbolConfiguration configurationWithPointSize:(c ? 14 : 15) weight:UIImageSymbolWeightSemibold];
-                UIImage* wand = [UIImage systemImageNamed:@"wand.and.stars" withConfiguration:wcfg];
-                if (wand) {
-                    NSTextAttachment* att = [[NSTextAttachment alloc] init];
-                    att.image = [wand imageWithTintColor:[UIColor colorWithWhite:1.0 alpha:0.85] renderingMode:UIImageRenderingModeAlwaysOriginal];
-                    aButtonViews[aCheatBtn[c]].attributedText = [NSAttributedString attributedStringWithAttachment:att];
-                }
-                else {
-                    aButtonViews[aCheatBtn[c]].text = @"CHEAT";
-                    aButtonViews[aCheatBtn[c]].font = [UIFont boldSystemFontOfSize:IOSTouch_FontSize("CHEAT", iosTouch_aButtons[aCheatBtn[c]].radius)];
-                }
-            }
-        }
-        cheatGlow = [CAShapeLayer layer];
-        cheatGlow.fillColor = [UIColor clearColor].CGColor;
-        cheatGlow.strokeColor = [UIColor colorWithRed:1.0 green:0.2 blue:0.15 alpha:0.9].CGColor;
-        cheatGlow.lineWidth = 2.5;
-        cheatGlow.shadowColor = [UIColor colorWithRed:1.0 green:0.1 blue:0.05 alpha:1.0].CGColor;
-        cheatGlow.shadowOffset = CGSizeZero;
-        cheatGlow.shadowRadius = 6.0;
-        cheatGlow.shadowOpacity = 0.85;
-        cheatGlow.hidden = YES;
-        [self.layer insertSublayer:cheatGlow below:aButtonViews[BTN_CHEAT].layer];
+        aButtonViews[BTN_TRAYCHEAT].text = @"CHEAT";
+        aButtonViews[BTN_TRAYCHEAT].font = [UIFont boldSystemFontOfSize:IOSTouch_FontSize("CHEAT", iosTouch_aButtons[BTN_TRAYCHEAT].radius)];
         iosTouch_bShowCheat = [[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_CHEAT_DEFAULTS_KEY] ? 1 : 0;
         aButtonViews[BTN_CHEAT].hidden = !iosTouch_bShowCheat;
         iosGame_SetCheatShown(iosTouch_bShowCheat);
@@ -1545,8 +1575,14 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
                 aButtonViews[aCamBtn[c]].text = c ? @"CAM" : @"PHOTO";
             }
         }
-        iosTouch_bShowCamera = [[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_CAMERA_DEFAULTS_KEY] ? 1 : 0;
+        // (shown unless the player has switched it off)
+        iosTouch_bShowCamera = [[NSUserDefaults standardUserDefaults] objectForKey:IOSTOUCH_CAMERA_DEFAULTS_KEY]
+                               ? ([[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_CAMERA_DEFAULTS_KEY] ? 1 : 0) : 1;
         aButtonViews[BTN_CAMERA].hidden = !iosTouch_bShowCamera;
+        // (shown from the start: Photos access asked now, as switching it on
+        // asks, before any play; the game holds still while the question is up)
+        if (iosTouch_bShowCamera && iosPhotos_AskAccess(iosTouch_PhotosAsked))
+            iosGame_SetHoldReason(IOSGAME_HOLD_PHOTOS, 1);
         NSInteger kinds = [[NSUserDefaults standardUserDefaults] integerForKey:IOSTOUCH_CAMKINDS_DEFAULTS_KEY];
         iosTouch_cameraKinds = (kinds & IOSCAPTURE_ALL) ? (int)(kinds & IOSCAPTURE_ALL) : IOSCAPTURE_CLEAN;
 
@@ -2095,15 +2131,6 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     // SAVE: the game draws its messages and typing line centred at the top
     fpsLabel.center = iosTouch_bFpsBottom ? CGPointMake(W * 0.5, bottom - 9.0)
                                           : CGPointMake(right - IOSTOUCH_FPS_LABEL_X, top + 26);
-    // CHEAT's glow round it
-    {
-        iosTouchButton* c = &iosTouch_aButtons[BTN_CHEAT];
-        [CATransaction begin];
-        [CATransaction setDisableActions:YES]; // (moved with the button, not after it)
-        cheatGlow.path = [UIBezierPath bezierPathWithArcCenter:CGPointMake(c->x, c->y) radius:c->radius + 1.0
-                                                    startAngle:0.0 endAngle:2.0 * M_PI clockwise:YES].CGPath;
-        [CATransaction commit];
-    }
 
     // The game's top message text and typing line (iosTouch_GetTopTextRectPt):
     // just under the top row, centred on the screen, and only as wide as keeps
@@ -2250,11 +2277,11 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     forceRing.opacity = bForceRingFull ? 1.0 : (iosTouch_aButtonHeld[BTN_FORCE] ? 1.0 : IOSTOUCH_IDLE_ALPHA);
-    // CHEAT glowing red, edged red, while the cheat is on (and as hidden as
-    // it is: a photo, Action Freeze)
-    cheatGlow.hidden = !(iosTouch_bCheatOn && !aButtonViews[BTN_CHEAT].hidden);
-    cheatGlow.opacity = (aButtonViews[BTN_CHEAT].alpha > 0.0) ? 1.0 : 0.0;
-    if (iosTouch_bCheatOn) aButtonViews[BTN_CHEAT].layer.borderColor = [UIColor colorWithRed:1.0 green:0.3 blue:0.25 alpha:0.95].CGColor;
+    // CHEAT's emblem and edge in a quiet red while the cheat is on: only
+    // their colour changes (the edge as wide as every other button's)
+    cheatEmblem.fillColor = iosTouch_bCheatOn ? [UIColor colorWithRed:0.9 green:0.32 blue:0.28 alpha:0.95].CGColor
+                                              : [UIColor colorWithWhite:1.0 alpha:0.85].CGColor;
+    if (iosTouch_bCheatOn) aButtonViews[BTN_CHEAT].layer.borderColor = [UIColor colorWithRed:0.9 green:0.32 blue:0.28 alpha:0.8].CGColor;
     [CATransaction commit];
 }
 

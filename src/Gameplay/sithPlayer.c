@@ -284,7 +284,7 @@ static int sithPlayer_Custom_CatchFall(SithThing* pThing, stdPalEffect* pPalEffe
         pPalEffect->tint.z = 0.6;
         pPalEffect->add.z = stdMath_ClampInt(pPalEffect->add.z + 60, 0, 255);
     }
-    sithConsole_PrintString("The Force caught you");
+    // (no message: the flash says it)
     // (and the places before the edge are still good for another fall)
     sithPlayer_safeSpotWait = SITHPLAYER_SAFE_EVERY;
     return 1;

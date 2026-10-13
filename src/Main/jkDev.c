@@ -13,6 +13,8 @@
 #include "World/sithThing.h"
 #include "World/jkPlayer.h"
 #include "World/sithActor.h"
+#include "World/sithWeapon.h"
+#include "Gameplay/sithTime.h"
 #include "Main/sithCommand.h"
 #include "Main/Main.h"
 #include "Main/jkMain.h"
@@ -59,6 +61,13 @@ static SithThing* jkDev_pSithEwokPlayer = NULL;
 static int jkDev_sithEwokWait = 0;
 #define JKDEV_SITHEWOK_WAIT 20
 static int jkDev_bSithEwokShown = 0; // something on screen shows it is on (jkDev_Custom_SetSithEwokShown)
+// Added: sithewok keeps the weapon in hand from level to level: the one in hand (or being switched to)
+// as last seen, and the one to put back in a new level, for at most so many more frames
+static int jkDev_sithEwokWeapon = -1;
+static int jkDev_sithEwokWeaponBack = -1;
+static int jkDev_sithEwokWeaponTries = 0;
+#define JKDEV_SITHEWOK_WEAPON_TRIES 600
+static int jkDev_Custom_PutWeaponBack(SithThing *pPlayer);
 static void jkDev_Custom_KeepForceFull();
 static void jkDev_Custom_SithEwokOn(SithThing *pPlayer, int bAgain);
 #endif
@@ -1378,6 +1387,20 @@ static void jkDev_Custom_KeepForceFull()
         }
         if ( jkDev_sithEwokWait > 0 && --jkDev_sithEwokWait == 0 )
             jkDev_Custom_SithEwokOn(pPlayer, 1);
+
+        // the weapon in hand kept for the next level; in a new one, put back (as soon as the
+        // player has it: carried over, or given again with everything after the wait above)
+        if ( jkDev_sithEwokWeaponBack >= 0 )
+        {
+            if ( jkDev_Custom_PutWeaponBack(pPlayer) || --jkDev_sithEwokWeaponTries <= 0 )
+                jkDev_sithEwokWeaponBack = -1;
+        }
+        else if ( pPlayer->actorParams.pPlayer && !(pPlayer->flags & SITH_TF_DEAD) )
+        {
+            int weapon = (sithWeapon_8BD024 != -1) ? sithWeapon_8BD024 : pPlayer->actorParams.pPlayer->curWeaponID;
+            if ( weapon > 0 )
+                jkDev_sithEwokWeapon = weapon;
+        }
     }
 
     if ( !jkDev_bEndlessForce )
@@ -1569,6 +1592,8 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
         jkDev_bSithEwokOn = 0;
         jkDev_pSithEwokPlayer = NULL;
         jkDev_sithEwokWait = 0;
+        jkDev_sithEwokWeapon = -1;
+        jkDev_sithEwokWeaponBack = -1;
         jkDev_bEndlessForce = 0;
         jkDev_bNoFallHurt = 0;
         // (noclip because of it: off; flying because of it: back down)
@@ -1616,6 +1641,59 @@ void jkDev_Custom_SithEwokRestored()
     jkDev_pSithEwokPlayer = NULL;
 }
 
+// Added: a game loaded (sithGamesave_RestoreFile): as above, and no weapon put back from the last level
+// (the loaded game has its own in hand)
+void jkDev_Custom_GameLoaded()
+{
+    jkDev_Custom_SithEwokRestored();
+    jkDev_sithEwokWeaponBack = -1;
+}
+
+// Added: sithewok: the weapon to put back in hand into the player's hand, if it can be now: in place of
+// the one the level's start-up is about to bring out, before it is drawn, where nothing is in hand yet;
+// else switched to as its number key would. 1: done (or nothing to do), 0: not yet
+static int jkDev_Custom_PutWeaponBack(SithThing *pPlayer)
+{
+    const int bin = jkDev_sithEwokWeaponBack;
+    if ( bin < 0 )
+        return 1;
+    if ( !pPlayer || !pPlayer->actorParams.pPlayer || (pPlayer->flags & SITH_TF_DEAD) )
+        return 0;
+    const int cur = pPlayer->actorParams.pPlayer->curWeaponID;
+    if ( cur == bin && sithWeapon_8BD024 == -1 )
+        return 1; // in hand
+    if ( sithWeapon_8BD024 == bin )
+        return 0; // on its way
+    if ( sithInventory_GetInventory(pPlayer, bin) == 0.0 || !sithInventory_IsInventoryAvailable(pPlayer, bin) )
+        return 0; // not had (yet)
+    if ( cur <= 0 && sithWeapon_8BD024 != -1 )
+    {
+        // the start-up's pick, not out yet: ours instead (the weapon's own cog still says whether it can be)
+        const int startupPick = sithWeapon_8BD024;
+        sithWeapon_8BD024 = -1;
+        if ( sithWeapon_SelectWeapon(pPlayer, bin, 0) )
+            return 1;
+        sithWeapon_8BD024 = startupPick;
+        return 0;
+    }
+    if ( sithWeapon_8BD024 != -1 || sithTime_g_secGameTime < sithWeapon_secMountWait
+         || (pPlayer->weaponParams.flags & SITH_WF_EMITAITARGETEDEVENT) )
+        return 0; // (as the number keys wait)
+    return sithWeapon_SelectWeapon(pPlayer, bin, 0);
+}
+
+// Added: a level opened (jkMain, single player; not a loaded game): with sithewok on, the weapon that was
+// in hand is put back, right away where it can be
+void jkDev_Custom_LevelOpened()
+{
+    jkDev_sithEwokWeaponBack = -1;
+    if ( !jkDev_bSithEwokOn || sithNet_isMulti || jkDev_sithEwokWeapon < 0 || !sithWorld_g_pCurrentWorld )
+        return;
+    jkDev_sithEwokWeaponBack = jkDev_sithEwokWeapon;
+    jkDev_sithEwokWeaponTries = JKDEV_SITHEWOK_WEAPON_TRIES;
+    jkDev_Custom_PutWeaponBack(sithWorld_g_pCurrentWorld->pLocalPlayer); // (then followed until it is in hand)
+}
+
 // Added: sithewok put on the player: every weapon, item and power, healed, invincible, endless Force,
 // safe falls, the Force's catch; and kept on from then (jkDev_Custom_KeepForceFull). bAgain: put on
 // again for a new level, with a shorter message
@@ -1650,10 +1728,9 @@ static void jkDev_Custom_SithEwokOn(SithThing *pPlayer, int bAgain)
     jkDev_bSithEwokOn = 1;
     jkDev_pSithEwokPlayer = pPlayer;
     jkDev_sithEwokWait = 0;
-    // (put on again for a new level: quietly where the touch overlay's CHEAT shows, glowing red, that it is on)
-    if ( !bAgain )
-        sithConsole_PrintString("Everything! Invincible, endless Force, falls don't hurt, the Force catches you");
-    else if ( !jkDev_bSithEwokShown )
+    // (no message for it going on; put on again for a new level, a short reminder only where the touch
+    // overlay's CHEAT isn't showing, red, that it is on)
+    if ( bAgain && !jkDev_bSithEwokShown )
         sithConsole_PrintString("sithewok: still on");
 }
 #endif

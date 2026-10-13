@@ -543,6 +543,9 @@ void jkMain_GameplayShow(int a1, int a2)
         jkMain_bInit = 1;
         jkPlayer_InitSaber();
         sithOpenPostProcess();
+#ifdef QOL_IMPROVEMENTS
+        jkDev_Custom_LevelOpened(); // Added: sithewok keeps the weapon in hand
+#endif
     }
     else {
         // MOTS added
@@ -618,6 +621,9 @@ void jkMain_GameplayShow(int a1, int a2)
                 sithCamera_ResetAllCameras();
                 jkPlayer_InitSaber();
                 sithOpenPostProcess();
+#ifdef QOL_IMPROVEMENTS
+                jkDev_Custom_LevelOpened(); // Added: sithewok keeps the weapon in hand
+#endif
             }
         }
         else if ( sithNet_isServer )

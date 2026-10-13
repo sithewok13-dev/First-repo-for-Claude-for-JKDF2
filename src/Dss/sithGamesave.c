@@ -391,7 +391,7 @@ skip_dss:
     sithTime_SetGameTime(curMs);
     sithCamera_SetCurrentCamera(sithCamera_g_pCurCamera);
 #ifdef QOL_IMPROVEMENTS
-    jkDev_Custom_SithEwokRestored(); // Added: sithewok, if on, put on again for the loaded game
+    jkDev_Custom_GameLoaded(); // Added: sithewok, if on, put on again for the loaded game
 #endif
     return 1;
 
