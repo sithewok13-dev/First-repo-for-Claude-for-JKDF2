@@ -502,6 +502,11 @@ void iosGame_SetCheatShown(int bShown)
     jkDev_Custom_SetSithEwokShown(bShown);
 }
 
+int iosGame_IsSaberButtonShown(void)
+{
+    return jkDev_Custom_SaberButtonShown();
+}
+
 int iosGame_IsFlying(void)
 {
     return jkDev_Custom_IsFlying();

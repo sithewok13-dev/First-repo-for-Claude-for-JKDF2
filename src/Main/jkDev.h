@@ -108,6 +108,7 @@ int jkDev_Custom_GoToLevel(int level); // Added
 int jkDev_Custom_PrintInPlace(const char16_t *str); // Added
 void jkDev_Custom_SithEwokRestored(); // Added
 void jkDev_Custom_GameLoaded(); // Added
+int jkDev_Custom_SaberButtonShown(); // Added
 void jkDev_Custom_LevelOpened(); // Added
 int jkDev_Custom_SithEwokIsOn(); // Added
 int jkDev_Custom_ToggleSithEwok(); // Added

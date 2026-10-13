@@ -783,11 +783,46 @@ int jkDev_CmdEndLevel2(stdDebugConsoleCmd *pCmd, const char *pArgStr)
     return 1;
 }
 
+#ifdef QOL_IMPROVEMENTS
+// Added: the player's saber bin (Jedi Knight's or Mysteries of the Sith's)
+static int jkDev_Custom_SaberBin()
+{
+    return Main_bMotsCompat ? SITHBIN_MOTS_LIGHTSABER : SITHBIN_LIGHTSABER;
+}
+
+// Added: the local player's inventory entry for a bin, NULL if there is none
+static SithInventoryItem* jkDev_Custom_Item(SithThing *pPlayer, int bin)
+{
+    if ( !pPlayer || pPlayer->type != SITH_THING_PLAYER || !pPlayer->actorParams.pPlayer
+         || pPlayer->actorParams.pPlayer == (SithPlayer *)-136 || !(sithInventory_g_aTypes[bin].flags & SITHINVENTORY_TYPE_REGISTERED) )
+        return NULL;
+    return &pPlayer->actorParams.pPlayer->aItems[bin];
+}
+
+// Added: whether the touch overlay's SABER shows: the saber had for real (not just from a cheat), or
+// sithewok on (single player, in a level)
+int jkDev_Custom_SaberButtonShown()
+{
+    if ( sithNet_isMulti || !sithWorld_g_pCurrentWorld )
+        return 0;
+    SithThing *pPlayer = sithWorld_g_pCurrentWorld->pLocalPlayer;
+    SithInventoryItem *pSaber = jkDev_Custom_Item(pPlayer, jkDev_Custom_SaberBin());
+    if ( !pSaber )
+        return 0;
+    return jkDev_bSithEwokOn || (pSaber->amount > 0.0 && !(pSaber->state & SITHINVENTORY_ITEM_CHEAT_GIVEN));
+}
+#endif
+
 // MOTS altered
 int jkDev_CmdAllWeapons(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
     if ( !sithNet_isMulti )
     {
+#ifdef QOL_IMPROVEMENTS
+        // Added: a saber this gives (not had before, or had from a cheat) is marked as the cheat's
+        SithInventoryItem *pSaber = jkDev_Custom_Item(sithPlayer_g_pLocalPlayerThing, jkDev_Custom_SaberBin());
+        const int bSaberCheat = pSaber && (pSaber->amount <= 0.0 || (pSaber->state & SITHINVENTORY_ITEM_CHEAT_GIVEN));
+#endif
         if (!Main_bMotsCompat) {
             sithInventory_SetInventory(sithPlayer_g_pLocalPlayerThing, SITHBIN_STORMTROOPER_RIFLE, 1.0);
             sithInventory_SetInventory(sithPlayer_g_pLocalPlayerThing, SITHBIN_THERMAL_DETONATOR, 100.0);
@@ -832,6 +867,10 @@ int jkDev_CmdAllWeapons(stdDebugConsoleCmd *pCmd, const char *pArgStr)
             sithInventory_SetInventory(sithPlayer_g_pLocalPlayerThing, SITHBIN_EWEB_ROUNDS, 500.0);
         }
 
+#ifdef QOL_IMPROVEMENTS
+        if ( bSaberCheat && pSaber->amount > 0.0 )
+            pSaber->state |= SITHINVENTORY_ITEM_CHEAT_GIVEN;
+#endif
         if ( !jkDev_bQuietCheats ) // Added: sithewok prints one line of its own
             sithConsole_PrintWString(jkStrings_GetUniStringWithFallback("GAME_ALLWEAPONS"));
     }

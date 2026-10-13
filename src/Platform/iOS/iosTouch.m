@@ -160,16 +160,17 @@ extern int jkHud_bChatOpen;
 // Which photos a tap takes (IOSCAPTURE_* bits), set by holding the tray's
 // camera switch: CLEAN alone unless changed (remembered)
 #define IOSTOUCH_CAMKINDS_DEFAULTS_KEY @"iosTouchCameraKinds"
-// The SABER button (between CAMERA and QUICK SAVE): shown while switched on
-// in MENU's tray (off unless switched on; remembered), it opens the saber
-// wheel (iosSaber: the blade's colour). The colour picked for each blade of
-// each style is remembered by its key, the style by its name.
-#define IOSTOUCH_SABER_DEFAULTS_KEY @"iosTouchShowSaber"
-// The CHEAT button (right of SABER): shown while switched on in MENU's tray
-// (off unless switched on; remembered). Held still this long (sliding off
-// cancels) it switches the sithewok cheat on or off, as typing "sithewok" or
-// "sithewok off" does; it glows red whenever the cheat is on, however it
-// was switched (iosGame_IsSithEwokOn, read every frame)
+// The SABER button (between CAMERA and QUICK SAVE): shown once the player
+// has the saber for real, or while sithewok is on (iosGame_IsSaberButtonShown,
+// read every frame), it opens the saber wheel (iosSaber: the blade's colour).
+// The colour picked for each blade of each style is remembered by its key,
+// the style by its name.
+// The CHEAT button (right of SABER): cheat mode. Switched on in MENU's tray
+// (off unless switched on; remembered), it shows, and sithewok goes on. A tap
+// switches sithewok on or off, as typing "sithewok" or "sithewok off" does;
+// held still this long (sliding off cancels) it leaves cheat mode: sithewok
+// off, the button hidden, the tray's switch off. Red whenever the cheat is
+// on, however it was switched (iosGame_IsSithEwokOn, read every frame).
 #define IOSTOUCH_CHEAT_DEFAULTS_KEY @"iosTouchShowCheat"
 #define IOSTOUCH_CHEAT_HOLD 0.5
 #define IOSTOUCH_SABERSTYLE_DEFAULTS_KEY @"iosTouchSaberStyle"
@@ -302,8 +303,7 @@ enum {
     KIND_GYROMODE, // (gyro options) the mode gyro aiming goes on in: TOUCH or ALWAYS
     KIND_GYROSENS, // (gyro options) the next gyro aiming sensitivity, when the touch lifts on it
     KIND_CAMSWITCH, // (MENU tray) shows or hides the CAMERA button, when the touch lifts on it
-    KIND_SABERSWITCH, // (MENU tray) shows or hides the SABER button, when the touch lifts on it
-    KIND_CHEAT,    // held still IOSTOUCH_CHEAT_HOLD: the sithewok cheat on or off (a tap does nothing)
+    KIND_CHEAT,    // a tap: the sithewok cheat on or off; held still IOSTOUCH_CHEAT_HOLD: cheat mode left
     KIND_CHEATSWITCH, // (MENU tray) shows or hides the CHEAT button, when the touch lifts on it
     KIND_CAMERA,   // tap: the photos ticked in the camera options; slide: a burst; hold: the selfie
     KIND_CAMPHOTO, // (camera options) opens or closes the photo kinds' row under them
@@ -350,9 +350,9 @@ enum {
     BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA,
     BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU,
     BTN_CAMERA, // the middle of the top row, while switched on in the tray
-    BTN_SABER,  // between CAMERA and QUICK SAVE, while switched on in the tray
-    BTN_CHEAT,  // ...right of SABER, likewise
-    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYSABER, BTN_TRAYCHEAT, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
+    BTN_SABER,  // between CAMERA and QUICK SAVE, once the saber is had (or sithewok is on)
+    BTN_CHEAT,  // ...right of SABER, in cheat mode (switched on in the tray)
+    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYCHEAT, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
     // Rows under the tray, one at a time (iosTouch_optRow), hidden until opened:
     BTN_GYROOPT_MODE, BTN_GYROOPT_SENS,  // the gyro options (a hold on the tray's GYRO)
     BTN_CAMROW_PHOTO, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE, // the camera options (a hold on the tray's camera switch)
@@ -384,7 +384,6 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_TRAYGYRO]  = { "GYRO",        KIND_GYRO,     -1,                  20.0f, 0 },
     [BTN_TRAYFPS]   = { "FPS",         KIND_FPS,      -1,                  20.0f, 0 },
     [BTN_TRAYCAM]   = { "",            KIND_CAMSWITCH, -1,                 20.0f, 0 },
-    [BTN_TRAYSABER] = { "",            KIND_SABERSWITCH, -1,               20.0f, 0 },
     [BTN_TRAYCHEAT] = { "",            KIND_CHEATSWITCH, -1,               20.0f, 0 },
     [BTN_TRAYKEYS]  = { "",            KIND_CHAT,     -1,                  20.0f, 0 },
     [BTN_GYROOPT_MODE] = { "MODE",     KIND_GYROMODE, -1,                  20.0f, 0 },
@@ -1180,11 +1179,11 @@ typedef struct {
     CAShapeLayer* cheatEmblem; // CHEAT's Sith emblem (red, with its edge, while the cheat is on)
     // The saber's picture, on SABER and on the tray's saber switch: a hilt and
     // its blade, in the blade's colour (refreshSaberIcons)
-    CAShapeLayer* aSaberBlade[2];
-    CAShapeLayer* aSaberCore[2];
-    CAShapeLayer* aSaberBlade2[2]; // ...and with two blades, the second (crossing the first)
-    CAShapeLayer* aSaberCore2[2];
-    CAShapeLayer* aSaberHilt2[2];
+    CAShapeLayer* aSaberBlade[1];
+    CAShapeLayer* aSaberCore[1];
+    CAShapeLayer* aSaberBlade2[1]; // ...and with two blades, the second (crossing the first)
+    CAShapeLayer* aSaberCore2[1];
+    CAShapeLayer* aSaberHilt2[1];
     int saberIconRGB, saberIconRGB2; // the colours they are in (-2: none yet; the second, -1: one blade)
     UILabel* aSaberChips[IOSTOUCH_NUM_CHIPS]; // the saber wheel's choices beside the ring
     UIView* trayBack;       // behind MENU's tray
@@ -1470,21 +1469,15 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         saberRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_SABER].radius);
         [aButtonViews[BTN_SABER].layer addSublayer:saberRing];
 
-        // SABER and the tray's saber switch: the saber's picture; SABER
-        // shown if switched on; the colours picked, from last time
+        // SABER: the saber's picture; shown once the game says so (tick);
+        // the colours picked, from last time
         saberIconRGB = saberIconRGB2 = -2;
-        const int aSaberIconBtn[2] = { BTN_SABER, BTN_TRAYSABER };
-        for (int k = 0; k < 2; k++) {
-            const int i = aSaberIconBtn[k];
-            IOSTouch_AddSaberIcon(aButtonViews[i], iosTouch_aButtons[i].radius, 1, &aSaberBlade2[k], &aSaberCore2[k], &aSaberHilt2[k]);
-            IOSTouch_AddSaberIcon(aButtonViews[i], iosTouch_aButtons[i].radius, 0, &aSaberBlade[k], &aSaberCore[k], NULL);
-        }
+        IOSTouch_AddSaberIcon(aButtonViews[BTN_SABER], iosTouch_aButtons[BTN_SABER].radius, 1, &aSaberBlade2[0], &aSaberCore2[0], &aSaberHilt2[0]);
+        IOSTouch_AddSaberIcon(aButtonViews[BTN_SABER], iosTouch_aButtons[BTN_SABER].radius, 0, &aSaberBlade[0], &aSaberCore[0], NULL);
         iosTouch_SetupSaberWheel();
         [self loadSaberChoices];
-        // (shown unless the player has switched it off)
-        iosTouch_bShowSaber = [[NSUserDefaults standardUserDefaults] objectForKey:IOSTOUCH_SABER_DEFAULTS_KEY]
-                              ? ([[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_SABER_DEFAULTS_KEY] ? 1 : 0) : 1;
-        aButtonViews[BTN_SABER].hidden = !iosTouch_bShowSaber;
+        iosTouch_bShowSaber = 0;
+        aButtonViews[BTN_SABER].hidden = YES;
         [self refreshSaberIcons];
 
         // CHEAT: the Sith emblem, in the white of the other buttons' labels
@@ -2253,7 +2246,6 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
                   || ((i == BTN_TRAYKEYS || i == BTN_MENU) && jkHud_bChatOpen)
                   || (i == BTN_TRAYFPS && iosTouch_bShowFps)
                   || (i == BTN_TRAYCAM && iosTouch_bShowCamera)
-                  || (i == BTN_TRAYSABER && iosTouch_bShowSaber)
                   || (i == BTN_TRAYCHEAT && iosTouch_bShowCheat)
                   || (iosTouch_IsCamOptButton(i) && (iosTouch_cameraKinds & iosTouch_aButtons[i].bin))
                   || (i == BTN_CAMROW_PHOTO && iosTouch_bKindsOpen)
@@ -2461,14 +2453,13 @@ static void iosTouch_PhotosAsked(void)
     [self refreshButtonLooks];
 }
 
-// SABER shown or hidden (the tray's saber switch), and remembered
-- (void)setShowSaber:(int)bShow
+// Cheat mode left (CHEAT held, or the tray's switch): the cheat off, CHEAT
+// hidden, the switch off (remembered). (Where the cheat can't be switched
+// off now -- no level -- CHEAT stays, showing it on.)
+- (void)leaveCheatMode
 {
-    iosTouch_bShowSaber = bShow != 0;
-    aButtonViews[BTN_SABER].hidden = !iosTouch_bShowSaber;
-    [[NSUserDefaults standardUserDefaults] setBool:(iosTouch_bShowSaber ? YES : NO) forKey:IOSTOUCH_SABER_DEFAULTS_KEY];
-    [self setNeedsLayout]; // (the burst's count makes room for it on the narrowest screens)
-    [self refreshButtonLooks];
+    if (iosGame_IsSithEwokOn() && iosGame_ToggleSithEwok() < 0) return;
+    [self setShowCheat:0];
 }
 
 // The style and each blade's colour, as last picked (by name: a colour that
@@ -2651,7 +2642,7 @@ static int iosTouch_SaberBlade(void)
     UIColor* c2 = [UIColor colorWithRed:r2 / 255.0 green:g2 / 255.0 blue:b2 / 255.0 alpha:1.0];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    for (int k = 0; k < 2; k++) {
+    for (int k = 0; k < 1; k++) {
         aSaberBlade[k].strokeColor = c.CGColor;
         aSaberBlade[k].shadowColor = c.CGColor;
         aSaberBlade2[k].strokeColor = c2.CGColor;
@@ -3061,11 +3052,15 @@ static int iosTouch_SaberBlade(void)
     else if (kind == KIND_CAMSWITCH) {
         [self setShowCamera:!iosTouch_bShowCamera];
     }
-    else if (kind == KIND_SABERSWITCH) {
-        [self setShowSaber:!iosTouch_bShowSaber];
-    }
     else if (kind == KIND_CHEATSWITCH) {
-        [self setShowCheat:!iosTouch_bShowCheat];
+        // cheat mode: on, CHEAT shown and the cheat on; off, left
+        if (iosTouch_bShowCheat) {
+            [self leaveCheatMode];
+        }
+        else {
+            [self setShowCheat:1];
+            if (!iosGame_IsSithEwokOn()) iosGame_ToggleSithEwok();
+        }
     }
     else if (kind == KIND_GYRO && iosTouch_GyroAvailable()) {
         iosTouch_GyroToggle();
@@ -4046,6 +4041,11 @@ static int iosTouch_WheelSliceHasRow(int i)
                         // A tap: Escape (the menu, or closing the typing line)
                         iosTouch_menuPulse = IOSTOUCH_MENU_PULSE_UPDATES;
                     }
+                    else if (b->kind == KIND_CHEAT && !aButtonViews[s->button].hidden && !s->bFlyDone
+                             && t.timestamp - s->tDownTouch < IOSTOUCH_CHEAT_HOLD) {
+                        // A tap (not a hold, not slid): the cheat on or off
+                        iosGame_ToggleSithEwok();
+                    }
                 }
                 // MENU held until its tray opened, then slid onto one of its buttons
                 if (!bCancelled && s->button == BTN_MENU && s->bFired && iosTouch_bTrayOpen) {
@@ -4115,6 +4115,18 @@ static int iosTouch_WheelSliceHasRow(int i)
     lastTickTime = now;
     // SABER's picture in the blade's colour (the game's own one can change:
     // a new level, a cutscene, Mysteries of the Sith's own)
+    // SABER shown once the saber is had for real, or while sithewok is on
+    // (not hidden from under a finger or its open wheel)
+    {
+        const int bSaber = iosGame_IsSaberButtonShown() ? 1 : 0;
+        if (bSaber != iosTouch_bShowSaber && !iosTouch_aButtonHeld[BTN_SABER]
+            && !(iosTouch_bWheelOpen && iosTouch_wheelButton == BTN_SABER)) {
+            iosTouch_bShowSaber = bSaber;
+            aButtonViews[BTN_SABER].hidden = !bSaber;
+            [self setNeedsLayout]; // (the burst's count makes room for it on the narrowest screens)
+            [self refreshButtonLooks];
+        }
+    }
     if (iosTouch_bShowSaber) [self refreshSaberIcons];
     // DUCK's level pick: dropped (DUCK's label back) once its finger is no
     // longer a button press -- a wheel, Action Freeze, the burst or a selfie
@@ -4240,9 +4252,10 @@ static int iosTouch_WheelSliceHasRow(int i)
     [self setRing:actRing progress:actProgress];
     [self setRing:duckRing progress:duckProgress];
 
-    // CHEAT held still IOSTOUCH_CHEAT_HOLD: the cheat on or off, once per
-    // press (the ring fills meanwhile; moved IOSTOUCH_FLY_STILL, no); and its
-    // glow following the cheat however it was switched (typed too)
+    // CHEAT held still IOSTOUCH_CHEAT_HOLD: cheat mode left, once per press
+    // (the ring fills meanwhile; moved IOSTOUCH_FLY_STILL, no; a tap, lifted
+    // sooner, switches the cheat: endTouches); and its red following the
+    // cheat however it was switched (typed too)
     CGFloat cheatProgress = 0.0;
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
@@ -4255,7 +4268,8 @@ static int iosTouch_WheelSliceHasRow(int i)
         }
         if (known - s->tDown >= IOSTOUCH_CHEAT_HOLD) {
             s->bFlyDone = 1;
-            if (iosGame_ToggleSithEwok() >= 0) [cameraTap impactOccurred];
+            [self leaveCheatMode];
+            [cameraTap impactOccurred];
             continue;
         }
         cheatProgress = MAX(cheatProgress, MIN((CGFloat)((now - s->tDown) / IOSTOUCH_CHEAT_HOLD), 1.0));

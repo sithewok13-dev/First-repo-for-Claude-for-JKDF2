@@ -569,6 +569,11 @@ flex_t sithInventory_SetInventory(SithThing *pThing, int typeId, flex_t amount)
             sithCog_SendMessage(sithInventory_g_aTypes[typeId].cog, SITH_MESSAGE_CHANGED, SENDERTYPE_0, 0, SENDERTYPE_THING, pThing->idx, typeId);
         info->state |= SITHINVENTORY_ITEM_CHANGED;
     }
+#ifdef QOL_IMPROVEMENTS
+    // Added: had for real from now on (a cheat that gives it marks it again after)
+    if ( info->amount > 0.0 )
+        info->state &= ~SITHINVENTORY_ITEM_CHEAT_GIVEN;
+#endif
     return info->amount;
 }
 

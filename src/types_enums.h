@@ -1109,7 +1109,8 @@ typedef enum eSithInventoryItemStatus
     SITHINVENTORY_ITEM_CHANGED  = 1,
     SITHINVENTORY_ITEM_ACTIVATED  = 2,
     SITHINVENTORY_ITEM_AVAILABLE  = 4,
-    SITHINVENTORY_ITEM_FOUND = 8
+    SITHINVENTORY_ITEM_FOUND = 8,
+    SITHINVENTORY_ITEM_CHEAT_GIVEN = 0x100, // Added: given by a cheat (the saber, by the all-weapons cheat), until the game gives it itself
 } SithInventoryItemStatus;
 
 

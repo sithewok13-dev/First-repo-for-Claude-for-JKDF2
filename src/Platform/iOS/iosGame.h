@@ -148,6 +148,9 @@ int iosGame_ToggleSithEwok(void);
 // Whether the overlay's CHEAT button is showing (glowing red while the cheat
 // is on): then a new level puts sithewok on again without saying so
 void iosGame_SetCheatShown(int bShown);
+// Whether the overlay's SABER shows: the player has the saber for real (the
+// game gave it, not just a cheat), or sithewok is on
+int iosGame_IsSaberButtonShown(void);
 
 // Whether sithewok's flight is on now (JUMP held rises then, rather than
 // switching it off: a double tap does that)
