@@ -199,11 +199,16 @@ enum { IOSTOUCH_CHIP_SINGLE = 0, IOSTOUCH_CHIP_DUAL, IOSTOUCH_CHIP_LEFT, IOSTOUC
 // The sithewok cheat's flight (iosGame_ToggleFlight) and noclip
 // (iosGame_ToggleNoclip): JUMP or ACT held this long, and still (moved less
 // than IOSTOUCH_FLY_STILL: a drag on them turns the view), switches it on or
-// off; their rings only show while it can be switched
+// off; their rings only show while it can be switched. Except that while
+// flying, holding JUMP is how to rise: then it never stops the flight; two
+// quick taps on JUMP (each shorter than IOSTOUCH_FLY_TAP, the second down
+// within IOSTOUCH_FLY_DOUBLE of the first's lift) do.
 // Its level pick (iosGame_GoToLevel): DUCK held as long, and still, shows 1
 // on the button, then one more every IOSTOUCH_LEVEL_STEP up to the last
 // level; lifted, that level loads. Moved as far, no level.
 #define IOSTOUCH_FLY_HOLD 0.5
+#define IOSTOUCH_FLY_TAP 0.25
+#define IOSTOUCH_FLY_DOUBLE 0.35
 #define IOSTOUCH_FLY_STILL 10.0
 #define IOSTOUCH_LEVEL_STEP 0.4
 #define IOSTOUCH_FREEZE_DEFAULTS_KEY @"iosTouchFreeze"
@@ -580,6 +585,7 @@ typedef struct {
 
 static iosTouchSlot iosTouch_aSlots[IOSTOUCH_MAX_TOUCHES];
 static int iosTouch_levelToLoad; // DUCK's level pick, lifted: loaded at the next tick (as quick load)
+static double iosTouch_tJumpTapUp = -1.0; // when the last quick tap on JUMP lifted (by the touch's clock), for the double tap that lands
 static int iosTouch_aButtonHeld[IOSTOUCH_NUM_BUTTONS];
 static unsigned char iosTouch_aKeyDown[IOSTOUCH_NUM_SCANCODES];
 // One-off presses waiting to be read, and the one being read right now
@@ -2170,9 +2176,16 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
 }
 
 // DUCK's level pick over for this finger: DUCK's own label back (unless
-// another finger on it is still counting)
+// another finger on it is still counting), and the message line saying so
 - (void)endLevelPick:(iosTouchSlot*)s
 {
+    // (the count on the message line: the level going, or none)
+    if (s->levelPick > 0) {
+        char msg[48];
+        if (iosTouch_levelToLoad > 0) snprintf(msg, sizeof(msg), "Loading level %d", iosTouch_levelToLoad);
+        else snprintf(msg, sizeof(msg), "No level picked");
+        iosGame_ShowMessageInPlace(msg);
+    }
     s->levelPick = 0;
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         const iosTouchSlot* o = &iosTouch_aSlots[i];
@@ -3857,6 +3870,16 @@ static int iosTouch_WheelSliceHasRow(int i)
             else if (s->role == ROLE_BUTTON) {
                 iosTouchButton* b = &iosTouch_aButtons[s->button];
                 if (iosTouch_aButtonHeld[s->button] > 0) iosTouch_aButtonHeld[s->button]--;
+                // JUMP: a quick still tap; the second of two while flying lands
+                if (s->button == BTN_JUMP && !bCancelled && t.timestamp - s->tDownTouch < IOSTOUCH_FLY_TAP
+                    && hypot(p.x - s->origin.x, p.y - s->origin.y) < IOSTOUCH_FLY_STILL) {
+                    if (iosTouch_tJumpTapUp >= 0.0 && s->tDownTouch - iosTouch_tJumpTapUp < IOSTOUCH_FLY_DOUBLE
+                        && !jkHud_bChatOpen && iosGame_IsFlying()) {
+                        if (iosGame_ToggleFlight() >= 0) [cameraTap impactOccurred];
+                        iosTouch_tJumpTapUp = -1.0;
+                    }
+                    else iosTouch_tJumpTapUp = t.timestamp;
+                }
                 // DUCK lifted with a level on show: that level (at the next tick)
                 if (s->button == BTN_DUCK && s->levelPick > 0) {
                     if (!bCancelled) iosTouch_levelToLoad = s->levelPick;
@@ -4062,6 +4085,10 @@ static int iosTouch_WheelSliceHasRow(int i)
                 if (n != s->levelPick) {
                     s->levelPick = n;
                     aButtonViews[BTN_DUCK].text = [NSString stringWithFormat:@"%d", n];
+                    // (and on the message line, where the thumb isn't)
+                    char msg[48];
+                    snprintf(msg, sizeof(msg), "Level %d of %d", n, numLevels);
+                    iosGame_ShowMessageInPlace(msg);
                     [cameraTap impactOccurred];
                 }
                 continue;
@@ -4071,6 +4098,10 @@ static int iosTouch_WheelSliceHasRow(int i)
         }
         const int bJump = s->button == BTN_JUMP;
         if (jkHud_bChatOpen || !(bJump ? iosGame_CanFly() : iosGame_CanNoclip())) continue;
+        if (bJump && iosGame_IsFlying()) {
+            s->bFlyDone = 1; // (flying: held, JUMP rises; a double tap lands)
+            continue;
+        }
         if (known - s->tDown >= IOSTOUCH_FLY_HOLD) {
             s->bFlyDone = 1;
             if ((bJump ? iosGame_ToggleFlight() : iosGame_ToggleNoclip()) >= 0) [cameraTap impactOccurred];

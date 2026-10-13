@@ -487,6 +487,11 @@ int iosGame_ToggleNoclip(void)
     return jkDev_Custom_ToggleNoclip();
 }
 
+int iosGame_IsFlying(void)
+{
+    return jkDev_Custom_IsFlying();
+}
+
 int iosGame_NumPickableLevels(void)
 {
     return jkDev_Custom_CanPickLevel() ? jkDev_Custom_NumLevels() : 0;
@@ -541,6 +546,16 @@ void iosGame_ShowMessage(const char* pAscii)
         msg[i] = (unsigned char)pAscii[i];
     msg[i] = 0;
     jkDev_PrintUniString(msg);
+}
+
+void iosGame_ShowMessageInPlace(const char* pAscii)
+{
+    char16_t msg[128];
+    int i = 0;
+    for (; pAscii[i] && i < 127; i++)
+        msg[i] = (unsigned char)pAscii[i];
+    msg[i] = 0;
+    jkDev_Custom_PrintInPlace(msg);
 }
 
 void iosGame_ToggleChat(void)

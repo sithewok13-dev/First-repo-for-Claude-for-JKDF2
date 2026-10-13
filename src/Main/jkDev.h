@@ -99,11 +99,14 @@ int jkDev_Custom_NoFallHurt(); // Added
 int jkDev_Custom_CatchesFalls(); // Added
 int jkDev_Custom_CanFly(); // Added
 int jkDev_Custom_ToggleFlight(); // Added
+int jkDev_Custom_IsFlying(); // Added
 int jkDev_Custom_CanNoclip(); // Added
 int jkDev_Custom_ToggleNoclip(); // Added
 int jkDev_Custom_CanPickLevel(); // Added
 int jkDev_Custom_NumLevels(); // Added
 int jkDev_Custom_GoToLevel(int level); // Added
+int jkDev_Custom_PrintInPlace(const char16_t *str); // Added
+void jkDev_Custom_SithEwokRestored(); // Added
 #endif
 
 #if defined(WIN32) && !defined(SDL2_RENDER)

@@ -51,7 +51,15 @@ static int jkDev_bNoFallHurt = 0;
 static int jkDev_bSithEwokFlying = 0;
 // Added: sithewok: noclip is on because of it (jkDev_Custom_ToggleNoclip), so "sithewok off" ends it
 static int jkDev_bSithEwokNoclip = 0;
+// Added: sithewok is on, and stays on from level to level (and through loads): the player it was last
+// seen on, and the frames left before it is put on again for a new one (once the level's own start-up,
+// which can take weapons away, has run)
+static int jkDev_bSithEwokOn = 0;
+static SithThing* jkDev_pSithEwokPlayer = NULL;
+static int jkDev_sithEwokWait = 0;
+#define JKDEV_SITHEWOK_WAIT 20
 static void jkDev_Custom_KeepForceFull();
+static void jkDev_Custom_SithEwokOn(SithThing *pPlayer, int bAgain);
 #endif
 
 // MOTS altered
@@ -146,6 +154,10 @@ void jkDev_Shutdown()
 int jkDev_Open()
 {
     tRasterInfo a1; // [esp+0h] [ebp-4Ch] BYREF
+
+#ifdef QOL_IMPROVEMENTS
+    jkDev_Custom_SithEwokRestored(); // Added: a level opening (or a load)
+#endif
 
     if ( jkDev_bOpened )
         return 0;
@@ -459,6 +471,33 @@ LABEL_7:
 }
 
 // MOTS altered? inlined?
+// Added: a message that changes as it goes (the touch overlay's level count): put in place of the
+// last one it put up, if the newest line on screen still says what that said (lines move up as older
+// ones go); else a new line
+int jkDev_Custom_PrintInPlace(const char16_t *str)
+{
+    static char16_t last[0x80];
+    int idx = jkDev_log_55A4A4 - 1;
+    if ( last[0] && idx >= 0 && (uint32_t)jkDev_aEntries[idx].timeMsExpiration > (uint32_t)stdPlatform_GetTimeMsec()
+         && !__wcscmp(jkDev_aEntries[idx].text, last) )
+    {
+        _wcsncpy(jkDev_aEntries[idx].text, str, 0x80u);
+        jkDev_aEntries[idx].text[0x7F] = 0;
+        jkDev_aEntries[idx].timeMsExpiration = stdPlatform_GetTimeMsec() + 5000;
+        jkDev_aEntries[idx].bDrawEntry = 2;
+        jkDev_aEntries[idx].field_10C = 2;
+        jkDev_bScreenNeedsUpdate = 1;
+    }
+    else
+    {
+        jkDev_PrintUniString(str);
+        idx = jkDev_log_55A4A4 - 1;
+    }
+    _wcsncpy(last, jkDev_aEntries[idx].text, 0x80u);
+    last[0x7F] = 0;
+    return 1;
+}
+
 int jkDev_DebugLog(const char *lParam)
 {
     HWND v1; // eax
@@ -1311,17 +1350,36 @@ static flex_t jkDev_Custom_GetForceManaMax(SithThing *pPlayer)
     return sithInventory_GetInventory(pPlayer, SITHBIN_JEDI_RANK) * 50.0;
 }
 
-// Added: sithewok's endless Force, refills what the powers spent (local player, single player only)
+// Added: sithewok's endless Force, refills what the powers spent (local player, single player only);
+// and, once a frame, sithewok kept on: invincible always (a save from before it was on is loaded
+// without), and everything again for a new level's player
 static void jkDev_Custom_KeepForceFull()
 {
     SithThing *pPlayer;
     flex_t maxMana;
 
-    if ( !jkDev_bEndlessForce || sithNet_isMulti || !sithWorld_g_pCurrentWorld )
+    if ( sithNet_isMulti || !sithWorld_g_pCurrentWorld )
         return;
 
     pPlayer = sithWorld_g_pCurrentWorld->pLocalPlayer;
     if ( !pPlayer || pPlayer->type != SITH_THING_PLAYER )
+        return;
+
+    if ( jkDev_bSithEwokOn )
+    {
+        pPlayer->actorParams.flags |= SITH_AF_INVULNERABLE;
+        if ( pPlayer != jkDev_pSithEwokPlayer )
+        {
+            // a new level (or a load): not flying any more; everything again in a moment
+            jkDev_pSithEwokPlayer = pPlayer;
+            jkDev_bSithEwokFlying = 0;
+            jkDev_sithEwokWait = JKDEV_SITHEWOK_WAIT;
+        }
+        if ( jkDev_sithEwokWait > 0 && --jkDev_sithEwokWait == 0 )
+            jkDev_Custom_SithEwokOn(pPlayer, 1);
+    }
+
+    if ( !jkDev_bEndlessForce )
         return;
 
     maxMana = jkDev_Custom_GetForceManaMax(pPlayer);
@@ -1363,6 +1421,13 @@ int jkDev_Custom_CanFly()
     return jkDev_Custom_FlightPlayer() != NULL;
 }
 
+// Whether the player is flying now (and could stop): the touch overlay's JUMP held doesn't stop it
+int jkDev_Custom_IsFlying()
+{
+    SithThing* pPlayer = jkDev_Custom_FlightPlayer();
+    return pPlayer && (pPlayer->physicsParams.flags & SITH_PF_FLY);
+}
+
 static void jkDev_Custom_SetFlying(SithThing* pPlayer, int bFly)
 {
     if ( bFly )
@@ -1391,7 +1456,7 @@ int jkDev_Custom_ToggleFlight()
         return 0;
     }
     jkDev_Custom_SetFlying(pPlayer, 1);
-    sithConsole_PrintString("Flying! JUMP rises, DUCK sinks");
+    sithConsole_PrintString("Flying! JUMP rises, DUCK sinks; tap JUMP twice to land");
     return 1;
 }
 
@@ -1500,6 +1565,9 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
     if ( !__strcmpi(arg, "off") )
     {
         pPlayer->actorParams.flags &= ~SITH_AF_INVULNERABLE;
+        jkDev_bSithEwokOn = 0;
+        jkDev_pSithEwokPlayer = NULL;
+        jkDev_sithEwokWait = 0;
         jkDev_bEndlessForce = 0;
         jkDev_bNoFallHurt = 0;
         // (noclip because of it: off; flying because of it: back down)
@@ -1513,12 +1581,28 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
         return 1;
     }
 
+    jkDev_Custom_SithEwokOn(pPlayer, 0);
+    return 1;
+}
+
+// Added: a level opened or a game loaded (sithGamesave_RestoreFile, which can load on the same level):
+// sithewok, if on, put on again for its player, even one at the last one's address
+void jkDev_Custom_SithEwokRestored()
+{
+    jkDev_pSithEwokPlayer = NULL;
+}
+
+// Added: sithewok put on the player: every weapon, item and power, healed, invincible, endless Force,
+// safe falls, the Force's catch; and kept on from then (jkDev_Custom_KeepForceFull). bAgain: put on
+// again for a new level, with a shorter message
+static void jkDev_Custom_SithEwokOn(SithThing *pPlayer, int bAgain)
+{
     jkDev_bQuietCheats = 1;
-    jkDev_CmdAllWeapons(pCmd, pArgStr);
-    jkDev_CmdAllItems(pCmd, pArgStr);
+    jkDev_CmdAllWeapons(NULL, "");
+    jkDev_CmdAllItems(NULL, "");
     if ( Main_bMotsCompat )
     {
-        jkDev_CmdUberJedi(pCmd, pArgStr); // iamagod: rank 8, its powers at 4 stars
+        jkDev_CmdUberJedi(NULL, ""); // iamagod: rank 8, its powers at 4 stars
         jkDev_bKeepForcePowers = 1; // all 17 are more than rank 8's tiers allow (jkPlayer_aMotsFpBins)
     }
     else
@@ -1532,14 +1616,16 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
             sithInventory_SetInventory(pPlayer, i, 4.0);
         }
     }
-    jkDev_CmdHeal(pCmd, pArgStr);
+    jkDev_CmdHeal(NULL, "");
     jkDev_bQuietCheats = 0;
 
     sithInventory_SetInventory(pPlayer, SITHBIN_FORCEMANA, jkDev_Custom_GetForceManaMax(pPlayer));
     pPlayer->actorParams.flags |= SITH_AF_INVULNERABLE; // jediwannabe on (sithCommand_DebugMode, extra 5)
     jkDev_bEndlessForce = 1;
     jkDev_bNoFallHurt = 1;
-    sithConsole_PrintString("Everything! Invincible, endless Force, falls don't hurt, the Force catches you");
-    return 1;
+    jkDev_bSithEwokOn = 1;
+    jkDev_pSithEwokPlayer = pPlayer;
+    jkDev_sithEwokWait = 0;
+    sithConsole_PrintString(bAgain ? "sithewok: still on" : "Everything! Invincible, endless Force, falls don't hurt, the Force catches you");
 }
 #endif

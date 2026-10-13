@@ -107,6 +107,9 @@ void iosGame_ToggleChat(void);
 
 // A line on the game's message line, as "Game saved" is (plain ASCII).
 void iosGame_ShowMessage(const char* pAscii);
+// ...one that changes as it goes (a count): in place of the last one put up
+// this way, while that is still the newest line showing
+void iosGame_ShowMessageInPlace(const char* pAscii);
 
 // How full the force meter is, 0..1 (*pbFull: as full as it gets right now),
 // or -1 when there is no player.
@@ -137,6 +140,9 @@ int iosGame_ToggleNoclip(void);
 // picked now (0: none, sithewok off or multiplayer), and loading one by
 // number (1: loading). The touch overlay's DUCK held counts them.
 int iosGame_NumPickableLevels(void);
+// Whether sithewok's flight is on now (JUMP held rises then, rather than
+// switching it off: a double tap does that)
+int iosGame_IsFlying(void);
 int iosGame_GoToLevel(int level);
 
 // How far one count of mouse movement turns the view (*pTurn: degrees right

@@ -37,6 +37,7 @@
 #include "General/stdString.h"
 #include "stdPlatform.h"
 #include "jk.h"
+#include "Main/jkDev.h"
 
 #ifdef TARGET_DREAMCAST
 // Added: set while a load re-runs sithOpenPostProcess() so its re-save doesn't push
@@ -389,6 +390,9 @@ skip_free_things:
 skip_dss:
     sithTime_SetGameTime(curMs);
     sithCamera_SetCurrentCamera(sithCamera_g_pCurCamera);
+#ifdef QOL_IMPROVEMENTS
+    jkDev_Custom_SithEwokRestored(); // Added: sithewok, if on, put on again for the loaded game
+#endif
     return 1;
 
 load_fail:
