@@ -730,7 +730,10 @@ void _free(void* a)
 char16_t* _wcsncpy(char16_t *s1, const char16_t *s2, size_t n)
 {
     char16_t *ret = s1;
-    for ( ; n; n--) if (!(*s1++ = *s2++)) break;
+    // Added: the terminator copied counts as one of the n (it was padded n more after it, writing
+    // one char past the end of the buffer: on iOS that cleared the sithewok cheat's flag, next to
+    // the level count's message buffer in jkDev_Custom_PrintInPlace)
+    for ( ; n; n--) if (!(*s1++ = *s2++)) { n--; break; }
     for ( ; n; n--) *s1++ = 0;
     return ret;
 }
@@ -1147,8 +1150,9 @@ char16_t* __wcsncpy(char16_t * a, const char16_t * b, size_t c)
         len = c*sizeof(char16_t);
     }
     memmove(a, b, len);
-    a[len] = 0;
-    return &a[len];
+    // Added: the terminator after the chars copied (len counts bytes: a[len] was twice as far on)
+    a[len / sizeof(char16_t)] = 0;
+    return &a[len / sizeof(char16_t)];
 }
 
 char16_t* __wcsrchr(const char16_t * s, char16_t c)
