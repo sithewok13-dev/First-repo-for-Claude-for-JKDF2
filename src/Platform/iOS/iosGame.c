@@ -467,6 +467,16 @@ unsigned int iosGame_GetFrameCount(void)
     return (unsigned int)Video_dword_5528A0;
 }
 
+int iosGame_CanFly(void)
+{
+    return jkDev_Custom_CanFly();
+}
+
+int iosGame_ToggleFlight(void)
+{
+    return jkDev_Custom_ToggleFlight();
+}
+
 int iosGame_IsAlwaysRun(void)
 {
     // The option's checkbox sets bit 2 (jkGuiControlOptions_Show), saved with

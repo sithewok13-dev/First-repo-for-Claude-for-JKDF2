@@ -47,6 +47,8 @@ static int jkDev_bKeepForcePowers = 0;
 // Added: sithewok: falls don't hurt (invincibility lets fall damage through), and the Force catches the
 // player falling into a pit (sithPlayer_Update), in memory only
 static int jkDev_bNoFallHurt = 0;
+// Added: sithewok: the player is flying because of it (jkDev_Custom_ToggleFlight), so "sithewok off" lands them
+static int jkDev_bSithEwokFlying = 0;
 static void jkDev_Custom_KeepForceFull();
 #endif
 
@@ -1339,6 +1341,58 @@ int jkDev_Custom_NoFallHurt()
     return jkDev_bNoFallHurt && !sithNet_isMulti;
 }
 
+// Added: sithewok: flight, switched on and off by a long press on the touch overlay's JUMP (iosGame).
+// The engine's own flying (the "fly" cheat, SITH_PF_FLY): no gravity, forward goes the way the player
+// looks, JUMP rises and DUCK sinks (sithControl), walls still in the way. Only while sithewok is on, in
+// single player, and not in noclip (which flies its own way).
+static SithThing* jkDev_Custom_FlightPlayer()
+{
+    SithThing* pPlayer;
+    if ( !jkDev_bNoFallHurt || sithNet_isMulti || (g_debugmodeFlags & DEBUGFLAG_NOCLIP) || !sithWorld_g_pCurrentWorld )
+        return NULL;
+    pPlayer = sithWorld_g_pCurrentWorld->pLocalPlayer;
+    if ( !pPlayer || pPlayer->type != SITH_THING_PLAYER || pPlayer->moveType != SITH_MT_PHYSICS || (pPlayer->flags & SITH_TF_DEAD) )
+        return NULL;
+    return pPlayer;
+}
+
+int jkDev_Custom_CanFly()
+{
+    return jkDev_Custom_FlightPlayer() != NULL;
+}
+
+static void jkDev_Custom_SetFlying(SithThing* pPlayer, int bFly)
+{
+    if ( bFly )
+    {
+        pPlayer->physicsParams.flags &= ~SITH_PF_USEGRAVITY;
+        pPlayer->physicsParams.flags |= SITH_PF_FLY;
+    }
+    else
+    {
+        pPlayer->physicsParams.flags &= ~SITH_PF_FLY;
+        pPlayer->physicsParams.flags |= SITH_PF_USEGRAVITY;
+    }
+    jkDev_bSithEwokFlying = bFly;
+}
+
+// 1: flying now; 0: not any more; -1: can't now (sithewok off, multiplayer, noclip, dead...)
+int jkDev_Custom_ToggleFlight()
+{
+    SithThing* pPlayer = jkDev_Custom_FlightPlayer();
+    if ( !pPlayer )
+        return -1;
+    if ( pPlayer->physicsParams.flags & SITH_PF_FLY )
+    {
+        jkDev_Custom_SetFlying(pPlayer, 0);
+        sithConsole_PrintString("Flying off");
+        return 0;
+    }
+    jkDev_Custom_SetFlying(pPlayer, 1);
+    sithConsole_PrintString("Flying! JUMP rises, DUCK sinks");
+    return 1;
+}
+
 // Added: sithewok: the Force catches the player falling into a pit and puts them back on solid ground
 // (sithPlayer_Update); on and off with the safe falls
 int jkDev_Custom_CatchesFalls()
@@ -1370,7 +1424,11 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
         pPlayer->actorParams.flags &= ~SITH_AF_INVULNERABLE;
         jkDev_bEndlessForce = 0;
         jkDev_bNoFallHurt = 0;
-        sithConsole_PrintString("Invincibility, endless Force, safe falls and the Force's catch off");
+        // (flying because of it: back down)
+        if ( jkDev_bSithEwokFlying && (pPlayer->physicsParams.flags & SITH_PF_FLY) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP) )
+            jkDev_Custom_SetFlying(pPlayer, 0);
+        jkDev_bSithEwokFlying = 0;
+        sithConsole_PrintString("Invincibility, endless Force, safe falls, the Force's catch and flight off");
         return 1;
     }
 

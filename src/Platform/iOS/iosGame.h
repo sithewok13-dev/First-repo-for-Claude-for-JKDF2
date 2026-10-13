@@ -121,6 +121,13 @@ unsigned int iosGame_GetFrameCount(void);
 // can change in the options menu, so the touch overlay reads it every frame.
 int iosGame_IsAlwaysRun(void);
 
+// The sithewok cheat's flight (jkDev_Custom_ToggleFlight): whether it can be
+// switched now (sithewok on, single player, not noclip, alive), and switching
+// it (1: flying now; 0: not; -1: can't). The touch overlay's JUMP held still
+// IOSTOUCH_FLY_HOLD switches it.
+int iosGame_CanFly(void);
+int iosGame_ToggleFlight(void);
+
 // How far one count of mouse movement turns the view (*pTurn: degrees right
 // per count right) and tilts it (*pPitch: degrees down per count down), as
 // the game's mouse look bindings have it (Setup > Controls > Mouse:

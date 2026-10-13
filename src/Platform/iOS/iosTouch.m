@@ -174,6 +174,11 @@ extern int jkHud_bChatOpen;
 // While it is up: one finger turns the camera round what it looks at, this
 // many degrees per point; two fingers move it (and pinch to zoom); CAMERA
 // takes a clean photo; the X goes back to the game.
+// The sithewok cheat's flight (iosGame_ToggleFlight): JUMP held this long,
+// and still (moved less than IOSTOUCH_FLY_STILL: a drag on JUMP turns the
+// view), switches it on or off; its ring only shows while it can be switched
+#define IOSTOUCH_FLY_HOLD 0.5
+#define IOSTOUCH_FLY_STILL 10.0
 #define IOSTOUCH_FREEZE_DEFAULTS_KEY @"iosTouchFreeze"
 #define IOSTOUCH_FREEZE_SWIPE 36.0
 #define IOSTOUCH_FREEZE_EDGE 6.0       // (up: to this near the top of the screen counts as far enough...)
@@ -511,6 +516,7 @@ typedef struct {
     CGPoint wheelOrigin;  // ...where its slide is measured from
     CGFloat wheelAim;     // ...which way it points (degrees, as for slices)
     int bSwipe;           // CAMERA, with FREEZE on: slid up or down, on its way to the cinematic burst or Action Freeze (no tap, no selfie hold)
+    int bFlyDone;         // JUMP: this press has switched sithewok's flight, or can't (it moved)
 } iosTouchSlot;
 
 static iosTouchSlot iosTouch_aSlots[IOSTOUCH_MAX_TOUCHES];
@@ -1067,6 +1073,7 @@ typedef struct {
     UISelectionFeedbackGenerator* runTick;
     UILabel* aButtonViews[IOSTOUCH_NUM_BUTTONS];
     CAShapeLayer* saveRing; // QUICK SAVE's hold progress
+    CAShapeLayer* jumpRing; // JUMP's hold progress (sithewok's flight)
     CAShapeLayer* loadRing; // QUICK LOAD's
     CAShapeLayer* menuRing; // MENU's
     CAShapeLayer* wheelRing;  // FORCE WHEEL's (held still, it opens the wheel to tap)
@@ -1248,6 +1255,8 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         // SAVE's and QUICK LOAD's look the same.
         saveRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_QUICKSAVE].radius);
         [aButtonViews[BTN_QUICKSAVE].layer addSublayer:saveRing];
+        jumpRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_JUMP].radius);
+        [aButtonViews[BTN_JUMP].layer addSublayer:jumpRing];
         loadRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_QUICKLOAD].radius);
         [aButtonViews[BTN_QUICKLOAD].layer addSublayer:loadRing];
         menuRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_MENU].radius);
@@ -3551,6 +3560,28 @@ static int iosTouch_WheelSliceHasRow(int i)
         [self setRing:weaponRing progress:weaponProgress];
     }
 
+    // JUMP held still (it jumps as ever, and holds the key, as ever): with
+    // sithewok on, IOSTOUCH_FLY_HOLD switches its flight on or off, once per
+    // press; the ring fills meanwhile (the furthest along of its holds)
+    CGFloat jumpProgress = 0.0;
+    for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+        iosTouchSlot* s = &iosTouch_aSlots[i];
+        if (!s->touch || s->role != ROLE_BUTTON || s->button != BTN_JUMP || s->bFlyDone) continue;
+        CGPoint q = [s->touch locationInView:self];
+        if (hypot(q.x - s->origin.x, q.y - s->origin.y) >= IOSTOUCH_FLY_STILL) {
+            s->bFlyDone = 1; // (a drag, turning the view)
+            continue;
+        }
+        if (jkHud_bChatOpen || !iosGame_CanFly()) continue;
+        if (known - s->tDown >= IOSTOUCH_FLY_HOLD) {
+            s->bFlyDone = 1;
+            if (iosGame_ToggleFlight() >= 0) [cameraTap impactOccurred];
+            continue;
+        }
+        jumpProgress = MAX(jumpProgress, MIN((CGFloat)((now - s->tDown) / IOSTOUCH_FLY_HOLD), 1.0));
+    }
+    [self setRing:jumpRing progress:jumpProgress];
+
     // How far QUICK SAVE's and QUICK LOAD's rings have filled (the furthest
     // along of each one's holds), and the one whose hold completed
     CGFloat saveProgress = 0.0, loadProgress = 0.0;
@@ -3782,6 +3813,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     bFpsBase = 0; // time spent in a menu doesn't count
     [self hideStick];
     [self setRing:saveRing progress:0.0];
+    [self setRing:jumpRing progress:0.0];
     [self setRing:loadRing progress:0.0];
     [self setRing:menuRing progress:0.0];
     [self setRing:camOptRing progress:0.0];

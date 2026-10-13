@@ -97,6 +97,8 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr); // 
 int jkDev_Custom_KeepsForcePowers(); // Added
 int jkDev_Custom_NoFallHurt(); // Added
 int jkDev_Custom_CatchesFalls(); // Added
+int jkDev_Custom_CanFly(); // Added
+int jkDev_Custom_ToggleFlight(); // Added
 #endif
 
 #if defined(WIN32) && !defined(SDL2_RENDER)
