@@ -1870,9 +1870,32 @@ int rdModel3_DrawFace(rdFace *pFace, int lightFlags)
     procEntry->type = pFace->type;
     procEntry->extralight = pFace->extraLight;
     procEntry->material = pFace->material;
+    // Added: drawn through a mirroring matrix, a face's corners come out in the other order round it:
+    // put back, so it isn't taken for one facing away (it was tested facing the camera above)
+    if ( rdModel3_bMirrored )
+    {
+        const int n = vertexDst.numVertices;
+        for (int i = 0, j = n - 1; i < j; i++, j--)
+        {
+            rdVector3 v = procEntry->aVertices[i]; procEntry->aVertices[i] = procEntry->aVertices[j]; procEntry->aVertices[j] = v;
+            rdVector2 t = procEntry->aTexVerticies[i]; procEntry->aTexVerticies[i] = procEntry->aTexVerticies[j]; procEntry->aTexVerticies[j] = t;
+            flex_t l = procEntry->vertexIntensities[i]; procEntry->vertexIntensities[i] = procEntry->vertexIntensities[j]; procEntry->vertexIntensities[j] = l;
+#ifdef JKM_LIGHTING
+            flex_t* aRGB[3] = { procEntry->paRedIntensities, procEntry->paGreenIntensities, procEntry->paBlueIntensities };
+            for (int k = 0; k < 3; k++)
+            {
+                if ( !aRGB[k] ) continue;
+                flex_t c = aRGB[k][i]; aRGB[k][i] = aRGB[k][j]; aRGB[k][j] = c;
+            }
+#endif
+        }
+    }
     rdCache_AddProcFace(0, vertexDst.numVertices, flags);
     return 1;
 }
+
+// Added: models drawn now go through a mirroring matrix (rdModel3_DrawFace)
+int rdModel3_bMirrored = 0;
 
 // Added: Data preloading
 void rdModel3_EnsureMaterialData(rdThing *pRdThing) {

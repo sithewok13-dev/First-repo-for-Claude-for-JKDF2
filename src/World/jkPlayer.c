@@ -11,6 +11,7 @@
 #include "Engine/sithAnimClass.h"
 #include "Dss/sithGamesave.h"
 #include "Engine/rdPuppet.h"
+#include "Primitives/rdModel3.h"
 #include "Gameplay/sithTime.h"
 #include "Engine/sithCamera.h"
 #include "Raster/rdCache.h"
@@ -902,6 +903,105 @@ void jkPlayer_SetPovModel(jkPlayerInfo *info, rdModel3 *model)
 }
 
 int jkPlayer_checkPov = 0;
+// Added: the player's two-saber style (iosSaber) in first person. The game's first person saber model
+// swings its saber with the right arm only (its left hand is parked, out of sight), so a second blade at
+// that hand would hang still while the first one swings. Instead the model is drawn a second time
+// mirrored left for right: a left arm, its hilt in its hand, and the second blade at that hand
+// (jkPlayer_GetPovMirrorHand, for jkSaber_Draw). It does what the right arm did JKPLAYER_POV_ECHO_MS
+// before (the pose of each of the model's joints, relative to the view, kept that long), so the two
+// swing one after the other rather than as one. Only while the saber is on.
+#define JKPLAYER_POV_ECHO_MS 200
+#define JKPLAYER_POV_ECHO_FRAMES 48
+#define JKPLAYER_POV_ECHO_NODES 16
+#define JKPLAYER_POV_ECHO_GAP_MS 500 // (not drawn longer than this: start over)
+typedef struct {
+    uint32_t ms;
+    rdMatrix34 aJoint[JKPLAYER_POV_ECHO_NODES];
+} jkPlayerPovEcho;
+static jkPlayerPovEcho jkPlayer_aPovEcho[JKPLAYER_POV_ECHO_FRAMES];
+static int jkPlayer_povEchoHead = 0, jkPlayer_povEchoCount = 0;
+static rdModel3* jkPlayer_pPovEchoModel = NULL;
+static rdMatrix34 jkPlayer_povMirrorHand;
+static int jkPlayer_bPovMirrorHand = 0;
+
+static void jkPlayer_DrawPovMirrored(rdMatrix34* pOrient)
+{
+    jkPlayer_bPovMirrorHand = 0;
+#ifdef TARGET_IOS
+    SithThing* pActor = playerThings[playerThingIdx].actorThing;
+    rdThing* pPov = &playerThings[playerThingIdx].povModel;
+    if (!pActor || !(pActor->jkFlags & JKFLAG_SABERON) || !iosSaber_HasSecondBlade(pActor) || !pPov->model3 || !pPov->paJointMatrices)
+        return;
+    int rhand = -1;
+    for (int i = 0; i < pPov->model3->numHNodes; i++)
+    {
+        int l = _strlen(pPov->model3->aHierarchyNodes[i].name);
+        if (l >= 5 && !__strcmpi(pPov->model3->aHierarchyNodes[i].name + (l - 5), "rhand")) { rhand = i; break; }
+    }
+    if (rhand < 0)
+        return;
+
+    const int numNodes = pPov->model3->numHNodes;
+    if (numNodes > JKPLAYER_POV_ECHO_NODES)
+        return;
+
+    // This frame's pose, relative to the view, kept (a new model, or a long gap: from now)
+    const uint32_t now = sithTime_g_msecGameTime;
+    if (jkPlayer_pPovEchoModel != pPov->model3 || !jkPlayer_povEchoCount
+        || now < jkPlayer_aPovEcho[jkPlayer_povEchoHead].ms || now - jkPlayer_aPovEcho[jkPlayer_povEchoHead].ms > JKPLAYER_POV_ECHO_GAP_MS)
+    {
+        jkPlayer_pPovEchoModel = pPov->model3;
+        jkPlayer_povEchoCount = 0;
+    }
+    rdMatrix34 view;
+    rdMatrix_InvertOrtho34(&view, pOrient);
+    // (once a game moment: drawn again while the game holds still, the same entry, so the delay stays)
+    if (!jkPlayer_povEchoCount || jkPlayer_aPovEcho[jkPlayer_povEchoHead].ms != now)
+    {
+        jkPlayer_povEchoHead = (jkPlayer_povEchoHead + 1) % JKPLAYER_POV_ECHO_FRAMES;
+        if (jkPlayer_povEchoCount < JKPLAYER_POV_ECHO_FRAMES) jkPlayer_povEchoCount++;
+    }
+    jkPlayerPovEcho* pNow = &jkPlayer_aPovEcho[jkPlayer_povEchoHead];
+    pNow->ms = now;
+    for (int i = 0; i < numNodes; i++)
+        rdMatrix_Multiply34(&pNow->aJoint[i], &view, &pPov->paJointMatrices[i]);
+
+    // ...and the one JKPLAYER_POV_ECHO_MS before (or the oldest kept)
+    const jkPlayerPovEcho* pPast = pNow;
+    for (int k = 0; k < jkPlayer_povEchoCount; k++)
+    {
+        const jkPlayerPovEcho* e = &jkPlayer_aPovEcho[(jkPlayer_povEchoHead - k + JKPLAYER_POV_ECHO_FRAMES) % JKPLAYER_POV_ECHO_FRAMES];
+        pPast = e;
+        if (now - e->ms >= JKPLAYER_POV_ECHO_MS) break;
+    }
+
+    // That pose, mirrored (the view's right the other way), drawn; the model's own joints put back after
+    rdMatrix34 mirror = *pOrient;
+    rdVector_Neg3Acc(&mirror.rvec);
+    rdMatrix34 aSaved[JKPLAYER_POV_ECHO_NODES];
+    for (int i = 0; i < numNodes; i++)
+    {
+        aSaved[i] = pPov->paJointMatrices[i];
+        rdMatrix_Multiply34(&pPov->paJointMatrices[i], &mirror, &pPast->aJoint[i]);
+    }
+    jkPlayer_povMirrorHand = pPov->paJointMatrices[rhand];
+    rdVector_Neg3Acc(&jkPlayer_povMirrorHand.rvec); // (the blade's own frame turned, not mirrored: the same blade)
+    jkPlayer_bPovMirrorHand = 1;
+    rdModel3_bMirrored = 1;
+    rdThing_Draw(pPov, &mirror);
+    rdModel3_bMirrored = 0;
+    for (int i = 0; i < numNodes; i++)
+        pPov->paJointMatrices[i] = aSaved[i];
+#endif
+}
+
+int jkPlayer_GetPovMirrorHand(rdMatrix34* pOut)
+{
+    if (!jkPlayer_bPovMirrorHand) return 0;
+    *pOut = jkPlayer_povMirrorHand;
+    return 1;
+}
+
 void jkPlayer_DrawPov()
 {
     rdVector3 trans;
@@ -1016,6 +1116,7 @@ void jkPlayer_DrawPov()
         //printf("pov in\n");
         //jkPlayer_checkPov = 1;
         rdThing_Draw(&playerThings[playerThingIdx].povModel, &orient);
+        jkPlayer_DrawPovMirrored(&orient); // Added: the second saber's arm
         //jkPlayer_checkPov = 0;
         //printf("pov done\n");
 

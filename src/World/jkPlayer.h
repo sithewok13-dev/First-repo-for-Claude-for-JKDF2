@@ -93,6 +93,7 @@ void jkPlayer_WriteConf(char16_t *name);
 int jkPlayer_ReadConf(char16_t *name);
 void jkPlayer_SetPovModel(jkPlayerInfo *info, rdModel3 *model);
 MATH_FUNC void jkPlayer_DrawPov();
+int jkPlayer_GetPovMirrorHand(rdMatrix34* pOut); // Added: the second saber's hand in first person (iosSaber's two-saber style)
 MATH_FUNC void jkPlayer_renderSaberWeaponMesh(SithThing *a1);
 MATH_FUNC void jkPlayer_renderSaberTwinkle(SithThing *player);
 void jkPlayer_SetWaggle(SithThing *player, rdVector3 *waggleVec, flex_t waggleMag);

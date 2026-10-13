@@ -9,6 +9,7 @@
 #include "jk.h"
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosSelfie.h" // Added
+#include "Platform/iOS/iosSaber.h" // Added
 #endif
 
 // Un-inlined: Clear track node flags with bounds check (added in Grim Fandango).
@@ -382,6 +383,11 @@ void rdPuppet_BuildJointMatrices(rdThing *prdThing, rdMatrix34 *pPlacement)
         if ( !rdVector_IsZero3(v61) )
             rdMatrix_PreRotate34(&prdThing->paJointMatrices[v80], &prdThing->hierarchyNodes2[v80]);
     }
+
+#ifdef TARGET_IOS
+    // Added: the player's two-saber style: the left arm as the right arm was a moment ago, mirrored (iosSaber)
+    iosSaber_PoseArms(prdThing);
+#endif
 
 accumulate_finalize:
     rdThing_AccumulateMatrices(prdThing, model->aHierarchyNodes, pPlacement);

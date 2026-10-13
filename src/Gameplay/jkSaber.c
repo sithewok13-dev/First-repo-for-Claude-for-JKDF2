@@ -121,7 +121,10 @@ void jkSaber_Draw(rdMatrix34 *posRotMat)
                 int l = _strlen(pPov->aHierarchyNodes[i].name);
                 if (l >= 5 && !__strcmpi(pPov->aHierarchyNodes[i].name + (l - 5), "lhand")) { lhand = i; break; }
             }
-            if (lhand >= 0 && lhand < pPov->numHNodes)
+            rdMatrix34 mirrorHand;
+            if (jkPlayer_GetPovMirrorHand(&mirrorHand)) // Added: the mirrored arm's hand (the player's two-saber style)
+                rdThing_Draw(&playerThings[playerThingIdx].polylineThing, &mirrorHand);
+            else if (lhand >= 0 && lhand < pPov->numHNodes)
                 rdThing_Draw(&playerThings[playerThingIdx].polylineThing, &playerThings[playerThingIdx].povModel.paJointMatrices[lhand]); // K_Lhand
 #ifdef TARGET_IOS
             iosSaber_EndBlade(&playerThings[playerThingIdx].polylineThing);

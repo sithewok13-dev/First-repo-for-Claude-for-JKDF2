@@ -62,10 +62,19 @@ void iosSaber_BeginBlade(struct SithThing* pThing, struct rdThing* pLine, int bl
 void iosSaber_EndBlade(struct rdThing* pLine);
 
 // Whether this thing carries the player's second blade (the local player in
-// single player, with a two-blade style): a saber in the left hand too, drawn
+// single player, with a two-blade style, not in a selfie): a saber in the left hand too, drawn
 // with its own hilt, and striking as the game's own two-saber mode does
 // (jkSaber_IsDual: JKFLAG_DUALSABERS, which the game itself never sets)
 int iosSaber_HasSecondBlade(struct SithThing* pThing);
+
+// Second, the two-saber style's left arm (rdPuppet_BuildJointMatrices, each
+// joint posed and not yet put together): the player's left arm takes the
+// right arm's pose of IOSSABER_ECHO_MS before, mirrored, so the two sabers
+// are held apart and swing one after the other, the second blade striking
+// where it is drawn. (The game's own stance holds the hilt in both hands.)
+// Only while the saber is on.
+#define IOSSABER_ECHO_MS 200
+void iosSaber_PoseArms(struct rdThing* pRdThing);
 
 // The level going (sithWorld_FreeEntry): the colours made for it freed
 // (they are made again, from the next level's palette, when next drawn)

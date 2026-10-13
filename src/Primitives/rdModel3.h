@@ -191,6 +191,7 @@ typedef struct rdMesh
 model3Loader_t rdModel3_RegisterLoader(model3Loader_t pfFunc);
 model3Unloader_t rdModel3_RegisterUnloader(model3Unloader_t pfFunc);
 void rdModel3_ClearFrameCounters();
+extern int rdModel3_bMirrored; // Added: models drawn now go through a mirroring matrix (corners' order put back)
 int rdModel3_NewEntry(rdModel3 *pModel3);
 rdModel3* rdModel3_Load(char *pName);
 int rdModel3_LoadEntry(char *pFilename, rdModel3 *pModel3);
