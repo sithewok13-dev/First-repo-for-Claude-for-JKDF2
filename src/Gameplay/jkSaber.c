@@ -12,6 +12,8 @@
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosSaber.h" // Added
 #endif
+#include "World/sithWeapon.h" // Added
+#include "Gameplay/sithInventory.h" // Added
 #include "World/sithTemplate.h"
 #include "World/sithModel.h"
 #include "Engine/sithKeyFrame.h"
@@ -173,6 +175,19 @@ void jkSaber_UpdateLength(SithThing *thing)
         thing->jkFlags &= ~JKFLAG_SABERON;
         return;
     }
+
+#ifdef QOL_IMPROVEMENTS
+    // Added: the saber cog lights the blade 0.7 s after the saber is drawn, even when it was put away
+    // before then (a quick switch to another weapon), and nothing puts it out after: a blade lit with
+    // another weapon in hand (no switch under way) is put out at once
+    if ((thing->jkFlags & (JKFLAG_SABERON | JKFLAG_SABEREXTEND)) && !(thing->jkFlags & JKFLAG_SABERFORCEON)
+        && thing == sithPlayer_g_pLocalPlayerThing && sithWeapon_8BD024 == -1)
+    {
+        const int cur = sithInventory_GetCurrentWeapon(thing);
+        if (cur > 0 && cur != SITHBIN_LIGHTSABER && cur != SITHBIN_MOTS_LIGHTSABER)
+            thing->jkFlags &= ~(JKFLAG_SABERON | JKFLAG_SABEREXTEND | JKFLAG_SABERRETRACT);
+    }
+#endif
 
     if (!(thing->jkFlags & JKFLAG_SABERON)) {
         playerInfo->polyline.length = 0;
