@@ -104,6 +104,8 @@ macro(postcompile_ios)
         COMMAND cp ${PROJECT_SOURCE_DIR}/packaging/icon-256.png ${BUNDLE}/AppIcon.png
         # The CAMERA button's burst tick (iosTouch.m); made for this port
         COMMAND cp ${PROJECT_SOURCE_DIR}/packaging/ios/burst_tick.wav ${BUNDLE}/burst_tick.wav
+        # The Emperor's laugh when cheat mode is switched on (iosCheatLaugh.m), as the owner gave it
+        COMMAND cp ${PROJECT_SOURCE_DIR}/packaging/ios/laughing.mp3 ${BUNDLE}/laughing.mp3
 
         # ANGLE. Both frameworks ship: the app links libGLESv2 for the gl* entry
         # points and libEGL for context/surface management, and libEGL resolves

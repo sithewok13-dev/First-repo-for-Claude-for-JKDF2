@@ -180,7 +180,9 @@ extern int jkHud_bChatOpen;
 // The saber wheel's choices beside the ring: SINGLE and DUAL on its left;
 // with DUAL, which blade a colour goes to (LEFT, BOTH, RIGHT) on its right.
 // Each IOSTOUCH_SABER_CHIP_W by _H, this far out from the ring and apart.
-enum { IOSTOUCH_CHIP_SINGLE = 0, IOSTOUCH_CHIP_DUAL, IOSTOUCH_CHIP_LEFT, IOSTOUCH_CHIP_BOTH, IOSTOUCH_CHIP_RIGHT, IOSTOUCH_NUM_CHIPS };
+enum { IOSTOUCH_CHIP_SINGLE = 0, IOSTOUCH_CHIP_DUAL, IOSTOUCH_CHIP_LEFT, IOSTOUCH_CHIP_BOTH, IOSTOUCH_CHIP_RIGHT,
+       IOSTOUCH_CHIP_EQUIP, // (in the middle: the saber in hand, as it is set; lit while the player has it)
+       IOSTOUCH_NUM_CHIPS };
 #define IOSTOUCH_SABER_CHIP_W 64.0
 #define IOSTOUCH_SABER_CHIP_H 28.0
 #define IOSTOUCH_SABER_CHIP_OUT 22.0
@@ -1814,7 +1816,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         wheelCancelLabel.text = @"cancel";
         wheelCancelLabel.layer.zPosition = 2.0;
         [wheelView addSubview:wheelCancelLabel];
-        const char* aChipName[IOSTOUCH_NUM_CHIPS] = { "SINGLE", "DUAL", "LEFT", "BOTH", "RIGHT" };
+        const char* aChipName[IOSTOUCH_NUM_CHIPS] = { "SINGLE", "DUAL", "LEFT", "BOTH", "RIGHT", "EQUIP" };
         for (int i = 0; i < IOSTOUCH_NUM_CHIPS; i++) {
             UILabel* l = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, IOSTOUCH_SABER_CHIP_W, IOSTOUCH_SABER_CHIP_H)];
             l.text = [NSString stringWithUTF8String:aChipName[i]];
@@ -2512,8 +2514,25 @@ static int iosTouch_SaberBlade(void)
 // One of the saber wheel's choices beside the ring tapped: one saber or two
 // (each keeps its own colours), or which of the two a colour goes to. The
 // wheel stays open, to tap a colour.
+// Whether EQUIP can take the saber now: the player has it, and can switch to it
+- (int)canEquipSaber
+{
+    int ammo = 0, bSelectable = 0;
+    return iosGame_GetWeapon(iosGame_IsMots() ? 131 : 10, &ammo, &bSelectable) && bSelectable;
+}
+
 - (void)useSaberChip:(int)chip
 {
+    if (chip == IOSTOUCH_CHIP_EQUIP) {
+        // the saber in hand, as set (colours, one or two): the wheel closes
+        // with nothing else changed, and the game takes it once it runs again
+        // (as NEXT WPN's wheel does); not had, nothing
+        if (![self canEquipSaber]) return;
+        const int bin = iosGame_IsMots() ? 131 : 10;
+        [self closeWheelSelecting:-1];
+        if (bin != iosGame_GetCurWeapon()) iosGame_SelectWeapon(bin);
+        return;
+    }
     NSUserDefaults* d = [NSUserDefaults standardUserDefaults];
     if (chip == IOSTOUCH_CHIP_SINGLE || chip == IOSTOUCH_CHIP_DUAL) {
         iosSaber_SetStyle(chip == IOSTOUCH_CHIP_DUAL ? IOSSABER_STYLE_DUAL : IOSSABER_STYLE_SINGLE);
@@ -2599,6 +2618,17 @@ static int iosTouch_SaberBlade(void)
     }
     for (int i = 0; i < IOSTOUCH_NUM_CHIPS; i++) {
         UILabel* l = aSaberChips[i];
+        if (i == IOSTOUCH_CHIP_EQUIP) {
+            // in the middle, under the colour's name and the hint; dim while
+            // the player has no saber to take
+            l.hidden = !bSaber;
+            l.center = CGPointMake(c.x, c.y + 34.0);
+            const int bCan = [self canEquipSaber];
+            l.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.4].CGColor;
+            l.layer.borderWidth = 1.5;
+            l.alpha = bCan ? 1.0 : 0.35;
+            continue;
+        }
         const int bStyle = i <= IOSTOUCH_CHIP_DUAL;
         l.hidden = !bSaber || (!bStyle && !bTwo) || (i == IOSTOUCH_CHIP_DUAL && !iosSaber_StyleAvailable(IOSSABER_STYLE_DUAL));
         if (l.hidden) continue;
@@ -3925,6 +3955,11 @@ static int iosTouch_WheelSliceHasRow(int i)
             }
             else if (s->role == ROLE_WHEEL && iosTouch_bWheelOpen && s->bWheelOpener && s->bWheelHeld) {
                 // opened by holding still, lifted without sliding: open to tap
+            }
+            else if (s->role == ROLE_WHEEL && iosTouch_bWheelOpen && s->bWheelOpener && !iosTouch_bWheelTapMode
+                     && [self saberChipAt:p] == IOSTOUCH_CHIP_EQUIP) {
+                // slid onto EQUIP and lifted there
+                [self useSaberChip:IOSTOUCH_CHIP_EQUIP];
             }
             else if (s->role == ROLE_WHEEL && iosTouch_bWheelOpen && s->bWheelOpener && !iosTouch_bWheelTapMode) {
                 [self aimWheel:s at:p];

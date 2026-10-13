@@ -1642,7 +1642,7 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
         if ( jkDev_bSithEwokFlying && (pPlayer->physicsParams.flags & SITH_PF_FLY) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP) )
             jkDev_Custom_SetFlying(pPlayer, 0);
         jkDev_bSithEwokFlying = 0;
-        sithConsole_PrintString("Invincibility, endless Force, safe falls, the Force's catch, flight and noclip off");
+        // (no message for it going off, as none for it going on)
         return 1;
     }
 
