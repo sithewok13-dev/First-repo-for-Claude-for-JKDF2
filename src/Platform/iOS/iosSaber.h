@@ -41,7 +41,7 @@ void iosSaber_ColourRGB(int id, unsigned char* pR, unsigned char* pG, unsigned c
 // ---- styles: how many blades, and where. Only the ones that work can be
 // picked (iosSaber_StyleAvailable); each keeps its own blade colours, so
 // going from one style to another and back finds them as they were.
-enum { IOSSABER_STYLE_SINGLE = 0, IOSSABER_NUM_STYLES };
+enum { IOSSABER_STYLE_SINGLE = 0, IOSSABER_STYLE_DUAL, IOSSABER_NUM_STYLES };
 #define IOSSABER_MAX_BLADES 2
 int iosSaber_StyleAvailable(int style);
 const char* iosSaber_StyleName(int style);
@@ -60,6 +60,12 @@ struct SithThing;
 struct rdThing;
 void iosSaber_BeginBlade(struct SithThing* pThing, struct rdThing* pLine, int blade);
 void iosSaber_EndBlade(struct rdThing* pLine);
+
+// Whether this thing carries the player's second blade (the local player in
+// single player, with a two-blade style): a saber in the left hand too, drawn
+// with its own hilt, and striking as the game's own two-saber mode does
+// (jkSaber_IsDual: JKFLAG_DUALSABERS, which the game itself never sets)
+int iosSaber_HasSecondBlade(struct SithThing* pThing);
 
 // The level going (sithWorld_FreeEntry): the colours made for it freed
 // (they are made again, from the next level's palette, when next drawn)

@@ -30,6 +30,8 @@ MATH_FUNC void jkSaber_UpdateLength(SithThing *thing);
 MATH_FUNC void jkSaber_UpdateCollision(SithThing *player, int joint, int bSecondary);
 MATH_FUNC void jkSaber_SpawnSparks(jkPlayerInfo *pPlayerInfo, rdVector3 *pPos, SithSector *psector, int sparkType);
 void jkSaber_Enable(SithThing *pThing, flex_t damage, flex_t bladeLength, flex_t stunDelay);
+int jkSaber_IsDual(SithThing *pThing); // Added
+int jkSaber_SecondaryJoint(SithThing *pThing); // Added
 void jkSaber_Disable(SithThing *player);
 
 //static void (*jkSaber_UpdateCollision)(SithThing *player, int joint) = (void*)jkSaber_UpdateCollision_ADDR;

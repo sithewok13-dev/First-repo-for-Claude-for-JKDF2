@@ -1065,28 +1065,21 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
         return;
 
     int primary_mesh = thing->pPuppetClass->aJoints[JOINTTYPE_PRIMARYWEAP];
-    int secondary_mesh = thing->pPuppetClass->aJoints[JOINTTYPE_SECONDARYWEAP];
-
-    // Attempt to find a proper secondary weapon hand
-    if (thing->jkFlags & JKFLAG_DUALSABERS && primary_mesh == secondary_mesh && thing->renderData.model3) {
-        for (int i = 0; i < thing->renderData.model3->numHNodes; i++)
-        {
-            int l = _strlen(thing->renderData.model3->aHierarchyNodes[i].name);
-            if (l < 5) continue;
-
-            if (!__strcmpi(thing->renderData.model3->aHierarchyNodes[i].name + (l - 5), "lhand")) {
-                secondary_mesh = i;
-                break;
-            }
-        }
-
-        if (primary_mesh != secondary_mesh) {
-            thing->pPuppetClass->aJoints[JOINTTYPE_SECONDARYWEAP] = secondary_mesh;
-        }
-    }
+    // Added: the second saber's hand (jkSaber_SecondaryJoint: the left hand
+    // where the puppet has no second weapon joint), found without writing it
+    // into the puppet class other things share; none, no second blade
+    int bDual = jkSaber_IsDual(thing);
+    int secondary_mesh = bDual ? jkSaber_SecondaryJoint(thing) : -1;
+    if (secondary_mesh < 0) bDual = 0;
 
     rdMatrix34* primaryMat = &thing->renderData.paJointMatrices[primary_mesh];
-    rdMatrix34* secondaryMat = &thing->renderData.paJointMatrices[secondary_mesh];
+    rdMatrix34* secondaryMat = bDual ? &thing->renderData.paJointMatrices[secondary_mesh] : primaryMat;
+#ifdef TARGET_IOS
+    // Added: the player's second saber (iosSaber) has a hilt of its own
+    const int bSecondHilt = bDual && iosSaber_HasSecondBlade(thing);
+#else
+    const int bSecondHilt = 0;
+#endif
 
     if (thing->jkFlags & JKFLAG_PERSUASION)
     {
@@ -1111,13 +1104,15 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
 
             if (playerInfo->rd_thing.model3)
                 rdThing_Draw(&playerInfo->rd_thing, primaryMat);
+            if (playerInfo->rd_thing.model3 && bSecondHilt)
+                rdThing_Draw(&playerInfo->rd_thing, secondaryMat); // Added
 
             if (thing->jkFlags & JKFLAG_SABERON)
             {
                 if (!JKPLAYER_PHOTO_LOOKING()) // Added: no game random numbers used in a selfie
                     jkSaber_PolylineRand(&playerInfo->polylineThing);
                 if (!JKPLAYER_SELFIE_HIDES_BLADE(primaryMat, &playerInfo->polylineThing)) JKPLAYER_DRAW_BLADE(thing, &playerInfo->polylineThing, primaryMat, 0);
-                if ( thing->jkFlags & JKFLAG_DUALSABERS)
+                if (bDual) // Added: or the player's two-blade style; only where there is a second hand
                     if (!JKPLAYER_SELFIE_HIDES_BLADE(secondaryMat, &playerInfo->polylineThing)) JKPLAYER_DRAW_BLADE(thing, &playerInfo->polylineThing, secondaryMat, 1);
             }
         }
@@ -1131,13 +1126,15 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
     {
         if (playerInfo->rd_thing.model3)
             rdThing_Draw(&playerInfo->rd_thing, primaryMat);
+        if (playerInfo->rd_thing.model3 && bSecondHilt)
+            rdThing_Draw(&playerInfo->rd_thing, secondaryMat); // Added
         
         if (thing->jkFlags & JKFLAG_SABERON)
         {
             if (!JKPLAYER_PHOTO_LOOKING()) // Added: no game random numbers used in a selfie
                 jkSaber_PolylineRand(&playerInfo->polylineThing);
             if (!JKPLAYER_SELFIE_HIDES_BLADE(primaryMat, &playerInfo->polylineThing)) JKPLAYER_DRAW_BLADE(thing, &playerInfo->polylineThing, primaryMat, 0);
-            if (thing->jkFlags & JKFLAG_DUALSABERS)
+            if (bDual) // Added
                 if (!JKPLAYER_SELFIE_HIDES_BLADE(secondaryMat, &playerInfo->polylineThing)) JKPLAYER_DRAW_BLADE(thing, &playerInfo->polylineThing, secondaryMat, 1);
         }
     }

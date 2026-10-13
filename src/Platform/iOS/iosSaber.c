@@ -123,6 +123,7 @@ typedef struct {
 
 static const iosSaberStyle iosSaber_aStyles[IOSSABER_NUM_STYLES] = {
     [IOSSABER_STYLE_SINGLE] = { "SINGLE", 1, { IOSSABER_HAND_RIGHT }, 1 },
+    [IOSSABER_STYLE_DUAL]   = { "DUAL",   2, { IOSSABER_HAND_RIGHT, IOSSABER_HAND_LEFT }, 1 },
 };
 
 static int iosSaber_style = IOSSABER_STYLE_SINGLE;
@@ -283,10 +284,21 @@ void iosSaber_FreeWorld(void)
 
 // ------------------------------------------------------------ drawing
 
+// (only the player's own, in single player: no one else's game knows of it)
+static int iosSaber_IsPlayers(SithThing* pThing)
+{
+    return pThing && pThing == sithPlayer_g_pLocalPlayerThing && !sithNet_isMulti;
+}
+
+int iosSaber_HasSecondBlade(SithThing* pThing)
+{
+    return iosSaber_IsPlayers(pThing) && iosSaber_aStyles[iosSaber_style].numBlades >= 2;
+}
+
 void iosSaber_BeginBlade(SithThing* pThing, rdThing* pLine, int blade)
 {
     iosSaber_pSavedSide = iosSaber_pSavedTip = NULL;
-    if (!pThing || pThing != sithPlayer_g_pLocalPlayerThing || sithNet_isMulti || !pLine || !pLine->polyline) return;
+    if (!iosSaber_IsPlayers(pThing) || !pLine || !pLine->polyline) return;
     const iosSaberStyle* st = &iosSaber_aStyles[iosSaber_style];
     // (a blade the style doesn't have -- the game's own second one -- as its first)
     if (blade < 0 || blade >= st->numBlades) blade = 0;

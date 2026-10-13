@@ -25,6 +25,12 @@
 #define JKSABER_EXTENDTIME (0.3000000)
 #define JKSABER_LENGTHCHANGE (0.6000000)
 
+// Added: whether the first blade had a last joint matrix before this frame's
+// (so the second, stored the frame before alongside it, has one too); and
+// the furthest the second blade's hand can have moved since then
+static int jkSaber_bSecondaryHadLast = 0;
+#define JKSABER_SECONDARY_SWEEP_MAX (0.25)
+
 void jkSaber_Startup()
 {
 }
@@ -56,6 +62,7 @@ void jkSaber_InitializeSaberInfo(SithThing *thing, char *material_side_fname, ch
         //thing->jkFlags |= JKFLAG_DUALSABERS;
     }
 #endif
+
 
     rdPolyline_FreeEntry(&saberinfo->polyline); // Added: fix memleak
     rdPolyline_NewEntry(&saberinfo->polyline, "Saber", material_side_fname, material_tip_fname, length, base_rad, tip_rad, RD_LIGHTMODE_4_UNK, 0, 0, 0.0);
@@ -99,17 +106,60 @@ void jkSaber_Draw(rdMatrix34 *posRotMat)
 #endif
         
         // Added: Dual sabers
-        if (playerThings[playerThingIdx].actorThing->jkFlags & JKFLAG_DUALSABERS)
+        if (jkSaber_IsDual(playerThings[playerThingIdx].actorThing))
         {
 #ifdef TARGET_IOS
             iosSaber_BeginBlade(playerThings[playerThingIdx].actorThing, &playerThings[playerThingIdx].polylineThing, 1); // Added
 #endif
-            rdThing_Draw(&playerThings[playerThingIdx].polylineThing, &playerThings[playerThingIdx].povModel.paJointMatrices[2]); // K_Lhand
+            // Added: the first person model's left hand, by name (k_lhand, 2 in
+            // the game's own: the game's own two-saber mode's guess; none, no
+            // second blade for the player's two-blade style)
+            int lhand = (playerThings[playerThingIdx].actorThing->jkFlags & JKFLAG_DUALSABERS) ? 2 : -1;
+            rdModel3* pPov = playerThings[playerThingIdx].povModel.model3;
+            for (int i = 0; i < pPov->numHNodes; i++)
+            {
+                int l = _strlen(pPov->aHierarchyNodes[i].name);
+                if (l >= 5 && !__strcmpi(pPov->aHierarchyNodes[i].name + (l - 5), "lhand")) { lhand = i; break; }
+            }
+            if (lhand >= 0 && lhand < pPov->numHNodes)
+                rdThing_Draw(&playerThings[playerThingIdx].polylineThing, &playerThings[playerThingIdx].povModel.paJointMatrices[lhand]); // K_Lhand
 #ifdef TARGET_IOS
             iosSaber_EndBlade(&playerThings[playerThingIdx].polylineThing);
 #endif
         }
     }
+}
+
+// Added: whether a thing has a saber in each hand: the game's own two-saber
+// mode (JKFLAG_DUALSABERS), or the player's two-blade style (iosSaber)
+int jkSaber_IsDual(SithThing *pThing)
+{
+    if (!pThing) return 0;
+    if (pThing->jkFlags & JKFLAG_DUALSABERS) return 1;
+#ifdef TARGET_IOS
+    if (iosSaber_HasSecondBlade(pThing)) return 1;
+#endif
+    return 0;
+}
+
+// Added: the joint a second saber is held by: the puppet's secondary weapon
+// joint, or where that is the first one's (or none), the model's left hand
+// (a node whose name ends in "lhand"); -1 if there is none. (Found here each
+// time, rather than written into the puppet class, which other things share.)
+int jkSaber_SecondaryJoint(SithThing *pThing)
+{
+    rdModel3* pModel = pThing ? pThing->renderData.model3 : NULL;
+    if (!pThing || !pThing->pPuppetClass || !pModel) return -1;
+    int primary = pThing->pPuppetClass->aJoints[JOINTTYPE_PRIMARYWEAP];
+    int secondary = pThing->pPuppetClass->aJoints[JOINTTYPE_SECONDARYWEAP];
+    if (secondary >= 0 && secondary < pModel->numHNodes && secondary != primary) return secondary;
+    for (int i = 0; pModel && i < pModel->numHNodes; i++)
+    {
+        int l = _strlen(pModel->aHierarchyNodes[i].name);
+        if (l >= 5 && !__strcmpi(pModel->aHierarchyNodes[i].name + (l - 5), "lhand"))
+            return i;
+    }
+    return -1;
 }
 
 void jkSaber_UpdateLength(SithThing *thing)
@@ -206,11 +256,13 @@ void jkSaber_UpdateLength(SithThing *thing)
 
     if ( thing->pPuppetClass->aJoints[JOINTTYPE_PRIMARYWEAP] >= 0 )
     {
+        jkSaber_bSecondaryHadLast = playerInfo->bHasLastJointMat; // Added
         jkSaber_UpdateCollision(thing, thing->pPuppetClass->aJoints[JOINTTYPE_PRIMARYWEAP], 0); // MOTS added: last arg
-        if ( thing->jkFlags & JKFLAG_DUALSABERS )
+        if ( jkSaber_IsDual(thing) ) // Added: or the player's two-blade style
         {
-            if ( thing->pPuppetClass->aJoints[JOINTTYPE_SECONDARYWEAP] >= 0 )
-                jkSaber_UpdateCollision(thing, thing->pPuppetClass->aJoints[JOINTTYPE_SECONDARYWEAP], 1); // MOTS added: last arg
+            int secondary = jkSaber_SecondaryJoint(thing); // Added: the left hand where the puppet has none
+            if ( secondary >= 0 )
+                jkSaber_UpdateCollision(thing, secondary, 1); // MOTS added: last arg
         }
     }
 }
@@ -379,8 +431,10 @@ void jkSaber_UpdateCollision(SithThing *player, int joint, int bSecondary)
     if ( !rdModel3_GetMeshMatrix(&player->renderData, &matrix, joint, &jointMat) )
         return;
 
-    rdVector_Copy3(&player->actorParams.saberBladePos, &jointMat.scale);
-    rdVector_ScaleAdd3Acc(&player->actorParams.saberBladePos, &jointMat.lvec, playerInfo->polyline.length);
+    if (!bSecondary) { // Added: the saber's light stays with the first blade
+        rdVector_Copy3(&player->actorParams.saberBladePos, &jointMat.scale);
+        rdVector_ScaleAdd3Acc(&player->actorParams.saberBladePos, &jointMat.lvec, playerInfo->polyline.length);
+    }
 
     if ( player->jkFlags & JKFLAG_40 )
     {
@@ -411,7 +465,16 @@ void jkSaber_UpdateCollision(SithThing *player, int joint, int bSecondary)
 #endif
     rdVector_Copy3(&jointPos, &jointMat.scale);
     rdVector_Copy3(&a2a, &jointMat.lvec);
-    if (sithTime_g_frameTimeFlex > saberMinDelta && playerInfo->bHasLastJointMat) 
+    // Added: the second blade sweeps from where it was only if it was there
+    // the frame before (stored then, not at a past swing's end or never),
+    // and near (not across the level from a matrix never stored)
+    int bLastKnown = playerInfo->bHasLastJointMat;
+    if (bSecondary && bLastKnown) {
+        rdVector3 d;
+        rdVector_Sub3(&d, &jointMat.scale, &playerInfo->lastSecondarySaberJointMat.scale);
+        bLastKnown = jkSaber_bSecondaryHadLast && rdVector_Len3(&d) < JKSABER_SECONDARY_SWEEP_MAX;
+    }
+    if (sithTime_g_frameTimeFlex > saberMinDelta && bLastKnown) 
     {
         pWhichLastJointMat = &playerInfo->lastSaberJointMat;
         if (bSecondary != 0) {
