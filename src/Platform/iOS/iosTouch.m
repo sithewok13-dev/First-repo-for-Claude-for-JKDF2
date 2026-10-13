@@ -17,6 +17,7 @@
 #include "Platform/iOS/iosGame.h"
 #include "Platform/iOS/iosCapture.h"
 #include "Platform/iOS/iosPhotos.h"
+#include "Platform/iOS/iosCheatLaugh.h"
 #include "Platform/iOS/iosSelfie.h"
 #include "Platform/iOS/iosSelfieShots.h"
 #include "Platform/iOS/iosFreeze.h"
@@ -3060,6 +3061,7 @@ static int iosTouch_SaberBlade(void)
         else {
             [self setShowCheat:1];
             if (!iosGame_IsSithEwokOn()) iosGame_ToggleSithEwok();
+            iosCheatLaugh_Play(iosGame_SfxVolume()); // (the Emperor approves; only here)
         }
     }
     else if (kind == KIND_GYRO && iosTouch_GyroAvailable()) {

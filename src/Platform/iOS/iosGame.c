@@ -507,6 +507,11 @@ int iosGame_IsSaberButtonShown(void)
     return jkDev_Custom_SaberButtonShown();
 }
 
+float iosGame_SfxVolume(void)
+{
+    return (float)jkGuiSound_sfxVolume;
+}
+
 int iosGame_IsFlying(void)
 {
     return jkDev_Custom_IsFlying();

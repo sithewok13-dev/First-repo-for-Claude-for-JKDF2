@@ -151,6 +151,8 @@ void iosGame_SetCheatShown(int bShown);
 // Whether the overlay's SABER shows: the player has the saber for real (the
 // game gave it, not just a cheat), or sithewok is on
 int iosGame_IsSaberButtonShown(void);
+// The game's sound effects volume (0..1, the Sound setup screen's)
+float iosGame_SfxVolume(void);
 
 // Whether sithewok's flight is on now (JUMP held rises then, rather than
 // switching it off: a double tap does that)
