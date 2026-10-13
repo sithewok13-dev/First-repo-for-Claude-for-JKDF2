@@ -174,6 +174,9 @@ extern int jkHud_bChatOpen;
 // on, however it was switched (iosGame_IsSithEwokOn, read every frame).
 #define IOSTOUCH_CHEAT_DEFAULTS_KEY @"iosTouchShowCheat"
 #define IOSTOUCH_CHEAT_HOLD 0.5
+// BACTA uses a bacta tank only once held this long (a tap does nothing;
+// lifted or slid off sooner, nothing); one a press, its ring filling meanwhile
+#define IOSTOUCH_BACTA_HOLD 0.3
 #define IOSTOUCH_SABERSTYLE_DEFAULTS_KEY @"iosTouchSaberStyle"
 #define IOSTOUCH_SABERCOLOUR_DEFAULTS_KEY @"iosTouchSaberColour" // + style name + blade number
 #define IOSTOUCH_SABERTARGET_DEFAULTS_KEY @"iosTouchSaberTarget"
@@ -1179,6 +1182,8 @@ typedef struct {
     CAShapeLayer* weaponRing; // NEXT WPN's
     CAShapeLayer* saberRing;  // SABER's
     CAShapeLayer* cheatRing;  // CHEAT's hold progress
+    CAShapeLayer* bactaRing;  // BACTA's
+    UILabel* aCheatSub[3];    // under JUMP, ACT and DUCK while sithewok is on: FLY, NOCLIP, LVL SEL
     CAShapeLayer* cheatEmblem; // CHEAT's Sith emblem (red, with its edge, while the cheat is on)
     // The saber's picture, on SABER and on the tray's saber switch: a hilt and
     // its blade, in the blade's colour (refreshSaberIcons)
@@ -1493,6 +1498,27 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             cheatEmblem.path = IOSTouch_SithEmblemPath(CGPointMake(r, r), r * IOSTOUCH_SITH_SIZE).CGPath;
             cheatEmblem.fillColor = [UIColor colorWithWhite:1.0 alpha:0.85].CGColor;
             [aButtonViews[BTN_CHEAT].layer addSublayer:cheatEmblem];
+        }
+        // BACTA's hold ring
+        bactaRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_BACTA].radius);
+        [aButtonViews[BTN_BACTA].layer addSublayer:bactaRing];
+        // sithewok's own uses of JUMP, ACT and DUCK (held), named small under
+        // their labels while it is on
+        {
+            const int aSubBtn[3] = { BTN_JUMP, BTN_ACT, BTN_DUCK };
+            NSString* aSubText[3] = { @"FLY", @"NOCLIP", @"LVL SEL" };
+            for (int k = 0; k < 3; k++) {
+                const CGFloat r = iosTouch_aButtons[aSubBtn[k]].radius;
+                UILabel* l = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 2.0 * r, 10.0)];
+                l.center = CGPointMake(r, r + r * 0.5);
+                l.text = aSubText[k];
+                l.textAlignment = NSTextAlignmentCenter;
+                l.font = [UIFont boldSystemFontOfSize:7.5];
+                l.textColor = [UIColor colorWithRed:1.0 green:0.58 blue:0.52 alpha:0.95];
+                l.hidden = YES;
+                aCheatSub[k] = l;
+                [aButtonViews[aSubBtn[k]] addSubview:l];
+            }
         }
         cheatRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_CHEAT].radius);
         [aButtonViews[BTN_CHEAT].layer addSublayer:cheatRing];
@@ -2272,6 +2298,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     forceRing.opacity = bForceRingFull ? 1.0 : (iosTouch_aButtonHeld[BTN_FORCE] ? 1.0 : IOSTOUCH_IDLE_ALPHA);
+    for (int k = 0; k < 3; k++) aCheatSub[k].hidden = !iosTouch_bCheatOn;
     // CHEAT's emblem and edge in a quiet red while the cheat is on: only
     // their colour changes (the edge as wide as every other button's)
     cheatEmblem.fillColor = iosTouch_bCheatOn ? [UIColor colorWithRed:0.9 green:0.32 blue:0.28 alpha:0.95].CGColor
@@ -2511,15 +2538,16 @@ static int iosTouch_SaberBlade(void)
     [self refreshSaberIcons];
 }
 
-// One of the saber wheel's choices beside the ring tapped: one saber or two
-// (each keeps its own colours), or which of the two a colour goes to. The
-// wheel stays open, to tap a colour.
 // Whether EQUIP can take the saber now: the player has it, and can switch to it
 - (int)canEquipSaber
 {
     int ammo = 0, bSelectable = 0;
     return iosGame_GetWeapon(iosGame_IsMots() ? 131 : 10, &ammo, &bSelectable) && bSelectable;
 }
+
+// One of the saber wheel's choices tapped: one saber or two (each keeps its
+// own colours), or which of the two a colour goes to -- the wheel stays open,
+// to tap a colour; or EQUIP, the saber in hand, the wheel closed.
 
 - (void)useSaberChip:(int)chip
 {
@@ -3675,6 +3703,24 @@ static int iosTouch_WheelSliceHasRow(int i)
 - (void)closeWheelSelecting:(int)slice
 {
     const iosTouchWheelMap* m = iosTouch_pWheelMap;
+    if (m && iosTouch_wheelKind == IOSTOUCH_WHEEL_SABER && slice >= 0 && slice < m->numSlices) {
+        // The saber wheel stays open on a colour: set now, and open to tap
+        // more (the other blade, another colour) until the gap, a tap off
+        // the ring or EQUIP closes it
+        [self setSaberColour:m->aSlices[slice].bin];
+        iosTouch_bWheelTapMode = 1;
+        for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+            iosTouchSlot* o = &iosTouch_aSlots[i];
+            if (o->touch && o->role == ROLE_WHEEL) {
+                if (o->bWheelOpener) o->bWheelHeld = 1; // (lifted, it leaves the wheel open)
+                o->wheelSlot = -1;
+            }
+        }
+        [wheelTick selectionChanged];
+        [self layoutSaberChips];
+        [self refreshWheelLooks];
+        return;
+    }
     if (m && slice >= 0 && slice < m->numSlices && iosTouch_aWheelEarned[slice]) {
         int bin = m->aSlices[slice].bin;
         if (iosTouch_wheelKind == IOSTOUCH_WHEEL_SABER) [self setSaberColour:bin];
@@ -4054,7 +4100,7 @@ static int iosTouch_WheelSliceHasRow(int i)
                 // only go off later.
                 int bWhileTyping = b->kind == KIND_MENU || iosTouch_IsTrayButton(s->button) || iosTouch_IsOptButton(s->button);
                 if (!bCancelled && [self isPoint:p onButton:s->button] && (!jkHud_bChatOpen || bWhileTyping)) {
-                    if (b->kind == KIND_ITEM && !aButtonViews[s->button].hidden
+                    if (b->kind == KIND_ITEM && s->button != BTN_BACTA && !aButtonViews[s->button].hidden
                              // one item at a time: the use key acts on whichever item is selected when it is read
                              && !iosTouch_aPulseQueue[b->scancode] && !iosTouch_aPulseReads[b->scancode]
                              && !iosTouch_aPulseGap[b->scancode]) {
@@ -4085,6 +4131,7 @@ static int iosTouch_WheelSliceHasRow(int i)
                     if (iosTouch_IsTrayButton(tb)) [self useTrayButton:tb];
                 }
                 if (s->button == BTN_QUICKSAVE) [self setRing:saveRing progress:0.0];
+                if (s->button == BTN_BACTA) [self setRing:bactaRing progress:0.0];
                 if (s->button == BTN_QUICKLOAD) [self setRing:loadRing progress:0.0];
                 if (s->button == BTN_MENU) [self setRing:menuRing progress:0.0];
                 if (s->button == BTN_TRAYCAM) [self setRing:camOptRing progress:0.0];
@@ -4305,6 +4352,34 @@ static int iosTouch_WheelSliceHasRow(int i)
         cheatProgress = MAX(cheatProgress, MIN((CGFloat)((now - s->tDown) / IOSTOUCH_CHEAT_HOLD), 1.0));
     }
     [self setRing:cheatRing progress:cheatProgress];
+
+    // BACTA held IOSTOUCH_BACTA_HOLD on it: a bacta tank used, once per press
+    // (as a tap on another item: selected, then the use key), waiting if the
+    // use key is still busy; lifted or slid off sooner, or typing, nothing
+    CGFloat bactaProgress = 0.0;
+    for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+        iosTouchSlot* s = &iosTouch_aSlots[i];
+        if (!s->touch || s->role != ROLE_BUTTON || s->button != BTN_BACTA || s->bFlyDone) continue;
+        iosTouchButton* b = &iosTouch_aButtons[BTN_BACTA];
+        if (![self isPoint:[s->touch locationInView:self] onButton:BTN_BACTA] || aButtonViews[BTN_BACTA].hidden || jkHud_bChatOpen
+            || iosTouch_bWheelOpen || iosTouch_bFreezing || iosTouch_bCinema || iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE) {
+            s->bFlyDone = 1; // (slid off, gone, typing, or a wheel or the photos took over)
+            continue;
+        }
+        if (known - s->tDown >= IOSTOUCH_BACTA_HOLD) {
+            if (iosTouch_aPulseQueue[b->scancode] || iosTouch_aPulseReads[b->scancode] || iosTouch_aPulseGap[b->scancode]) {
+                bactaProgress = 1.0; // (the use key busy: in a moment)
+                continue;
+            }
+            s->bFlyDone = 1;
+            iosGame_SelectItem(b->bin);
+            iosTouch_QueuePress(b->scancode);
+            [cameraTap impactOccurred];
+            continue;
+        }
+        bactaProgress = MAX(bactaProgress, MIN((CGFloat)((now - s->tDown) / IOSTOUCH_BACTA_HOLD), 1.0));
+    }
+    [self setRing:bactaRing progress:bactaProgress];
     if (iosGame_IsSithEwokOn() != iosTouch_bCheatOn) {
         iosTouch_bCheatOn = iosGame_IsSithEwokOn();
         [self refreshButtonLooks];
