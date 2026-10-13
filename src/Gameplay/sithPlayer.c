@@ -22,6 +22,12 @@
 #include "General/stdMath.h"
 #include "Dss/sithDSSThing.h"
 #include "jk.h"
+#ifdef QOL_IMPROVEMENTS
+#include "Main/jkDev.h" // Added: sithewok (jkDev_Custom_CatchesFalls)
+#include "World/sithThing.h"
+#include "Devices/sithConsole.h"
+#include "Primitives/rdMatrix.h"
+#endif
 
 // Added: noclip
 int sithPlayer_bNoClippingRend = 0;
@@ -202,6 +208,89 @@ void sithPlayer_ResetPalEffects()
     sithPlayer_g_pLocalPlayer->palEffectsIdx2 = stdPalEffects_NewRequest(2);
 }
 
+#ifdef QOL_IMPROVEMENTS
+// Added: sithewok: the Force catches the player falling into a pit (a sector that kills whoever falls
+// into it, SITH_SECTOR_FALLDEATH) and puts them back where they stood on solid ground a moment before.
+// Where they stand is noted every SITHPLAYER_SAFE_EVERY seconds while they are on the floor of a sector
+// that isn't a pit (not on a lift or other moving thing); the catch puts them back at the place noted
+// SITHPLAYER_SAFE_BACK notes before the last (further from the edge they went over), facing as they
+// were there, stopped.
+#define SITHPLAYER_SAFE_SPOTS 8
+#define SITHPLAYER_SAFE_EVERY 0.15f
+#define SITHPLAYER_SAFE_BACK  3
+typedef struct {
+    rdMatrix34 orient;
+    rdVector3 pos;
+    SithSector* sector;
+} sithPlayerSafeSpot;
+static sithPlayerSafeSpot sithPlayer_aSafeSpots[SITHPLAYER_SAFE_SPOTS];
+static int sithPlayer_numSafeSpots = 0, sithPlayer_nextSafeSpot = 0;
+static flex_t sithPlayer_safeSpotWait = 0.0f;
+static SithWorld* sithPlayer_pSafeSpotWorld = NULL;
+
+static void sithPlayer_Custom_NoteSafeSpot(SithThing* pThing, flex_t secDeltaTime)
+{
+    if ( sithPlayer_pSafeSpotWorld != sithWorld_g_pCurrentWorld )
+    {
+        // (a new level, or a game loaded: the old places are gone)
+        sithPlayer_pSafeSpotWorld = sithWorld_g_pCurrentWorld;
+        sithPlayer_numSafeSpots = sithPlayer_nextSafeSpot = 0;
+        sithPlayer_safeSpotWait = 0.0f;
+    }
+    if ( !jkDev_Custom_CatchesFalls() )
+        return;
+    sithPlayer_safeSpotWait -= secDeltaTime;
+    if ( sithPlayer_safeSpotWait > 0.0f )
+        return;
+    if ( !(pThing->attach_flags & SITH_ATTACH_SURFACE) || !pThing->sector || (pThing->sector->flags & SITH_SECTOR_FALLDEATH)
+         || (pThing->flags & SITH_TF_DEAD) || pThing->actorParams.health <= 0.0f )
+        return;
+    sithPlayerSafeSpot* pSpot = &sithPlayer_aSafeSpots[sithPlayer_nextSafeSpot];
+    rdMatrix_Copy34(&pSpot->orient, &pThing->orient);
+    rdVector_Copy3(&pSpot->pos, &pThing->position);
+    pSpot->sector = pThing->sector;
+    sithPlayer_nextSafeSpot = (sithPlayer_nextSafeSpot + 1) % SITHPLAYER_SAFE_SPOTS;
+    if ( sithPlayer_numSafeSpots < SITHPLAYER_SAFE_SPOTS )
+        sithPlayer_numSafeSpots++;
+    sithPlayer_safeSpotWait = SITHPLAYER_SAFE_EVERY;
+}
+
+// The catch: 1 if the player was put back on solid ground
+static int sithPlayer_Custom_CatchFall(SithThing* pThing, stdPalEffect* pPalEffect)
+{
+    SithWorld* pWorld = sithWorld_g_pCurrentWorld;
+    if ( !jkDev_Custom_CatchesFalls() || !sithPlayer_numSafeSpots || !pWorld || sithPlayer_pSafeSpotWorld != pWorld )
+        return 0;
+    int back = sithPlayer_numSafeSpots - 1 < SITHPLAYER_SAFE_BACK ? sithPlayer_numSafeSpots - 1 : SITHPLAYER_SAFE_BACK;
+    int idx = (sithPlayer_nextSafeSpot - 1 - back + 2 * SITHPLAYER_SAFE_SPOTS) % SITHPLAYER_SAFE_SPOTS;
+    sithPlayerSafeSpot* pSpot = &sithPlayer_aSafeSpots[idx];
+    if ( !pSpot->sector || pSpot->sector < pWorld->aSectors || pSpot->sector >= pWorld->aSectors + pWorld->numSectors )
+        return 0;
+
+    // (as the levels' own teleports do: sithCogFunctionThing_TeleportThing)
+    if ( pThing->attach_flags )
+        sithThing_DetachThing(pThing);
+    rdMatrix_Copy34(&pThing->orient, &pSpot->orient);
+    rdVector_Copy3(&pThing->position, &pSpot->pos);
+    sithThing_SetSector(pThing, pSpot->sector, 0);
+    rdVector_Zero3(&pThing->physicsParams.vel);
+    if ( pThing->moveType == SITH_MT_PHYSICS && (pThing->physicsParams.flags & SITH_PF_FLOORSTICK) )
+        sithPhysics_FindFloor(pThing, 1);
+    sithCamera_Update(sithCamera_g_pCurCamera);
+
+    // A soft blue flash, fading as the game fades its own (above)
+    if ( pPalEffect )
+    {
+        pPalEffect->tint.z = 0.6;
+        pPalEffect->add.z = stdMath_ClampInt(pPalEffect->add.z + 60, 0, 255);
+    }
+    sithConsole_PrintString("The Force caught you");
+    // (and the places before the edge are still good for another fall)
+    sithPlayer_safeSpotWait = SITHPLAYER_SAFE_EVERY;
+    return 1;
+}
+#endif
+
 void sithPlayer_Update(SithPlayer *pPlayer, flex_t secDeltaTime)
 {
     int v2; // edi
@@ -245,6 +334,9 @@ void sithPlayer_Update(SithPlayer *pPlayer, flex_t secDeltaTime)
         }
         sithWeapon_UpdateActorWeaponState(v3);
         sithInventory_SendFire(v3);
+#ifdef QOL_IMPROVEMENTS
+        sithPlayer_Custom_NoteSafeSpot(v3, secDeltaTime); // Added: sithewok
+#endif
         if ( !v3->attach_flags )
         {
             v14 = v3->actorParams.flags;
@@ -253,6 +345,9 @@ void sithPlayer_Update(SithPlayer *pPlayer, flex_t secDeltaTime)
                 if ( v3->sector )
                 {
                     if ( (v3->sector->flags & SITH_SECTOR_FALLDEATH) != 0 && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP)) // Added: noclip
+#ifdef QOL_IMPROVEMENTS
+                    if ( !sithPlayer_Custom_CatchFall(v3, pPalEffect) ) // Added: sithewok: caught by the Force instead
+#endif
                     {
                         v3->flags |= SITH_TF_DEAD;
                         v3->actorParams.flags |= SITH_AF_FALLKILLED;

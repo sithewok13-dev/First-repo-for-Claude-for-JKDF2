@@ -44,7 +44,8 @@ static int jkDev_bQuietCheats = 0;
 static int jkDev_bEndlessForce = 0;
 // Added: MOTS: sithewok's powers past the tier limits stay, in memory only ("sithewok off" leaves it on)
 static int jkDev_bKeepForcePowers = 0;
-// Added: sithewok: falls don't hurt (invincibility lets fall damage through), in memory only
+// Added: sithewok: falls don't hurt (invincibility lets fall damage through), and the Force catches the
+// player falling into a pit (sithPlayer_Update), in memory only
 static int jkDev_bNoFallHurt = 0;
 static void jkDev_Custom_KeepForceFull();
 #endif
@@ -1338,6 +1339,13 @@ int jkDev_Custom_NoFallHurt()
     return jkDev_bNoFallHurt && !sithNet_isMulti;
 }
 
+// Added: sithewok: the Force catches the player falling into a pit and puts them back on solid ground
+// (sithPlayer_Update); on and off with the safe falls
+int jkDev_Custom_CatchesFalls()
+{
+    return jkDev_bNoFallHurt && !sithNet_isMulti;
+}
+
 // Added: sithewok, everything at once, invincible, endless Force, falls don't hurt; "sithewok off" ends
 // the last three
 int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
@@ -1362,7 +1370,7 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
         pPlayer->actorParams.flags &= ~SITH_AF_INVULNERABLE;
         jkDev_bEndlessForce = 0;
         jkDev_bNoFallHurt = 0;
-        sithConsole_PrintString("Invincibility, endless Force and safe falls off");
+        sithConsole_PrintString("Invincibility, endless Force, safe falls and the Force's catch off");
         return 1;
     }
 
@@ -1392,7 +1400,7 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
     pPlayer->actorParams.flags |= SITH_AF_INVULNERABLE; // jediwannabe on (sithCommand_DebugMode, extra 5)
     jkDev_bEndlessForce = 1;
     jkDev_bNoFallHurt = 1;
-    sithConsole_PrintString("Everything! Invincible, endless Force, falls don't hurt");
+    sithConsole_PrintString("Everything! Invincible, endless Force, falls don't hurt, the Force catches you");
     return 1;
 }
 #endif
