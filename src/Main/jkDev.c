@@ -49,6 +49,8 @@ static int jkDev_bKeepForcePowers = 0;
 static int jkDev_bNoFallHurt = 0;
 // Added: sithewok: the player is flying because of it (jkDev_Custom_ToggleFlight), so "sithewok off" lands them
 static int jkDev_bSithEwokFlying = 0;
+// Added: sithewok: noclip is on because of it (jkDev_Custom_ToggleNoclip), so "sithewok off" ends it
+static int jkDev_bSithEwokNoclip = 0;
 static void jkDev_Custom_KeepForceFull();
 #endif
 
@@ -1393,6 +1395,40 @@ int jkDev_Custom_ToggleFlight()
     return 1;
 }
 
+// Added: sithewok: noclip (through walls, flying), switched on and off by a long press on the touch
+// overlay's ACT (iosGame), as the "noclip" cheat does it (jkDev_CmdNoclip). Only while sithewok is on, in
+// single player. Noclip turned off while sithewok's flight is on: still flying (noclip's own way down
+// would end the flight).
+static SithThing* jkDev_Custom_NoclipPlayer()
+{
+    SithThing* pPlayer;
+    if ( !jkDev_bNoFallHurt || sithNet_isMulti || !sithWorld_g_pCurrentWorld )
+        return NULL;
+    pPlayer = sithWorld_g_pCurrentWorld->pLocalPlayer;
+    if ( !pPlayer || pPlayer->type != SITH_THING_PLAYER || pPlayer->moveType != SITH_MT_PHYSICS || (pPlayer->flags & SITH_TF_DEAD) )
+        return NULL;
+    return pPlayer;
+}
+
+int jkDev_Custom_CanNoclip()
+{
+    return jkDev_Custom_NoclipPlayer() != NULL;
+}
+
+// 1: noclip on now; 0: off; -1: can't now (sithewok off, multiplayer, dead...)
+int jkDev_Custom_ToggleNoclip()
+{
+    SithThing* pPlayer = jkDev_Custom_NoclipPlayer();
+    if ( !pPlayer )
+        return -1;
+    jkDev_CmdNoclip(NULL, ""); // (prints "Noclip ON" or "Noclip OFF")
+    const int bOn = (g_debugmodeFlags & DEBUGFLAG_NOCLIP) != 0;
+    jkDev_bSithEwokNoclip = bOn;
+    if ( !bOn && jkDev_bSithEwokFlying )
+        jkDev_Custom_SetFlying(pPlayer, 1);
+    return bOn;
+}
+
 // Added: sithewok: the Force catches the player falling into a pit and puts them back on solid ground
 // (sithPlayer_Update); on and off with the safe falls
 int jkDev_Custom_CatchesFalls()
@@ -1424,11 +1460,14 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
         pPlayer->actorParams.flags &= ~SITH_AF_INVULNERABLE;
         jkDev_bEndlessForce = 0;
         jkDev_bNoFallHurt = 0;
-        // (flying because of it: back down)
+        // (noclip because of it: off; flying because of it: back down)
+        if ( jkDev_bSithEwokNoclip && (g_debugmodeFlags & DEBUGFLAG_NOCLIP) )
+            jkDev_CmdNoclip(NULL, "");
+        jkDev_bSithEwokNoclip = 0;
         if ( jkDev_bSithEwokFlying && (pPlayer->physicsParams.flags & SITH_PF_FLY) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP) )
             jkDev_Custom_SetFlying(pPlayer, 0);
         jkDev_bSithEwokFlying = 0;
-        sithConsole_PrintString("Invincibility, endless Force, safe falls, the Force's catch and flight off");
+        sithConsole_PrintString("Invincibility, endless Force, safe falls, the Force's catch, flight and noclip off");
         return 1;
     }
 

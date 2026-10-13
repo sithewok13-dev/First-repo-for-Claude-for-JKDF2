@@ -99,6 +99,8 @@ int jkDev_Custom_NoFallHurt(); // Added
 int jkDev_Custom_CatchesFalls(); // Added
 int jkDev_Custom_CanFly(); // Added
 int jkDev_Custom_ToggleFlight(); // Added
+int jkDev_Custom_CanNoclip(); // Added
+int jkDev_Custom_ToggleNoclip(); // Added
 #endif
 
 #if defined(WIN32) && !defined(SDL2_RENDER)

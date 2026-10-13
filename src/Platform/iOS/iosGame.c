@@ -477,6 +477,16 @@ int iosGame_ToggleFlight(void)
     return jkDev_Custom_ToggleFlight();
 }
 
+int iosGame_CanNoclip(void)
+{
+    return jkDev_Custom_CanNoclip();
+}
+
+int iosGame_ToggleNoclip(void)
+{
+    return jkDev_Custom_ToggleNoclip();
+}
+
 int iosGame_IsAlwaysRun(void)
 {
     // The option's checkbox sets bit 2 (jkGuiControlOptions_Show), saved with

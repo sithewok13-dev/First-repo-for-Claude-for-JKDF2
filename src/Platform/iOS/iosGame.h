@@ -128,6 +128,11 @@ int iosGame_IsAlwaysRun(void);
 int iosGame_CanFly(void);
 int iosGame_ToggleFlight(void);
 
+// ...and its noclip, likewise (jkDev_Custom_ToggleNoclip): the touch
+// overlay's ACT held still IOSTOUCH_FLY_HOLD switches it.
+int iosGame_CanNoclip(void);
+int iosGame_ToggleNoclip(void);
+
 // How far one count of mouse movement turns the view (*pTurn: degrees right
 // per count right) and tilts it (*pPitch: degrees down per count down), as
 // the game's mouse look bindings have it (Setup > Controls > Mouse:
