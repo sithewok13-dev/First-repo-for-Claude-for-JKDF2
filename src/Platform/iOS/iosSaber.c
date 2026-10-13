@@ -25,12 +25,16 @@
 // ------------------------------------------------------------ the colours
 
 // A colour: the game's own materials for it (saber<stock>0.mat and 1.mat),
-// or one made from the game's blue blade -- the white middle (core) going
-// out to this edge colour where the blue one is blue
+// or one made from another of the game's blades (from) -- its white middle
+// (core) going out to this edge colour where that one is coloured. The
+// game's blue blade is nearly all white (a thin rim of blue): a strong
+// colour is made from the green one instead (a narrow white middle, a wide
+// band of colour), a pale one from the blue.
 typedef struct {
     const char* key;
     const char* name;
     const char* stock;          // NULL: made
+    const char* from;           // made: the game's blade it is made from
     unsigned char core[3];      // made: the middle
     unsigned char edge[3];      // made: the edges; and the swatch for all
 } iosSaberColour;
@@ -38,23 +42,23 @@ typedef struct {
 // Round the wheel from the gap: the game's own, then by hue, red to pink,
 // then white and black
 static const iosSaberColour iosSaber_aColours[] = {
-    { "game",      "ORIGINAL",   NULL,     {   0,   0,   0 }, { 150, 150, 150 } },
-    { "red",       "RED",        "red",    {   0,   0,   0 }, { 255,  40,  30 } },
-    { "crimson",   "CRIMSON",    "dred",   {   0,   0,   0 }, { 170,   0,  20 } },
-    { "orange",    "ORANGE",     "orange", {   0,   0,   0 }, { 255, 120,  20 } },
-    { "amber",     "AMBER",      NULL,     { 255, 250, 225 }, { 255, 165,   0 } },
-    { "yellow",    "YELLOW",     "yellow", {   0,   0,   0 }, { 255, 230,  40 } },
-    { "lime",      "LIME",       NULL,     { 245, 255, 225 }, { 150, 255,  20 } },
-    { "green",     "GREEN",      "green",  {   0,   0,   0 }, {  40, 220,  60 } },
-    { "teal",      "TEAL",       NULL,     { 230, 255, 250 }, {   0, 190, 150 } },
-    { "cyan",      "CYAN",       NULL,     { 235, 255, 255 }, {   0, 235, 255 } },
-    { "lightblue", "LIGHT BLUE", NULL,     { 245, 250, 255 }, { 120, 195, 255 } },
-    { "blue",      "BLUE",       "blue",   {   0,   0,   0 }, {  50, 110, 255 } },
-    { "purple",    "PURPLE",     "purple", {   0,   0,   0 }, { 160,  60, 255 } },
-    { "magenta",   "MAGENTA",    NULL,     { 255, 235, 255 }, { 255,  20, 220 } },
-    { "pink",      "PINK",       NULL,     { 255, 245, 250 }, { 255, 110, 185 } },
-    { "white",     "WHITE",      NULL,     { 255, 255, 255 }, { 215, 225, 255 } },
-    { "black",     "BLACK",      NULL,     {  10,  10,  14 }, { 245, 248, 255 } },
+    { "game",      "ORIGINAL",   NULL,    NULL,    {   0,   0,   0 }, { 150, 150, 150 } },
+    { "red",       "RED",        "red",   NULL,    {   0,   0,   0 }, { 255,  40,  30 } },
+    { "crimson",   "CRIMSON",    "dred",  NULL,    {   0,   0,   0 }, { 170,   0,  20 } },
+    { "orange",    "ORANGE",     "orange", NULL,   {   0,   0,   0 }, { 255, 120,  20 } },
+    { "amber",     "AMBER",      NULL,    "green", { 255, 250, 225 }, { 255, 165,   0 } },
+    { "yellow",    "YELLOW",     "yellow", NULL,   {   0,   0,   0 }, { 255, 230,  40 } },
+    { "lime",      "LIME",       NULL,    "green", { 245, 255, 225 }, { 150, 255,  20 } },
+    { "green",     "GREEN",      "green", NULL,    {   0,   0,   0 }, {  40, 220,  60 } },
+    { "teal",      "TEAL",       NULL,    "green", { 230, 255, 250 }, {   0, 190, 150 } },
+    { "cyan",      "CYAN",       NULL,    "green", { 235, 255, 255 }, {   0, 235, 255 } },
+    { "lightblue", "LIGHT BLUE", NULL,    "blue",  { 245, 250, 255 }, { 120, 195, 255 } },
+    { "blue",      "BLUE",       NULL,    "green", { 235, 245, 255 }, {  50, 110, 255 } },
+    { "purple",    "PURPLE",     "purple", NULL,   {   0,   0,   0 }, { 160,  60, 255 } },
+    { "magenta",   "MAGENTA",    NULL,    "green", { 255, 235, 255 }, { 255,  20, 220 } },
+    { "pink",      "PINK",       NULL,    "green", { 255, 245, 250 }, { 255, 110, 185 } },
+    { "white",     "WHITE",      NULL,    "blue",  { 255, 255, 255 }, { 215, 225, 255 } },
+    { "black",     "BLACK",      NULL,    "blue",  {  10,  10,  14 }, { 245, 248, 255 } },
 };
 #define IOSSABER_NUM_COLOURS ((int)(sizeof(iosSaber_aColours) / sizeof(iosSaber_aColours[0])))
 
@@ -98,6 +102,8 @@ static int iosSaber_GameColour(void)
         snprintf(side, sizeof(side), "saber%s1", iosSaber_aColours[i].stock);
         if (strstr(name, side)) return i;
     }
+    // (the game's blue blade: blue's swatch, though blue is made, not the game's)
+    if (strstr(name, "saberblue1")) return iosSaber_ColourByKey("blue");
     return -1;
 }
 
@@ -183,13 +189,16 @@ static int iosSaber_aLoaded[IOSSABER_NUM_COLOURS]; // 1: loaded; -1: tried, and 
 static rdMaterial* iosSaber_pSavedSide = NULL;   // the game's, while a blade is drawn in another colour
 static rdMaterial* iosSaber_pSavedTip = NULL;
 
-// A made colour's texels, from the blue blade's: as bright as it is, and
-// from core to edge as far as it is from white to blue (its saturation,
+// A made colour's texels, from its game blade's: as bright as it is, and
+// from core to edge as far as it is from white to its colour (its saturation,
 // nearly three times over: only the middle stays white, as on the game's own
 // blades). Texel 0 (the
 // tip's corners) stays clear. B, G, R, A: as TEX_MODE_16BPP reads them.
+#define IOSSABER_PALE_EDGE 0.75f
 static void iosSaber_MakeTexels(const iosSaberColour* c, const uint8_t* pIdx, int w, int h, int pitch, const rdColor24* pal, uint8_t* pOut)
 {
+    // (pale: its edge colour light -- white, light blue)
+    const int bPale = c->edge[0] >= 120 && c->edge[1] >= 120 && c->edge[2] >= 120;
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
             const int idx = pIdx[y * pitch + x];
@@ -201,7 +210,10 @@ static void iosSaber_MakeTexels(const iosSaberColour* c, const uint8_t* pIdx, in
             const int r = pal[idx].r, g = pal[idx].g, b = pal[idx].b;
             const int mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
             const int mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
-            const float v = mx / 255.0f;
+            // (a pale colour's edges kept bright: the blue blade's darkest
+            // specks, in white, look like grit against a bright sky)
+            float v = mx / 255.0f;
+            if (bPale && v < IOSSABER_PALE_EDGE) v = IOSSABER_PALE_EDGE + (v - IOSSABER_PALE_EDGE) * 0.35f;
             float t = mx ? 2.8f * (mx - mn) / (float)mx : 0.0f;
             if (t > 1.0f) t = 1.0f;
             float out[3];
@@ -264,7 +276,7 @@ static int iosSaber_Load(int id)
     if (!c->stock && !pal) return 0;
     char aPath[IOSSABER_NUM_PARTS][64];
     for (int p = 0; p < IOSSABER_NUM_PARTS; p++) {
-        snprintf(aPath[p], sizeof(aPath[p]), "mat\\saber%s%d.mat", c->stock ? c->stock : "blue", p == IOSSABER_SIDE ? 1 : 0);
+        snprintf(aPath[p], sizeof(aPath[p]), "mat\\saber%s%d.mat", c->stock ? c->stock : c->from, p == IOSSABER_SIDE ? 1 : 0);
     }
     for (int p = 0; p < IOSSABER_NUM_PARTS; p++) {
         if (!rdMaterial_LoadEntry(aPath[p], &iosSaber_aMat[id][p], 0, 0)
