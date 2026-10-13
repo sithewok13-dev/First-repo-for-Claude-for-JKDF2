@@ -16,6 +16,7 @@
 #include "General/stdMath.h"
 #include "Primitives/rdMath.h"
 #include "jk.h"
+#include "Main/jkDev.h" // Added: sithewok (jkDev_Custom_NoFallHurt)
 
 static int sithCollision_initted = 0;
 
@@ -581,10 +582,23 @@ SithSector* sithCollision_FindSectorInRadius(SithSector *pStartSector, const rdV
     return result;
 }
 
+// Added: sithewok: the player's falls don't hurt -- landing hard, or hitting
+// any surface too fast (sithCollision_CollideHurt) -- no damage, no hurt sound
+static int sithCollision_Custom_SparesFall(SithThing *thing)
+{
+#ifdef QOL_IMPROVEMENTS
+    return thing == sithPlayer_g_pLocalPlayerThing && jkDev_Custom_NoFallHurt();
+#else
+    return 0;
+#endif
+}
+
 void sithCollision_FallHurt(SithThing *thing, flex_t vel)
 {
     flex_d_t v2; // st7
 
+    if ( sithCollision_Custom_SparesFall(thing) ) // Added
+        return;
     v2 = (vel - 2.5) * (vel - 2.5) * 45.0;
     if ( v2 > 1.0 )
     {
@@ -1117,7 +1131,7 @@ int sithCollision_CollideHurt(SithThing *pThing, rdVector3 *pHitNorm, flex_t col
         {
             v36 = v43 * v35;
             rdVector_ScaleAdd3Acc(&pThing->physicsParams.vel, pHitNorm, v36);
-            if ( !a4 && v35 > 2.5 )
+            if ( !a4 && v35 > 2.5 && !sithCollision_Custom_SparesFall(pThing) ) // Added: sithewok
             {
                 v39 = (v35 - 2.5) * (v35 - 2.5) * 45.0;
                 //printf("%f %f, %f %f %f\n", v39, v35, a1->physicsParams.vel.x, a1->physicsParams.vel.y, a1->physicsParams.vel.z);

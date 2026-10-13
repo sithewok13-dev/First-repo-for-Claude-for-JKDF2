@@ -95,6 +95,7 @@ int jkDev_UpdateEntries();
 int jkDev_CmdNoclip(stdDebugConsoleCmd *pCmd, const char *pArgStr);
 int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr); // Added
 int jkDev_Custom_KeepsForcePowers(); // Added
+int jkDev_Custom_NoFallHurt(); // Added
 #endif
 
 #if defined(WIN32) && !defined(SDL2_RENDER)

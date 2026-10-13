@@ -44,6 +44,8 @@ static int jkDev_bQuietCheats = 0;
 static int jkDev_bEndlessForce = 0;
 // Added: MOTS: sithewok's powers past the tier limits stay, in memory only ("sithewok off" leaves it on)
 static int jkDev_bKeepForcePowers = 0;
+// Added: sithewok: falls don't hurt (invincibility lets fall damage through), in memory only
+static int jkDev_bNoFallHurt = 0;
 static void jkDev_Custom_KeepForceFull();
 #endif
 
@@ -1329,7 +1331,15 @@ int jkDev_Custom_KeepsForcePowers()
     return jkDev_bKeepForcePowers && Main_bMotsCompat && !sithNet_isMulti;
 }
 
-// Added: sithewok, everything at once, invincible, endless Force; "sithewok off" ends the last two
+// Added: sithewok: falls don't hurt the player (sithCollision_FallHurt). The game's own invincibility
+// (SITH_AF_INVULNERABLE) lets fall damage through on purpose (sithActor_Hit), so this is its own switch.
+int jkDev_Custom_NoFallHurt()
+{
+    return jkDev_bNoFallHurt && !sithNet_isMulti;
+}
+
+// Added: sithewok, everything at once, invincible, endless Force, falls don't hurt; "sithewok off" ends
+// the last three
 int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
     SithThing *pPlayer;
@@ -1351,7 +1361,8 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
     {
         pPlayer->actorParams.flags &= ~SITH_AF_INVULNERABLE;
         jkDev_bEndlessForce = 0;
-        sithConsole_PrintString("Invincibility and endless Force off");
+        jkDev_bNoFallHurt = 0;
+        sithConsole_PrintString("Invincibility, endless Force and safe falls off");
         return 1;
     }
 
@@ -1380,7 +1391,8 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
     sithInventory_SetInventory(pPlayer, SITHBIN_FORCEMANA, jkDev_Custom_GetForceManaMax(pPlayer));
     pPlayer->actorParams.flags |= SITH_AF_INVULNERABLE; // jediwannabe on (sithCommand_DebugMode, extra 5)
     jkDev_bEndlessForce = 1;
-    sithConsole_PrintString("Everything! Invincible, endless Force");
+    jkDev_bNoFallHurt = 1;
+    sithConsole_PrintString("Everything! Invincible, endless Force, falls don't hurt");
     return 1;
 }
 #endif
