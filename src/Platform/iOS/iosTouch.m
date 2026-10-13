@@ -219,7 +219,8 @@ enum { IOSTOUCH_CHIP_SINGLE = 0, IOSTOUCH_CHIP_DUAL, IOSTOUCH_CHIP_LEFT, IOSTOUC
 // within IOSTOUCH_FLY_DOUBLE of the first's lift) do.
 // Its level pick (iosGame_GoToLevel): DUCK held as long, and still, shows 1
 // on the button, then one more every IOSTOUCH_LEVEL_STEP up to the last
-// level; lifted, that level loads. Moved as far, no level.
+// level, then round to 1 again, for as long as it is held; lifted, that
+// level loads. Moved as far, no level.
 #define IOSTOUCH_FLY_HOLD 0.5
 #define IOSTOUCH_FLY_TAP 0.25
 #define IOSTOUCH_FLY_DOUBLE 0.35
@@ -4296,8 +4297,8 @@ static int iosTouch_WheelSliceHasRow(int i)
             }
             const CFTimeInterval held = known - s->tDown;
             if (held >= IOSTOUCH_FLY_HOLD) {
-                int n = 1 + (int)((held - IOSTOUCH_FLY_HOLD) / IOSTOUCH_LEVEL_STEP);
-                if (n > numLevels) n = numLevels;
+                // (after the last, round to 1 again, for as long as it is held)
+                int n = 1 + (int)((held - IOSTOUCH_FLY_HOLD) / IOSTOUCH_LEVEL_STEP) % numLevels;
                 if (n != s->levelPick) {
                     s->levelPick = n;
                     aButtonViews[BTN_DUCK].text = [NSString stringWithFormat:@"%d", n];
