@@ -166,10 +166,10 @@ extern int jkHud_bChatOpen;
 // The colour picked for each blade of each style is remembered by its key,
 // the style by its name.
 // The CHEAT button (right of SABER): cheat mode. Switched on in MENU's tray
-// (off unless switched on; remembered), it shows, and sithewok goes on. A tap
-// switches sithewok on or off, as typing "sithewok" or "sithewok off" does;
-// held still this long (sliding off cancels) it leaves cheat mode: sithewok
-// off, the button hidden, the tray's switch off. Red whenever the cheat is
+// (off unless switched on; remembered), it shows, and sithewok goes on;
+// switched off, sithewok goes off and it hides. Held still this long
+// (sliding off cancels; a tap does nothing) it switches sithewok on or off,
+// as typing "sithewok" or "sithewok off" does. Red whenever the cheat is
 // on, however it was switched (iosGame_IsSithEwokOn, read every frame).
 #define IOSTOUCH_CHEAT_DEFAULTS_KEY @"iosTouchShowCheat"
 #define IOSTOUCH_CHEAT_HOLD 0.5
@@ -303,7 +303,7 @@ enum {
     KIND_GYROMODE, // (gyro options) the mode gyro aiming goes on in: TOUCH or ALWAYS
     KIND_GYROSENS, // (gyro options) the next gyro aiming sensitivity, when the touch lifts on it
     KIND_CAMSWITCH, // (MENU tray) shows or hides the CAMERA button, when the touch lifts on it
-    KIND_CHEAT,    // a tap: the sithewok cheat on or off; held still IOSTOUCH_CHEAT_HOLD: cheat mode left
+    KIND_CHEAT,    // held still IOSTOUCH_CHEAT_HOLD: the sithewok cheat on or off (a tap does nothing)
     KIND_CHEATSWITCH, // (MENU tray) shows or hides the CHEAT button, when the touch lifts on it
     KIND_CAMERA,   // tap: the photos ticked in the camera options; slide: a burst; hold: the selfie
     KIND_CAMPHOTO, // (camera options) opens or closes the photo kinds' row under them
@@ -2453,8 +2453,8 @@ static void iosTouch_PhotosAsked(void)
     [self refreshButtonLooks];
 }
 
-// Cheat mode left (CHEAT held, or the tray's switch): the cheat off, CHEAT
-// hidden, the switch off (remembered). (Where the cheat can't be switched
+// Cheat mode left (the tray's switch): the cheat off, CHEAT hidden, the
+// switch off (remembered). (Where the cheat can't be switched
 // off now -- no level -- CHEAT stays, showing it on.)
 - (void)leaveCheatMode
 {
@@ -4041,11 +4041,6 @@ static int iosTouch_WheelSliceHasRow(int i)
                         // A tap: Escape (the menu, or closing the typing line)
                         iosTouch_menuPulse = IOSTOUCH_MENU_PULSE_UPDATES;
                     }
-                    else if (b->kind == KIND_CHEAT && !aButtonViews[s->button].hidden && !s->bFlyDone
-                             && t.timestamp - s->tDownTouch < IOSTOUCH_CHEAT_HOLD) {
-                        // A tap (not a hold, not slid): the cheat on or off
-                        iosGame_ToggleSithEwok();
-                    }
                 }
                 // MENU held until its tray opened, then slid onto one of its buttons
                 if (!bCancelled && s->button == BTN_MENU && s->bFired && iosTouch_bTrayOpen) {
@@ -4252,10 +4247,9 @@ static int iosTouch_WheelSliceHasRow(int i)
     [self setRing:actRing progress:actProgress];
     [self setRing:duckRing progress:duckProgress];
 
-    // CHEAT held still IOSTOUCH_CHEAT_HOLD: cheat mode left, once per press
-    // (the ring fills meanwhile; moved IOSTOUCH_FLY_STILL, no; a tap, lifted
-    // sooner, switches the cheat: endTouches); and its red following the
-    // cheat however it was switched (typed too)
+    // CHEAT held still IOSTOUCH_CHEAT_HOLD: the cheat on or off, once per
+    // press (the ring fills meanwhile; moved IOSTOUCH_FLY_STILL, no); and its
+    // red following the cheat however it was switched (typed too)
     CGFloat cheatProgress = 0.0;
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
@@ -4268,8 +4262,7 @@ static int iosTouch_WheelSliceHasRow(int i)
         }
         if (known - s->tDown >= IOSTOUCH_CHEAT_HOLD) {
             s->bFlyDone = 1;
-            [self leaveCheatMode];
-            [cameraTap impactOccurred];
+            if (iosGame_ToggleSithEwok() >= 0) [cameraTap impactOccurred];
             continue;
         }
         cheatProgress = MAX(cheatProgress, MIN((CGFloat)((now - s->tDown) / IOSTOUCH_CHEAT_HOLD), 1.0));
