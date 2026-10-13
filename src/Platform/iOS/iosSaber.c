@@ -1,6 +1,7 @@
 // Added: entire file. The player's lightsaber as they choose it (see iosSaber.h).
 
 #include "Platform/iOS/iosSaber.h"
+#include "Platform/iOS/iosStance.h"
 
 #ifdef TARGET_IOS
 
@@ -307,10 +308,29 @@ int iosSaber_HasSecondBlade(SithThing* pThing)
     return iosSaber_IsPlayers(pThing) && iosSaber_aStyles[iosSaber_style].numBlades >= 2 && !iosSelfie_IsActive();
 }
 
+// (the blade's width as it was, while it is drawn shimmering: two sabers)
+static rdPolyline* iosSaber_pWidthLine = NULL;
+static flex_t iosSaber_savedBase, iosSaber_savedTip;
+
 void iosSaber_BeginBlade(SithThing* pThing, rdThing* pLine, int blade)
 {
     iosSaber_pSavedSide = iosSaber_pSavedTip = NULL;
+    if (iosSaber_pWidthLine) { // (begun twice with no end between: its width put back first)
+        iosSaber_pWidthLine->baseRadius = iosSaber_savedBase;
+        iosSaber_pWidthLine->tipRadius = iosSaber_savedTip;
+        iosSaber_pWidthLine = NULL;
+    }
     if (!iosSaber_IsPlayers(pThing) || !pLine || !pLine->polyline) return;
+    // two sabers: each blade's width shimmers a little, out of step with the other (iosStance)
+    if (iosSaber_HasSecondBlade(pThing)) {
+        rdPolyline* w = pLine->polyline;
+        const flex_t k = iosStance_BladeWidth(blade);
+        iosSaber_pWidthLine = w;
+        iosSaber_savedBase = w->baseRadius;
+        iosSaber_savedTip = w->tipRadius;
+        w->baseRadius *= k;
+        w->tipRadius *= k;
+    }
     const iosSaberStyle* st = &iosSaber_aStyles[iosSaber_style];
     // (a blade the style doesn't have -- the game's own second one -- as its first)
     if (blade < 0 || blade >= st->numBlades) blade = 0;
@@ -325,6 +345,11 @@ void iosSaber_BeginBlade(SithThing* pThing, rdThing* pLine, int blade)
 
 void iosSaber_EndBlade(rdThing* pLine)
 {
+    if (iosSaber_pWidthLine) {
+        iosSaber_pWidthLine->baseRadius = iosSaber_savedBase;
+        iosSaber_pWidthLine->tipRadius = iosSaber_savedTip;
+        iosSaber_pWidthLine = NULL;
+    }
     if (iosSaber_pSavedSide && pLine && pLine->polyline) {
         pLine->polyline->face.material = iosSaber_pSavedSide;
         pLine->polyline->tipFace.material = iosSaber_pSavedTip;

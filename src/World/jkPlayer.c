@@ -45,6 +45,7 @@
 #include "Platform/iOS/iosSelfie.h" // Added
 #include "Platform/iOS/iosPhotoCam.h" // Added
 #include "Platform/iOS/iosSaber.h" // Added
+#include "Platform/iOS/iosStance.h" // Added
 // Added: a blade drawn in the colour the player chose for it (iosSaber)
 #define JKPLAYER_DRAW_BLADE(pThing, pLine, pMat, blade) \
     do { iosSaber_BeginBlade((pThing), (pLine), (blade)); rdThing_Draw((pLine), (pMat)); iosSaber_EndBlade(pLine); } while (0)
@@ -924,7 +925,34 @@ static rdModel3* jkPlayer_pPovEchoModel = NULL;
 static rdMatrix34 jkPlayer_povMirrorHand;
 static int jkPlayer_bPovMirrorHand = 0;
 
-static void jkPlayer_DrawPovMirrored(rdMatrix34* pOrient)
+#ifdef TARGET_IOS
+// Added: the two-saber style's resting stances (iosStance): where the right hand was last frame, in the
+// arm model's own space (what its stance turns it round), and whether there is one yet
+static rdVector3 jkPlayer_povStancePivot;
+static int jkPlayer_bPovStancePivot = 0;
+
+// Added: the right arm's placement for its stance (two sabers on, first person): pOrient with the
+// stance's turn and shift put on, in pOut. 0: none (as pOrient).
+static int jkPlayer_PovStance(const rdMatrix34* pOrient, rdMatrix34* pOut)
+{
+    SithThing* pActor = playerThings[playerThingIdx].actorThing;
+    rdThing* pPov = &playerThings[playerThingIdx].povModel;
+    *pOut = *pOrient;
+    if (!pActor || !(pActor->jkFlags & JKFLAG_SABERON) || !iosSaber_HasSecondBlade(pActor) || !pPov->model3) {
+        jkPlayer_bPovStancePivot = 0;
+        return 0;
+    }
+    const int bBusy = iosStance_IsPovBusy(pPov->puppet) || sithTime_g_secGameTime < sithWeapon_secMountWait;
+    iosStance_Update(pActor, bBusy);
+    rdMatrix34 hand;
+    if (!jkPlayer_bPovStancePivot || !iosStance_GetHand(0, &jkPlayer_povStancePivot, &hand))
+        return 0;
+    rdMatrix_Multiply34(pOut, pOrient, &hand);
+    return 1;
+}
+#endif
+
+static void jkPlayer_DrawPovMirrored(rdMatrix34* pOrient, const rdMatrix34* pOrientR)
 {
     jkPlayer_bPovMirrorHand = 0;
 #ifdef TARGET_IOS
@@ -953,8 +981,9 @@ static void jkPlayer_DrawPovMirrored(rdMatrix34* pOrient)
         jkPlayer_pPovEchoModel = pPov->model3;
         jkPlayer_povEchoCount = 0;
     }
+    // (relative to the right arm's own placement, its stance included: the left arm takes its own)
     rdMatrix34 view;
-    rdMatrix_InvertOrtho34(&view, pOrient);
+    rdMatrix_InvertOrtho34(&view, pOrientR);
     // (once a game moment: drawn again while the game holds still, the same entry, so the delay stays)
     if (!jkPlayer_povEchoCount || jkPlayer_aPovEcho[jkPlayer_povEchoHead].ms != now)
     {
@@ -975,9 +1004,21 @@ static void jkPlayer_DrawPovMirrored(rdMatrix34* pOrient)
         if (now - e->ms >= JKPLAYER_POV_ECHO_MS) break;
     }
 
-    // That pose, mirrored (the view's right the other way), drawn; the model's own joints put back after
+    // (where the right hand is now, in the arm model's own space: what the stances turn it round)
+    jkPlayer_povStancePivot = pNow->aJoint[rhand].scale;
+    jkPlayer_bPovStancePivot = 1;
+
+    // That pose, mirrored (the view's right the other way), with the left hand's own stance, drawn;
+    // the model's own joints put back after
     rdMatrix34 mirror = *pOrient;
     rdVector_Neg3Acc(&mirror.rvec);
+    {
+        rdMatrix34 hand, placed;
+        if (iosStance_GetHand(1, &pPast->aJoint[rhand].scale, &hand)) {
+            rdMatrix_Multiply34(&placed, &mirror, &hand);
+            mirror = placed;
+        }
+    }
     rdMatrix34 aSaved[JKPLAYER_POV_ECHO_NODES];
     for (int i = 0; i < numNodes; i++)
     {
@@ -1115,8 +1156,16 @@ void jkPlayer_DrawPov()
         
         //printf("pov in\n");
         //jkPlayer_checkPov = 1;
+#ifdef TARGET_IOS
+        // Added: two sabers: each arm in its resting stance (iosStance)
+        rdMatrix34 orientR;
+        jkPlayer_PovStance(&orient, &orientR);
+        rdThing_Draw(&playerThings[playerThingIdx].povModel, &orientR);
+        jkPlayer_DrawPovMirrored(&orient, &orientR); // Added: the second saber's arm
+#else
         rdThing_Draw(&playerThings[playerThingIdx].povModel, &orient);
-        jkPlayer_DrawPovMirrored(&orient); // Added: the second saber's arm
+        jkPlayer_DrawPovMirrored(&orient, &orient); // Added: the second saber's arm
+#endif
         //jkPlayer_checkPov = 0;
         //printf("pov done\n");
 
