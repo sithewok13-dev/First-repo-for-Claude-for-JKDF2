@@ -68,6 +68,10 @@ static int jkDev_sithEwokWeaponBack = -1;
 static int jkDev_sithEwokWeaponTries = 0;
 #define JKDEV_SITHEWOK_WEAPON_TRIES 600
 static int jkDev_Custom_PutWeaponBack(SithThing *pPlayer);
+// Added: the last weapon other than the saber the player had in hand (or was switching to), for when a
+// saber only the cheat gave is taken back (jkDev_Custom_TakeCheatSaber)
+static int jkDev_lastOtherWeapon = -1;
+static void jkDev_Custom_TakeCheatSaber(SithThing *pPlayer);
 static void jkDev_Custom_KeepForceFull();
 static void jkDev_Custom_SithEwokOn(SithThing *pPlayer, int bAgain);
 #endif
@@ -1414,6 +1418,13 @@ static void jkDev_Custom_KeepForceFull()
     if ( !pPlayer || pPlayer->type != SITH_THING_PLAYER )
         return;
 
+    if ( pPlayer->actorParams.pPlayer && !(pPlayer->flags & SITH_TF_DEAD) )
+    {
+        int weapon = (sithWeapon_8BD024 != -1) ? sithWeapon_8BD024 : pPlayer->actorParams.pPlayer->curWeaponID;
+        if ( weapon > 0 && weapon != jkDev_Custom_SaberBin() )
+            jkDev_lastOtherWeapon = weapon;
+    }
+
     if ( jkDev_bSithEwokOn )
     {
         pPlayer->actorParams.flags |= SITH_AF_INVULNERABLE;
@@ -1642,6 +1653,8 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
         if ( jkDev_bSithEwokFlying && (pPlayer->physicsParams.flags & SITH_PF_FLY) && !(g_debugmodeFlags & DEBUGFLAG_NOCLIP) )
             jkDev_Custom_SetFlying(pPlayer, 0);
         jkDev_bSithEwokFlying = 0;
+        // (a saber only it gave goes with it)
+        jkDev_Custom_TakeCheatSaber(pPlayer);
         // (no message for it going off, as none for it going on)
         return 1;
     }
@@ -1686,6 +1699,49 @@ void jkDev_Custom_GameLoaded()
 {
     jkDev_Custom_SithEwokRestored();
     jkDev_sithEwokWeaponBack = -1;
+
+    // A game saved with sithewok on, loaded with it off: none of it kept -- a saber only it gave taken
+    // back, and not invincible (the level scripts only make the player so in end-of-level sequences,
+    // when there is no saving)
+    if ( !jkDev_bSithEwokOn && !sithNet_isMulti && sithWorld_g_pCurrentWorld )
+    {
+        SithThing *pPlayer = sithWorld_g_pCurrentWorld->pLocalPlayer;
+        if ( pPlayer && pPlayer->type == SITH_THING_PLAYER )
+        {
+            pPlayer->actorParams.flags &= ~SITH_AF_INVULNERABLE;
+            jkDev_Custom_TakeCheatSaber(pPlayer);
+        }
+    }
+}
+
+// Added: a saber only a cheat gave (SITHINVENTORY_ITEM_CHEAT_GIVEN; the game's own giving of it clears
+// that) taken back, with sithewok going off or a game loaded without it: if it is in hand or on its way,
+// the last other weapon the player had in hand instead (else the game's own best pick). One the game
+// gave is never touched.
+static void jkDev_Custom_TakeCheatSaber(SithThing *pPlayer)
+{
+    const int bin = jkDev_Custom_SaberBin();
+    SithInventoryItem *pSaber = jkDev_Custom_Item(pPlayer, bin);
+    if ( !pSaber || !(pSaber->state & SITHINVENTORY_ITEM_CHEAT_GIVEN) )
+        return;
+    const int cur = pPlayer->actorParams.pPlayer->curWeaponID;
+    const int bInHand = cur == bin || sithWeapon_8BD024 == bin;
+    sithInventory_SetInventory(pPlayer, bin, 0.0);
+    pSaber->state &= ~SITHINVENTORY_ITEM_CHEAT_GIVEN;
+    if ( !bInHand )
+        return;
+    if ( sithWeapon_8BD024 == bin )
+        sithWeapon_8BD024 = -1; // (no switch to it any more)
+    int other = jkDev_lastOtherWeapon;
+    if ( other <= 0 || other == bin || sithInventory_GetInventory(pPlayer, other) <= 0.0 || !sithInventory_IsInventoryAvailable(pPlayer, other) )
+        other = sithWeapon_AutoSelect(pPlayer, 1);
+    if ( other > 0 && other != bin )
+    {
+        if ( cur == bin )
+            sithWeapon_SelectWeapon(pPlayer, other, 0);
+        else if ( sithWeapon_8BD024 == -1 && cur != other )
+            sithWeapon_SelectWeapon(pPlayer, other, 0);
+    }
 }
 
 // Added: sithewok: the weapon to put back in hand into the player's hand, if it can be now: in place of
