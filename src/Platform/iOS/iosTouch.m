@@ -178,8 +178,12 @@ extern int jkHud_bChatOpen;
 // (iosGame_ToggleNoclip): JUMP or ACT held this long, and still (moved less
 // than IOSTOUCH_FLY_STILL: a drag on them turns the view), switches it on or
 // off; their rings only show while it can be switched
+// Its level pick (iosGame_GoToLevel): DUCK held as long, and still, shows 1
+// on the button, then one more every IOSTOUCH_LEVEL_STEP up to the last
+// level; lifted, that level loads. Moved as far, no level.
 #define IOSTOUCH_FLY_HOLD 0.5
 #define IOSTOUCH_FLY_STILL 10.0
+#define IOSTOUCH_LEVEL_STEP 0.4
 #define IOSTOUCH_FREEZE_DEFAULTS_KEY @"iosTouchFreeze"
 #define IOSTOUCH_FREEZE_SWIPE 36.0
 #define IOSTOUCH_FREEZE_EDGE 6.0       // (up: to this near the top of the screen counts as far enough...)
@@ -517,10 +521,12 @@ typedef struct {
     CGPoint wheelOrigin;  // ...where its slide is measured from
     CGFloat wheelAim;     // ...which way it points (degrees, as for slices)
     int bSwipe;           // CAMERA, with FREEZE on: slid up or down, on its way to the cinematic burst or Action Freeze (no tap, no selfie hold)
-    int bFlyDone;         // JUMP, ACT: this press has switched sithewok's flight or noclip, or can't (it moved)
+    int bFlyDone;         // JUMP, ACT: this press has switched sithewok's flight or noclip, or can't (it moved). DUCK: no level pick on this press (it moved, or sithewok is off)
+    int levelPick;        // DUCK: the level number on show (sithewok's level pick), or 0
 } iosTouchSlot;
 
 static iosTouchSlot iosTouch_aSlots[IOSTOUCH_MAX_TOUCHES];
+static int iosTouch_levelToLoad; // DUCK's level pick, lifted: loaded at the next tick (as quick load)
 static int iosTouch_aButtonHeld[IOSTOUCH_NUM_BUTTONS];
 static unsigned char iosTouch_aKeyDown[IOSTOUCH_NUM_SCANCODES];
 // One-off presses waiting to be read, and the one being read right now
@@ -1076,6 +1082,7 @@ typedef struct {
     CAShapeLayer* saveRing; // QUICK SAVE's hold progress
     CAShapeLayer* jumpRing; // JUMP's hold progress (sithewok's flight)
     CAShapeLayer* actRing;  // ACT's hold progress (sithewok's noclip)
+    CAShapeLayer* duckRing; // DUCK's hold progress (sithewok's level pick)
     CAShapeLayer* loadRing; // QUICK LOAD's
     CAShapeLayer* menuRing; // MENU's
     CAShapeLayer* wheelRing;  // FORCE WHEEL's (held still, it opens the wheel to tap)
@@ -1126,6 +1133,7 @@ typedef struct {
 }
 - (void)resetAll;
 - (void)tick;
+- (void)endLevelPick:(iosTouchSlot*)s;
 - (void)cameraFeedback:(int)mode;
 - (void)endSelfie;
 - (void)refreshGyroLabels;
@@ -1261,6 +1269,8 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         [aButtonViews[BTN_JUMP].layer addSublayer:jumpRing];
         actRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_ACT].radius);
         [aButtonViews[BTN_ACT].layer addSublayer:actRing];
+        duckRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_DUCK].radius);
+        [aButtonViews[BTN_DUCK].layer addSublayer:duckRing];
         loadRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_QUICKLOAD].radius);
         [aButtonViews[BTN_QUICKLOAD].layer addSublayer:loadRing];
         menuRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_MENU].radius);
@@ -1984,6 +1994,18 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     [CATransaction setDisableActions:YES];
     forceRing.opacity = bForceRingFull ? 1.0 : (iosTouch_aButtonHeld[BTN_FORCE] ? 1.0 : IOSTOUCH_IDLE_ALPHA);
     [CATransaction commit];
+}
+
+// DUCK's level pick over for this finger: DUCK's own label back (unless
+// another finger on it is still counting)
+- (void)endLevelPick:(iosTouchSlot*)s
+{
+    s->levelPick = 0;
+    for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+        const iosTouchSlot* o = &iosTouch_aSlots[i];
+        if (o != s && o->touch && o->role == ROLE_BUTTON && o->levelPick > 0) return;
+    }
+    aButtonViews[BTN_DUCK].text = @"DUCK";
 }
 
 - (void)setRing:(CAShapeLayer*)ring progress:(CGFloat)progress
@@ -3419,6 +3441,11 @@ static int iosTouch_WheelSliceHasRow(int i)
             else if (s->role == ROLE_BUTTON) {
                 iosTouchButton* b = &iosTouch_aButtons[s->button];
                 if (iosTouch_aButtonHeld[s->button] > 0) iosTouch_aButtonHeld[s->button]--;
+                // DUCK lifted with a level on show: that level (at the next tick)
+                if (s->button == BTN_DUCK && s->levelPick > 0) {
+                    if (!bCancelled) iosTouch_levelToLoad = s->levelPick;
+                    [self endLevelPick:s];
+                }
                 // A tap so quick that it began and ended between two reads of
                 // the controls (a slow frame) still counts as one press
                 if (!bCancelled && !jkHud_bChatOpen && b->kind == KIND_KEY && b->scancode >= 0 && !s->bSeen) {
@@ -3522,6 +3549,24 @@ static int iosTouch_WheelSliceHasRow(int i)
     CFTimeInterval now = CACurrentMediaTime();
     CFTimeInterval known = lastTickTime;
     lastTickTime = now;
+    // DUCK's level pick: dropped (DUCK's label back) once its finger is no
+    // longer a button press -- a wheel, Action Freeze, the burst or a selfie
+    // took every touch; and a level lifted for loads only when none of those
+    // is going on
+    int bPicking = 0;
+    for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+        iosTouchSlot* s = &iosTouch_aSlots[i];
+        if (s->levelPick > 0 && s->touch && s->role == ROLE_BUTTON) bPicking = 1;
+        else s->levelPick = 0;
+    }
+    if (!bPicking && ![aButtonViews[BTN_DUCK].text isEqualToString:@"DUCK"]) aButtonViews[BTN_DUCK].text = @"DUCK";
+    if (iosTouch_levelToLoad > 0) {
+        const int level = iosTouch_levelToLoad;
+        iosTouch_levelToLoad = 0;
+        if (iosTouch_selfieStage == IOSTOUCH_SELFIE_NONE && !iosTouch_bCinema && !iosTouch_bFreezing
+            && !iosTouch_bWheelOpen && !jkHud_bChatOpen)
+            iosGame_GoToLevel(level);
+    }
     // During a selfie nothing else goes on here
     if (iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE) {
         [self tickSelfie:now];
@@ -3568,13 +3613,39 @@ static int iosTouch_WheelSliceHasRow(int i)
     // ever): with sithewok on, IOSTOUCH_FLY_HOLD switches its flight (JUMP)
     // or noclip (ACT) on or off, once per press; the ring fills meanwhile
     // (the furthest along of its holds)
-    CGFloat jumpProgress = 0.0, actProgress = 0.0;
+    // DUCK the same, for its level pick: from IOSTOUCH_FLY_HOLD the number
+    // on show counts up (a tick each); lifted, that level (endTouches)
+    CGFloat jumpProgress = 0.0, actProgress = 0.0, duckProgress = 0.0;
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
-        if (!s->touch || s->role != ROLE_BUTTON || (s->button != BTN_JUMP && s->button != BTN_ACT) || s->bFlyDone) continue;
+        if (!s->touch || s->role != ROLE_BUTTON || (s->button != BTN_JUMP && s->button != BTN_ACT && s->button != BTN_DUCK) || s->bFlyDone) continue;
         CGPoint q = [s->touch locationInView:self];
         if (hypot(q.x - s->origin.x, q.y - s->origin.y) >= IOSTOUCH_FLY_STILL) {
             s->bFlyDone = 1; // (a drag, turning the view)
+            [self endLevelPick:s];
+            continue;
+        }
+        if (s->button == BTN_DUCK) {
+            const int numLevels = jkHud_bChatOpen ? 0 : iosGame_NumPickableLevels();
+            if (numLevels <= 0) {
+                if (s->levelPick) {
+                    s->bFlyDone = 1; // (sithewok went off, or typing: no pick)
+                    [self endLevelPick:s];
+                }
+                continue;
+            }
+            const CFTimeInterval held = known - s->tDown;
+            if (held >= IOSTOUCH_FLY_HOLD) {
+                int n = 1 + (int)((held - IOSTOUCH_FLY_HOLD) / IOSTOUCH_LEVEL_STEP);
+                if (n > numLevels) n = numLevels;
+                if (n != s->levelPick) {
+                    s->levelPick = n;
+                    aButtonViews[BTN_DUCK].text = [NSString stringWithFormat:@"%d", n];
+                    [cameraTap impactOccurred];
+                }
+                continue;
+            }
+            duckProgress = MAX(duckProgress, MIN((CGFloat)((now - s->tDown) / IOSTOUCH_FLY_HOLD), 1.0));
             continue;
         }
         const int bJump = s->button == BTN_JUMP;
@@ -3590,6 +3661,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     }
     [self setRing:jumpRing progress:jumpProgress];
     [self setRing:actRing progress:actProgress];
+    [self setRing:duckRing progress:duckProgress];
 
     // How far QUICK SAVE's and QUICK LOAD's rings have filled (the furthest
     // along of each one's holds), and the one whose hold completed
@@ -3824,6 +3896,9 @@ static int iosTouch_WheelSliceHasRow(int i)
     [self setRing:saveRing progress:0.0];
     [self setRing:jumpRing progress:0.0];
     [self setRing:actRing progress:0.0];
+    [self setRing:duckRing progress:0.0];
+    aButtonViews[BTN_DUCK].text = @"DUCK"; // (a level pick on show, dropped)
+    iosTouch_levelToLoad = 0;
     [self setRing:loadRing progress:0.0];
     [self setRing:menuRing progress:0.0];
     [self setRing:camOptRing progress:0.0];

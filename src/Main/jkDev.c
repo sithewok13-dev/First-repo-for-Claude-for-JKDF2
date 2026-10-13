@@ -1429,6 +1429,48 @@ int jkDev_Custom_ToggleNoclip()
     return bOn;
 }
 
+// Added: sithewok: a level picked by number (the touch overlay's DUCK, held: iosGame), loaded at once.
+// Levels are numbered as the episode numbers them (as "pinotnoir" takes them: Jedi Knight 1 to 21,
+// Mysteries of the Sith 1 to 13); the level itself, not the cutscene before it (pinotnoir's first entry
+// with that number is often a cutscene). Where a number has two (Jedi Knight's light and dark paths),
+// the first in the episode. Only while sithewok is on, in single player.
+int jkDev_Custom_CanPickLevel()
+{
+    return jkDev_bNoFallHurt && !sithNet_isMulti && jkEpisode_mLoad.paEntries && jkEpisode_mLoad.numSeq > 0
+           && sithWorld_g_pCurrentWorld && sithWorld_g_pCurrentWorld->pLocalPlayer;
+}
+
+// The highest level number in the episode (0: none)
+int jkDev_Custom_NumLevels()
+{
+    int n = 0;
+    for ( int i = 0; jkEpisode_mLoad.paEntries && i < jkEpisode_mLoad.numSeq; i++ )
+    {
+        const jkEpisodeEntry* pEnt = &jkEpisode_mLoad.paEntries[i];
+        if ( pEnt->type == 0 && pEnt->level > n ) // (0: a level, not a cutscene or the path's choice)
+            n = pEnt->level;
+    }
+    return n;
+}
+
+// 1: that level is loading; 0: there's no such level, or it can't now
+int jkDev_Custom_GoToLevel(int level)
+{
+    if ( !jkDev_Custom_CanPickLevel() )
+        return 0;
+    for ( int i = 0; i < jkEpisode_mLoad.numSeq; i++ )
+    {
+        jkEpisodeEntry* pEnt = &jkEpisode_mLoad.paEntries[i];
+        if ( pEnt->type != 0 || pEnt->level != level )
+            continue;
+        // (as pinotnoir does it, jkMain_SetMap, at this entry)
+        jkEpisode_mLoad.currentEpisodeEntryIdx = i;
+        jkMain_cd_swap_reverify(pEnt);
+        return 1;
+    }
+    return 0;
+}
+
 // Added: sithewok: the Force catches the player falling into a pit and puts them back on solid ground
 // (sithPlayer_Update); on and off with the safe falls
 int jkDev_Custom_CatchesFalls()

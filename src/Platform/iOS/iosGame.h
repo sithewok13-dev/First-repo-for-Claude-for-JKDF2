@@ -133,6 +133,12 @@ int iosGame_ToggleFlight(void);
 int iosGame_CanNoclip(void);
 int iosGame_ToggleNoclip(void);
 
+// ...and its level pick (jkDev_Custom_GoToLevel): how many levels can be
+// picked now (0: none, sithewok off or multiplayer), and loading one by
+// number (1: loading). The touch overlay's DUCK held counts them.
+int iosGame_NumPickableLevels(void);
+int iosGame_GoToLevel(int level);
+
 // How far one count of mouse movement turns the view (*pTurn: degrees right
 // per count right) and tilts it (*pPitch: degrees down per count down), as
 // the game's mouse look bindings have it (Setup > Controls > Mouse:

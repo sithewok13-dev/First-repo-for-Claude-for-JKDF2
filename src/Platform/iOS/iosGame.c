@@ -487,6 +487,16 @@ int iosGame_ToggleNoclip(void)
     return jkDev_Custom_ToggleNoclip();
 }
 
+int iosGame_NumPickableLevels(void)
+{
+    return jkDev_Custom_CanPickLevel() ? jkDev_Custom_NumLevels() : 0;
+}
+
+int iosGame_GoToLevel(int level)
+{
+    return jkDev_Custom_GoToLevel(level);
+}
+
 int iosGame_IsAlwaysRun(void)
 {
     // The option's checkbox sets bit 2 (jkGuiControlOptions_Show), saved with
