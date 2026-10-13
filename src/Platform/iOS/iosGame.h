@@ -140,6 +140,15 @@ int iosGame_ToggleNoclip(void);
 // picked now (0: none, sithewok off or multiplayer), and loading one by
 // number (1: loading). The touch overlay's DUCK held counts them.
 int iosGame_NumPickableLevels(void);
+// The sithewok cheat itself: whether it is on (as the typed cheat left it
+// too), and switching it as typing it would ("sithewok" / "sithewok off").
+// Toggle: 1 on now, 0 off now, -1 can't (multiplayer, no player).
+int iosGame_IsSithEwokOn(void);
+int iosGame_ToggleSithEwok(void);
+// Whether the overlay's CHEAT button is showing (glowing red while the cheat
+// is on): then a new level puts sithewok on again without saying so
+void iosGame_SetCheatShown(int bShown);
+
 // Whether sithewok's flight is on now (JUMP held rises then, rather than
 // switching it off: a double tap does that)
 int iosGame_IsFlying(void);

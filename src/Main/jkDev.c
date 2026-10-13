@@ -58,6 +58,7 @@ static int jkDev_bSithEwokOn = 0;
 static SithThing* jkDev_pSithEwokPlayer = NULL;
 static int jkDev_sithEwokWait = 0;
 #define JKDEV_SITHEWOK_WAIT 20
+static int jkDev_bSithEwokShown = 0; // something on screen shows it is on (jkDev_Custom_SetSithEwokShown)
 static void jkDev_Custom_KeepForceFull();
 static void jkDev_Custom_SithEwokOn(SithThing *pPlayer, int bAgain);
 #endif
@@ -1585,6 +1586,29 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
     return 1;
 }
 
+// Added: whether sithewok is on (the one place that says: the cheat typed and the touch overlay's CHEAT
+// both go through jkDev_Custom_CmdSithEwok); never in multiplayer
+int jkDev_Custom_SithEwokIsOn()
+{
+    return jkDev_bSithEwokOn && !sithNet_isMulti;
+}
+
+// Added: sithewok switched as if typed ("sithewok", or "sithewok off" when on), for the touch overlay's
+// CHEAT. 1: on now; 0: off now; -1: can't now (multiplayer, no player)
+// Added: whether something on screen shows sithewok is on (the touch overlay's CHEAT)
+void jkDev_Custom_SetSithEwokShown(int bShown)
+{
+    jkDev_bSithEwokShown = bShown;
+}
+
+int jkDev_Custom_ToggleSithEwok()
+{
+    const int bWasOn = jkDev_Custom_SithEwokIsOn();
+    if ( sithNet_isMulti || !jkDev_Custom_CmdSithEwok(NULL, bWasOn ? "off" : "") )
+        return -1;
+    return jkDev_Custom_SithEwokIsOn();
+}
+
 // Added: a level opened or a game loaded (sithGamesave_RestoreFile, which can load on the same level):
 // sithewok, if on, put on again for its player, even one at the last one's address
 void jkDev_Custom_SithEwokRestored()
@@ -1626,6 +1650,10 @@ static void jkDev_Custom_SithEwokOn(SithThing *pPlayer, int bAgain)
     jkDev_bSithEwokOn = 1;
     jkDev_pSithEwokPlayer = pPlayer;
     jkDev_sithEwokWait = 0;
-    sithConsole_PrintString(bAgain ? "sithewok: still on" : "Everything! Invincible, endless Force, falls don't hurt, the Force catches you");
+    // (put on again for a new level: quietly where the touch overlay's CHEAT shows, glowing red, that it is on)
+    if ( !bAgain )
+        sithConsole_PrintString("Everything! Invincible, endless Force, falls don't hurt, the Force catches you");
+    else if ( !jkDev_bSithEwokShown )
+        sithConsole_PrintString("sithewok: still on");
 }
 #endif

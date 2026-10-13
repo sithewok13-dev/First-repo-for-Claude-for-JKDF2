@@ -487,6 +487,21 @@ int iosGame_ToggleNoclip(void)
     return jkDev_Custom_ToggleNoclip();
 }
 
+int iosGame_IsSithEwokOn(void)
+{
+    return jkDev_Custom_SithEwokIsOn();
+}
+
+int iosGame_ToggleSithEwok(void)
+{
+    return jkDev_Custom_ToggleSithEwok();
+}
+
+void iosGame_SetCheatShown(int bShown)
+{
+    jkDev_Custom_SetSithEwokShown(bShown);
+}
+
 int iosGame_IsFlying(void)
 {
     return jkDev_Custom_IsFlying();

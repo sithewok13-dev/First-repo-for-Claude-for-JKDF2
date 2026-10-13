@@ -165,6 +165,13 @@ extern int jkHud_bChatOpen;
 // wheel (iosSaber: the blade's colour). The colour picked for each blade of
 // each style is remembered by its key, the style by its name.
 #define IOSTOUCH_SABER_DEFAULTS_KEY @"iosTouchShowSaber"
+// The CHEAT button (right of SABER): shown while switched on in MENU's tray
+// (off unless switched on; remembered). Held still this long (sliding off
+// cancels) it switches the sithewok cheat on or off, as typing "sithewok" or
+// "sithewok off" does; it glows red whenever the cheat is on, however it
+// was switched (iosGame_IsSithEwokOn, read every frame)
+#define IOSTOUCH_CHEAT_DEFAULTS_KEY @"iosTouchShowCheat"
+#define IOSTOUCH_CHEAT_HOLD 0.5
 #define IOSTOUCH_SABERSTYLE_DEFAULTS_KEY @"iosTouchSaberStyle"
 #define IOSTOUCH_SABERCOLOUR_DEFAULTS_KEY @"iosTouchSaberColour" // + style name + blade number
 #define IOSTOUCH_SABERTARGET_DEFAULTS_KEY @"iosTouchSaberTarget"
@@ -296,6 +303,8 @@ enum {
     KIND_GYROSENS, // (gyro options) the next gyro aiming sensitivity, when the touch lifts on it
     KIND_CAMSWITCH, // (MENU tray) shows or hides the CAMERA button, when the touch lifts on it
     KIND_SABERSWITCH, // (MENU tray) shows or hides the SABER button, when the touch lifts on it
+    KIND_CHEAT,    // held still IOSTOUCH_CHEAT_HOLD: the sithewok cheat on or off (a tap does nothing)
+    KIND_CHEATSWITCH, // (MENU tray) shows or hides the CHEAT button, when the touch lifts on it
     KIND_CAMERA,   // tap: the photos ticked in the camera options; slide: a burst; hold: the selfie
     KIND_CAMPHOTO, // (camera options) opens or closes the photo kinds' row under them
     KIND_SELFIES,  // (camera options) how many photos a selfie takes: 1, 3 or 5
@@ -342,7 +351,8 @@ enum {
     BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU,
     BTN_CAMERA, // the middle of the top row, while switched on in the tray
     BTN_SABER,  // between CAMERA and QUICK SAVE, while switched on in the tray
-    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYSABER, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
+    BTN_CHEAT,  // ...right of SABER, likewise
+    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYSABER, BTN_TRAYCHEAT, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
     // Rows under the tray, one at a time (iosTouch_optRow), hidden until opened:
     BTN_GYROOPT_MODE, BTN_GYROOPT_SENS,  // the gyro options (a hold on the tray's GYRO)
     BTN_CAMROW_PHOTO, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE, // the camera options (a hold on the tray's camera switch)
@@ -370,10 +380,12 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_MENU]      = { "MENU",        KIND_MENU,     -1,                  22.0f, 0 },
     [BTN_CAMERA]    = { "",            KIND_CAMERA,   -1,                  22.0f, 0 },
     [BTN_SABER]     = { "",            KIND_WHEEL,    -1,                  22.0f, 0 },
+    [BTN_CHEAT]     = { "",            KIND_CHEAT,    -1,                  22.0f, 0 },
     [BTN_TRAYGYRO]  = { "GYRO",        KIND_GYRO,     -1,                  20.0f, 0 },
     [BTN_TRAYFPS]   = { "FPS",         KIND_FPS,      -1,                  20.0f, 0 },
     [BTN_TRAYCAM]   = { "",            KIND_CAMSWITCH, -1,                 20.0f, 0 },
     [BTN_TRAYSABER] = { "",            KIND_SABERSWITCH, -1,               20.0f, 0 },
+    [BTN_TRAYCHEAT] = { "",            KIND_CHEATSWITCH, -1,               20.0f, 0 },
     [BTN_TRAYKEYS]  = { "",            KIND_CHAT,     -1,                  20.0f, 0 },
     [BTN_GYROOPT_MODE] = { "MODE",     KIND_GYROMODE, -1,                  20.0f, 0 },
     [BTN_GYROOPT_SENS] = { "SENS",     KIND_GYROSENS, -1,                  20.0f, 0 },
@@ -634,6 +646,9 @@ static int iosTouch_menuPulse = 0;
 static int iosTouch_bShowFps = 0;
 static int iosTouch_bShowCamera = 0;
 static int iosTouch_bShowSaber = 0;
+static int iosTouch_bShowCheat = 0;
+static int iosTouch_bCheatOn = 0;   // the sithewok cheat, as last read (CHEAT's red glow)
+static int iosTouch_bFpsBottom = 0; // the FPS readout at the bottom of the screen, making room for SABER and CHEAT
 // With two blades, the one a colour picked on the saber wheel goes to
 enum { IOSTOUCH_SABER_RIGHT = 0, IOSTOUCH_SABER_LEFT = 1, IOSTOUCH_SABER_BOTH = 2 };
 static int iosTouch_saberTarget = IOSTOUCH_SABER_BOTH;
@@ -1161,6 +1176,8 @@ typedef struct {
     CAShapeLayer* wheelRing;  // FORCE WHEEL's (held still, it opens the wheel to tap)
     CAShapeLayer* weaponRing; // NEXT WPN's
     CAShapeLayer* saberRing;  // SABER's
+    CAShapeLayer* cheatRing;  // CHEAT's hold progress
+    CAShapeLayer* cheatGlow;  // CHEAT's red glow, while the cheat is on
     // The saber's picture, on SABER and on the tray's saber switch: a hilt and
     // its blade, in the blade's colour (refreshSaberIcons)
     CAShapeLayer* aSaberBlade[2];
@@ -1422,6 +1439,43 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         iosTouch_bShowSaber = [[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_SABER_DEFAULTS_KEY] ? 1 : 0;
         aButtonViews[BTN_SABER].hidden = !iosTouch_bShowSaber;
         [self refreshSaberIcons];
+
+        // CHEAT and its tray switch: a magic wand (CHEAT's word where there
+        // are no symbols), the hold's ring, and the red glow round it while
+        // the cheat is on (a ring of its own, under the button: the button
+        // clips its own layers to its circle)
+        cheatRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_CHEAT].radius);
+        [aButtonViews[BTN_CHEAT].layer addSublayer:cheatRing];
+        {
+            const int aCheatBtn[2] = { BTN_CHEAT, BTN_TRAYCHEAT };
+            for (int c = 0; c < 2; c++) {
+                UIImageSymbolConfiguration* wcfg = [UIImageSymbolConfiguration configurationWithPointSize:(c ? 14 : 15) weight:UIImageSymbolWeightSemibold];
+                UIImage* wand = [UIImage systemImageNamed:@"wand.and.stars" withConfiguration:wcfg];
+                if (wand) {
+                    NSTextAttachment* att = [[NSTextAttachment alloc] init];
+                    att.image = [wand imageWithTintColor:[UIColor colorWithWhite:1.0 alpha:0.85] renderingMode:UIImageRenderingModeAlwaysOriginal];
+                    aButtonViews[aCheatBtn[c]].attributedText = [NSAttributedString attributedStringWithAttachment:att];
+                }
+                else {
+                    aButtonViews[aCheatBtn[c]].text = @"CHEAT";
+                    aButtonViews[aCheatBtn[c]].font = [UIFont boldSystemFontOfSize:IOSTouch_FontSize("CHEAT", iosTouch_aButtons[aCheatBtn[c]].radius)];
+                }
+            }
+        }
+        cheatGlow = [CAShapeLayer layer];
+        cheatGlow.fillColor = [UIColor clearColor].CGColor;
+        cheatGlow.strokeColor = [UIColor colorWithRed:1.0 green:0.2 blue:0.15 alpha:0.9].CGColor;
+        cheatGlow.lineWidth = 2.5;
+        cheatGlow.shadowColor = [UIColor colorWithRed:1.0 green:0.1 blue:0.05 alpha:1.0].CGColor;
+        cheatGlow.shadowOffset = CGSizeZero;
+        cheatGlow.shadowRadius = 6.0;
+        cheatGlow.shadowOpacity = 0.85;
+        cheatGlow.hidden = YES;
+        [self.layer insertSublayer:cheatGlow below:aButtonViews[BTN_CHEAT].layer];
+        iosTouch_bShowCheat = [[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_CHEAT_DEFAULTS_KEY] ? 1 : 0;
+        aButtonViews[BTN_CHEAT].hidden = !iosTouch_bShowCheat;
+        iosGame_SetCheatShown(iosTouch_bShowCheat);
+        iosTouch_bCheatOn = iosGame_IsSithEwokOn();
 
         // Around FORCE: the force meter, a ring that empties as the meter does
         // (QUICK LOAD's ring the other way round) and glows when full
@@ -1866,28 +1920,41 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     // CAMERA in the middle of the screen (well clear of BACTA and the FPS
     // readout even on the narrowest iPhone, 667 pt)
     iosTouch_aButtons[BTN_CAMERA].x = W * 0.5;
-    // SABER about halfway from CAMERA to QUICK SAVE: halfway between the
-    // burst's count (right of CAMERA) and the FPS readout (left of QUICK
-    // SAVE), where they leave it room. On the narrowest screens (667 pt)
-    // they don't: it goes halfway between CAMERA and the FPS readout, and,
-    // while SABER is shown, the burst's count under CAMERA.
+    // SABER and CHEAT (those switched on, in that order) between CAMERA and
+    // QUICK SAVE, evenly: between the burst's count (right of CAMERA) and the
+    // FPS readout (left of QUICK SAVE), where they leave room (one alone:
+    // halfway, at least 4 pt each side; two: at least 8 pt apart). Where
+    // they don't: with the burst's count under CAMERA; then with the FPS
+    // readout at the bottom of the screen; then both. (Neither switched on:
+    // where SABER alone would be.)
     iosTouch_bBurstUnder = 0;
+    iosTouch_bFpsBottom = 0;
     {
         iosTouchButton* cam = &iosTouch_aButtons[BTN_CAMERA];
-        iosTouchButton* sab = &iosTouch_aButtons[BTN_SABER];
+        iosTouchButton* aMid[2] = { &iosTouch_aButtons[BTN_SABER], &iosTouch_aButtons[BTN_CHEAT] };
+        const int aShow[2] = { iosTouch_bShowSaber, iosTouch_bShowCheat };
+        const int n = MAX(aShow[0] + aShow[1], 1);
+        const CGFloat R = aMid[0]->radius, minGap = (n > 1) ? 8.0 : 4.0;
         const CGFloat camEdge = cam->x + cam->radius;
         const CGFloat burstEdge = camEdge + 20.0 + IOSTOUCH_BURST_LABEL_HALF;
-        const CGFloat hi = right - IOSTOUCH_FPS_LABEL_X - IOSTOUCH_FPS_LABEL_HALF;
-        if (hi - burstEdge >= 2.0 * sab->radius + 8.0) {
-            sab->x = (burstEdge + hi) * 0.5;
-        }
-        else {
-            sab->x = (camEdge + hi) * 0.5;
-            iosTouch_bBurstUnder = iosTouch_bShowSaber;
+        const CGFloat fpsEdge = right - IOSTOUCH_FPS_LABEL_X - IOSTOUCH_FPS_LABEL_HALF;
+        const CGFloat qsEdge = iosTouch_aButtons[BTN_QUICKSAVE].x - iosTouch_aButtons[BTN_QUICKSAVE].radius;
+        const CGFloat aLo[4] = { burstEdge, camEdge, burstEdge, camEdge };
+        const CGFloat aHi[4] = { fpsEdge, fpsEdge, qsEdge, qsEdge };
+        int k = 0;
+        while (k < 3 && (aHi[k] - aLo[k] - n * 2.0 * R) / (n + 1) < minGap) k++;
+        const int bAny = aShow[0] || aShow[1];
+        iosTouch_bBurstUnder = bAny && (k & 1);
+        iosTouch_bFpsBottom = bAny && k >= 2;
+        const CGFloat G = (aHi[k] - aLo[k] - n * 2.0 * R) / (n + 1);
+        int slot = 0;
+        for (int b = 0; b < 2; b++) {
+            const int i = aShow[b] ? slot++ : 0; // (one not shown: in the first place, out of the way)
+            aMid[b]->x = aLo[k] + G * (i + 1) + R * (2 * i + 1);
         }
     }
     const int aTopRow[] = { BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA,
-                            BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU, BTN_CAMERA, BTN_SABER };
+                            BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU, BTN_CAMERA, BTN_SABER, BTN_CHEAT };
     for (int i = 0; i < IOSTOUCH_COUNT(aTopRow); i++) {
         iosTouch_aButtons[aTopRow[i]].y = top + 26;
     }
@@ -2026,7 +2093,17 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
 
     // The FPS readout where the keyboard button used to be, left of QUICK
     // SAVE: the game draws its messages and typing line centred at the top
-    fpsLabel.center = CGPointMake(right - IOSTOUCH_FPS_LABEL_X, top + 26);
+    fpsLabel.center = iosTouch_bFpsBottom ? CGPointMake(W * 0.5, bottom - 9.0)
+                                          : CGPointMake(right - IOSTOUCH_FPS_LABEL_X, top + 26);
+    // CHEAT's glow round it
+    {
+        iosTouchButton* c = &iosTouch_aButtons[BTN_CHEAT];
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES]; // (moved with the button, not after it)
+        cheatGlow.path = [UIBezierPath bezierPathWithArcCenter:CGPointMake(c->x, c->y) radius:c->radius + 1.0
+                                                    startAngle:0.0 endAngle:2.0 * M_PI clockwise:YES].CGPath;
+        [CATransaction commit];
+    }
 
     // The game's top message text and typing line (iosTouch_GetTopTextRectPt):
     // just under the top row, centred on the screen, and only as wide as keeps
@@ -2150,6 +2227,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
                   || (i == BTN_TRAYFPS && iosTouch_bShowFps)
                   || (i == BTN_TRAYCAM && iosTouch_bShowCamera)
                   || (i == BTN_TRAYSABER && iosTouch_bShowSaber)
+                  || (i == BTN_TRAYCHEAT && iosTouch_bShowCheat)
                   || (iosTouch_IsCamOptButton(i) && (iosTouch_cameraKinds & iosTouch_aButtons[i].bin))
                   || (i == BTN_CAMROW_PHOTO && iosTouch_bKindsOpen)
                   || (i == BTN_CAMROW_FREEZE && iosTouch_bFreezeOn)
@@ -2172,6 +2250,11 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     forceRing.opacity = bForceRingFull ? 1.0 : (iosTouch_aButtonHeld[BTN_FORCE] ? 1.0 : IOSTOUCH_IDLE_ALPHA);
+    // CHEAT glowing red, edged red, while the cheat is on (and as hidden as
+    // it is: a photo, Action Freeze)
+    cheatGlow.hidden = !(iosTouch_bCheatOn && !aButtonViews[BTN_CHEAT].hidden);
+    cheatGlow.opacity = (aButtonViews[BTN_CHEAT].alpha > 0.0) ? 1.0 : 0.0;
+    if (iosTouch_bCheatOn) aButtonViews[BTN_CHEAT].layer.borderColor = [UIColor colorWithRed:1.0 green:0.3 blue:0.25 alpha:0.95].CGColor;
     [CATransaction commit];
 }
 
@@ -2337,6 +2420,18 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
 static void iosTouch_PhotosAsked(void)
 {
     iosGame_SetHoldReason(IOSGAME_HOLD_PHOTOS, 0);
+}
+
+// CHEAT shown or hidden (the tray's cheat switch), and remembered; the
+// cheat itself as it was
+- (void)setShowCheat:(int)bShow
+{
+    iosTouch_bShowCheat = bShow != 0;
+    aButtonViews[BTN_CHEAT].hidden = !iosTouch_bShowCheat;
+    iosGame_SetCheatShown(iosTouch_bShowCheat);
+    [[NSUserDefaults standardUserDefaults] setBool:(iosTouch_bShowCheat ? YES : NO) forKey:IOSTOUCH_CHEAT_DEFAULTS_KEY];
+    [self setNeedsLayout];
+    [self refreshButtonLooks];
 }
 
 // SABER shown or hidden (the tray's saber switch), and remembered
@@ -2941,6 +3036,9 @@ static int iosTouch_SaberBlade(void)
     }
     else if (kind == KIND_SABERSWITCH) {
         [self setShowSaber:!iosTouch_bShowSaber];
+    }
+    else if (kind == KIND_CHEATSWITCH) {
+        [self setShowCheat:!iosTouch_bShowCheat];
     }
     else if (kind == KIND_GYRO && iosTouch_GyroAvailable()) {
         iosTouch_GyroToggle();
@@ -4115,6 +4213,32 @@ static int iosTouch_WheelSliceHasRow(int i)
     [self setRing:actRing progress:actProgress];
     [self setRing:duckRing progress:duckProgress];
 
+    // CHEAT held still IOSTOUCH_CHEAT_HOLD: the cheat on or off, once per
+    // press (the ring fills meanwhile; moved IOSTOUCH_FLY_STILL, no); and its
+    // glow following the cheat however it was switched (typed too)
+    CGFloat cheatProgress = 0.0;
+    for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+        iosTouchSlot* s = &iosTouch_aSlots[i];
+        if (!s->touch || s->role != ROLE_BUTTON || s->button != BTN_CHEAT || s->bFlyDone) continue;
+        CGPoint q = [s->touch locationInView:self];
+        if (hypot(q.x - s->origin.x, q.y - s->origin.y) >= IOSTOUCH_FLY_STILL || jkHud_bChatOpen || iosTouch_bWheelOpen
+            || iosTouch_bFreezing || iosTouch_bCinema || iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE) {
+            s->bFlyDone = 1; // (slid off, typing, or a wheel or the photos took over)
+            continue;
+        }
+        if (known - s->tDown >= IOSTOUCH_CHEAT_HOLD) {
+            s->bFlyDone = 1;
+            if (iosGame_ToggleSithEwok() >= 0) [cameraTap impactOccurred];
+            continue;
+        }
+        cheatProgress = MAX(cheatProgress, MIN((CGFloat)((now - s->tDown) / IOSTOUCH_CHEAT_HOLD), 1.0));
+    }
+    [self setRing:cheatRing progress:cheatProgress];
+    if (iosGame_IsSithEwokOn() != iosTouch_bCheatOn) {
+        iosTouch_bCheatOn = iosGame_IsSithEwokOn();
+        [self refreshButtonLooks];
+    }
+
     // How far QUICK SAVE's and QUICK LOAD's rings have filled (the furthest
     // along of each one's holds), and the one whose hold completed
     CGFloat saveProgress = 0.0, loadProgress = 0.0;
@@ -4349,6 +4473,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     [self setRing:jumpRing progress:0.0];
     [self setRing:actRing progress:0.0];
     [self setRing:duckRing progress:0.0];
+    [self setRing:cheatRing progress:0.0];
     aButtonViews[BTN_DUCK].text = @"DUCK"; // (a level pick on show, dropped)
     iosTouch_levelToLoad = 0;
     [self setRing:loadRing progress:0.0];
