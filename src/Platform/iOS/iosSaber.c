@@ -23,6 +23,7 @@
 #include "General/stdString.h"
 #include "SDL2_helper.h"
 #include "jk.h"
+#include "Main/jkPlayerLook.h" // (other players' sabers, in multiplayer)
 
 // ------------------------------------------------------------ the colours
 
@@ -367,8 +368,7 @@ void iosSaber_EndThrown(SithThing* pThing)
     iosSaber_pThrownModel = NULL;
 }
 
-static rdModel3* iosSaber_pArmModel; // (below: the second saber's arm)
-static int iosSaber_echoCount;
+static void iosSaber_ForgetArms(void); // (below: the second saber's arm)
 
 void iosSaber_FreeWorld(void)
 {
@@ -383,25 +383,50 @@ void iosSaber_FreeWorld(void)
         iosSaber_aThrownLoaded[id] = 0;
     }
     // (the arms' joints found again for the next level's model, even one at the same address)
-    iosSaber_pArmModel = NULL;
-    iosSaber_echoCount = 0;
+    iosSaber_ForgetArms();
 }
 
 // ------------------------------------------------------------ drawing
 
-// (only the player's own, in single player: no one else's game knows of it)
+// (the player's own)
 static int iosSaber_IsPlayers(SithThing* pThing)
 {
-    return pThing && pThing == sithPlayer_g_pLocalPlayerThing && !sithNet_isMulti;
+    return pThing && pThing == sithPlayer_g_pLocalPlayerThing;
+}
+
+// A thing's saber as its player chose it: the local player's own, or in multiplayer
+// another player's as their game sent it (jkPlayerLook); 0 for anyone else
+static int iosSaber_LookOf(SithThing* pThing, int* pStyle, int aId[IOSSABER_MAX_BLADES])
+{
+    if (iosSaber_IsPlayers(pThing)) {
+        *pStyle = iosSaber_style;
+        for (int b = 0; b < IOSSABER_MAX_BLADES; b++) aId[b] = iosSaber_aColour[iosSaber_style][b];
+        return 1;
+    }
+#ifdef QOL_IMPROVEMENTS
+    const jkPlayerLook* pLook = jkPlayerLook_ForThing(pThing);
+    if (pLook) {
+        *pStyle = (pLook->style >= 0 && pLook->style < IOSSABER_NUM_STYLES && iosSaber_StyleAvailable(pLook->style)) ? pLook->style : IOSSABER_STYLE_SINGLE;
+        for (int b = 0; b < IOSSABER_MAX_BLADES; b++) {
+            const int id = (b < JKPLAYERLOOK_MAX_BLADES && pLook->aColourKey[b][0]) ? iosSaber_ColourByKey(pLook->aColourKey[b]) : -1;
+            aId[b] = id < 0 ? IOSSABER_COLOUR_GAME : id;
+        }
+        return 1;
+    }
+#endif
+    return 0;
 }
 
 int iosSaber_HasSecondBlade(SithThing* pThing)
 {
-    // (not in a selfie: it poses the player with one hand on the phone and the other free, or showing off
-    // the one weapon)
-    // (and both in hand: one thrown, the other is held as one saber, iosSaberThrow)
-    return iosSaber_IsPlayers(pThing) && iosSaber_aStyles[iosSaber_style].numBlades >= 2 && !iosSelfie_IsActive()
-           && iosSaberThrow_HandsInHand() == 3;
+    int style, aId[IOSSABER_MAX_BLADES];
+    if (!iosSaber_LookOf(pThing, &style, aId) || iosSaber_aStyles[style].numBlades < 2) return 0;
+    // (the player's own: not in a selfie, which poses the player with one hand on the phone and the other
+    // free, or showing off the one weapon; and both in hand: one thrown, the other is held as one saber,
+    // iosSaberThrow)
+    if (iosSaber_IsPlayers(pThing))
+        return !iosSelfie_IsActive() && iosSaberThrow_HandsInHand() == 3;
+    return 1;
 }
 
 // (the blade's width as it was, while it is drawn shimmering: two sabers)
@@ -416,9 +441,11 @@ void iosSaber_BeginBlade(SithThing* pThing, rdThing* pLine, int blade)
         iosSaber_pWidthLine->tipRadius = iosSaber_savedTip;
         iosSaber_pWidthLine = NULL;
     }
-    if (!iosSaber_IsPlayers(pThing) || !pLine || !pLine->polyline) return;
-    // two sabers: each blade's width shimmers a little, out of step with the other (iosStance)
-    if (iosSaber_HasSecondBlade(pThing)) {
+    int style, aId[IOSSABER_MAX_BLADES];
+    if (!pLine || !pLine->polyline || !iosSaber_LookOf(pThing, &style, aId)) return;
+    // two sabers: each blade's width shimmers a little, out of step with the other (iosStance; the
+    // player's own)
+    if (iosSaber_IsPlayers(pThing) && iosSaber_HasSecondBlade(pThing)) {
         rdPolyline* w = pLine->polyline;
         const flex_t k = iosStance_BladeWidth(blade);
         iosSaber_pWidthLine = w;
@@ -427,13 +454,13 @@ void iosSaber_BeginBlade(SithThing* pThing, rdThing* pLine, int blade)
         w->baseRadius *= k;
         w->tipRadius *= k;
     }
-    const iosSaberStyle* st = &iosSaber_aStyles[iosSaber_style];
+    const iosSaberStyle* st = &iosSaber_aStyles[style];
     // (a blade the style doesn't have -- the game's own second one -- as its first)
     if (blade < 0 || blade >= st->numBlades) blade = 0;
-    int id = iosSaber_aColour[iosSaber_style][blade];
+    int id = aId[blade];
     // (two sabers with the right one thrown: the left one, in hand, in its own colour)
-    if (iosSaber_style == IOSSABER_STYLE_DUAL && blade == 0 && iosSaber_IsPlayers(pThing) && iosSaberThrow_HandsInHand() == 2)
-        id = iosSaber_aColour[IOSSABER_STYLE_DUAL][1];
+    if (style == IOSSABER_STYLE_DUAL && blade == 0 && iosSaber_IsPlayers(pThing) && iosSaberThrow_HandsInHand() == 2)
+        id = aId[1];
     if (id == IOSSABER_COLOUR_GAME || !iosSaber_Load(id)) return;
     rdPolyline* l = pLine->polyline;
     iosSaber_pSavedSide = l->face.material;
@@ -462,9 +489,6 @@ void iosSaber_EndBlade(rdThing* pLine)
 // names: "...rshouldr"/"...rshoulder", "...rforearm", "...rhand", and the same with "l")
 #define IOSSABER_ARM_NODES 3
 #define IOSSABER_LEFT_SPREAD_DEG 40.0f
-static rdModel3* iosSaber_pArmModel = NULL;
-static int iosSaber_aArmR[IOSSABER_ARM_NODES], iosSaber_aArmL[IOSSABER_ARM_NODES];
-static int iosSaber_bArms = 0;
 
 // The right arm's poses (each joint relative to the one it hangs from), kept a while
 #define IOSSABER_ECHO_FRAMES 48
@@ -473,8 +497,44 @@ typedef struct {
     uint32_t ms;
     rdMatrix34 aJoint[IOSSABER_ARM_NODES];
 } iosSaberEcho;
-static iosSaberEcho iosSaber_aEcho[IOSSABER_ECHO_FRAMES];
-static int iosSaber_echoHead = 0, iosSaber_echoCount = 0;
+
+// Each two-saber player's (the player's own, and in multiplayer others'): their arms and poses kept
+#define IOSSABER_ARM_SLOTS 4
+typedef struct {
+    SithThing* pThing;
+    uint32_t usedMs;
+    rdModel3* pArmModel;
+    int aArmR[IOSSABER_ARM_NODES], aArmL[IOSSABER_ARM_NODES];
+    int bArms;
+    iosSaberEcho aEcho[IOSSABER_ECHO_FRAMES];
+    int echoHead, echoCount;
+} iosSaberArms;
+static iosSaberArms iosSaber_aArms[IOSSABER_ARM_SLOTS];
+
+static void iosSaber_ForgetArms(void)
+{
+    for (int i = 0; i < IOSSABER_ARM_SLOTS; i++) {
+        iosSaber_aArms[i].pThing = NULL;
+        iosSaber_aArms[i].pArmModel = NULL;
+        iosSaber_aArms[i].echoCount = 0;
+    }
+}
+
+// A thing's slot: its own, or the one used longest ago (started over)
+static iosSaberArms* iosSaber_ArmsOf(SithThing* pThing, uint32_t now)
+{
+    iosSaberArms* pOldest = &iosSaber_aArms[0];
+    for (int i = 0; i < IOSSABER_ARM_SLOTS; i++) {
+        iosSaberArms* a = &iosSaber_aArms[i];
+        if (a->pThing == pThing) { a->usedMs = now; return a; }
+        if (!a->pThing || (pOldest->pThing && (int32_t)(a->usedMs - pOldest->usedMs) < 0)) pOldest = a;
+    }
+    pOldest->pThing = pThing;
+    pOldest->usedMs = now;
+    pOldest->pArmModel = NULL;
+    pOldest->echoCount = 0;
+    return pOldest;
+}
 
 static int iosSaber_FindNode(rdModel3* pModel, const char* side, const char* const* aSuffix)
 {
@@ -491,19 +551,19 @@ static int iosSaber_FindNode(rdModel3* pModel, const char* side, const char* con
     return -1;
 }
 
-static void iosSaber_FindArms(rdModel3* pModel)
+static void iosSaber_FindArms(iosSaberArms* a, rdModel3* pModel)
 {
     static const char* const aShoulder[] = { "shouldr", "shoulder", NULL };
     static const char* const aForearm[] = { "forearm", NULL };
     static const char* const aHand[] = { "hand", NULL };
     const char* const* aaPart[IOSSABER_ARM_NODES] = { aShoulder, aForearm, aHand };
-    iosSaber_pArmModel = pModel;
-    iosSaber_bArms = 1;
-    iosSaber_echoCount = 0;
+    a->pArmModel = pModel;
+    a->bArms = 1;
+    a->echoCount = 0;
     for (int k = 0; k < IOSSABER_ARM_NODES; k++) {
-        iosSaber_aArmR[k] = iosSaber_FindNode(pModel, "r", aaPart[k]);
-        iosSaber_aArmL[k] = iosSaber_FindNode(pModel, "l", aaPart[k]);
-        if (iosSaber_aArmR[k] < 0 || iosSaber_aArmL[k] < 0 || iosSaber_aArmR[k] == iosSaber_aArmL[k]) iosSaber_bArms = 0;
+        a->aArmR[k] = iosSaber_FindNode(pModel, "r", aaPart[k]);
+        a->aArmL[k] = iosSaber_FindNode(pModel, "l", aaPart[k]);
+        if (a->aArmR[k] < 0 || a->aArmL[k] < 0 || a->aArmR[k] == a->aArmL[k]) a->bArms = 0;
     }
 }
 
@@ -513,32 +573,33 @@ void iosSaber_PoseArms(rdThing* pRdThing)
     if (!iosSaber_HasSecondBlade(pThing) || !(pThing->jkFlags & JKFLAG_SABERON) || pRdThing != &pThing->renderData
         || !pRdThing->model3 || !pRdThing->paJointMatrices)
         return;
-    if (pRdThing->model3 != iosSaber_pArmModel) iosSaber_FindArms(pRdThing->model3);
-    if (!iosSaber_bArms) return;
+    const uint32_t now = sithTime_g_msecGameTime;
+    iosSaberArms* a = iosSaber_ArmsOf(pThing, now);
+    if (pRdThing->model3 != a->pArmModel) iosSaber_FindArms(a, pRdThing->model3);
+    if (!a->bArms) return;
 
     // This frame's right arm kept (once a frame: the latest pose for that time)
-    const uint32_t now = sithTime_g_msecGameTime;
-    iosSaberEcho* pNow = &iosSaber_aEcho[iosSaber_echoHead];
-    if (iosSaber_echoCount && (now < pNow->ms || now - pNow->ms > IOSSABER_ECHO_GAP_MS)) iosSaber_echoCount = 0;
-    if (!iosSaber_echoCount || now != pNow->ms) {
-        iosSaber_echoHead = (iosSaber_echoHead + 1) % IOSSABER_ECHO_FRAMES;
-        if (iosSaber_echoCount < IOSSABER_ECHO_FRAMES) iosSaber_echoCount++;
-        pNow = &iosSaber_aEcho[iosSaber_echoHead];
+    iosSaberEcho* pNow = &a->aEcho[a->echoHead];
+    if (a->echoCount && (now < pNow->ms || now - pNow->ms > IOSSABER_ECHO_GAP_MS)) a->echoCount = 0;
+    if (!a->echoCount || now != pNow->ms) {
+        a->echoHead = (a->echoHead + 1) % IOSSABER_ECHO_FRAMES;
+        if (a->echoCount < IOSSABER_ECHO_FRAMES) a->echoCount++;
+        pNow = &a->aEcho[a->echoHead];
         pNow->ms = now;
     }
-    for (int k = 0; k < IOSSABER_ARM_NODES; k++) pNow->aJoint[k] = pRdThing->paJointMatrices[iosSaber_aArmR[k]];
+    for (int k = 0; k < IOSSABER_ARM_NODES; k++) pNow->aJoint[k] = pRdThing->paJointMatrices[a->aArmR[k]];
 
     // ...the one IOSSABER_ECHO_MS before (or the oldest kept), mirrored onto the left arm: each joint as
     // its right one is, seen in a mirror across the body (x the other way, before and after)
     const iosSaberEcho* pPast = pNow;
-    for (int k = 0; k < iosSaber_echoCount; k++) {
-        const iosSaberEcho* e = &iosSaber_aEcho[(iosSaber_echoHead - k + IOSSABER_ECHO_FRAMES) % IOSSABER_ECHO_FRAMES];
+    for (int k = 0; k < a->echoCount; k++) {
+        const iosSaberEcho* e = &a->aEcho[(a->echoHead - k + IOSSABER_ECHO_FRAMES) % IOSSABER_ECHO_FRAMES];
         pPast = e;
         if (now - e->ms >= IOSSABER_ECHO_MS) break;
     }
     for (int k = 0; k < IOSSABER_ARM_NODES; k++) {
         const rdMatrix34* r = &pPast->aJoint[k];
-        rdMatrix34* l = &pRdThing->paJointMatrices[iosSaber_aArmL[k]];
+        rdMatrix34* l = &pRdThing->paJointMatrices[a->aArmL[k]];
         l->rvec.x =  r->rvec.x; l->rvec.y = -r->rvec.y; l->rvec.z = -r->rvec.z;
         l->lvec.x = -r->lvec.x; l->lvec.y =  r->lvec.y; l->lvec.z =  r->lvec.z;
         l->uvec.x = -r->uvec.x; l->uvec.y =  r->uvec.y; l->uvec.z =  r->uvec.z;
@@ -547,7 +608,7 @@ void iosSaber_PoseArms(rdThing* pRdThing)
     // ...and the shoulder turned out a little, so the second saber is held off to the side, not where the
     // first is (the game's stance holds the hilt in front of the body's middle, which a mirror keeps there)
     rdVector3 spread = { 0.0f, IOSSABER_LEFT_SPREAD_DEG, 0.0f };
-    rdMatrix_PreRotate34(&pRdThing->paJointMatrices[iosSaber_aArmL[0]], &spread);
+    rdMatrix_PreRotate34(&pRdThing->paJointMatrices[a->aArmL[0]], &spread);
 }
 
 #endif // TARGET_IOS

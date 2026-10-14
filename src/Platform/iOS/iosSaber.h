@@ -2,9 +2,10 @@
 // (one blade; later two, a crossguard...) and each blade's colour, picked on
 // the touch overlay's SABER wheel.
 //
-// Only how it looks changes, and only for the local player in single player:
-// the game's own saber (its materials, length, damage, saves, what other
-// players are sent) is left as the game set it. Each blade's colour is put on
+// Only how it looks changes, for the local player (and, in multiplayer, for
+// each other player as their game sends it: jkPlayerLook): the game's own
+// saber (its materials, length, damage, saves, what the game itself sends
+// other players) is left as the game set it. Each blade's colour is put on
 // just while it is drawn (iosSaber_BeginBlade/EndBlade, round the blade's
 // draws in jkPlayer.c and jkSaber.c), so it shows wherever the blade is drawn:
 // first and third person, selfies, Action Freeze.
@@ -54,21 +55,23 @@ void iosSaber_SetColour(int style, int blade, int id);
 // ---- the engine's side.
 // Round the drawing of one of a thing's blades (blade 0: the right hand's, 1:
 // the left's): its colour put on, then the game's put back. Nothing changes
-// for anyone but the local player in single player, or for the game's own
-// colour.
+// for anyone but the local player (and, in multiplayer, the other players
+// whose games sent their choice), or for the game's own colour.
 struct SithThing;
 struct rdThing;
 void iosSaber_BeginBlade(struct SithThing* pThing, struct rdThing* pLine, int blade);
 void iosSaber_EndBlade(struct rdThing* pLine);
 
-// Whether this thing carries the player's second blade (the local player in
-// single player, with a two-blade style, not in a selfie): a saber in the left hand too, drawn
+// Whether this thing carries a player's second blade (the local player with a
+// two-blade style, not in a selfie, both in hand; in multiplayer, another
+// player whose game sent a two-blade style): a saber in the left hand too, drawn
 // with its own hilt, and striking as the game's own two-saber mode does
 // (jkSaber_IsDual: JKFLAG_DUALSABERS, which the game itself never sets)
 int iosSaber_HasSecondBlade(struct SithThing* pThing);
 
 // Second, the two-saber style's left arm (rdPuppet_BuildJointMatrices, each
-// joint posed and not yet put together): the player's left arm takes the
+// joint posed and not yet put together; each two-saber player's, up to four
+// at once): the player's left arm takes the
 // right arm's pose of IOSSABER_ECHO_MS before, mirrored, so the two sabers
 // are held apart and swing one after the other, the second blade striking
 // where it is drawn. (The game's own stance holds the hilt in both hands.)

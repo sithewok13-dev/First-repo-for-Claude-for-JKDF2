@@ -32,6 +32,7 @@ static void jkDev_Custom_HostAddressTick(void); // Added
 #include "wprintf.h"
 #include "Dss/sithMulti.h"
 #include "Main/jkCoop.h" // Added
+#include "Main/jkPlayerLook.h" // Added
 #include "Dss/sithGamesave.h"
 #include "Dss/jkDSS.h"
 #include "../jk.h"
@@ -263,6 +264,7 @@ void jkDev_DrawLog()
 #endif
 #ifdef QOL_IMPROVEMENTS
     jkCoop_Tick(); // Added: co-op, gear between levels and after dying
+    jkPlayerLook_Tick(); // Added: (multiplayer) this player's saber, for the others
 #endif
 
     // Added: Prevent crashes

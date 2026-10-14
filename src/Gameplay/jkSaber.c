@@ -222,6 +222,18 @@ void jkSaber_UpdateLength(SithThing *thing)
         thing->jkFlags |= JKFLAG_SABERRETRACT;
     }
 
+#ifdef QOL_IMPROVEMENTS
+    // Added: another player's saber, as their game sends it, comes on without
+    // the drawing (JKFLAG_SABEREXTEND) that lengthens the blade here, which
+    // then stayed at nothing: such a blade is out in full
+    if (sithNet_isMulti && thing != sithPlayer_g_pLocalPlayerThing
+        && !(thing->jkFlags & (JKFLAG_SABEREXTEND | JKFLAG_SABERRETRACT))
+        && playerInfo->polyline.length < playerInfo->length)
+    {
+        playerInfo->polyline.length = playerInfo->length;
+    }
+#endif
+
     // Added: HACK fix a bug where the saber gets stuck extended.
     if ((thing->jkFlags & (JKFLAG_SABEREXTEND | JKFLAG_SABERRETRACT)) == (JKFLAG_SABEREXTEND | JKFLAG_SABERRETRACT))
     {

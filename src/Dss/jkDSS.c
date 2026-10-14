@@ -11,6 +11,9 @@
 #include "Win95/std.h"
 #include "Main/jkDev.h"
 #include "Main/jkEpisode.h"
+#include "Dss/jkNetExt.h" // Added
+#include "Main/jkPlayerLook.h" // Added
+#include "Main/jkCoop.h" // Added
 #include "Main/jkRes.h"
 #include "Main/jkStrings.h"
 #include "World/sithTemplate.h"
@@ -66,6 +69,11 @@ int jkDSS_Startup()
 {
     stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
     
+#ifdef QOL_IMPROVEMENTS
+    // Added: this port's own messages (jkNetExt), and what they carry
+    jkNetExt_Startup();
+    jkPlayerLook_Startup();
+#endif
     sithMessage_RegisterFunction(DSS_JKENABLESABER, jkDSS_ProcessJKEnableSaber);
     sithMessage_RegisterFunction(DSS_SABERINFO3, jkDSS_ProcessSetSaberInfo2);
     sithMessage_RegisterFunction(DSS_JKSETWEAPONMESH, jkDSS_ProcessJKSetWeaponMesh);
@@ -1105,7 +1113,7 @@ int jkDSS_ProcessEndLevel(SithMessage *msg)
     // their level's number, so looking it up would land on the cutscene before
     // the level and the same level would be played again (co-op)
     jkEpisodeEntry* pCurEnt = jkEpisode_mLoad.paEntries ? jkEpisode_GetCurrentEpisodeEntry(&jkEpisode_mLoad) : NULL;
-    if (!pCurEnt || pCurEnt->level != arg0)
+    if (!jkCoop_IsActive() || !pCurEnt || pCurEnt->level != arg0)
 #endif
     jkEpisode_EndLevel(&jkEpisode_mLoad, arg0);
     sithMulti_QuitGame(sithTime_g_msecGameTime + 10000, 1);
