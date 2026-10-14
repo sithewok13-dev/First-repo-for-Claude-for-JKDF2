@@ -20,6 +20,8 @@
 #include "Main/jkMain.h"
 #include "General/stdString.h"
 #include "Win95/stdComm.h"
+#include "Main/jkDev.h"
+#include "Dss/jkDSS.h"
 
 int jkCoop_IsActive(void)
 {
@@ -29,6 +31,7 @@ int jkCoop_IsActive(void)
 // ------------------------------------------------------------------ gear between levels
 
 static char jkCoop_aHostLevel[32]; // (the host's level, below)
+static int jkCoop_pickedEntry = -1; // (the level the host picked, below)
 
 // (a kit older than this is from another game: a level, its cutscene and its
 // screens take less)
@@ -113,11 +116,27 @@ void jkCoop_LevelEnded(void)
     // Force powers screen's choices made)
     if (!jkCoop_IsActive() || !sithPlayer_g_pLocalPlayer)
         return;
-    jkCoop_TakeKit(sithPlayer_g_pLocalPlayer);
+    if (!jkDev_Custom_CheatedThisLevel() || !jkCoop_bKitValid) {
+        jkCoop_TakeKit(sithPlayer_g_pLocalPlayer);
+        return;
+    }
+    // A level played with cheats: the kit it began with kept, with only the Force power the story
+    // gives at the level's end (the episode entry's, which jkMain_EndLevel has just given)
+    if (!Main_bMotsCompat && jkEpisode_mLoad.paEntries && jkEpisode_mLoad.numSeq) {
+        const jkEpisodeEntry* pEnt = jkEpisode_GetCurrentEpisodeEntry(&jkEpisode_mLoad);
+        const int aPow[2] = { pEnt->lightpow, pEnt->darkpow };
+        for (int k = 0; k < 2; k++) {
+            const int bin = aPow[k];
+            if (bin >= SITHBIN_FP_START && bin <= SITHBIN_FP_END && (sithPlayer_g_pLocalPlayer->aItems[bin].state & SITHINVENTORY_ITEM_FOUND))
+                jkCoop_aKit[bin].state |= SITHINVENTORY_ITEM_FOUND;
+        }
+    }
+    jkCoop_kitMs = stdPlatform_GetTimeMsec();
 }
 
 void jkCoop_SessionEnded(void)
 {
+    jkCoop_pickedEntry = -1;
     jkCoop_bKitValid = 0;
     jkCoop_bKitToGive = 0;
     jkCoop_aHostLevel[0] = 0;
@@ -230,6 +249,29 @@ void jkCoop_PlacePlayer(SithThing* pPlayer)
 }
 
 // ------------------------------------------------------------------ the host's level
+
+int jkCoop_HostMayPickLevel(void)
+{
+    return jkCoop_IsActive() && sithNet_isServer && jkDev_Custom_CheatsAllowed();
+}
+
+int jkCoop_HostPickLevel(int entryIdx)
+{
+    if (!jkCoop_HostMayPickLevel() || entryIdx < 0 || entryIdx >= jkEpisode_mLoad.numSeq || !jkEpisode_mLoad.paEntries)
+        return 0;
+    jkCoop_pickedEntry = entryIdx;
+    jkDSS_SendEndLevel(); // (everyone's level ends in a moment)
+    return 1;
+}
+
+int jkCoop_TakePickedLevel(void)
+{
+    const int idx = jkCoop_pickedEntry;
+    jkCoop_pickedEntry = -1;
+    if (idx < 0 || !jkCoop_IsActive() || !sithNet_isServer || idx >= jkEpisode_mLoad.numSeq)
+        return -1;
+    return idx;
+}
 
 int jkCoop_HostLevelFromJoining(SithMessage* pMsg)
 {

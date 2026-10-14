@@ -642,7 +642,8 @@ enum sithMultiModeFlags
     MULTIMODEFLAG_2000 = 0x2000,
     MULTIMODEFLAG_4000 = 0x4000,
     MULTIMODEFLAG_8000 = 0x8000,
-    MULTIMODEFLAG_COOP = 0x10000
+    MULTIMODEFLAG_COOP = 0x10000,
+    MULTIMODEFLAG_ALLOWCHEATS = 0x20000 // Added: the host lets each player use cheats on themselves (jkDev)
 };
 
 enum sithMultiSessionFlags

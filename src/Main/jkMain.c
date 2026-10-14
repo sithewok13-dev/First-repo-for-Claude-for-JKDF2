@@ -1373,6 +1373,15 @@ int jkMain_MenuReturn()
 
 int jkMain_EndLevel(int bIsAPath)
 {
+#ifdef QOL_IMPROVEMENTS
+    // Added: co-op, a level the host picked (sithewok's level pick): that one, as it loads in single player
+    const int pickedEntry = jkCoop_TakePickedLevel();
+    if (pickedEntry >= 0) {
+        jkCoop_LevelEnded();
+        jkEpisode_mLoad.currentEpisodeEntryIdx = pickedEntry;
+        return jkMain_cd_swap_reverify(&jkEpisode_mLoad.paEntries[pickedEntry]);
+    }
+#endif
     if (!Main_bMotsCompat && jkEpisode_mLoad.numSeq )
     {
         jkEpisodeEntry* pEpisodeEnt = jkEpisode_GetCurrentEpisodeEntry(&jkEpisode_mLoad);

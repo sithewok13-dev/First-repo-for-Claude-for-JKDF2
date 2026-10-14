@@ -1,4 +1,4 @@
-MSGS 102          # <--- DON'T FORGET TO UPDATE THIS COUNT
+MSGS 104          # <--- DON'T FORGET TO UPDATE THIS COUNT
 
 #  "<key>"     <unused number>   "<string>"
 
@@ -73,6 +73,8 @@ MSGS 102          # <--- DON'T FORGET TO UPDATE THIS COUNT
    "GUIEXT_DEDICATED_SERVER_HINT"   0 "Launch server without participating as a player."
    "GUIEXT_COOP"                    0 "Experimental Co-op"
    "GUIEXT_COOP_HINT"               0 "Launch server with actors enabled."
+   "GUIEXT_ALLOW_CHEATS"            0 "Allow Cheats"
+   "GUIEXT_ALLOW_CHEATS_HINT"       0 "Each player may use cheats on themselves. Off by default."
    "GUIEXT_SERVER_PORT"             0 "Server Port:"
 
    #"GUIEXT_"                0 ""

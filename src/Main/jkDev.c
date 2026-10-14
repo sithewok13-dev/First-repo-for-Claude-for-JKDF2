@@ -92,6 +92,29 @@ static void jkDev_Custom_TakeCheatSaber(SithThing *pPlayer);
 static void jkDev_Custom_SaberThrowForget();
 static void jkDev_Custom_KeepForceFull();
 static void jkDev_Custom_SithEwokOn(SithThing *pPlayer, int bAgain);
+
+// Added: cheats in multiplayer: only if the host allows them (MULTIMODEFLAG_ALLOWCHEATS, off unless
+// set), each on the player's own self; one used marks the level, which then adds nothing to the gear a
+// co-op player carries on (jkCoop). The game-wide ones (debug flags, warp, activate, jump, level skips)
+// stay single player only, and a level is picked only by a co-op host.
+static int jkDev_bCheatedThisLevel = 0;
+int jkDev_Custom_CheatsAllowed(void)
+{
+    return !sithNet_isMulti || (sithNet_MultiModeFlags & MULTIMODEFLAG_ALLOWCHEATS);
+}
+static int jkDev_Custom_MultiCheat(void)
+{
+    if ( !jkDev_Custom_CheatsAllowed() )
+        return 0;
+    if ( sithNet_isMulti )
+        jkDev_bCheatedThisLevel = 1;
+    return 1;
+}
+int jkDev_Custom_CheatedThisLevel(void)
+{
+    return sithNet_isMulti && jkDev_Custom_CheatsAllowed() && (jkDev_bCheatedThisLevel || jkDev_bSithEwokOn);
+}
+#define JKDEV_CHEAT_OK() jkDev_Custom_MultiCheat()
 #endif
 
 // MOTS altered
@@ -759,7 +782,7 @@ int jkDev_CmdDebugFlags(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 
 int jkDev_CmdFly(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
-    if ( !sithNet_isMulti )
+    if ( JKDEV_CHEAT_OK() ) // Added: in multiplayer, if the host allows cheats
         sithCommand_Fly(pCmd, pArgStr);
     return 1;
 }
@@ -837,7 +860,7 @@ static SithInventoryItem* jkDev_Custom_Item(SithThing *pPlayer, int bin)
 // player, in a level)
 int jkDev_Custom_SaberButtonShown()
 {
-    if ( sithNet_isMulti || !sithWorld_g_pCurrentWorld )
+    if ( !jkDev_Custom_CheatsAllowed() || !sithWorld_g_pCurrentWorld )
         return 0;
     SithThing *pPlayer = sithWorld_g_pCurrentWorld->pLocalPlayer;
     SithInventoryItem *pSaber = jkDev_Custom_Item(pPlayer, jkDev_Custom_SaberBin());
@@ -850,7 +873,7 @@ int jkDev_Custom_SaberButtonShown()
 // MOTS altered
 int jkDev_CmdAllWeapons(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
-    if ( !sithNet_isMulti )
+    if ( JKDEV_CHEAT_OK() ) // Added: in multiplayer, if the host allows cheats
     {
 #ifdef QOL_IMPROVEMENTS
         // Added: a saber this gives (not had before, or had from a cheat) is marked as the cheat's
@@ -914,7 +937,7 @@ int jkDev_CmdAllWeapons(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 // MOTS altered
 int jkDev_CmdAllItems(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
-    if ( !sithNet_isMulti )
+    if ( JKDEV_CHEAT_OK() ) // Added: in multiplayer, if the host allows cheats
     {
         if (!Main_bMotsCompat)
         {
@@ -993,7 +1016,7 @@ int jkDev_CmdLightMaster(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
     if (Main_bMotsCompat) return 1; // Added
 
-    if ( !sithNet_isMulti )
+    if ( JKDEV_CHEAT_OK() ) // Added: in multiplayer, if the host allows cheats
     {
         sithInventory_SetInventory(sithPlayer_g_pLocalPlayerThing, SITHBIN_JEDI_RANK, 2.0);
         jkPlayer_SetRank(2);
@@ -1030,7 +1053,7 @@ int jkDev_CmdDarkMaster(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
     if (Main_bMotsCompat) return 1; // Added
 
-    if ( !sithNet_isMulti )
+    if ( JKDEV_CHEAT_OK() ) // Added: in multiplayer, if the host allows cheats
     {
         sithInventory_SetInventory(sithPlayer_g_pLocalPlayerThing, SITHBIN_JEDI_RANK, 2.0);
         jkPlayer_SetRank(2);
@@ -1066,7 +1089,7 @@ int jkDev_CmdDarkMaster(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 // MOTS altered
 int jkDev_CmdUberJedi(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
-    if ( !sithNet_isMulti )
+    if ( JKDEV_CHEAT_OK() ) // Added: in multiplayer, if the host allows cheats
     {
         if (!Main_bMotsCompat)
         {
@@ -1155,7 +1178,7 @@ int jkDev_CmdUberJedi(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 // MOTS altered
 int jkDev_CmdLevelUp(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
-    if ( !sithNet_isMulti )
+    if ( JKDEV_CHEAT_OK() ) // Added: in multiplayer, if the host allows cheats
     {
         jkDev_amt = jkDev_amt - -1.0;
         if ( jkDev_amt > 4.0 )
@@ -1201,7 +1224,7 @@ int jkDev_CmdLevelUp(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 
 int jkDev_CmdHeal(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
-    if ( !sithNet_isMulti )
+    if ( JKDEV_CHEAT_OK() ) // Added: in multiplayer, if the host allows cheats
     {
         sithPlayer_g_pLocalPlayerThing->actorParams.health = sithPlayer_g_pLocalPlayerThing->actorParams.maxHealth;
         sithInventory_SetInventory(sithPlayer_g_pLocalPlayerThing, SITHBIN_SHIELDS, 200.0);
@@ -1213,7 +1236,7 @@ int jkDev_CmdHeal(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 
 int jkDev_CmdAllMap(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
-    if ( !sithNet_isMulti )
+    if ( JKDEV_CHEAT_OK() ) // Added: in multiplayer, if the host allows cheats
     {
         g_mapModeFlags ^= (SITHMAPMODE_SHOWALLTHINGS | SITHMAPMODE_SHOWALLSECTORS);
         sithConsole_PrintWString(jkStrings_GetUniStringWithFallback("GAME_ALLMAP"));
@@ -1223,7 +1246,7 @@ int jkDev_CmdAllMap(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 
 int jkDev_CmdMana(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
-    if ( !sithNet_isMulti )
+    if ( JKDEV_CHEAT_OK() ) // Added: in multiplayer, if the host allows cheats
     {
         sithInventory_SetInventory(sithPlayer_g_pLocalPlayerThing, SITHBIN_FORCEMANA, 400.0);
         sithConsole_PrintWString(jkStrings_GetUniStringWithFallback("GAME_MANA"));
@@ -1386,7 +1409,7 @@ void jkDev_DrawEntriesGPU()
 #ifdef QOL_IMPROVEMENTS
 int jkDev_CmdNoclip(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
-    if (sithNet_isMulti ) return 1;
+    if (!JKDEV_CHEAT_OK()) return 1; // Added: in multiplayer, if the host allows cheats
 
     SithThing *v0; // ecx
     char16_t *v3; // eax
@@ -1466,7 +1489,7 @@ static void jkDev_Custom_KeepForceFull()
     SithThing *pPlayer;
     flex_t maxMana;
 
-    if ( sithNet_isMulti || !sithWorld_g_pCurrentWorld )
+    if ( !jkDev_Custom_CheatsAllowed() || !sithWorld_g_pCurrentWorld )
         return;
 
     pPlayer = sithWorld_g_pCurrentWorld->pLocalPlayer;
@@ -1534,14 +1557,14 @@ static void jkDev_Custom_KeepForceFull()
 // than the rank allows as it is, instead of taking them all back (single player)
 int jkDev_Custom_KeepsForcePowers()
 {
-    return jkDev_bKeepForcePowers && Main_bMotsCompat && !sithNet_isMulti;
+    return jkDev_bKeepForcePowers && Main_bMotsCompat && jkDev_Custom_CheatsAllowed();
 }
 
 // Added: sithewok: falls don't hurt the player (sithCollision_FallHurt). The game's own invincibility
 // (SITH_AF_INVULNERABLE) lets fall damage through on purpose (sithActor_Hit), so this is its own switch.
 int jkDev_Custom_NoFallHurt()
 {
-    return jkDev_bNoFallHurt && !sithNet_isMulti;
+    return jkDev_bNoFallHurt && jkDev_Custom_CheatsAllowed();
 }
 
 // Added: sithewok: flight, switched on and off by a long press on the touch overlay's JUMP (iosGame).
@@ -1551,7 +1574,7 @@ int jkDev_Custom_NoFallHurt()
 static SithThing* jkDev_Custom_FlightPlayer()
 {
     SithThing* pPlayer;
-    if ( !jkDev_bNoFallHurt || sithNet_isMulti || (g_debugmodeFlags & DEBUGFLAG_NOCLIP) || !sithWorld_g_pCurrentWorld )
+    if ( !jkDev_bNoFallHurt || !jkDev_Custom_CheatsAllowed() || (g_debugmodeFlags & DEBUGFLAG_NOCLIP) || !sithWorld_g_pCurrentWorld )
         return NULL;
     pPlayer = sithWorld_g_pCurrentWorld->pLocalPlayer;
     if ( !pPlayer || pPlayer->type != SITH_THING_PLAYER || pPlayer->moveType != SITH_MT_PHYSICS || (pPlayer->flags & SITH_TF_DEAD) )
@@ -1610,7 +1633,7 @@ int jkDev_Custom_ToggleFlight()
 static SithThing* jkDev_Custom_NoclipPlayer()
 {
     SithThing* pPlayer;
-    if ( !jkDev_bNoFallHurt || sithNet_isMulti || !sithWorld_g_pCurrentWorld )
+    if ( !jkDev_bNoFallHurt || !jkDev_Custom_CheatsAllowed() || !sithWorld_g_pCurrentWorld )
         return NULL;
     pPlayer = sithWorld_g_pCurrentWorld->pLocalPlayer;
     if ( !pPlayer || pPlayer->type != SITH_THING_PLAYER || pPlayer->moveType != SITH_MT_PHYSICS || (pPlayer->flags & SITH_TF_DEAD) )
@@ -1644,7 +1667,7 @@ int jkDev_Custom_ToggleNoclip()
 // the first in the episode. Only while sithewok is on, in single player.
 int jkDev_Custom_CanPickLevel()
 {
-    return jkDev_bNoFallHurt && !sithNet_isMulti && jkEpisode_mLoad.paEntries && jkEpisode_mLoad.numSeq > 0
+    return jkDev_bNoFallHurt && (!sithNet_isMulti || jkCoop_HostMayPickLevel()) && jkEpisode_mLoad.paEntries && jkEpisode_mLoad.numSeq > 0
            && sithWorld_g_pCurrentWorld && sithWorld_g_pCurrentWorld->pLocalPlayer;
 }
 
@@ -1671,6 +1694,9 @@ int jkDev_Custom_GoToLevel(int level)
         jkEpisodeEntry* pEnt = &jkEpisode_mLoad.paEntries[i];
         if ( pEnt->type != 0 || pEnt->level != level )
             continue;
+        // Added: (the co-op host: everyone goes there, jkCoop)
+        if ( sithNet_isMulti )
+            return jkCoop_HostPickLevel(i);
         // (as pinotnoir does it, jkMain_SetMap, at this entry)
         jkEpisode_mLoad.currentEpisodeEntryIdx = i;
         jkMain_cd_swap_reverify(pEnt);
@@ -1683,7 +1709,7 @@ int jkDev_Custom_GoToLevel(int level)
 // (sithPlayer_Update); on and off with the safe falls
 int jkDev_Custom_CatchesFalls()
 {
-    return jkDev_bNoFallHurt && !sithNet_isMulti;
+    return jkDev_bNoFallHurt && jkDev_Custom_CheatsAllowed();
 }
 
 // Added: sithewok, everything at once, invincible, endless Force, falls don't hurt. Typed, it switches:
@@ -1694,7 +1720,7 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
     SithThing *pPlayer;
     char arg[8] = {0};
 
-    if ( sithNet_isMulti )
+    if ( !JKDEV_CHEAT_OK() ) // Added: in multiplayer, if the host allows cheats
         return 1;
 
     // The local player, as jediwannabe finds it
@@ -1749,7 +1775,7 @@ int jkDev_Custom_TakeSithEwokTypedOff()
 // both go through jkDev_Custom_CmdSithEwok); never in multiplayer
 int jkDev_Custom_SithEwokIsOn()
 {
-    return jkDev_bSithEwokOn && !sithNet_isMulti;
+    return jkDev_bSithEwokOn && jkDev_Custom_CheatsAllowed();
 }
 
 // Added: sithewok switched as if typed (typing "sithewok" switches it), for the touch overlay's
@@ -1763,7 +1789,7 @@ void jkDev_Custom_SetSithEwokShown(int bShown)
 int jkDev_Custom_ToggleSithEwok()
 {
     const int bWasOn = jkDev_Custom_SithEwokIsOn();
-    if ( sithNet_isMulti || !jkDev_Custom_CmdSithEwok(NULL, bWasOn ? "off" : "") )
+    if ( !jkDev_Custom_CheatsAllowed() || !jkDev_Custom_CmdSithEwok(NULL, bWasOn ? "off" : "") )
         return -1;
     return jkDev_Custom_SithEwokIsOn();
 }
@@ -1959,13 +1985,14 @@ static void jkDev_Custom_HostAddressTick(void)
 
 void jkDev_Custom_LevelOpened()
 {
+    jkDev_bCheatedThisLevel = 0; // (a new level: no cheat used in it yet)
 #ifdef PLATFORM_ENET
     jkDev_hostAddrAt = (sithNet_isMulti && sithNet_isServer) ? sithTime_g_secGameTime + 2.0 : -1.0;
 #endif
     jkDev_Custom_SaberThrowForget();
     jkDev_sithEwokWeaponBack = -1;
     jkDev_sithEwokPowerBack = -1;
-    if ( !jkDev_bSithEwokOn || sithNet_isMulti || !sithWorld_g_pCurrentWorld )
+    if ( !jkDev_bSithEwokOn || !jkDev_Custom_CheatsAllowed() || !sithWorld_g_pCurrentWorld )
         return;
     jkDev_sithEwokPowerBack = jkDev_sithEwokPower; // (selected again once sithewok has given its powers)
     if ( jkDev_sithEwokWeapon < 0 )

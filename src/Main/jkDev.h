@@ -121,4 +121,10 @@ void jkDev_Custom_SetSithEwokShown(int bShown); // Added
 static int (*jkDev_DialogFunc)(HWND, UINT, WPARAM, LPARAM) = (void*)jkDev_DialogFunc_ADDR;
 #endif
 
+#ifdef QOL_IMPROVEMENTS
+// Added: cheats in multiplayer only if the host allows them; whether one was used this level
+int jkDev_Custom_CheatsAllowed(void);
+int jkDev_Custom_CheatedThisLevel(void);
+#endif
+
 #endif // _JKDEV_H

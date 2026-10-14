@@ -95,7 +95,7 @@ static jkGuiMenu jkGuiNetHost_menu =
     jkGuiNetHost_aElements, 0, 65535, 65535, 15, NULL, NULL, jkGui_stdBitmaps, jkGui_stdFonts, 0, NULL, "thermloop01.wav", "thrmlpu2.wav", NULL, NULL, NULL, 0, NULL, NULL
 };
 
-static jkGuiElement jkGuiNetHost_aSettingsElements[9] =
+static jkGuiElement jkGuiNetHost_aSettingsElements[10] =
 {
     { ELEMENT_TEXT, 0, 0, NULL, 3, { 0, 410, 640, 20 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_TEXT, 0, 6, "GUI_MULTIPLAYER", 3, { 20, 20, 600, 40 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
@@ -104,6 +104,7 @@ static jkGuiElement jkGuiNetHost_aSettingsElements[9] =
 #ifdef QOL_IMPROVEMENTS
     { ELEMENT_CHECKBOX, 0, 0, "GUIEXT_DEDICATED_SERVER", 0, { 70, 270, 200, 40 }, 1, 0, "GUIEXT_DEDICATED_SERVER_HINT", NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_CHECKBOX, 0, 0, "GUIEXT_COOP", 0, { 70, 300, 200, 40 }, 1, 0, "GUIEXT_COOP_HINT", NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
+    { ELEMENT_CHECKBOX, 0, 0, "GUIEXT_ALLOW_CHEATS", 0, { 70, 330, 200, 40 }, 1, 0, "GUIEXT_ALLOW_CHEATS_HINT", NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 }, // Added
 #endif
     { ELEMENT_TEXTBUTTON, GUI_OK, 2, "GUI_OK", 3, { 420, 430, 200, 40 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_TEXTBUTTON, GUI_CANCEL, 2, "GUI_CANCEL", 3, { 20, 430, 200, 40 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
@@ -126,6 +127,7 @@ int jkGuiNetHost_portNum = 27020;
 int jkGuiNetHost_bIsDedicated = 0;
 int jkGuiNetHost_bIsCoop = 0;
 int jkGuiNetHost_bIsEpisodeCoop = 0;
+int jkGuiNetHost_bAllowCheats = 0; // Added: off unless the host turns it on
 
 int wstr_to_int_clamped(char16_t *pWstr, int minVal, int maxVal)
 {
@@ -180,6 +182,7 @@ void jkGuiNetHost_SaveSettings()
     wuRegistry_SaveBool("bIsDedicated", jkGuiNetHost_bIsDedicated);
     wuRegistry_SaveBool("bIsCoop", jkGuiNetHost_bIsCoop);
     wuRegistry_SaveBool("bIsEpisodeCoop", jkGuiNetHost_bIsEpisodeCoop);
+    wuRegistry_SaveBool("bAllowCheats", jkGuiNetHost_bAllowCheats);
 
     wuRegistry_SaveBool("bUseScoreLimit", jkGuiNetHost_gameFlags & MULTIMODEFLAG_SCORELIMIT);
     wuRegistry_SaveBool("bUseTimeLimit", jkGuiNetHost_gameFlags & MULTIMODEFLAG_TIMELIMIT);
@@ -231,6 +234,11 @@ void jkGuiNetHost_LoadSettings()
     else {
         jkGuiNetHost_gameFlags &= ~MULTIMODEFLAG_COOP;
     }
+    jkGuiNetHost_bAllowCheats = wuRegistry_GetBool("bAllowCheats", 0);
+    if (jkGuiNetHost_bAllowCheats)
+        jkGuiNetHost_gameFlags |= MULTIMODEFLAG_ALLOWCHEATS;
+    else
+        jkGuiNetHost_gameFlags &= ~MULTIMODEFLAG_ALLOWCHEATS;
 
     if(wuRegistry_GetBool("bUseScoreLimit", jkGuiNetHost_gameFlags & MULTIMODEFLAG_SCORELIMIT)) {
         jkGuiNetHost_gameFlags |= MULTIMODEFLAG_SCORELIMIT;
@@ -291,6 +299,7 @@ void jkGuiNetHost_Shutdown()
     jkGuiNetHost_portNum = 27020;
     jkGuiNetHost_bIsDedicated = 0;
     jkGuiNetHost_bIsCoop = 0;
+    jkGuiNetHost_bAllowCheats = 0; // Added
 }
 
 // MOTS altered
@@ -452,6 +461,11 @@ int jkGuiNetHost_Show(jkMultiEntry3 *pMultiEntry)
             else {
                 jkGuiNetHost_gameFlags &= ~MULTIMODEFLAG_COOP;
             }
+            // Added: cheats only if the host allows them
+            if (jkGuiNetHost_bAllowCheats)
+                jkGuiNetHost_gameFlags |= MULTIMODEFLAG_ALLOWCHEATS;
+            else
+                jkGuiNetHost_gameFlags &= ~MULTIMODEFLAG_ALLOWCHEATS;
             pMultiEntry->multiModeFlags = jkGuiNetHost_gameFlags;
             pMultiEntry->sessionFlags = jkGuiNetHost_sessionFlags;
 #endif
@@ -465,6 +479,7 @@ int jkGuiNetHost_Show(jkMultiEntry3 *pMultiEntry)
 #ifdef QOL_IMPROVEMENTS
             jkGuiNetHost_aSettingsElements[4].selectedTextEntry = jkGuiNetHost_bIsDedicated;
             jkGuiNetHost_aSettingsElements[5].selectedTextEntry = jkGuiNetHost_bIsCoop;
+            jkGuiNetHost_aSettingsElements[6].selectedTextEntry = jkGuiNetHost_bAllowCheats; // Added
 #endif
             jkGuiRend_MenuSetReturnKeyShortcutElement(&jkGuiNetHost_menuSettings, &jkGuiNetHost_aSettingsElements[4]);
             jkGuiRend_MenuSetEscapeKeyShortcutElement(&jkGuiNetHost_menuSettings, &jkGuiNetHost_aSettingsElements[5]);
@@ -478,6 +493,7 @@ int jkGuiNetHost_Show(jkMultiEntry3 *pMultiEntry)
 #ifdef QOL_IMPROVEMENTS
             jkGuiNetHost_bIsDedicated = !!jkGuiNetHost_aSettingsElements[4].selectedTextEntry;
             jkGuiNetHost_bIsCoop = !!jkGuiNetHost_aSettingsElements[5].selectedTextEntry;
+            jkGuiNetHost_bAllowCheats = !!jkGuiNetHost_aSettingsElements[6].selectedTextEntry; // Added
 
             jkEpisodeTypeFlags_t loadMask = (JK_EPISODE_DEATHMATCH | JK_EPISODE_4_UNK | JK_EPISODE_SPECIAL_CTF);
             if (jkGuiNetHost_bIsCoop)

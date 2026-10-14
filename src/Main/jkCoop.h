@@ -10,7 +10,9 @@
 //   stars; not keys, goals or what a level counts, which the game drops
 //   anyway, nor what a cheat gave) into the next one, as one player does.
 //   That kit, as the level began, is also what a player comes back with after
-//   dying in co-op.
+//   dying in co-op. A level in which the player used cheats (when the host
+//   allows them) adds nothing to it: they carry on what they began it with,
+//   and the Force power the story gives at its end.
 // - Starting spots: everyone starts (and comes back) where the one player
 //   would; one already standing there, the next is put beside them (on the
 //   floor, no wall between) rather than inside them.
@@ -54,6 +56,14 @@ int jkCoop_HostLevelFromJoining(SithMessage* pMsg);
 // After that join gave up: the host's level made the one to load (the
 // episode put there too), 1 if so; the caller then loads it
 int jkCoop_FollowHostLevel(void);
+
+// The co-op host may pick a level for everyone (cheats allowed, as sithewok's level pick)
+int jkCoop_HostMayPickLevel(void);
+// The co-op host picked the episode's entry: everyone goes there (the level ends for all; the host
+// then loads that entry, and the guests follow the host's level); 1 if so
+int jkCoop_HostPickLevel(int entryIdx);
+// At the level's end (jkMain_EndLevel): the entry the host picked, -1 if none (taken once)
+int jkCoop_TakePickedLevel(void);
 
 // A menu about to be shown that, in co-op, goes on (as its OK) by itself after
 // msWait; its own idle function, if any, still runs. Call jkCoop_MenuDone
