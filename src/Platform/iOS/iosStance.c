@@ -32,8 +32,18 @@ typedef struct {
 //  - small adjustments, one hand at a time (a dip, a rise, a wrist rolled in
 //    or out, easing forward, a re-centre), at uneven times with long quiet
 //    stretches now and then; the other hand answers faintly
-//  - rarely, an accent: a loose X, a high-low guard, an inward parry, a
-//    block-like move, brief, then back to the posture
+//  - gestures, a few at a time, as he grows restless: eagerness rises slowly
+//    while he stands calm, a gesture brings it down again (he settles), a
+//    fight, a jump or a throw resets it (just after a fight it starts high:
+//    still pumped). The more eager, the more often and the bolder: from a
+//    change of guard and a wrist flick, to a parry, a loose X, a raised saber
+//    as if expecting a blow, a feint, a block begun and let go, the leading
+//    hand swapped, and very rarely a confident roll of the wrist. Never more
+//    than one every 8-10 s, none of the last three again, each with its own
+//    wait; quick out and easy back, one hand at a time
+// The postures blend: a new one is settled into only partway from the last,
+// a little off each time, so the hands never come back to quite the same
+// place; eagerness leans him forward a touch, one hand leading.
 // All of it fades out at once for a swing, and back after.
 
 enum {
@@ -83,12 +93,9 @@ static const int iosStance_aWeight[IOSSTANCE_NUM] = {
 #define IOSSTANCE_AWAY_MAX 11.0f
 #define IOSSTANCE_READY_MIN 2.5f
 #define IOSSTANCE_READY_MAX 4.5f
-// Accents: one every so often, held this long; none this soon after a fight
-#define IOSSTANCE_ACCENT_GAP_MIN 25.0f
-#define IOSSTANCE_ACCENT_GAP_MAX 45.0f
+// Accents (gestures now): held this long
 #define IOSSTANCE_ACCENT_MIN 0.8f
 #define IOSSTANCE_ACCENT_MAX 1.2f
-#define IOSSTANCE_ACCENT_AFTER_FIGHT 8.0f
 // Small adjustments: the gaps between them mostly 3-8 s (most often near the middle); one in six
 // a quiet stretch of 8-12 s; one in eight a second straight after (1-2 s: a re-grip); each lasts
 // 0.7-1.2 s, eased in and out; the other hand answers a tenth as much a moment later
@@ -122,6 +129,59 @@ static const int iosStance_aWeight[IOSSTANCE_NUM] = {
 #define IOSSTANCE_SHIFT_ROLL 1.6f
 #define IOSSTANCE_FLOAT 1.6f // (each hand's own waves, against what they were)
 
+// The gestures (eagerness 0-1 rising while calm: about 0.2 at 5 s, 0.45 at 15 s, 0.7 at 30 s)
+#define IOSSTANCE_EAGER_TAU 25.0f       // (how slowly it rises, seconds)
+#define IOSSTANCE_EAGER_SETTLE 0.45f    // (kept of it after a gesture)
+#define IOSSTANCE_EAGER_PUMPED 0.55f    // (just after a fight)
+#define IOSSTANCE_GESTURE_GAP_MIN 8.0f  // (from the end of one to the next, at least)
+#define IOSSTANCE_GESTURE_GAP_MAX 10.0f
+#define IOSSTANCE_GESTURE_CUT 0.15f    // (a gesture cut short by a swing, a jump or a run fades out this fast)
+#define IOSSTANCE_LEAN_FWD (2.5f * IOSSTANCE_U) // (eager: leaning in, at full eagerness)
+#define IOSSTANCE_LEAN_PITCH 2.5f
+#define IOSSTANCE_LEAD_FWD (3.0f * IOSSTANCE_U) // (the leading hand ahead, the other back half as much)
+#define IOSSTANCE_LEAD_PITCH 2.0f
+enum { IOSSTANCE_SHAPE_SNAP = 0, IOSSTANCE_SHAPE_HOLD, IOSSTANCE_SHAPE_HALF, IOSSTANCE_SHAPE_BUMP };
+enum { IOSSTANCE_G_ONE = 0, IOSSTANCE_G_BOTH, IOSSTANCE_G_ACCENT, IOSSTANCE_G_GUARDS, IOSSTANCE_G_LEAD };
+typedef struct {
+    int type;          // one hand, both, an accent (a stance), a change of guard, the leading hand swapped
+    float minEager;    // not before eagerness is this high
+    int weight;
+    float cooldown;    // (seconds before it can come again)
+    float dur;         // (seconds; ± a quarter at random)
+    int shape;
+    int stance;        // an accent's
+    iosStancePose d;   // a hand gesture's movement at its fullest (± a fifth at random)
+} iosStanceGesture;
+enum { IOSSTANCE_GE_GUARDS = 0, IOSSTANCE_GE_FLICK, IOSSTANCE_GE_LEAD, IOSSTANCE_GE_RAISE, IOSSTANCE_GE_GUARD, IOSSTANCE_GE_PARRY,
+       IOSSTANCE_GE_CROSS, IOSSTANCE_GE_FEINT, IOSSTANCE_GE_ABORT, IOSSTANCE_GE_BLOCK, IOSSTANCE_GE_ROLL, IOSSTANCE_GE_NUM };
+static const iosStanceGesture iosStance_aGesture[IOSSTANCE_GE_NUM] = {
+    // a change of guard (another posture)
+    [IOSSTANCE_GE_GUARDS] = { IOSSTANCE_G_GUARDS, 0.20f, 20, 12.0f, 0.0f, 0, 0, { 0 } },
+    // an impatient flick of one wrist: the tip in and up, quick, then easy back
+    [IOSSTANCE_GE_FLICK]  = { IOSSTANCE_G_ONE, 0.25f, 24, 10.0f, 0.45f, IOSSTANCE_SHAPE_SNAP, 0, { -9.0f, 4.0f, 0.0f, 0.0f } },
+    // the other hand takes the lead
+    [IOSSTANCE_GE_LEAD]   = { IOSSTANCE_G_LEAD, 0.30f, 12, 15.0f, 0.0f, 0, 0, { 0 } },
+    // one saber raised as if a blow were coming, held a moment, then let down
+    [IOSSTANCE_GE_RAISE]  = { IOSSTANCE_G_ONE, 0.45f, 14, 18.0f, 1.4f, IOSSTANCE_SHAPE_HOLD, 0, { -4.0f, 7.0f, -9.0f * IOSSTANCE_U, 2.0f * IOSSTANCE_U } },
+    [IOSSTANCE_GE_GUARD]  = { IOSSTANCE_G_ACCENT, 0.40f, 10, 20.0f, 0.0f, 0, IOSSTANCE_GUARD, { 0 } },
+    [IOSSTANCE_GE_PARRY]  = { IOSSTANCE_G_ACCENT, 0.45f, 12, 20.0f, 0.0f, 0, IOSSTANCE_PARRY, { 0 } },
+    [IOSSTANCE_GE_CROSS]  = { IOSSTANCE_G_ACCENT, 0.50f, 10, 25.0f, 0.0f, 0, IOSSTANCE_CROSS, { 0 } },
+    // a feint: the leading saber pushed forward and dipped, pulled back
+    [IOSSTANCE_GE_FEINT]  = { IOSSTANCE_G_ONE, 0.55f, 12, 20.0f, 0.6f, IOSSTANCE_SHAPE_SNAP, 0, { 0.0f, 8.0f, -2.0f * IOSSTANCE_U, 7.0f * IOSSTANCE_U } },
+    // a block begun with both, let go halfway
+    [IOSSTANCE_GE_ABORT]  = { IOSSTANCE_G_BOTH, 0.55f, 10, 20.0f, 0.8f, IOSSTANCE_SHAPE_HALF, 0, { -6.0f, 10.0f, -6.0f * IOSSTANCE_U, 4.0f * IOSSTANCE_U } },
+    [IOSSTANCE_GE_BLOCK]  = { IOSSTANCE_G_ACCENT, 0.65f, 6, 30.0f, 0.0f, 0, IOSSTANCE_BLOCK, { 0 } },
+    // the rare confident one: a loose roll of one wrist outward and back (no spin)
+    [IOSSTANCE_GE_ROLL]   = { IOSSTANCE_G_ONE, 0.80f, 4, 60.0f, 0.9f, IOSSTANCE_SHAPE_BUMP, 0, { 38.0f, 3.0f, 0.0f, 0.0f } },
+};
+// How often one comes, by eagerness (a second's chance, while one may): none below the first
+#define IOSSTANCE_RATE(e) ((e) < 0.2f ? 0.0f : (e) < 0.45f ? (1.0f / 18.0f) : (e) < 0.7f ? (1.0f / 11.0f) : (1.0f / 8.0f))
+// The pose's limits (degrees), so no blade sweeps across the middle of the view
+#define IOSSTANCE_ROLL_MIN -32.0f
+#define IOSSTANCE_ROLL_MAX 42.0f
+#define IOSSTANCE_PITCH_MIN -12.0f
+#define IOSSTANCE_PITCH_MAX 20.0f
+
 // The small adjustments: what moves, at its fullest
 enum { IOSSTANCE_M_DIP = 0, IOSSTANCE_M_RISE, IOSSTANCE_M_ROLL_OUT, IOSSTANCE_M_ROLL_IN, IOSSTANCE_M_FORWARD, IOSSTANCE_M_CENTRE, IOSSTANCE_M_NUM };
 static const iosStancePose iosStance_aMicro[IOSSTANCE_M_NUM] = {
@@ -144,18 +204,27 @@ static struct {
     float stanceEnd;     // when the current posture (or accent) ends
     float leftSwitchAt;  // when the left hand takes up the new target
     iosStancePose aTarget[2], aPose[2], aVel[2];
-    int leftStance;      // the stance the left hand is on its way to
     float weight;        // 0: the game's own pose (a swing), 1: the stance in full
     int bWasBusy;
     // the posture an accent interrupted, and how long it had left
     int baseStance;
     float baseLeft;
-    float nextAccent, lastFight;
-    int lastAccent;
     // the small adjustment under way (none: microDur 0) and the next
     float microStart, microDur, nextMicro;
     int microHand, microKind, lastMicro;
     float run;           // how fast the player is moving (0-1), last update
+    // the posture's targets, as blended, for the left hand when it takes them up; and the posture's
+    // under an accent, to go back to
+    iosStancePose leftPending, aBaseTarget[2];
+    float eager;
+    int aRecent[3];      // the last three gestures
+    float aReady[IOSSTANCE_GE_NUM]; // when each may come again
+    float nextGesture;   // none before this
+    int gesture;         // a hand gesture under way (-1: none)
+    float gStart, gDur, gAmp;
+    float gCutAt;        // when it was cut short (-1: not)
+    int gHand;
+    int leadHand;
 } iosStance_s;
 
 static float iosStance_Rand01(void)
@@ -192,9 +261,23 @@ static void iosStance_BeginFor(int stance, float now, float dwell)
     else if (iosStance_IsAccent(stance)) iosStance_s.stanceEnd = now + iosStance_RandRange(IOSSTANCE_ACCENT_MIN, IOSSTANCE_ACCENT_MAX);
     else if (stance == IOSSTANCE_READY) iosStance_s.stanceEnd = now + iosStance_RandRange(IOSSTANCE_READY_MIN, IOSSTANCE_READY_MAX);
     else iosStance_s.stanceEnd = now + iosStance_RandRange(IOSSTANCE_AWAY_MIN, IOSSTANCE_AWAY_MAX);
-    // (the right hand goes now; the left a moment later -- not for the X, done together)
-    iosStance_s.aTarget[0] = iosStance_PoseOf(stance, 0);
-    iosStance_s.leftStance = stance;
+    // (the right hand goes now; the left a moment later -- not for the X, done together). A posture is
+    // settled into partway from where the hands were, a little off; an accent exactly
+    if (iosStance_IsAccent(stance) || now <= 0.0f) {
+        iosStance_s.aTarget[0] = iosStance_PoseOf(stance, 0);
+        iosStance_s.leftPending = iosStance_PoseOf(stance, 1);
+    }
+    else {
+        const float r = iosStance_RandRange(0.6f, 1.0f);
+        iosStancePose* aOut[2] = { &iosStance_s.aTarget[0], &iosStance_s.leftPending };
+        for (int h = 0; h < 2; h++) {
+            const iosStancePose from = iosStance_s.aTarget[h], to = iosStance_PoseOf(stance, h);
+            aOut[h]->roll = from.roll + (to.roll - from.roll) * r + iosStance_RandRange(-3.0f, 3.0f);
+            aOut[h]->pitch = from.pitch + (to.pitch - from.pitch) * r + iosStance_RandRange(-2.0f, 2.0f);
+            aOut[h]->lower = from.lower + (to.lower - from.lower) * r + iosStance_RandRange(-2.0f, 2.0f) * IOSSTANCE_U;
+            aOut[h]->fwd = from.fwd + (to.fwd - from.fwd) * r;
+        }
+    }
     iosStance_s.leftSwitchAt = (stance == IOSSTANCE_CROSS) ? now : now + IOSSTANCE_LEFT_LAG * iosStance_RandRange(0.6f, 1.4f);
 }
 
@@ -268,6 +351,14 @@ static void iosStance_Spring(iosStancePose* x, iosStancePose* v, const iosStance
     }
 }
 
+// A gesture cut short (a swing, a jump, a run): it fades out quickly, and the next waits its gap
+static void iosStance_CutGesture(float now)
+{
+    if (iosStance_s.gesture < 0 || iosStance_s.gCutAt >= 0.0f) return;
+    iosStance_s.gCutAt = now;
+    iosStance_s.nextGesture = now + IOSSTANCE_GESTURE_CUT + iosStance_RandRange(IOSSTANCE_GESTURE_GAP_MIN, IOSSTANCE_GESTURE_GAP_MAX);
+}
+
 void iosStance_Update(SithThing* pActor, int bBusy)
 {
     const flex_t gameTime = sithTime_g_secGameTime;
@@ -276,16 +367,17 @@ void iosStance_Update(SithThing* pActor, int bBusy)
         iosStance_Reset();
         iosStance_s.bStarted = 1;
         iosStance_s.rng = (uint32_t)(gameTime * 1000.0) * 2654435761u + 12345u;
-        iosStance_s.lastAway = iosStance_s.lastAccent = iosStance_s.lastMicro = -1;
+        iosStance_s.lastAway = iosStance_s.lastMicro = -1;
         iosStance_Begin(IOSSTANCE_V, 0.0f);
         iosStance_s.aPose[0] = iosStance_s.aTarget[0];
         iosStance_s.aPose[1] = iosStance_s.aTarget[1] = iosStance_PoseOf(IOSSTANCE_V, 1);
         iosStance_s.lastTime = gameTime;
         iosStance_s.weight = 0.0f; // (faded in from the game's own pose, both arms together)
         iosStance_s.bWasBusy = bBusy;
-        iosStance_s.nextAccent = iosStance_RandRange(IOSSTANCE_ACCENT_GAP_MIN, IOSSTANCE_ACCENT_GAP_MAX);
         iosStance_s.nextMicro = iosStance_MicroGap();
-        iosStance_s.lastFight = -100.0f;
+        iosStance_s.gesture = -1;
+        iosStance_s.aRecent[0] = iosStance_s.aRecent[1] = iosStance_s.aRecent[2] = -1;
+        iosStance_s.nextGesture = iosStance_RandRange(2.0f, 5.0f);
         return;
     }
     float dt = (float)(gameTime - iosStance_s.lastTime);
@@ -308,25 +400,38 @@ void iosStance_Update(SithThing* pActor, int bBusy)
     if (bBusy) {
         iosStance_s.weight -= IOSSTANCE_FADE_OUT * dt;
         if (iosStance_s.weight < 0.0f) iosStance_s.weight = 0.0f;
-        iosStance_s.lastFight = now;
         iosStance_s.microDur = 0.0f; // (no adjustment carried through a swing)
+        iosStance_CutGesture(now);   // (nor a gesture)
+        iosStance_s.eager = 0.0f;
     }
     else {
         if (iosStance_s.bWasBusy) {
             iosStance_s.lastAway = IOSSTANCE_READY;
             iosStance_Begin(IOSSTANCE_READY, now);
+            iosStance_s.eager = IOSSTANCE_EAGER_PUMPED; // (still pumped)
+            iosStance_s.nextGesture = now + iosStance_RandRange(IOSSTANCE_GESTURE_GAP_MIN, IOSSTANCE_GESTURE_GAP_MAX);
         }
         iosStance_s.weight += IOSSTANCE_FADE_IN * dt;
         if (iosStance_s.weight > 1.0f) iosStance_s.weight = 1.0f;
     }
     iosStance_s.bWasBusy = bBusy;
-    const int bCalm = !bBusy && iosStance_s.weight >= 0.95f && run < 0.5f;
+    const int bAir = pActor && pActor->attach_flags == 0 && !(pActor->physicsParams.flags & SITH_PF_FLY);
+    const int bCalm = !bBusy && iosStance_s.weight >= 0.95f && run < 0.5f && !bAir;
+    // Eagerness: rises while calm; in the air it drops fast (no gesture mid-jump), running slowly
+    if (bAir) { iosStance_s.eager *= expf(-dt / 0.5f); iosStance_CutGesture(now); }
+    else if (run >= 0.5f) iosStance_CutGesture(now);
+    else if (bCalm) iosStance_s.eager += (1.0f - iosStance_s.eager) * dt / IOSSTANCE_EAGER_TAU;
+    else if (!bBusy) iosStance_s.eager *= expf(-dt / 10.0f);
 
     // What comes next: an accent ends back in the posture it interrupted; from the V, another
     // (weighted, not the last); from another, the V
-    if (!bBusy && now >= iosStance_s.stanceEnd) {
-        if (iosStance_IsAccent(iosStance_s.stance))
-            iosStance_BeginFor(iosStance_s.baseStance, now, iosStance_s.baseLeft > 0.5f ? iosStance_s.baseLeft : 0.0f);
+    if (!bBusy && now >= iosStance_s.stanceEnd && iosStance_s.gesture < 0) { // (not over a gesture)
+        if (iosStance_IsAccent(iosStance_s.stance)) {
+            // (back to the posture it interrupted, where it was)
+            iosStance_BeginFor(iosStance_s.baseStance, now, iosStance_s.baseLeft > IOSSTANCE_GESTURE_GAP_MIN ? iosStance_s.baseLeft : IOSSTANCE_GESTURE_GAP_MIN);
+            iosStance_s.aTarget[0] = iosStance_s.aBaseTarget[0];
+            iosStance_s.leftPending = iosStance_s.aBaseTarget[1];
+        }
         else if (iosStance_s.stance == IOSSTANCE_V) {
             const int next = iosStance_PickWeighted(IOSSTANCE_HIGHLOW, IOSSTANCE_READY, iosStance_s.lastAway);
             iosStance_s.lastAway = next;
@@ -335,30 +440,83 @@ void iosStance_Update(SithThing* pActor, int bBusy)
         else
             iosStance_Begin(IOSSTANCE_V, now);
     }
-    // An accent, now and then: only calm, a while after a fight, and not over an adjustment
-    if (now >= iosStance_s.nextAccent) {
-        if (bCalm && !iosStance_IsAccent(iosStance_s.stance) && iosStance_s.stance != IOSSTANCE_READY
-            && now - iosStance_s.lastFight >= IOSSTANCE_ACCENT_AFTER_FIGHT && iosStance_s.microDur <= 0.0f) {
-            const int accent = iosStance_PickWeighted(IOSSTANCE_FIRST_ACCENT, IOSSTANCE_NUM - 1, iosStance_s.lastAccent);
-            iosStance_s.lastAccent = accent;
-            iosStance_s.baseStance = iosStance_s.stance;
-            iosStance_s.baseLeft = iosStance_s.stanceEnd - now;
-            iosStance_Begin(accent, now);
-            iosStance_s.nextAccent = now + iosStance_RandRange(IOSSTANCE_ACCENT_GAP_MIN, IOSSTANCE_ACCENT_GAP_MAX);
+    // A gesture under way: over
+    if (iosStance_s.gesture >= 0 && iosStance_s.gCutAt >= 0.0f) {
+        if (now - iosStance_s.gCutAt >= IOSSTANCE_GESTURE_CUT) iosStance_s.gesture = -1; // (faded out; the gap already set)
+    }
+    else if (iosStance_s.gesture >= 0 && now - iosStance_s.gStart >= iosStance_s.gDur) {
+        iosStance_s.gesture = -1;
+        iosStance_s.nextGesture = now + iosStance_RandRange(IOSSTANCE_GESTURE_GAP_MIN, IOSSTANCE_GESTURE_GAP_MAX);
+    }
+    // A gesture, as eagerness says: only calm, not over another, an accent or an adjustment
+    if (bCalm && now >= iosStance_s.nextGesture && iosStance_s.gesture < 0 && !iosStance_IsAccent(iosStance_s.stance)
+        && iosStance_s.stance != IOSSTANCE_READY && iosStance_s.microDur <= 0.0f
+        && iosStance_Rand01() < IOSSTANCE_RATE(iosStance_s.eager) * dt) {
+        // which: allowed by eagerness, ready again, not one of the last three; weighted
+        int sum = 0;
+        for (int i = 0; i < IOSSTANCE_GE_NUM; i++) {
+            const iosStanceGesture* g = &iosStance_aGesture[i];
+            if (iosStance_s.eager < g->minEager || now < iosStance_s.aReady[i]
+                || i == iosStance_s.aRecent[0] || i == iosStance_s.aRecent[1] || i == iosStance_s.aRecent[2]) continue;
+            sum += g->weight;
         }
-        else
-            iosStance_s.nextAccent = now + iosStance_RandRange(2.0f, 5.0f); // (later)
+        int pick = -1;
+        float r = iosStance_Rand01() * sum;
+        for (int i = 0; sum > 0 && i < IOSSTANCE_GE_NUM; i++) {
+            const iosStanceGesture* g = &iosStance_aGesture[i];
+            if (iosStance_s.eager < g->minEager || now < iosStance_s.aReady[i]
+                || i == iosStance_s.aRecent[0] || i == iosStance_s.aRecent[1] || i == iosStance_s.aRecent[2]) continue;
+            r -= g->weight;
+            if (r < 0.0f) { pick = i; break; }
+        }
+        if (pick >= 0) {
+            const iosStanceGesture* g = &iosStance_aGesture[pick];
+            iosStance_s.aRecent[2] = iosStance_s.aRecent[1];
+            iosStance_s.aRecent[1] = iosStance_s.aRecent[0];
+            iosStance_s.aRecent[0] = pick;
+            iosStance_s.aReady[pick] = now + g->cooldown;
+            iosStance_s.eager *= IOSSTANCE_EAGER_SETTLE;
+            float busyFor = 0.0f;
+            if (g->type == IOSSTANCE_G_ACCENT) {
+                iosStance_s.baseStance = iosStance_s.stance;
+                iosStance_s.baseLeft = iosStance_s.stanceEnd - now;
+                iosStance_s.aBaseTarget[0] = iosStance_s.aTarget[0];
+                iosStance_s.aBaseTarget[1] = (now >= iosStance_s.leftSwitchAt) ? iosStance_s.aTarget[1] : iosStance_s.leftPending;
+                iosStance_Begin(g->stance, now);
+                busyFor = iosStance_s.stanceEnd - now;
+            }
+            else if (g->type == IOSSTANCE_G_GUARDS) {
+                const int next = iosStance_s.stance == IOSSTANCE_V ? iosStance_PickWeighted(IOSSTANCE_HIGHLOW, IOSSTANCE_LOW, iosStance_s.lastAway)
+                                                                  : IOSSTANCE_V;
+                if (next != IOSSTANCE_V) iosStance_s.lastAway = next;
+                iosStance_Begin(next, now);
+            }
+            else if (g->type == IOSSTANCE_G_LEAD) {
+                iosStance_s.leadHand = !iosStance_s.leadHand;
+            }
+            else {
+                iosStance_s.gesture = pick;
+                iosStance_s.gStart = now;
+                iosStance_s.gCutAt = -1.0f;
+                iosStance_s.gDur = g->dur * iosStance_RandRange(0.75f, 1.25f);
+                iosStance_s.gAmp = iosStance_RandRange(0.8f, 1.2f);
+                // (the feint with the leading hand; the others either)
+                iosStance_s.gHand = pick == IOSSTANCE_GE_FEINT ? iosStance_s.leadHand : (iosStance_Rand01() < 0.5f);
+                busyFor = iosStance_s.gDur;
+            }
+            iosStance_s.nextGesture = now + busyFor + iosStance_RandRange(IOSSTANCE_GESTURE_GAP_MIN, IOSSTANCE_GESTURE_GAP_MAX);
+        }
     }
     if (now >= iosStance_s.leftSwitchAt)
-        iosStance_s.aTarget[1] = iosStance_PoseOf(iosStance_s.leftStance, 1);
+        iosStance_s.aTarget[1] = iosStance_s.leftPending;
 
     // The small adjustments: ended, or due (only calm, not during an accent)
     if (iosStance_s.microDur > 0.0f && now - iosStance_s.microStart >= iosStance_s.microDur + IOSSTANCE_ECHO_DELAY)
         iosStance_s.microDur = 0.0f;
     if (now >= iosStance_s.nextMicro) {
-        if (bCalm && iosStance_s.microDur <= 0.0f && !iosStance_IsAccent(iosStance_s.stance)) {
+        if (bCalm && iosStance_s.microDur <= 0.0f && !iosStance_IsAccent(iosStance_s.stance) && iosStance_s.gesture < 0) {
             iosStance_BeginMicro(now);
-            iosStance_s.nextMicro = now + iosStance_s.microDur + iosStance_MicroGap();
+            iosStance_s.nextMicro = now + iosStance_s.microDur + iosStance_MicroGap() * (1.15f - 0.35f * iosStance_s.eager);
         }
         else
             iosStance_s.nextMicro = now + iosStance_RandRange(1.0f, 3.0f); // (later)
@@ -368,7 +526,13 @@ void iosStance_Update(SithThing* pActor, int bBusy)
     // stance's way); crouching lowers them, in the air they rise a little
     iosStancePose aGoal[2] = { iosStance_s.aTarget[0], iosStance_s.aTarget[1] };
     for (int h = 0; h < 2; h++) {
-        if (!iosStance_IsAccent(iosStance_s.stance)) aGoal[h].roll += IOSSTANCE_SPREAD;
+        if (!iosStance_IsAccent(iosStance_s.stance)) {
+            aGoal[h].roll += IOSSTANCE_SPREAD;
+            // eager: leaning in a touch, one hand leading
+            const float e = iosStance_s.eager;
+            aGoal[h].fwd += e * IOSSTANCE_LEAN_FWD + (h == iosStance_s.leadHand ? e * IOSSTANCE_LEAD_FWD : -0.5f * e * IOSSTANCE_LEAD_FWD);
+            aGoal[h].pitch += e * IOSSTANCE_LEAN_PITCH + (h == iosStance_s.leadHand ? e * IOSSTANCE_LEAD_PITCH : 0.0f);
+        }
         if (pActor) {
             const iosStancePose low = iosStance_aDef[IOSSTANCE_LOW].aHand[h];
             const float k = 0.5f * run;
@@ -389,6 +553,25 @@ static float iosStance_Bump(float u)
     if (u <= 0.0f || u >= 1.0f) return 0.0f;
     const float s = sinf((float)M_PI * u);
     return s * s;
+}
+
+// A gesture's shape over its time (u 0-1): quick out and easy back, out and held a moment, or begun
+// and let go halfway
+static float iosStance_Shape(int shape, float u)
+{
+    if (u <= 0.0f || u >= 1.0f) return 0.0f;
+    switch (shape) {
+        case IOSSTANCE_SHAPE_SNAP:
+            return u < 0.25f ? sinf(0.5f * (float)M_PI * u / 0.25f) : 0.5f * (1.0f + cosf((float)M_PI * (u - 0.25f) / 0.75f));
+        case IOSSTANCE_SHAPE_HOLD:
+            if (u < 0.3f) return 0.5f * (1.0f - cosf((float)M_PI * u / 0.3f));
+            if (u < 0.6f) return 1.0f;
+            return 0.5f * (1.0f + cosf((float)M_PI * (u - 0.6f) / 0.4f));
+        case IOSSTANCE_SHAPE_HALF:
+            return 0.55f * iosStance_Bump(u);
+        default:
+            return iosStance_Bump(u);
+    }
 }
 
 // The body's and this hand's movement now (t: the hand's own time; the left's is a moment behind)
@@ -421,6 +604,23 @@ static void iosStance_AddLife(int hand, float t, iosStancePose* p)
         p->lower += b * m->lower;
         p->fwd += b * m->fwd;
     }
+    // a gesture: the hand making it (or both)
+    if (iosStance_s.gesture >= 0) {
+        const iosStanceGesture* g = &iosStance_aGesture[iosStance_s.gesture];
+        if (g->type == IOSSTANCE_G_BOTH || hand == iosStance_s.gHand) {
+            const float lag = (g->type == IOSSTANCE_G_BOTH && hand) ? 0.06f : 0.0f;
+            float b = iosStance_s.gAmp * iosStance_Shape(g->shape, (iosStance_s.t - iosStance_s.gStart - lag) / iosStance_s.gDur);
+            if (iosStance_s.gCutAt >= 0.0f) {
+                // (cut short: fading out)
+                const float k = 1.0f - (iosStance_s.t - iosStance_s.gCutAt) / IOSSTANCE_GESTURE_CUT;
+                b *= k > 0.0f ? k : 0.0f;
+            }
+            p->roll += b * g->d.roll;
+            p->pitch += b * g->d.pitch;
+            p->lower += b * g->d.lower;
+            p->fwd += b * g->d.fwd;
+        }
+    }
 }
 
 int iosStance_GetHand(int hand, const rdVector3* pPivot, rdMatrix34* pOut)
@@ -437,6 +637,11 @@ int iosStance_GetHand(int hand, const rdVector3* pPivot, rdMatrix34* pOut)
     p.pitch += lifeK * life.pitch;
     p.lower += lifeK * life.lower;
     p.fwd += lifeK * life.fwd;
+    // (within limits: no blade across the middle of the view)
+    if (p.roll < IOSSTANCE_ROLL_MIN) p.roll = IOSSTANCE_ROLL_MIN;
+    if (p.roll > IOSSTANCE_ROLL_MAX) p.roll = IOSSTANCE_ROLL_MAX;
+    if (p.pitch < IOSSTANCE_PITCH_MIN) p.pitch = IOSSTANCE_PITCH_MIN;
+    if (p.pitch > IOSSTANCE_PITCH_MAX) p.pitch = IOSSTANCE_PITCH_MAX;
     // The stance itself, as much as the weight says (a swing: none; the life stays, less of it)
     rdVector3 pyr;
     pyr.x = (w * p.pitch) + (1.0f - w) * (p.pitch - base.pitch);

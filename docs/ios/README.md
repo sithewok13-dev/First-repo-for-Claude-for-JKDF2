@@ -700,8 +700,12 @@ cancels, and the game holds still while the wheel is open.
   throws sparks like the first. In first person both arms move, and between
   swings the two sabers rest naturally: they rise and fall with Kyle's
   breathing, each hand drifts on its own and now and then makes a small
-  adjustment, and once in a while he brings them into a brief guard or a
-  loose X before relaxing again. A faint shimmer plays on each blade. Kyle has no new animations, so in his
+  adjustment. The longer he stands still, the more restless he gets: he
+  leans in with one saber leading, flicks a wrist, feints, half raises a
+  block and lets it go, changes his guard, and very rarely rolls a saber
+  loosely in his hand. Never more than one of these every 8 to 10 seconds,
+  never the same as the last three, and any swing, block, weapon change,
+  run, jump or Saber Throw takes over at once. A faint shimmer plays on each blade. Kyle has no new animations, so in his
   two-handed swings the blades come from nearly the same place.
 - **Only the look changes,** and only in your own single-player game: the
   saber's damage, your saves and the levels are untouched. The colours show
