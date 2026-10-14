@@ -826,21 +826,22 @@ it away).
 
 Hold **MENU** and tap **CHEAT** in the tray. A **CHEAT** button with the **red
 Sith emblem** appears on the top row, `sithewok` goes on, and the Emperor
-laughs. Then:
+greets you: his laugh, "the dark side", or "unlimited power", picked at
+random (never the same one twice in a row). Then:
 
 - **Hold CHEAT** for half a second (a ring fills) to switch `sithewok` off
   (the emblem goes grey) or on again (red). A tap does nothing, so you can't
   switch it by accident.
 - **Typing works too:** typing `sithewok` while it's off switches it on and
-  brings the CHEAT button back (with the laugh). Typing `sithewok` while it's
+  brings the CHEAT button back (with the Emperor). Typing `sithewok` while it's
   on switches it off and the button goes away. Holding the button instead
   leaves it on screen, grey.
 - **To leave cheat mode,** tap CHEAT in the tray again: `sithewok` goes off
   and the button goes away.
 - The app remembers cheat mode, but `sithewok` itself starts off each time
   you open the app: hold CHEAT to switch it on.
-- The laugh plays at the game's sound effects volume, so turn that down if
-  you'd rather not hear it.
+- The Emperor plays at the game's sound effects volume, so turn that down if
+  you'd rather not hear him.
 
 ### sithewok's catches in Jedi Knight
 
