@@ -1864,6 +1864,15 @@ int sithThing_ParseThingArg(StdConffileArg *arg, SithThing* pThing, int param)
                 if (pCog->flags & SITH_COG_SERVER) {
                     pCog->flags |= SITH_COG_CLASS | SITH_COG_LOCAL;
                 }
+#ifdef QOL_IMPROVEMENTS
+                // Added: a player's class cog (kyle_m.cog, mara_m.cog) runs on that
+                // player's own machine, as in Jedi Knight: it arms the player on
+                // "newplayer" through GetLocalPlayerThing(), so run on the host it
+                // armed the host again and a joining player started empty-handed
+                else if (pThing->type == SITH_THING_PLAYER) {
+                    pCog->flags |= SITH_COG_LOCAL;
+                }
+#endif
             }
             else {
                 pCog->flags |= SITH_COG_CLASS | SITH_COG_LOCAL;
