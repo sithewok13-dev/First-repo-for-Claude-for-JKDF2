@@ -51,6 +51,9 @@ MATH_FUNC int sithCollision_ParticleAndActorCollisionHandler(SithThing *pSrcThin
 SithThing* sithCollision_RaycastFromCamera(rdVector3 *pos);
 SithThing* sithCollision_RaycastSector(SithSector *sector, rdVector3 *startPos, rdVector3 *dir, flex_t dist, flex_t radius, uint32_t *pHitType);
 int sithCollision_CheckPathClear(SithSector *sector, rdVector3 *startPos, rdVector3 *endPos, flex_t radius);
+#ifdef QOL_IMPROVEMENTS
+int sithCollision_CheckPathClearOfWalls(SithSector *sector, rdVector3 *startPos, rdVector3 *endPos, flex_t radius); // Added
+#endif
 
 #if 0
 static int (*_sithCollision_Startup)() = (void*)sithCollision_Startup_ADDR;

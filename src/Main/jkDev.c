@@ -31,6 +31,7 @@ static void jkDev_Custom_HostAddressTick(void); // Added
 #include "stdPlatform.h"
 #include "wprintf.h"
 #include "Dss/sithMulti.h"
+#include "Main/jkCoop.h" // Added
 #include "Dss/sithGamesave.h"
 #include "Dss/jkDSS.h"
 #include "../jk.h"
@@ -259,6 +260,9 @@ void jkDev_DrawLog()
 #endif
 #ifdef PLATFORM_ENET
     jkDev_Custom_HostAddressTick();
+#endif
+#ifdef QOL_IMPROVEMENTS
+    jkCoop_Tick(); // Added: co-op, gear between levels and after dying
 #endif
 
     // Added: Prevent crashes

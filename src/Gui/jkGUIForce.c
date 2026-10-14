@@ -17,6 +17,7 @@
 #include "Win95/Windows.h"
 #include "Main/jkStrings.h"
 #include "World/jkPlayer.h"
+#include "Main/jkCoop.h"
 
 static const char* jkGuiForce_bitmaps[17] = {
     "foAbsorb.bm",
@@ -644,6 +645,10 @@ int jkGuiForce_Show(int bCanSpendStars, int isMulti, int a4, char16_t* a5, int *
     jkGuiRend_MenuSetReturnKeyShortcutElement(jkGuiForce_pMenu, &jkGuiForce_pElements[EIDX_OK_BUTTON]);
 
     int clicked;
+#ifdef QOL_IMPROVEMENTS
+    if (bCanSpendStars)
+        jkCoop_MenuAutoContinue(jkGuiForce_pMenu, JKCOOP_FORCE_WAIT_MS); // Added: co-op, goes on by itself
+#endif
     while (1)
     {
         clicked = jkGuiRend_DisplayAndReturnClicked(jkGuiForce_pMenu);
@@ -659,6 +664,9 @@ int jkGuiForce_Show(int bCanSpendStars, int isMulti, int a4, char16_t* a5, int *
         
         break;
     }
+#ifdef QOL_IMPROVEMENTS
+    jkCoop_MenuDone(jkGuiForce_pMenu);
+#endif
     
     if (isMulti)
     {

@@ -20,6 +20,7 @@
 #include "Main/jkHudScope.h"
 #include "Main/jkHudCameraView.h"
 #include "Main/jkDev.h"
+#include "Main/jkCoop.h"
 #include "Main/jkEpisode.h"
 #include "Main/jkRes.h"
 #include "Main/jkStrings.h"
@@ -656,6 +657,7 @@ LABEL_28:
             }
 #ifdef QOL_IMPROVEMENTS
             jkDev_Custom_LevelOpened(); // Added: (multiplayer) the host's address shown
+            jkCoop_LevelOpened(); // Added: co-op
 #endif
         }
         else {
@@ -1377,6 +1379,9 @@ int jkMain_EndLevel(int bIsAPath)
         jkPlayer_idkEndLevel();
     }
 
+#ifdef QOL_IMPROVEMENTS
+    jkCoop_LevelEnded(); // Added: co-op, each player's gear kept for the next level
+#endif
     return jkMain_StartNextLevelInEpisode(0, bIsAPath);
 }
 

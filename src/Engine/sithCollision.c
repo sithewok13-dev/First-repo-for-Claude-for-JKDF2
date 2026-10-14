@@ -1228,6 +1228,37 @@ int sithCollision_HasLOS(SithThing *pViewer, SithThing *pTarget, int flag)
     return result;
 }
 
+#ifdef QOL_IMPROVEMENTS
+// Added: sithCollision_HasLOS's search between two spots, by a ball of the
+// given size, with things (players, enemies) not in the way: 1 if no wall
+int sithCollision_CheckPathClearOfWalls(SithSector *sector, rdVector3 *startPos, rdVector3 *endPos, flex_t radius)
+{
+    rdVector3 dir;
+    rdVector_Sub3(&dir, endPos, startPos);
+    flex_t dist = rdVector_Normalize3Acc(&dir);
+    if (dist <= 0.0)
+        return 1;
+
+    sithCollision_SearchForCollisions(sector, NULL, startPos, &dir, dist, radius, RAYCAST_2000 | RAYCAST_100 | RAYCAST_20 | RAYCAST_2 | RAYCAST_1);
+    int stackIdx = sithCollision_searchStackIdx;
+    int bClear = 1;
+    SithCollision* pIter = sithCollision_aCollisions[stackIdx].collisions;
+    for (int i = 0; i < sithCollision_aNumStackCollisions[stackIdx]; i++, pIter++)
+    {
+        // (a surface: wall, floor or ceiling; openings into the next sector
+        // are followed, not hits)
+        if (pIter->type & SITHCOLLISION_WORLD) {
+            bClear = 0;
+            break;
+        }
+    }
+    sithCollision_aNumStackCollisions[stackIdx] = 0;
+    sithCollision_aNumSearchedSectors[stackIdx] = 0;
+    sithCollision_searchStackIdx = stackIdx - 1;
+    return bClear;
+}
+#endif
+
 void sithCollision_sub_4E77A0(SithThing *pThing, rdMatrix34 *pOrient)
 {
     SithThing *v5; // edi

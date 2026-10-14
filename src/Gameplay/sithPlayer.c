@@ -27,6 +27,7 @@
 #include "World/sithThing.h"
 #include "Devices/sithConsole.h"
 #include "Primitives/rdMatrix.h"
+#include "Main/jkCoop.h" // Added
 #endif
 
 // Added: noclip
@@ -632,6 +633,9 @@ void sithPlayer_NewPlayer(SithThing *pPlayer)
                 &jkPlayer_playerInfos[v9].orient.scale,
                 &jkPlayer_playerInfos[v9].orient);
             sithThing_EnterSector(pPlayer, jkPlayer_playerInfos[v9].pInSector, 1, 0);
+#ifdef QOL_IMPROVEMENTS
+            jkCoop_PlacePlayer(pPlayer); // Added: co-op, not inside another player
+#endif
             sithCamera_Update(sithCamera_g_pCurCamera);
             sithPhysics_ResetThingMovement(pPlayer);
             sithWeapon_SyncPuppet(pPlayer);

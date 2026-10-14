@@ -1100,6 +1100,13 @@ int jkDSS_ProcessEndLevel(SithMessage *msg)
     NETMSG_IN_START(msg);
     int arg0 = NETMSG_POPS32();
 
+#ifdef QOL_IMPROVEMENTS
+    // Added: already on that level, stay there: a campaign's cutscenes share
+    // their level's number, so looking it up would land on the cutscene before
+    // the level and the same level would be played again (co-op)
+    jkEpisodeEntry* pCurEnt = jkEpisode_mLoad.paEntries ? jkEpisode_GetCurrentEpisodeEntry(&jkEpisode_mLoad) : NULL;
+    if (!pCurEnt || pCurEnt->level != arg0)
+#endif
     jkEpisode_EndLevel(&jkEpisode_mLoad, arg0);
     sithMulti_QuitGame(sithTime_g_msecGameTime + 10000, 1);
     return 1;
