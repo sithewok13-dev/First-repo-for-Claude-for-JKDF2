@@ -3120,7 +3120,7 @@ static int iosTouch_SaberBlade(void)
         else {
             [self setShowCheat:1];
             if (!iosGame_IsSithEwokOn()) iosGame_ToggleSithEwok();
-            iosCheatLaugh_Play(iosGame_SfxVolume()); // (the Emperor approves; only here)
+            iosCheatLaugh_Play(iosGame_SfxVolume()); // (the Emperor approves; also on typing it, CHEAT hidden)
         }
     }
     else if (kind == KIND_GYRO && iosTouch_GyroAvailable()) {
@@ -4383,9 +4383,12 @@ static int iosTouch_WheelSliceHasRow(int i)
     [self setRing:bactaRing progress:bactaProgress];
     if (iosGame_IsSithEwokOn() != iosTouch_bCheatOn) {
         iosTouch_bCheatOn = iosGame_IsSithEwokOn();
-        // (switched on some other way -- typed "sithewok" -- with CHEAT hidden: shown, as the
-        // tray's switch shows it)
-        if (iosTouch_bCheatOn && !iosTouch_bShowCheat) [self setShowCheat:1];
+        // (switched on some other way -- typed "sithewok" -- with CHEAT hidden: shown, and the
+        // Emperor's laugh, as the tray's switch does)
+        if (iosTouch_bCheatOn && !iosTouch_bShowCheat) {
+            [self setShowCheat:1];
+            iosCheatLaugh_Play(iosGame_SfxVolume());
+        }
         [self refreshButtonLooks];
     }
 
