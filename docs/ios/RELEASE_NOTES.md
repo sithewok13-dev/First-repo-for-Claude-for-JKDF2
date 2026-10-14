@@ -19,7 +19,7 @@
 
 **Two apps, one for each game:** **OpenJKDF2** (`OpenJKDF2-iOS-unsigned.ipa`) plays Jedi Knight, and **OpenMoTS** (`OpenJKDF2-MotS-iOS-unsigned.ipa`) plays Mysteries of the Sith. Install the one for the game you have, or both: they sit side by side, each with its own icon and its own folder for its files and saves. **OpenMoTS** (new in v0.4) has had much less testing than OpenJKDF2 (see *Known limitations*). If something goes wrong in it, please report it (see *Found a bug?*).
 
-**Setup guide:** https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/blob/HEAD/docs/ios/README.md
+**Setup guide:** https://github.com/sithewok13-dev/OpenJKDF2-iOS/blob/HEAD/docs/ios/README.md
 
 **New here?** *Known limitations*, *Requirements* and *Install* are near the bottom of this page, just above the download.
 
@@ -295,7 +295,7 @@ New in v0.6. Once you have the lightsaber (or while `sithewok` is on), a **SABER
 2. A typing line opens at the top of the screen with the iPhone keyboard. Type the cheat (autocorrect is off here) and tap **return**.
 3. To close the line without sending anything, tap **MENU** (or the keyboard button in the tray again). While the line is open, MENU and the keyboard button are lit yellow.
 
-While you're typing, most touch buttons don't work. A swipe or long press on FORCE WHEEL or NEXT WPN closes the line and opens its wheel (a quick tap does nothing while you type). Cheats only work in single player. A few favourites in Jedi Knight: `sithewok` (everything at once, see below), `red5` (all weapons and ammo), `bactame` (full health and shields), `yodajammies` (full Force meter), `jediwannabe on` (invincibility). The full list is in the guide: https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/blob/HEAD/docs/ios/README.md#cheats
+While you're typing, most touch buttons don't work. A swipe or long press on FORCE WHEEL or NEXT WPN closes the line and opens its wheel (a quick tap does nothing while you type). Cheats only work in single player. A few favourites in Jedi Knight: `sithewok` (everything at once, see below), `red5` (all weapons and ammo), `bactame` (full health and shields), `yodajammies` (full Force meter), `jediwannabe on` (invincibility). The full list is in the guide: https://github.com/sithewok13-dev/OpenJKDF2-iOS/blob/HEAD/docs/ios/README.md#cheats
 
 **`sithewok`** is this iOS build's own cheat (the original game doesn't have it). It gives you everything at once: all weapons and ammo, all items, every Force power at 4 stars with the top Jedi rank, full health, shields and Force meter, and invincibility. While it's on:
 
@@ -342,7 +342,7 @@ Catches, in Jedi Knight (Mysteries of the Sith's are in its section below):
 - **Its files:** open OpenMoTS once, so it makes its folder, then copy the `Episode`, `Resource` and `MUSIC` folders from your Mysteries of the Sith folder into *On My iPhone (or On My iPad) > OpenMoTS > mots*. Like OpenJKDF2, it also finds them straight in the *OpenMoTS* folder, or in a folder inside it, but `mots` is the place the guide uses.
 - **Keep the two games apart:** Mysteries of the Sith's files go in OpenMoTS only, and Jedi Knight's in OpenJKDF2 only. Each app only starts with its own game's files.
 - **Expansions & Mods** in OpenMoTS has no entry for Jedi Knight: open the OpenJKDF2 app instead.
-- The setup guide has the steps, with a picture of the folders: https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/blob/HEAD/docs/ios/README.md#mysteries-of-the-sith
+- The setup guide has the steps, with a picture of the folders: https://github.com/sithewok13-dev/OpenJKDF2-iOS/blob/HEAD/docs/ios/README.md#mysteries-of-the-sith
 
 **The same as in Jedi Knight:** the move stick and its run marker, drag to look, every button, MENU's hidden tray, the camera (selfies, photos, bursts, Action Freeze and the cinematic burst), SABER and its saber wheel (for Mara's saber), cheat mode and the CHEAT button, tilt aiming, QUICK SAVE and QUICK LOAD, the LIGHT, IR and BACTA item buttons, the FORCE button with its Force meter ring, tap, swipe or long-press on the wheel buttons, the stars on the Force wheel, and the HUD that fits your screen.
 
@@ -393,10 +393,10 @@ Catches, in Jedi Knight (Mysteries of the Sith's are in its section below):
 1. Download the `.ipa` for your game, below: **`OpenJKDF2-iOS-unsigned.ipa`** for Jedi Knight, or **`OpenJKDF2-MotS-iOS-unsigned.ipa`** for Mysteries of the Sith (*MotS* in its name). To play both, download both and do each step for each app.
 2. Sign and install it with your sideloading tool. The first time, iOS may ask you to turn on **Developer Mode** and to **trust** your Apple ID. On your home screen the app is called **OpenJKDF2** (Jedi Knight) or **OpenMoTS** (Mysteries of the Sith), each with its own icon.
 3. **Open the app once.** It says the game files are missing (*OpenJKDF2 is missing the following required assets*, or *OpenMoTS is missing...*) and asks you to copy your installation into the app's Documents folder. That's expected: it has just made its folder. The app can't go any further without the files, so close it (swipe it away).
-4. **Get your `Episode`, `Resource` and `MUSIC` folders onto your phone** from the game's folder on your computer, for example with iCloud Drive or as a `.zip`. Then, in the Files app, copy them into *On My iPhone (or On My iPad) > OpenJKDF2 > jk1* for Jedi Knight, or *On My iPhone (or On My iPad) > OpenMoTS > mots* for Mysteries of the Sith. (The apps also find them straight in *OpenJKDF2* or *OpenMoTS*, or in a folder inside it, but `jk1` and `mots` are the places the guide uses.) Where the game folder is on your computer: https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/blob/HEAD/docs/ios/README.md#1-get-your-game-files-ready
+4. **Get your `Episode`, `Resource` and `MUSIC` folders onto your phone** from the game's folder on your computer, for example with iCloud Drive or as a `.zip`. Then, in the Files app, copy them into *On My iPhone (or On My iPad) > OpenJKDF2 > jk1* for Jedi Knight, or *On My iPhone (or On My iPad) > OpenMoTS > mots* for Mysteries of the Sith. (The apps also find them straight in *OpenJKDF2* or *OpenMoTS*, or in a folder inside it, but `jk1` and `mots` are the places the guide uses.) Where the game folder is on your computer: https://github.com/sithewok13-dev/OpenJKDF2-iOS/blob/HEAD/docs/ios/README.md#1-get-your-game-files-ready
 5. **Open the app again.** The intro plays, then you make a player, then the main menu.
 
-The setup guide covers each step, including Developer Mode and "Untrusted Developer": https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/blob/HEAD/docs/ios/README.md#2-install-the-app
+The setup guide covers each step, including Developer Mode and "Untrusted Developer": https://github.com/sithewok13-dev/OpenJKDF2-iOS/blob/HEAD/docs/ios/README.md#2-install-the-app
 
 **Updating from an older version:** sideload the new `.ipa` with the same tool and Apple ID. It replaces the app and keeps your game files and saves, and files in `jk1` (or `mots`) stay where they are. (With a different tool or Apple ID, iOS may install it as a separate app with an empty folder: the guide explains how to move your files over.) **Tried a test build** from the *iOS latest build* prerelease? Install this release over it the same way: it keeps its files and saves too.
 
@@ -404,10 +404,10 @@ The setup guide covers each step, including Developer Mode and "Untrusted Develo
 
 **Download:** under *Assets* below (not the *Source code* files): `OpenJKDF2-iOS-unsigned.ipa` is Jedi Knight (OpenJKDF2), and `OpenJKDF2-MotS-iOS-unsigned.ipa` is Mysteries of the Sith (OpenMoTS). The *iOS latest build* prerelease, also on the Releases page, is rebuilt automatically after every code change and may be broken: use this release.
 
-**Found a bug?** Please report it here, not to the upstream OpenJKDF2 project, and say you're on **v0.6** and which app, OpenJKDF2 or OpenMoTS (AltStore and Settings show 0.9.9 for both: that's the engine's version): https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/issues
+**Found a bug?** Please report it here, not to the upstream OpenJKDF2 project, and say you're on **v0.6** and which app, OpenJKDF2 or OpenMoTS (AltStore and Settings show 0.9.9 for both: that's the engine's version): https://github.com/sithewok13-dev/OpenJKDF2-iOS/issues
 
 ---
 
 Unofficial builds. OpenJKDF2 is by shinyquagsire23 (Max Thomas) and the OpenJKDF2 contributors. This is not an official OpenJKDF2 release, and it is not affiliated with or endorsed by Lucasfilm, Disney or LucasArts. Star Wars and Jedi Knight are trademarks of Lucasfilm Ltd. No game assets are included.
 
-The apps include open-source libraries under their own licenses, among them OpenAL Soft and libsmacker (GNU LGPL; OpenAL Soft is linked statically, and the full source and build scripts are in this repository), SDL3 and SDL_mixer (zlib) and ANGLE (BSD-style). The list with links to each license is in the guide: https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/blob/HEAD/docs/ios/README.md#credits-and-legal
+The apps include open-source libraries under their own licenses, among them OpenAL Soft and libsmacker (GNU LGPL; OpenAL Soft is linked statically, and the full source and build scripts are in this repository), SDL3 and SDL_mixer (zlib) and ANGLE (BSD-style). The list with links to each license is in the guide: https://github.com/sithewok13-dev/OpenJKDF2-iOS/blob/HEAD/docs/ios/README.md#credits-and-legal

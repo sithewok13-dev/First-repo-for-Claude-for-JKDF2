@@ -5,7 +5,7 @@ with on-screen touch controls, using your own copy of the game. Its expansion,
 **Mysteries of the Sith**, has an app of its own.
 
 - **Download:** `OpenJKDF2-iOS-unsigned.ipa` from the
-  [latest release](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/releases/latest)
+  [latest release](https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/latest)
 - **Mysteries of the Sith:** a separate app, OpenMoTS
   (`OpenJKDF2-MotS-iOS-unsigned.ipa`, new in v0.4). See
   [Mysteries of the Sith](#mysteries-of-the-sith).
@@ -15,7 +15,7 @@ with on-screen touch controls, using your own copy of the game. Its expansion,
   `sithewok` button, flying, walking through walls and jumping to any level
   (see [Cheats](#cheats)). Stop the fight mid-blast and swing the camera round
   it for your photo (see [The camera](#the-camera)).
-- **Problems?** [Open an issue](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/issues)
+- **Problems?** [Open an issue](https://github.com/sithewok13-dev/OpenJKDF2-iOS/issues)
   (see [Reporting bugs](#reporting-bugs))
 
 Contents: [What this is](#what-this-is) ·
@@ -119,7 +119,7 @@ folders. You don't need `JK.EXE` or anything else from the game folder.
 
 ### Download the .ipa
 
-Go to the [latest release](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/releases/latest)
+Go to the [latest release](https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/latest)
 and download `OpenJKDF2-iOS-unsigned.ipa` from its *Assets*. You can download it
 on the phone in Safari (it goes to Files > Downloads) or on your computer,
 depending on the tool you use below. (The other file there,
@@ -127,7 +127,7 @@ depending on the tool you use below. (The other file there,
 [Mysteries of the Sith](#mysteries-of-the-sith).)
 
 There is also an
-["iOS latest build"](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/releases/tag/ios-latest)
+["iOS latest build"](https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/tag/ios-latest)
 pre-release. It's rebuilt automatically every time the code changes, so it
 has the newest fixes, but it may also be broken. Use the latest release unless
 you're testing a fix.
@@ -914,7 +914,7 @@ in [1. Get your game files ready](#1-get-your-game-files-ready)), and room on
 your phone for about 450 MB (under 200 MB without the cutscenes and music).
 
 1. **Download `OpenJKDF2-MotS-iOS-unsigned.ipa`** from the
-   [latest release](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/releases/latest).
+   [latest release](https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/latest).
    Sign and install it the same way, with the same tool, as OpenJKDF2
    ([2. Install the app](#2-install-the-app)). With a free Apple ID, it counts
    as one more of your 3 sideloaded apps. If your tool says you've reached the
@@ -1062,7 +1062,7 @@ If something doesn't work in OpenMoTS, please say so in your bug report
 ## Reporting bugs
 
 Please report problems with this iOS build on this repository's
-[issue tracker](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/issues)
+[issue tracker](https://github.com/sithewok13-dev/OpenJKDF2-iOS/issues)
 (you need a free GitHub account). Please don't report them to the upstream
 OpenJKDF2 project, unless the same thing also happens in the desktop version.
 
