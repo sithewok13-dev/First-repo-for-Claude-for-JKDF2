@@ -41,6 +41,37 @@ static SithThing* iosGame_GetPlayer(void)
     return pPlayer;
 }
 
+// ------------------------------------------------------------ Force Jump
+
+static int iosGame_forceJumpStyle = IOSGAME_JUMP_SMOOTH;
+
+void iosGame_SetForceJumpStyle(int style)
+{
+    if (style >= 0 && style < IOSGAME_JUMP_NUM_STYLES) iosGame_forceJumpStyle = style;
+}
+
+int iosGame_GetForceJumpRank(void)
+{
+    SithThing* pPlayer = iosGame_GetPlayer();
+    return pPlayer ? (int)sithInventory_GetInventory(pPlayer, SITHBIN_F_JUMP) : 0;
+}
+
+float iosGame_ForceJumpHeld(float secHeld)
+{
+    const int rank = iosGame_GetForceJumpRank();
+    if (iosGame_forceJumpStyle == IOSGAME_JUMP_CLASSIC || rank < 1) return secHeld;
+    // (the script: under 0.15 s or past the longest, the highest; between, as held)
+    const float longest = rank * IOSGAME_JUMP_STEP_SECS, lowest = 0.16f;
+    if (iosGame_forceJumpStyle == IOSGAME_JUMP_STEPS) {
+        if (rank == 1) return longest;
+        int step = 1 + (int)(secHeld / IOSGAME_JUMP_STEP_SECS);
+        if (step > rank) step = rank;
+        return lowest + (longest - lowest) * (float)(step - 1) / (float)(rank - 1);
+    }
+    if (secHeld >= longest) return longest;
+    return secHeld < lowest ? lowest : secHeld;
+}
+
 const char* iosGame_GetForcePowerName(void)
 {
     SithThing* pPlayer = iosGame_GetPlayer();

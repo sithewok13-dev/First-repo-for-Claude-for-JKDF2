@@ -73,7 +73,7 @@ The touch controls appear once you're playing a level, and hide in menus and cut
 ```
  NEXT   FORCE   LIGHT  IR  BACTA  CAMERA  SABER  CHEAT  (FPS)  QUICK  QUICK  MENU
  WPN    WHEEL   (only items you have)                         SAVE   LOAD
-                          [GYRO] [FPS] [CAMERA] [CHEAT] [keyboard]
+                          [GYRO] [FPS] [CAMERA] [CHEAT] [JUMP] [keyboard]
                           (MENU's tray, when held)
                              [MODE] [SENS]             (GYRO held in the tray)
                              [PHOTO] [SELFIES] [FREEZE] (CAMERA held in the tray)
@@ -184,7 +184,7 @@ FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them. LIGHT, IR, M
 
 #### MENU's hidden tray
 
-**Tap MENU** for the game's menu, as before. **Hold MENU** until its ring fills (about half a second) and a small tray opens just under it with five buttons, from left to right:
+**Tap MENU** for the game's menu, as before. **Hold MENU** until its ring fills (about half a second) and a small tray opens just under it with six buttons, from left to right:
 
 | Tray button | What it does |
 | --- | --- |
@@ -192,13 +192,14 @@ FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them. LIGHT, IR, M
 | **FPS** | Shows or hides a frame-rate counter, to the left of QUICK SAVE. Yellow while the counter is on. |
 | **CAMERA** (the camera symbol) | **Tap:** shows or hides the CAMERA button (yellow while it's shown). **Touch and hold** until its ring fills: CAMERA's options, **PHOTO**, **SELFIES** and **FREEZE**. See *The camera* above. |
 | **CHEAT** | Cheat mode on or off. On: the CHEAT button appears and `sithewok` goes on. Off: `sithewok` goes off and the button goes away. Yellow while cheat mode is on. See *Cheats* below. |
+| **JUMP** | How Force Jump works: **SMOOTH** (the default), **STEPS** or **CLASSIC**. Each tap goes on to the next, and the tray stays open. See *Force Jump* below. |
 | **Keyboard** (the keyboard symbol) | Opens the game's typing line with the iPhone keyboard, for cheats. Tap it again to close the line. |
 
-- GYRO shows its setting on the button (for example *GYRO OFF*), and MODE and SENS show theirs.
+- GYRO and JUMP show their setting on the button (for example *GYRO OFF*, *JUMP SMOOTH*), and MODE and SENS show theirs.
 - Either keep your thumb down, slide it onto a tray button and lift, or lift first and then tap one. Anywhere on the tray's dark backing counts as the nearest button.
-- Each tap on **MODE** or **SENS** goes on to the next setting, and the row stays open so you can tap again. The tray closes after **FPS**, **CAMERA**, **CHEAT** or the keyboard, or when you touch anywhere else. That touch still counts: touching FIRE closes the tray and fires. Touching MENU again only closes it.
+- Each tap on **JUMP**, **MODE** or **SENS** goes on to the next setting, and the tray (or row) stays open so you can tap again. The tray closes after **FPS**, **CAMERA**, **CHEAT** or the keyboard, or when you touch anywhere else. That touch still counts: touching FIRE closes the tray and fires. Touching MENU again only closes it.
 - If you slide off MENU while holding it, nothing happens.
-- The app **remembers GYRO, SENS, FPS, CAMERA and its options, and CHEAT** next time you open it. The `sithewok` cheat itself always starts off when you open the app: hold the CHEAT button to switch it on.
+- The app **remembers GYRO, SENS, FPS, CAMERA and its options, CHEAT and JUMP** next time you open it. The `sithewok` cheat itself always starts off when you open the app: hold the CHEAT button to switch it on.
 - On smaller screens (camera cutout on the right, Display Zoom, a large HUD Scale) the tray sits further left, so it stays clear of FORCE and the buttons around FIRE.
 
 #### Tilt aiming (gyro)
@@ -276,6 +277,16 @@ New in v0.6. Once you have the lightsaber (or while `sithewok` is on), a **SABER
 - **The ring and the HUD's Force bar** (in the gauge at the bottom right, next to the ammo count) show the same meter, but on different scales. The ring is full at your current maximum, which rises with your Jedi rank. The HUD bar is only full at the top rank. So early on, the ring can be full and glowing while the HUD bar isn't. Before your first Jedi rank there's no ring.
 - Pick a power with FORCE WHEEL (tap for the next one, or open the wheel).
 
+#### Force Jump
+
+Force Jump jumps when you **lift** your finger off FORCE, and how long you held it decides how high. It has 4 levels (the stars on the Force wheel): each star raises the highest jump, and gives you a little longer to reach it (0.35 s a star, so 1.4 s at 4 stars). Choose how holding works with **JUMP** in MENU's tray:
+
+- **SMOOTH** (the default): a **tap** is the lowest Force Jump (a bit under half the full height). The longer you hold, the higher it goes, smoothly, up to the highest for your stars. A **gold ring** fills inside FORCE as you hold, with a light tick when it's full: lift whenever the ring shows the height you want.
+- **STEPS:** the same heights in clear steps, one a star. A tap is the lowest step, and every 0.35 s you hold goes up a step, with a tick and a quarter more of the gold ring (at 4 stars), to the highest.
+- **CLASSIC:** exactly as the original game: a quick tap is the **highest** jump, and so is a hold past the highest; only a hold in between is lower. No ring.
+
+In every style the jump costs the same Force and needs you on the ground (or on water), and the other Force powers work as before.
+
 #### Quick save and quick load: why the short hold
 
 **QUICK SAVE** saves to the game's quick-save slot (the same one F9 uses on PC), and **QUICK LOAD** loads it. Both need you to **hold** the button for about a **third of a second**: a ring fills around it, and when it's full the game saves or loads, once, with your finger still down.
@@ -300,6 +311,7 @@ While you're typing, most touch buttons don't work. A swipe or long press on FOR
 **`sithewok`** is this iOS build's own cheat (the original game doesn't have it). It gives you everything at once: all weapons and ammo, all items, every Force power at 4 stars with the top Jedi rank, full health, shields and Force meter, and invincibility. While it's on:
 
 - **The Force meter never drains**, however much you use your powers.
+- **Ammo never runs out:** every kind is filled to its most when it goes on, and refills as you fire, the battery for the field light and IR goggles too.
 - **Falls never hurt you**, however far you drop.
 - **The Force catches you** if you fall into a bottomless pit: a soft blue flash, and you're back on the ledge you fell from.
 - **It stays on** through new levels and loaded games, and puts everything back at the start of each level. Your weapon in hand and your selected Force power come with you to the next level.

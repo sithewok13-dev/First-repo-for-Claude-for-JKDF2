@@ -227,6 +227,12 @@ enum { IOSTOUCH_CHIP_SINGLE = 0, IOSTOUCH_CHIP_DUAL, IOSTOUCH_CHIP_LEFT, IOSTOUC
 #define IOSTOUCH_FLY_STILL 10.0
 #define IOSTOUCH_LEVEL_STEP 0.4
 #define IOSTOUCH_FREEZE_DEFAULTS_KEY @"iosTouchFreeze"
+// Force Jump's style (the tray's JUMP: IOSGAME_JUMP_SMOOTH, the default, STEPS
+// or CLASSIC; remembered). In SMOOTH and STEPS, while FORCE is held with Force
+// Jump selected, a gold ring inside it fills to how high the jump will go
+// (STEPS: a step a star, a tick at each); SMOOTH ticks once, at the highest
+#define IOSTOUCH_JUMPSTYLE_DEFAULTS_KEY @"iosTouchJumpStyle"
+#define IOSTOUCH_FORCEJUMP_BIN 21 // (SITHBIN_F_JUMP, in both games)
 #define IOSTOUCH_FREEZE_SWIPE 36.0
 #define IOSTOUCH_FREEZE_EDGE 6.0       // (up: to this near the top of the screen counts as far enough...)
 #define IOSTOUCH_FREEZE_SWIPE_MIN 16.0 // (...but never less than this)
@@ -312,6 +318,7 @@ enum {
     KIND_CAMSWITCH, // (MENU tray) shows or hides the CAMERA button, when the touch lifts on it
     KIND_CHEAT,    // held still IOSTOUCH_CHEAT_HOLD: the sithewok cheat on or off (a tap does nothing)
     KIND_CHEATSWITCH, // (MENU tray) shows or hides the CHEAT button, when the touch lifts on it
+    KIND_JUMPSTYLE, // (MENU tray) Force Jump's next style: SMOOTH, STEPS or CLASSIC (iosGame_SetForceJumpStyle)
     KIND_CAMERA,   // tap: the photos ticked in the camera options; slide: a burst; hold: the selfie
     KIND_CAMPHOTO, // (camera options) opens or closes the photo kinds' row under them
     KIND_SELFIES,  // (camera options) how many photos a selfie takes: 1, 3 or 5
@@ -359,7 +366,7 @@ enum {
     BTN_CAMERA, // the middle of the top row, while switched on in the tray
     BTN_SABER,  // between CAMERA and QUICK SAVE, once the saber is had (or sithewok is on)
     BTN_CHEAT,  // ...right of SABER, in cheat mode (switched on in the tray)
-    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYCHEAT, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
+    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYCHEAT, BTN_TRAYJUMP, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
     // Rows under the tray, one at a time (iosTouch_optRow), hidden until opened:
     BTN_GYROOPT_MODE, BTN_GYROOPT_SENS,  // the gyro options (a hold on the tray's GYRO)
     BTN_CAMROW_PHOTO, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE, // the camera options (a hold on the tray's camera switch)
@@ -392,6 +399,7 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_TRAYFPS]   = { "FPS",         KIND_FPS,      -1,                  20.0f, 0 },
     [BTN_TRAYCAM]   = { "",            KIND_CAMSWITCH, -1,                 20.0f, 0 },
     [BTN_TRAYCHEAT] = { "",            KIND_CHEATSWITCH, -1,               20.0f, 0 },
+    [BTN_TRAYJUMP]  = { "JUMP",        KIND_JUMPSTYLE, -1,                 20.0f, 0 },
     [BTN_TRAYKEYS]  = { "",            KIND_CHAT,     -1,                  20.0f, 0 },
     [BTN_GYROOPT_MODE] = { "MODE",     KIND_GYROMODE, -1,                  20.0f, 0 },
     [BTN_GYROOPT_SENS] = { "SENS",     KIND_GYROSENS, -1,                  20.0f, 0 },
@@ -665,6 +673,8 @@ static int iosTouch_optRow = 0;      // IOSTOUCH_ROW_*: the row open under the t
 static int iosTouch_bKindsOpen = 0;  // the photo kinds' row, under the camera options
 static int iosTouch_selfieShots = 3; // photos a selfie takes (1, 3 or 5; remembered)
 static int iosTouch_bFreezeOn = 1;   // CAMERA's slide down: Action Freeze (remembered)
+static int iosTouch_jumpStyle = IOSGAME_JUMP_SMOOTH; // the tray's JUMP (remembered)
+static int iosTouch_jumpTicked = 0;  // how far FORCE's Force Jump ring has ticked this press (steps; SMOOTH: 1 at full)
 static int iosTouch_bFreezing = 0;   // Action Freeze is up
 static int iosTouch_bCinema = 0;     // the cinematic burst is running
 // Action Freeze: the fingers' moves not yet followed (degrees round and up,
@@ -1183,6 +1193,7 @@ typedef struct {
     CAShapeLayer* weaponRing; // NEXT WPN's
     CAShapeLayer* saberRing;  // SABER's
     CAShapeLayer* cheatRing;  // CHEAT's hold progress
+    CAShapeLayer* fjumpRing;  // inside FORCE: how high Force Jump will go (SMOOTH, STEPS)
     CAShapeLayer* bactaRing;  // BACTA's
     UILabel* aCheatSub[3];    // under JUMP, ACT and DUCK while sithewok is on: FLY, NOCLIP, LVL SEL
     CAShapeLayer* cheatEmblem; // CHEAT's Sith emblem (red, with its edge, while the cheat is on)
@@ -1523,6 +1534,15 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         }
         cheatRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_CHEAT].radius);
         [aButtonViews[BTN_CHEAT].layer addSublayer:cheatRing];
+        {
+            // Force Jump's charge, gold, just inside the force meter's ring
+            const CGFloat r = iosTouch_aButtons[BTN_FORCE].radius;
+            fjumpRing = IOSTouch_MakeHoldRing(r);
+            fjumpRing.path = [UIBezierPath bezierPathWithArcCenter:CGPointMake(r, r) radius:r - 7.5
+                                                       startAngle:-M_PI_2 endAngle:3 * M_PI_2 clockwise:YES].CGPath;
+            fjumpRing.strokeColor = [UIColor colorWithRed:1.0 green:0.82 blue:0.3 alpha:0.95].CGColor;
+            [aButtonViews[BTN_FORCE].layer addSublayer:fjumpRing];
+        }
         aButtonViews[BTN_TRAYCHEAT].text = @"CHEAT";
         aButtonViews[BTN_TRAYCHEAT].font = [UIFont boldSystemFontOfSize:IOSTouch_FontSize("CHEAT", iosTouch_aButtons[BTN_TRAYCHEAT].radius)];
         iosTouch_bShowCheat = [[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_CHEAT_DEFAULTS_KEY] ? 1 : 0;
@@ -1566,7 +1586,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         iosTouch_GyroSetup();
         // GYRO and SENS say what they are set to on a second line: at the size
         // of a two-line label, condensed so "ALWAYS" fits a circle this small
-        const int aTwoLine[] = { BTN_TRAYGYRO, BTN_GYROOPT_MODE, BTN_GYROOPT_SENS, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE };
+        const int aTwoLine[] = { BTN_TRAYGYRO, BTN_TRAYJUMP, BTN_GYROOPT_MODE, BTN_GYROOPT_SENS, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE };
         for (int k = 0; k < IOSTOUCH_COUNT(aTwoLine); k++) {
             const int i = aTwoLine[k];
             aButtonViews[i].font = IOSTouch_WheelFont(IOSTouch_FontSize("GYRO\nALWAYS", iosTouch_aButtons[i].radius));
@@ -1646,6 +1666,11 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         }
         if ([[NSUserDefaults standardUserDefaults] objectForKey:IOSTOUCH_FREEZE_DEFAULTS_KEY])
             iosTouch_bFreezeOn = [[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_FREEZE_DEFAULTS_KEY] ? 1 : 0;
+        {
+            const NSInteger js = [[NSUserDefaults standardUserDefaults] integerForKey:IOSTOUCH_JUMPSTYLE_DEFAULTS_KEY];
+            iosTouch_jumpStyle = (js >= 0 && js < IOSGAME_JUMP_NUM_STYLES) ? (int)js : IOSGAME_JUMP_SMOOTH;
+            iosGame_SetForceJumpStyle(iosTouch_jumpStyle);
+        }
         [self refreshGyroLabels]; // (SELFIES and FREEZE, as just read)
 
         freezeClose = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, IOSTOUCH_FREEZE_CLOSE_RADIUS * 2, IOSTOUCH_FREEZE_CLOSE_RADIUS * 2)];
@@ -3096,6 +3121,8 @@ static int iosTouch_SaberBlade(void)
     aButtonViews[BTN_GYROOPT_SENS].text = [NSString stringWithFormat:@"SENS\n%.1fx", (double)iosTouch_aGyroSens[iosTouch_gyroSens]];
     aButtonViews[BTN_CAMROW_SELFIES].text = [NSString stringWithFormat:@"SELFIES\n%d", iosTouch_selfieShots];
     aButtonViews[BTN_CAMROW_FREEZE].text = iosTouch_bFreezeOn ? @"FREEZE\nON" : @"FREEZE\nOFF";
+    static NSString* aJumpName[IOSGAME_JUMP_NUM_STYLES] = { @"JUMP\nSMOOTH", @"JUMP\nSTEPS", @"JUMP\nCLASSIC" };
+    aButtonViews[BTN_TRAYJUMP].text = aJumpName[iosTouch_jumpStyle];
 }
 
 // A tray button picked: it does its thing, and the tray closes -- except
@@ -3127,7 +3154,13 @@ static int iosTouch_SaberBlade(void)
         iosTouch_GyroToggle();
         [self refreshGyroLabels];
     }
-    if (kind == KIND_GYRO) [self refreshButtonLooks];
+    else if (kind == KIND_JUMPSTYLE) {
+        iosTouch_jumpStyle = (iosTouch_jumpStyle + 1) % IOSGAME_JUMP_NUM_STYLES;
+        iosGame_SetForceJumpStyle(iosTouch_jumpStyle);
+        [[NSUserDefaults standardUserDefaults] setInteger:iosTouch_jumpStyle forKey:IOSTOUCH_JUMPSTYLE_DEFAULTS_KEY];
+        [self refreshGyroLabels];
+    }
+    if (kind == KIND_GYRO || kind == KIND_JUMPSTYLE) [self refreshButtonLooks]; // (the tray stays, for another tap)
     else [self setTrayOpen:0];
 }
 
@@ -4381,6 +4414,34 @@ static int iosTouch_WheelSliceHasRow(int i)
         bactaProgress = MAX(bactaProgress, MIN((CGFloat)((now - s->tDown) / IOSTOUCH_BACTA_HOLD), 1.0));
     }
     [self setRing:bactaRing progress:bactaProgress];
+
+    // FORCE held with Force Jump selected (SMOOTH or STEPS): how high it will
+    // go when lifted, as iosGame_ForceJumpHeld will make it, filling the gold
+    // ring (STEPS: a step a star, a tick at each; SMOOTH: a tick at the highest)
+    CGFloat fjumpProgress = 0.0;
+    const int jumpRank = iosGame_GetForceJumpRank();
+    if (iosTouch_jumpStyle != IOSGAME_JUMP_CLASSIC && jumpRank >= 1 && iosGame_GetCurPower() == IOSTOUCH_FORCEJUMP_BIN
+        && !jkHud_bChatOpen && !iosTouch_bWheelOpen && !iosTouch_bFreezing && !iosTouch_bCinema && iosTouch_selfieStage == IOSTOUCH_SELFIE_NONE) {
+        for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+            iosTouchSlot* s = &iosTouch_aSlots[i];
+            if (!s->touch || s->role != ROLE_BUTTON || s->button != BTN_FORCE) continue;
+            const double held = now - s->tDown, longest = jumpRank * IOSGAME_JUMP_STEP_SECS;
+            int ticks;
+            if (iosTouch_jumpStyle == IOSGAME_JUMP_STEPS) {
+                const int step = MIN(jumpRank, 1 + (int)(held / IOSGAME_JUMP_STEP_SECS));
+                fjumpProgress = MAX(fjumpProgress, (CGFloat)step / jumpRank);
+                ticks = step - 1;
+            }
+            else {
+                fjumpProgress = MAX(fjumpProgress, (CGFloat)MIN(held / longest, 1.0));
+                ticks = held >= longest ? 1 : 0;
+            }
+            if (ticks > iosTouch_jumpTicked) [cameraTap impactOccurred];
+            iosTouch_jumpTicked = ticks;
+        }
+    }
+    if (fjumpProgress <= 0.0) iosTouch_jumpTicked = 0;
+    [self setRing:fjumpRing progress:fjumpProgress];
     if (iosGame_IsSithEwokOn() != iosTouch_bCheatOn) {
         iosTouch_bCheatOn = iosGame_IsSithEwokOn();
         // (switched on some other way -- typed "sithewok" -- with CHEAT hidden: shown, and the

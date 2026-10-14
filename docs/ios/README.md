@@ -28,6 +28,7 @@ Contents: [What this is](#what-this-is) ·
 [The camera](#the-camera) ·
 [Tilt aiming](#tilt-aiming) ·
 [The Force wheel](#the-force-wheel) ·
+[Force Jump](#force-jump) ·
 [The weapon wheel](#the-weapon-wheel) ·
 [The lightsaber: SABER](#the-lightsaber-saber) ·
 [Saving and loading](#saving-and-loading) ·
@@ -274,7 +275,7 @@ screen, the camera cutout and the HUD.
 ```
  NEXT   FORCE   LIGHT  IR  BACTA  CAMERA  SABER  CHEAT  (FPS)  QUICK  QUICK  MENU
  WPN    WHEEL   (only items you have)                         SAVE   LOAD
-                          [GYRO] [FPS] [CAMERA] [CHEAT] [keyboard]
+                          [GYRO] [FPS] [CAMERA] [CHEAT] [JUMP] [keyboard]
                           (MENU's tray, when held)
                              [MODE] [SENS]             (GYRO held in the tray)
                              [PHOTO] [SELFIES] [FREEZE] (CAMERA held in the tray)
@@ -322,7 +323,7 @@ never cover them, and long lines wrap between words.
 | **ACT** | up and left of FIRE | Activate: doors, switches, elevators, consoles. |
 | **JUMP** | above FIRE | Jumps. |
 | **ALT** | up and right of FIRE, just above the ammo gauge | Secondary fire (each weapon's second mode). |
-| **FORCE** | right of JUMP, or above it (a little to its left) on smaller screens with the camera cutout on the right. With Display Zoom, where there's no room there, it can sit further left, between DUCK and ACT. It always keeps a little space from the top row, so holding it can't set off QUICK SAVE or QUICK LOAD. | Uses your selected Force power, for as long as you hold it. Tap for a single use, hold for powers that charge up (Force Jump) or keep going (Lightning). The button shows the power's name, and it's dimmed until you have a power. The **blue ring** around it is your Force meter: it shrinks as you use the Force, and glows and pulses when the meter is full. |
+| **FORCE** | right of JUMP, or above it (a little to its left) on smaller screens with the camera cutout on the right. With Display Zoom, where there's no room there, it can sit further left, between DUCK and ACT. It always keeps a little space from the top row, so holding it can't set off QUICK SAVE or QUICK LOAD. | Uses your selected Force power, for as long as you hold it. Tap for a single use, hold for powers that charge up (Force Jump: see [Force Jump](#force-jump)) or keep going (Lightning). The button shows the power's name, and it's dimmed until you have a power. The **blue ring** around it is your Force meter: it shrinks as you use the Force, and glows and pulses when the meter is full. |
 | **NEXT WPN** | top left | **Tap:** switches to your next weapon. **Slide** or **hold:** opens the weapon wheel to choose one: see [The weapon wheel](#the-weapon-wheel). |
 | **FORCE WHEEL** | top left | **Tap:** selects your next learned Force power (FORCE shows which). **Slide** or **hold:** opens the Force wheel to choose one: see [The Force wheel](#the-force-wheel). |
 | **LIGHT**, **IR**, **BACTA** | top left, after FORCE WHEEL | Field light, IR goggles and bacta tank. **Tap** LIGHT or IR to switch it on or off (yellow while on). **Hold BACTA** for about a third of a second (a ring fills) to use a bacta tank: one per press, and a tap or a brush past uses none. Each button only appears once you have that item, and always in the same spot. BACTA shows how many you have when it's more than one. |
@@ -347,8 +348,9 @@ NOCLIP, LVL SEL) for their cheat holds: see [Cheats](#cheats).
 ### MENU's tray: tilt aiming, FPS, camera, cheat mode and keyboard
 
 **Tap MENU** for the game's menu. **Hold MENU** until its ring fills (about
-half a second), and a small tray opens just under it with five buttons, from
-left to right **GYRO**, **FPS**, **CAMERA**, **CHEAT** and the **keyboard**.
+half a second), and a small tray opens just under it with six buttons, from
+left to right **GYRO**, **FPS**, **CAMERA**, **CHEAT**, **JUMP** and the
+**keyboard**.
 Either keep your thumb down, slide it onto a tray button and lift, or lift
 first and then tap one. Anywhere on the tray's dark backing counts as the
 nearest button.
@@ -367,17 +369,21 @@ nearest button.
 - **CHEAT:** cheat mode on or off. On, the CHEAT button appears and
   `sithewok` goes on. Off, `sithewok` goes off and the button goes away.
   Yellow while cheat mode is on. See [Cheats](#cheats).
+- **JUMP:** how Force Jump works, **SMOOTH** (the default), **STEPS** or
+  **CLASSIC**. Each tap goes on to the next, and the tray stays open. See
+  [Force Jump](#force-jump).
 - **Keyboard** (the keyboard symbol, at the right end of the tray): opens the
   game's typing line with the iPhone keyboard, for [cheats](#cheats). Tap it
   again to close the line. While it's open, MENU and the keyboard button are
   lit yellow.
 
-GYRO shows its setting on the button (for example *GYRO OFF*), and MODE and
-SENS show theirs. Each tap on MODE or SENS goes on to the next setting, and
-the row stays open so you can tap again.
+GYRO and JUMP show their setting on the button (for example *GYRO OFF*,
+*JUMP SMOOTH*), and MODE and SENS show theirs. Each tap on JUMP, MODE or SENS
+goes on to the next setting, and the tray (or row) stays open so you can tap
+again.
 
-The app remembers GYRO, SENS, FPS, CAMERA and its options, and CHEAT, next
-time you open it. The `sithewok` cheat itself always starts off when you open
+The app remembers GYRO, SENS, FPS, CAMERA and its options, CHEAT and JUMP
+next time you open it. The `sithewok` cheat itself always starts off when you open
 the app: hold the CHEAT button to switch it on.
 
 The tray usually sits right under MENU. On smaller screens (with the camera
@@ -568,6 +574,29 @@ Good to know:
   Use SENS instead (hold GYRO in the tray).
 - If the device has no motion sensor, GYRO says **NO GYRO** and does nothing.
 
+## Force Jump
+
+Force Jump jumps when you **lift** your finger off FORCE, and how long you
+held it decides how high. It has 4 levels (the stars on the Force wheel):
+each star raises the highest jump, and gives you a little longer to reach it
+(0.35 s a star, so 1.4 s at 4 stars). Choose how holding works with **JUMP**
+in MENU's tray:
+
+- **SMOOTH** (the default): a **tap** is the lowest Force Jump (a bit under
+  half the full height). The longer you hold, the higher it goes, smoothly,
+  up to the highest for your stars. A **gold ring** fills inside FORCE as you
+  hold, with a light tick when it's full: lift whenever the ring shows the
+  height you want.
+- **STEPS:** the same heights in clear steps, one a star. A tap is the lowest
+  step, and every 0.35 s you hold goes up a step, with a tick and a quarter
+  more of the gold ring (at 4 stars), to the highest.
+- **CLASSIC:** exactly as the original game: a quick tap is the **highest**
+  jump, and so is a hold past the highest; only a hold in between is lower.
+  No ring.
+
+In every style the jump costs the same Force and needs you on the ground (or
+on water), and the other Force powers work as before.
+
 ## The Force wheel
 
 **FORCE WHEEL** opens the Force wheel (see [Tap, slide or hold](#tap-slide-or-hold)
@@ -753,6 +782,9 @@ power at 4 stars with the top Jedi rank, full health, shields and Force meter,
 and invincibility. While it's on:
 
 - **The Force meter never drains**, however much you use your powers.
+- **Ammo never runs out:** every kind is filled to its most when it goes on,
+  and refills as you fire, the battery for the field light and IR goggles
+  too.
 - **Falls never hurt you**, however far you drop.
 - **The Force catches you** if you fall into a bottomless pit: a soft blue
   flash, and you're back on the ledge you fell from.

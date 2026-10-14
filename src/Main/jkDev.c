@@ -1411,6 +1411,31 @@ static flex_t jkDev_Custom_GetForceManaMax(SithThing *pPlayer)
     return sithInventory_GetInventory(pPlayer, SITHBIN_JEDI_RANK) * 50.0;
 }
 
+// Added: sithewok's ammo, each kind to its most (items.dat's max): when it goes on, and every frame while
+// it is on (endless). The thermal detonators, sequencer charges and flash bombs are their own ammo; the
+// battery is the field light and IR goggles' too
+static void jkDev_Custom_FillAmmo(SithThing *pPlayer)
+{
+    static const int aJk[] = { SITHBIN_ENERGY, SITHBIN_POWER, SITHBIN_BATTERY, SITHBIN_RAILCHARGES,
+                               SITHBIN_THERMAL_DETONATOR, SITHBIN_SEQUENCER_CHARGE };
+    static const int aMots[] = { SITHBIN_ENERGY, SITHBIN_POWER, SITHBIN_BATTERY, SITHBIN_RAILCHARGES,
+                                 SITHBIN_MOTS_THERMAL_DETONATOR, SITHBIN_MOTS_SEQUENCER_CHARGE, SITHBIN_MOTS_FLASH_BOMB,
+                                 SITHBIN_CARBPELLETS, SITHBIN_SEEKRAILS, SITHBIN_EWEB_ROUNDS };
+    const int *aBin = Main_bMotsCompat ? aMots : aJk;
+    const int n = Main_bMotsCompat ? (int)(sizeof(aMots) / sizeof(aMots[0])) : (int)(sizeof(aJk) / sizeof(aJk[0]));
+    if ( !pPlayer || !pPlayer->actorParams.pPlayer )
+        return;
+    for ( int i = 0; i < n; i++ )
+    {
+        const int bin = aBin[i];
+        if ( !(sithInventory_g_aTypes[bin].flags & SITHINVENTORY_TYPE_REGISTERED) )
+            continue;
+        const flex_t most = sithInventory_g_aTypes[bin].max;
+        if ( sithInventory_GetInventory(pPlayer, bin) < most )
+            sithInventory_SetInventory(pPlayer, bin, most);
+    }
+}
+
 // Added: sithewok's endless Force, refills what the powers spent (local player, single player only);
 // and, once a frame, sithewok kept on: invincible always (a save from before it was on is loaded
 // without), and everything again for a new level's player
@@ -1456,6 +1481,9 @@ static void jkDev_Custom_KeepForceFull()
         else if ( jkDev_sithEwokWait == 0 && jkDev_sithEwokPowerBack < 0 && pPlayer->actorParams.pPlayer
                   && pPlayer->actorParams.pPlayer->curPower > 0 )
             jkDev_sithEwokPower = pPlayer->actorParams.pPlayer->curPower;
+        // endless ammo (once everything is given in a new level)
+        if ( jkDev_sithEwokWait == 0 && !(pPlayer->flags & SITH_TF_DEAD) )
+            jkDev_Custom_FillAmmo(pPlayer);
 
         // the weapon in hand kept for the next level; in a new one, put back (as soon as the
         // player has it: carried over, or given again with everything after the wait above)
@@ -1857,6 +1885,7 @@ static void jkDev_Custom_SithEwokOn(SithThing *pPlayer, int bAgain)
     pPlayer->actorParams.flags |= SITH_AF_INVULNERABLE; // jediwannabe on (sithCommand_DebugMode, extra 5)
     jkDev_bEndlessForce = 1;
     jkDev_bNoFallHurt = 1;
+    jkDev_Custom_FillAmmo(pPlayer); // (each kind to its most: the all-weapons cheat stops short of some)
     jkDev_bSithEwokOn = 1;
     jkDev_pSithEwokPlayer = pPlayer;
     jkDev_sithEwokWait = 0;

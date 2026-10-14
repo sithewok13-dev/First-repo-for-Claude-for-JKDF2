@@ -43,6 +43,25 @@ int iosGame_GetCurPower(void);
 // Selects a force power, as the next/previous power keys do.
 void iosGame_SelectPower(int bin);
 
+// Force Jump's style (the tray's JUMP; remembered by the overlay). The game's
+// own script (force_jump.cog) jumps on the lift, as high as FORCE was held:
+// from 0.15 s to its longest, 0.35 s a star (4 stars: 1.4 s); but a tap
+// under 0.15 s, like a hold past the longest, is its highest jump.
+//   SMOOTH (the default): a tap is its lowest jump, a hold goes higher
+//     smoothly, to the highest at the longest.
+//   STEPS: as high as the step reached, one a star: the lowest at once, one
+//     step higher every 0.35 s, the highest at the last.
+//   CLASSIC: the game's own, unchanged.
+enum { IOSGAME_JUMP_SMOOTH = 0, IOSGAME_JUMP_STEPS, IOSGAME_JUMP_CLASSIC, IOSGAME_JUMP_NUM_STYLES };
+#define IOSGAME_JUMP_STEP_SECS 0.35f // (a star's hold, as the game's script has it)
+void iosGame_SetForceJumpStyle(int style);
+// The local player's Force Jump stars (its bin's amount; 0: not learned)
+int iosGame_GetForceJumpRank(void);
+// For the game's script, as it ends a Force Jump (sithCogFunctionPlayer's
+// DeactivateBin, single player, the local player): how long FORCE was held
+// in the style chosen, for the jump to go as high as it says
+float iosGame_ForceJumpHeld(float secHeld);
+
 // Short name of a weapon bin ("BRYAR PISTOL"...; Mysteries of the Sith's are
 // bins 121-140), or NULL if it isn't one.
 const char* iosGame_GetWeaponName(int bin);
