@@ -9,8 +9,12 @@ with on-screen touch controls, using your own copy of the game. Its expansion,
 - **Mysteries of the Sith:** a separate app, OpenMoTS
   (`OpenJKDF2-MotS-iOS-unsigned.ipa`, new in v0.4). See
   [Mysteries of the Sith](#mysteries-of-the-sith).
-- **New in v0.5: the selfie camera.** Freeze the game and take a selfie with
-  everyone nearby, posing. See [The selfie camera](#the-selfie-camera).
+- **New in v0.6: lightsabers your way, cheat mode, and Action Freeze.** Pick
+  your blade's colour from 17, or fight with two sabers at once (see
+  [The lightsaber: SABER](#the-lightsaber-saber)). Switch on cheat mode for a
+  `sithewok` button, flying, walking through walls and jumping to any level
+  (see [Cheats](#cheats)). Stop the fight mid-blast and swing the camera round
+  it for your photo (see [The camera](#the-camera)).
 - **Problems?** [Open an issue](https://github.com/sithewok13-dev/First-repo-for-Claude-for-JKDF2/issues)
   (see [Reporting bugs](#reporting-bugs))
 
@@ -21,10 +25,11 @@ Contents: [What this is](#what-this-is) ·
 [3. Copy the game files to your iPhone](#3-copy-the-game-files-to-your-iphone) ·
 [4. Play](#4-play) ·
 [Touch controls](#touch-controls) ·
-[The selfie camera](#the-selfie-camera) ·
+[The camera](#the-camera) ·
 [Tilt aiming](#tilt-aiming) ·
 [The Force wheel](#the-force-wheel) ·
 [The weapon wheel](#the-weapon-wheel) ·
+[The lightsaber: SABER](#the-lightsaber-saber) ·
 [Saving and loading](#saving-and-loading) ·
 [Cheats](#cheats) ·
 [Settings worth knowing](#settings-worth-knowing) ·
@@ -46,6 +51,8 @@ play it on a phone:
 
 - on-screen touch controls (move stick, look, buttons, a Force power wheel,
   quick save and quick load), and optional tilt aiming
+- a camera for photos and selfies, lightsaber colours and two sabers, and a
+  cheat mode
 - a HUD that stays clear of rounded screen corners and the home bar
 - sound fixes
 - a ready-made (unsigned) `.ipa` that GitHub builds automatically
@@ -265,12 +272,12 @@ The layout looks roughly like this. Exact positions shift a little to fit your
 screen, the camera cutout and the HUD.
 
 ```
- NEXT   FORCE   LIGHT  IR  BACTA  (CAMERA)    (FPS)  QUICK  QUICK  MENU
- WPN    WHEEL   (only items you have)               SAVE   LOAD
-                            [SENS] [GYRO] [FPS] [CAMERA] [keyboard]
-                            (MENU's tray, when held)
-                               [CLEAN] [HUD] [HUD+BTNS]
-                               (CAMERA's options, when CAMERA is held in the tray)
+ NEXT   FORCE   LIGHT  IR  BACTA  CAMERA  SABER  CHEAT  (FPS)  QUICK  QUICK  MENU
+ WPN    WHEEL   (only items you have)                         SAVE   LOAD
+                          [GYRO] [FPS] [CAMERA] [CHEAT] [keyboard]
+                          (MENU's tray, when held)
+                             [MODE] [SENS]             (GYRO held in the tray)
+                             [PHOTO] [SELFIES] [FREEZE] (CAMERA held in the tray)
 
       (^^)  run marker                              JUMP   FORCE
        |                                     ACT
@@ -279,7 +286,10 @@ screen, the camera cutout and the HUD.
                                                          [ammo gauge]
 ```
 
-Buttons are slightly see-through until you touch them. The game's messages
+Buttons are slightly see-through until you touch them. SABER shows once you
+have the lightsaber, and CHEAT only in cheat mode (see [Cheats](#cheats)).
+Where the top row gets crowded, the FPS counter moves to the bottom middle of
+the screen. The game's messages
 and mission text appear just below the top row of buttons, so the buttons
 never cover them, and long lines wrap between words.
 
@@ -315,58 +325,95 @@ never cover them, and long lines wrap between words.
 | **FORCE** | right of JUMP, or above it (a little to its left) on smaller screens with the camera cutout on the right. With Display Zoom, where there's no room there, it can sit further left, between DUCK and ACT. It always keeps a little space from the top row, so holding it can't set off QUICK SAVE or QUICK LOAD. | Uses your selected Force power, for as long as you hold it. Tap for a single use, hold for powers that charge up (Force Jump) or keep going (Lightning). The button shows the power's name, and it's dimmed until you have a power. The **blue ring** around it is your Force meter: it shrinks as you use the Force, and glows and pulses when the meter is full. |
 | **NEXT WPN** | top left | **Tap:** switches to your next weapon. **Slide** or **hold:** opens the weapon wheel to choose one: see [The weapon wheel](#the-weapon-wheel). |
 | **FORCE WHEEL** | top left | **Tap:** selects your next learned Force power (FORCE shows which). **Slide** or **hold:** opens the Force wheel to choose one: see [The Force wheel](#the-force-wheel). |
-| **LIGHT**, **IR**, **BACTA** | top left, after FORCE WHEEL | Field light, IR goggles and bacta tank. Each button only appears once you have that item, and always in the same spot. LIGHT and IR turn yellow while switched on. BACTA shows how many you have when it's more than one. |
+| **LIGHT**, **IR**, **BACTA** | top left, after FORCE WHEEL | Field light, IR goggles and bacta tank. **Tap** LIGHT or IR to switch it on or off (yellow while on). **Hold BACTA** for about a third of a second (a ring fills) to use a bacta tank: one per press, and a tap or a brush past uses none. Each button only appears once you have that item, and always in the same spot. BACTA shows how many you have when it's more than one. |
 | **QUICK SAVE** | top right | **Hold** for about a third of a second: a ring fills, then the game quick saves. See [Saving and loading](#saving-and-loading). |
 | **QUICK LOAD** | top right | **Hold** for about a third of a second: a ring fills, then your quick save loads. To cancel, lift or slide off before the ring fills. |
 | **MENU** | top right corner | **Tap** opens the game's menu (objectives, map, Jedi powers, save, load, setup and more). **Hold** opens a small tray just under it, see below. |
-| **CAMERA** (the camera symbol) | top, in the middle (only once switched on in MENU's tray) | **Hold still:** a selfie. **Tap:** a photo. **Slide off:** a burst. See [The selfie camera](#the-selfie-camera). |
+| **CAMERA** (the camera symbol) | top, in the middle | **Hold still:** a selfie. **Tap:** a photo. **Slide sideways:** a burst. **Slide down:** Action Freeze. **Slide up:** the cinematic burst. See [The camera](#the-camera). |
+| **SABER** (a lightsaber) | top, right of CAMERA (once you have the lightsaber) | Opens the saber wheel: blade colours, one saber or two. See [The lightsaber: SABER](#the-lightsaber-saber). |
+| **CHEAT** (the red Sith emblem) | top, right of SABER (cheat mode only) | **Hold** for half a second: `sithewok` off or on. Red while it's on. See [Cheats](#cheats). |
 
 FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them.
-LIGHT, IR, BACTA, MENU, CAMERA and the tray buttons act when you **lift** your finger
+LIGHT, IR, MENU, CAMERA and the tray buttons act when you **lift** your finger
 on them, so if you touch one by mistake, slide off before you lift (on CAMERA,
-sliding off starts a burst instead). NEXT WPN
-and FORCE WHEEL act on a quick tap when you lift, or open their wheel when
-you slide or hold (see [Tap, slide or hold](#tap-slide-or-hold)).
+a slide starts a burst or Action Freeze instead: see [The camera](#the-camera)).
+BACTA and CHEAT need a hold, so a brush past does nothing. NEXT WPN and FORCE
+WHEEL act on a quick tap when you lift, or open their wheel when you slide or
+hold (see [Tap, slide or hold](#tap-slide-or-hold)). SABER opens its wheel
+however you touch it. While
+`sithewok` is on, JUMP, ACT and DUCK show a small red second line (FLY,
+NOCLIP, LVL SEL) for their cheat holds: see [Cheats](#cheats).
 
-### MENU's tray: tilt aiming, FPS, camera and keyboard
+### MENU's tray: tilt aiming, FPS, camera, cheat mode and keyboard
 
-Hold **MENU** until its ring fills (about half a second). A small tray opens just under it
-with five buttons, from left to right **SENS**, **GYRO**, **FPS**, **CAMERA** and the
-**keyboard**. Either slide your thumb down onto one and lift, or lift first and
-then tap one. Anywhere on the tray's dark backing counts as the nearest button.
+**Tap MENU** for the game's menu. **Hold MENU** until its ring fills (about
+half a second), and a small tray opens just under it with five buttons, from
+left to right **GYRO**, **FPS**, **CAMERA**, **CHEAT** and the **keyboard**.
+Either keep your thumb down, slide it onto a tray button and lift, or lift
+first and then tap one. Anywhere on the tray's dark backing counts as the
+nearest button.
 
-- **SENS** and **GYRO:** tilt aiming's sensitivity and setting, see
-  [Tilt aiming](#tilt-aiming). Each tap goes on to the next setting, and the
-  tray stays open, so you can tap again.
+- **GYRO:** a **tap** switches tilt aiming on or off. It comes back on in the
+  mode you last used (TOUCH the first time), and it's lit yellow while it's
+  on. **Touch and hold** GYRO until its ring fills for a row under the tray
+  with **MODE** (**TOUCH** or **ALWAYS**) and **SENS** (**1.0x**, **1.5x**,
+  the default, **2.0x** or **3.0x**). See [Tilt aiming](#tilt-aiming).
 - **FPS:** shows or hides a frame-rate counter, to the left of QUICK SAVE. The FPS
   button is yellow while the counter is on.
 - **CAMERA** (the camera symbol): a tap shows or hides the CAMERA button
-  (yellow while it's on). Touch and hold it until its ring fills for
-  CAMERA's options: see
-  [The selfie camera](#the-selfie-camera).
+  (yellow while it's shown). Touch and hold it until its ring fills for
+  CAMERA's options, **PHOTO**, **SELFIES** and **FREEZE**: see
+  [The camera](#the-camera).
+- **CHEAT:** cheat mode on or off. On, the CHEAT button appears and
+  `sithewok` goes on. Off, `sithewok` goes off and the button goes away.
+  Yellow while cheat mode is on. See [Cheats](#cheats).
 - **Keyboard** (the keyboard symbol, at the right end of the tray): opens the
-  game's typing line with the iPhone keyboard, for [cheats](#cheats). While
-  it's open, MENU and the keyboard button are lit yellow.
+  game's typing line with the iPhone keyboard, for [cheats](#cheats). Tap it
+  again to close the line. While it's open, MENU and the keyboard button are
+  lit yellow.
 
-The app remembers SENS, GYRO, FPS, CAMERA and its options next time you open it. The tray usually
-sits right under MENU. On smaller screens (with the camera cutout on the
-right, with Display Zoom, or at a large HUD Scale) it sits further left, so
-that it never covers FORCE or the buttons around FIRE. The tray closes after
-you pick FPS, CAMERA or the keyboard, or when you touch anywhere else. Touching MENU
-again just closes it. If you slide off MENU while holding it, nothing happens.
+GYRO shows its setting on the button (for example *GYRO OFF*), and MODE and
+SENS show theirs. Each tap on MODE or SENS goes on to the next setting, and
+the row stays open so you can tap again.
 
-## The selfie camera
+The app remembers GYRO, SENS, FPS, CAMERA and its options, and CHEAT, next
+time you open it. The `sithewok` cheat itself always starts off when you open
+the app: hold the CHEAT button to switch it on.
 
-Hold the camera button for a selfie with everyone nearby, frozen mid-fight
-and posing for you. Tap it for ordinary photos of your game. Both go straight
-into your Photos app.
+The tray usually sits right under MENU. On smaller screens (with the camera
+cutout on the right, with Display Zoom, or at a large HUD Scale) it sits
+further left, so that it never covers FORCE or the buttons around FIRE. The
+tray closes after you pick FPS, CAMERA, CHEAT or the keyboard, or when you
+touch anywhere else. That touch still counts: touching FIRE closes the tray
+and fires. Touching MENU again just closes it. If you slide off MENU while
+holding it, nothing happens.
 
-**Switching it on:** hold **MENU**, then tap the **camera symbol** in the
-tray. A camera button (**CAMERA** in this guide) appears in the middle of the
-top row, and stays (the app remembers) until you tap the camera symbol in the
-tray again. The first time, iOS asks whether the app may **add photos** to
-your library: say yes. The game holds still while iOS asks. The app can only
-add photos; it can't see the ones already in your library.
+## The camera
+
+The camera button (**CAMERA** in this guide, the camera symbol in the middle
+of the top row) takes selfies with everyone nearby, frozen mid-fight and
+posing for you, ordinary photos and bursts of your game, and since v0.6 it
+can stop time with **Action Freeze**. Everything goes straight into your
+Photos app.
+
+**It's there from the start.** To hide it (or show it again), hold **MENU**
+and tap the **camera symbol** in the tray; the app remembers. The first time
+you use it, iOS asks whether the app may **add photos** to your library: say
+yes. The game holds still while iOS asks. The app can only add photos; it
+can't see the ones already in your library.
+
+What CAMERA does depends on how you touch it:
+
+| Gesture | What it does |
+| --- | --- |
+| **Hold still** (half a second, a ring fills) | A selfie (1, 3 or 5 photos). |
+| **Tap** | A photo of the game. |
+| **Slide off sideways** | A burst: a photo every fifth of a second while your finger stays down. |
+| **Slide down** (a long slide) | [Action Freeze](#action-freeze): stop the game and move the camera round it. |
+| **Slide up** (towards the top edge) | [The cinematic burst](#the-cinematic-burst): five photos as the camera sweeps round the action. |
+
+With **FREEZE** switched off (in [CAMERA's options](#cameras-options)), a
+slide in any direction is a burst.
 
 ### Selfies
 
@@ -382,11 +429,17 @@ add photos; it can't see the ones already in your library.
   crouch, some turn three-quarters to the camera or lean, and now and then a
   whole group strikes the same pose. Droids and creatures just turn to the
   camera.
-- **You** (Kyle, or Mara Jade in her levels of Mysteries of the Sith) put
-  your weapon away for the photo, hold the phone out in your right or left
-  hand, strike a pose with the other, and look toward the lens. The camera
-  angle changes from shot to shot: a little higher or lower, sometimes
-  slightly tilted.
+- **You** (Kyle, or Mara Jade in her levels of Mysteries of the Sith) hold
+  the phone out in your right or left hand, strike a pose with the other, and
+  look toward the lens. Sometimes you show off your gun or lightsaber
+  instead. The camera angle changes from shot to shot: a little higher or
+  lower, sometimes slightly tilted.
+- **Now and then something unexpected happens:** someone points at
+  something, someone hasn't noticed the photo, someone stares, or a
+  passer-by photobombs.
+- **1, 3 or 5 photos:** a selfie takes **3** unless you change it with
+  **SELFIES** in [CAMERA's options](#cameras-options). Everyone poses afresh
+  for each one, and the game stays frozen the whole time.
 - **The flash** lights everyone up, and shots or blasts flying in front of
   someone's face are left out of the photo.
 - After the flash and the shutter, the photo stays on screen for a moment.
@@ -394,8 +447,8 @@ add photos; it can't see the ones already in your library.
   on. A selfie changes nothing in your game.
 - **Nobody nearby?** It's a selfie of you alone. If people are spread out too
   far to fit in one photo, the ones furthest away are left out.
-- A selfie is always one clean photo (*... selfie.png*), whatever the tick
-  boxes say.
+- Selfies are always clean photos (*... selfie.png*), whatever PHOTO is set
+  to.
 - **When it can't:** with no room to hold the camera out (right up against a
   wall), during a cutscene, through a scope or another camera, or when you're
   dead, it says *Can't take a selfie here*. If the last photos are still
@@ -403,22 +456,69 @@ add photos; it can't see the ones already in your library.
   While the typing line is open, holding CAMERA does nothing (a tap still
   takes a photo).
 
-### Photos and bursts (the same button, without the hold)
+### Photos and bursts
 
 - **Tap CAMERA:** a white flash, the shutter sound, and the photo. A line at
   the top of the screen says when it's saved (*1 photo saved*).
-- **Burst:** touch CAMERA and slide your finger off it (a short slide is
-  enough). The app takes a photo every fifth of a second while your finger
-  stays down, up to 10, with a quick tick for each and a counter beside the
-  button. Lift to stop. Burst photos are always clean ones.
-- **What a photo shows:** open the tray (hold MENU, then lift), then touch
-  and hold the **camera symbol in the tray** until its ring fills. A row
-  opens under the tray with three tick boxes: **CLEAN** (just the game:
-  ticked unless you change it), **HUD** (with the health and ammo gauges)
-  and **HUD+BTNS** (with the touch buttons too, as you see the screen). Tap
-  each to tick or untick it; at least one stays ticked. With more than one
-  ticked, each tap of CAMERA takes one photo of each, of the same moment.
-  Touch anywhere else to close the row and the tray.
+- **Burst:** touch CAMERA and slide your finger off it sideways (a short
+  slide is enough). The app takes a photo every fifth of a second while your
+  finger stays down, up to 10, with a quick tick for each and a counter
+  beside the button. Lift to stop. Burst photos are always clean ones.
+
+### Action Freeze
+
+New in v0.6. Touch CAMERA and slide your finger **down**, further than for a
+burst.
+
+- The game stops exactly where it is: blaster bolts, explosions, flying
+  debris and everyone mid-move. The buttons hide, apart from CAMERA, and an
+  **X** appears at the top right.
+- **One finger** turns the camera round what it's looking at. **Two
+  fingers** move it, and **pinch** to zoom in or out.
+- The camera stays out of walls, closed doors and lifts. If it can't go
+  somewhere, it stops. Close to a wall it moves in a little, and glides back
+  out when there's room.
+- **Tap CAMERA** to take a clean photo, as many as you like. **Tap the X** to
+  go back to the game, which carries on from exactly the same moment.
+- If it can't freeze (a cutscene, a scope, while dead), it says *Can't freeze
+  here*.
+
+### The cinematic burst
+
+New in v0.6. Touch CAMERA and slide your finger **up**. Reaching near the top
+edge of the screen is enough.
+
+- The game freezes for a moment and the camera takes **five photos** as it
+  sweeps round the action, then the game carries on by itself.
+- The first photo is exactly what you saw. The other four go round the most
+  interesting thing in front of you: someone you're fighting, a shot in
+  flight or an explosion. In a duel or a boss fight, you and your opponent
+  are both in the shots, seen from the side. With nobody around, it goes
+  round you.
+- The sweep picks the side with the most room, so the camera doesn't end up
+  inside a wall or behind someone. In a cramped spot it sweeps less, or just
+  zooms in.
+
+### CAMERA's options
+
+Open the tray (hold MENU, then lift), then touch and hold the **camera symbol
+in the tray** until its ring fills. A row opens under the tray with three
+buttons:
+
+- **PHOTO:** what a tap takes. Tap PHOTO for its three tick boxes: **CLEAN**
+  (just the game: ticked unless you change it), **HUD** (with the health and
+  ammo gauges) and **HUD+BTNS** (with the touch buttons too, as you see the
+  screen). Tap each to tick or untick it; at least one stays ticked. With
+  more than one ticked, each tap of CAMERA takes one photo of each, of the
+  same moment.
+- **SELFIES:** how many photos a selfie takes: **1**, **3** (the default) or
+  **5**. Each tap goes on to the next.
+- **FREEZE:** **ON** (the default) or **OFF**. Off, sliding CAMERA down or up
+  is just a burst, as before v0.6.
+- Touch anywhere else to close the row and the tray.
+
+### Where the photos go
+
 - Photos are full-screen PNGs named after the app and the time, for example
   *OpenJKDF2 2026-10-12 14.05.09 clean.png* (a burst's are numbered:
   *... burst 01.png*; *OpenMoTS ...* in Mysteries of the Sith).
@@ -430,8 +530,10 @@ add photos; it can't see the ones already in your library.
 ## Tilt aiming
 
 You can also aim by turning and tilting the iPhone, on top of dragging. **Tilt
-aiming starts switched off.** To switch it on, hold **MENU** and tap **GYRO**
-in its tray. Each tap goes on to the next setting:
+aiming starts switched off.** Hold **MENU** and tap **GYRO** in its tray to
+switch it on or off. It comes back on in the mode you last used (TOUCH the
+first time). To choose between TOUCH and ALWAYS, or change the sensitivity,
+hold GYRO in the tray until its ring fills, then tap **MODE** or **SENS**:
 
 - **GYRO OFF** (the default): no tilt aiming. The app doesn't read the
   motion sensor at all.
@@ -448,8 +550,8 @@ in its tray. Each tap goes on to the next setting:
 - **GYRO ALWAYS:** turning the phone always aims, with or without a thumb down.
 
 **SENS** sets how far the view turns: 1.0x, 1.5x (the default), 2.0x or 3.0x.
-At 1.0x the view turns exactly as far as the phone does. SENS is dimmed while
-GYRO is off. GYRO is lit yellow while tilt aiming is on.
+At 1.0x the view turns exactly as far as the phone does. GYRO is lit yellow
+while tilt aiming is on.
 
 Good to know:
 
@@ -459,11 +561,11 @@ Good to know:
 - Turning left and right works however far back you tip the phone, even lying
   flat on a table. It also works lying down with the screen facing you from
   above, or on your side. Tilting the top of the phone toward you looks up.
-- Tilt aiming pauses while the Force wheel or the weapon wheel, the cheat typing line or MENU's
-  tray is open, and for a moment after you turn the phone round to the other
-  landscape side.
+- Tilt aiming pauses while a wheel (Force, weapon or saber), the cheat typing
+  line or MENU's tray is open, and for a moment after you turn the phone round
+  to the other landscape side.
 - The game's mouse sensitivity (*Setup > Controls > Mouse*) doesn't change it.
-  Use SENS instead.
+  Use SENS instead (hold GYRO in the tray).
 - If the device has no motion sensor, GYRO says **NO GYRO** and does nothing.
 
 ## The Force wheel
@@ -532,11 +634,11 @@ red for explosives.
   charges for the rail detonator; how many thermal detonators and sequencer
   charges you're carrying). Weapons that share ammo show the same number. The
   fists and the lightsaber show no count.
-- **Weapons you haven't found yet are dark**, with no count.
-- **A weapon you have but can't fire is greyed**, with its count (usually
-  **0**), and can't be selected. The bowcaster needs more than 1 power cell
-  and the concussion rifle more than 7, as in the game, so they can be greyed
-  at 1 or 7. Thermal detonators and sequencer charges are their own ammo: when
+- **Weapons you haven't found yet are grey**, with no count.
+- **A weapon you have but can't fire is dark in its own colour**, with its
+  count (usually **0**), and can't be selected. The bowcaster needs more than
+  1 power cell and the concussion rifle more than 7, as in the game, so they
+  can be dark at 1 or 7. Thermal detonators and sequencer charges are their own ammo: when
   you have none left they show as not found.
 - The weapon in hand has a white edge.
 
@@ -544,6 +646,38 @@ If you pick a weapon while the game is still switching weapons (just after a
 switch), it switches as soon as the game is ready, within a second or so. That
 includes the weapon you're putting away: pick it to switch straight back. A
 quick load drops a pick that is still waiting.
+
+## The lightsaber: SABER
+
+New in v0.6. Once you have the lightsaber (or while `sithewok` is on), a
+**SABER** button appears on the top row, right of CAMERA. It shows your blade
+(or two crossed blades) in your colours, and opens the **saber wheel**, the
+same way as the other wheels: tap or hold it to open the wheel and then tap a
+colour, or slide off it towards a colour and lift. The gap at the bottom
+cancels, and the game holds still while the wheel is open.
+
+- **17 colours:** ORIGINAL (the game's own, unchanged), red, crimson, orange,
+  amber, yellow, lime, green, teal, cyan, light blue, blue, purple, magenta,
+  pink, white, and black with a bright edge.
+- **The wheel stays open** after you pick a colour, so you can change both
+  blades in one go. Close it with the gap at the bottom, or by tapping outside
+  the wheel.
+- **EQUIP**, in the middle of the wheel, closes it and puts the lightsaber in
+  your hand. It's dim while you don't have the saber.
+- **SINGLE or DUAL**, beside the wheel: one saber, or one in each hand. With
+  DUAL, **LEFT**, **BOTH** and **RIGHT** choose which blade a colour goes to.
+  Each style keeps its own colours.
+- **Two sabers fight for real:** the second blade strikes, deals damage and
+  throws sparks like the first. In first person both arms move, and between
+  swings the two sabers settle into a few natural resting stances, with a
+  faint shimmer on each blade. Kyle has no new animations, so in his
+  two-handed swings the blades come from nearly the same place.
+- **Only the look changes,** and only in your own single-player game: the
+  saber's damage, your saves and the levels are untouched. The colours show
+  in first and third person, in selfies and in Action Freeze. The app
+  remembers your colours and style.
+- A lightsaber that only `sithewok` gave you goes away again when the cheat
+  goes off (see [Cheats](#cheats)). One the game gave you stays.
 
 ## Saving and loading
 
@@ -578,7 +712,8 @@ Cheats go into the game's typing line (on PC, that's where chat goes):
 2. A typing line opens at the top of the screen, with the iPhone keyboard.
    Type the cheat (autocorrect is off here, so it goes in exactly as typed),
    then tap **return**.
-3. To close the line without sending anything, tap **MENU**.
+3. To close the line without sending anything, tap **MENU** (or the keyboard
+   button in the tray again).
 
 While the typing line is open, most other touch buttons don't work. The
 exceptions: **MENU** (and the tray's keyboard button) close the line, and
@@ -588,7 +723,7 @@ player. Some cheats need `on` or `off` after them.
 
 | Type this | What it does |
 | --- | --- |
-| `sithewok` / `sithewok off` | Everything at once: all weapons and ammo, all items, every Force power at 4 stars with the top Jedi rank, full health, shields and Force meter, and invincibility. While it's on, the Force meter never drains, however much you use your powers. `sithewok off` turns the invincibility and the endless Force off again; you keep everything else. Type `sithewok` again to fill everything back up. This one was added by this iOS build. |
+| `sithewok` / `sithewok off` | Everything at once, plus flying, noclip and picking a level: see [sithewok](#sithewok) below. This one was added by this iOS build. |
 | `jediwannabe on` / `jediwannabe off` | Invincibility on / off |
 | `eriamjh` | Fly (type it again to stop) |
 | `noclip` | Fly through walls (type it again to stop). This one was added by OpenJKDF2. |
@@ -610,29 +745,80 @@ powers they give to 1 star, and `imayoda` takes away any dark side powers you
 have (`sithlord`: any light side powers). Late in the game they can make you
 weaker, so save first.
 
-`sithewok` lasts until you type `sithewok off`, with a few catches:
+### sithewok
 
-- The invincibility ends when the next level starts (as with `jediwannabe on`).
-  A saved game remembers it, so loading a save made with it on brings it back.
-- Invincibility doesn't protect you from falling: a long drop can still hurt
-  or kill you (the same as with `jediwannabe on`).
-- The endless Force stays on, even through new levels, loaded games and a new
-  game you start from the menu, until you type `sithewok off` or the app is
-  closed (swiped away).
-- On the next level the game only lets you use the Force powers you've learned
-  in the story so far (it does the same after `raccoonking`), and some levels
-  lower your Jedi rank, which makes the Force meter smaller. Type `sithewok`
-  again to get everything back.
-- It can change the story. With every light and dark power at 4 stars, the
-  two sides cancel out, so when the game picks your path (after level 14) you
-  get the light side unless you've killed more than about one in five of the
-  civilians. `sithewok off` doesn't undo this, because you keep the stars. If
-  you care which side you end up on, keep a save from before you first type
-  `sithewok`, or wait to use it until your path has been set after level 14.
+`sithewok` is this iOS build's own cheat (the original game doesn't have it).
+It gives you everything at once: all weapons and ammo, all items, every Force
+power at 4 stars with the top Jedi rank, full health, shields and Force meter,
+and invincibility. While it's on:
+
+- **The Force meter never drains**, however much you use your powers.
+- **Falls never hurt you**, however far you drop.
+- **The Force catches you** if you fall into a bottomless pit: a soft blue
+  flash, and you're back on the ledge you fell from.
+- **It stays on** through new levels and loaded games, and puts everything
+  back at the start of each level. Your weapon in hand and your selected
+  Force power come with you to the next level.
+- **JUMP, ACT and DUCK get new holds.** While the cheat is on, each shows its
+  hold in small red letters under the button (FLY, NOCLIP, LVL SEL):
+  - **Hold JUMP** still for half a second (a ring fills): **fly**. You float,
+    forward goes where you look, hold JUMP to rise and DUCK to sink. Hold JUMP
+    again for half a second, or **double-tap JUMP**, to land. Walls still stop
+    you.
+  - **Hold ACT** still for half a second: **noclip**, flying straight through
+    walls. Hold it again to switch it off.
+  - **Hold DUCK** still: **pick a level**. After half a second the button
+    shows **1**, then counts up one every 0.4 seconds (with a tick each, and
+    *Level 7 of 21* on the message line), going round to 1 again after the
+    last level. Lift your finger to go to that level. Slide off to cancel.
+  - A quick press of JUMP, ACT or DUCK does what it always does.
+
+`sithewok off` (or the CHEAT button, below) switches it off: no more
+invincibility, endless Force, safe falls, flying or noclip. You keep the
+weapons, items and Force powers it gave you, except a lightsaber you only had
+from the cheat. Type `sithewok` again to fill everything back up. It also
+goes off when you close the app (swipe it away).
+
+### Cheat mode: the CHEAT button
+
+Hold **MENU** and tap **CHEAT** in the tray. A **CHEAT** button with the **red
+Sith emblem** appears on the top row, `sithewok` goes on, and the Emperor
+laughs. Then:
+
+- **Hold CHEAT** for half a second (a ring fills) to switch `sithewok` off
+  (the emblem goes grey) or on again (red). A tap does nothing, so you can't
+  switch it by accident.
+- Typing `sithewok` or `sithewok off` works too, and the button follows.
+  Typing `sithewok` while the CHEAT button is hidden brings the button back
+  (with the laugh).
+- **To leave cheat mode,** tap CHEAT in the tray again: `sithewok` goes off
+  and the button goes away.
+- The app remembers cheat mode, but `sithewok` itself starts off each time
+  you open the app: hold CHEAT to switch it on.
+- The laugh plays at the game's sound effects volume, so turn that down if
+  you'd rather not hear it.
+
+### sithewok's catches in Jedi Knight
+
+(Mysteries of the Sith's are in [its section](#mysteries-of-the-sith).)
+
+- **It can change the story.** With every light and dark power at 4 stars,
+  the two sides cancel out, so when the game picks your path (after level 14)
+  you get the light side unless you've killed more than about one in five of
+  the civilians. `sithewok off` doesn't undo this, because you keep the
+  stars. If you care which side you end up on, keep a save from before you
+  first use `sithewok`, or wait to use it until your path has been set after
+  level 14.
 - On the Force screen after level 14, where your path is set, the game takes
   the other side's stars away one at a time, which takes about 16 seconds if
   you've used `sithewok`. Wait until it stops before you tap OK, or your path
   isn't fully set until a later Force screen.
+- **Picking a level** with DUCK jumps straight there, skipping the story in
+  between, and goes to the level itself rather than the cutscene before it.
+  Where a level number has a light and a dark side version, you get the first
+  one. Keep a normal save of your real progress.
+- Pits that a level's own script uses to end you (rather than an ordinary
+  fall) can still kill you.
 
 ## Settings worth knowing
 
@@ -654,7 +840,7 @@ use Setup from the main menu):
   *Sensitivity* slider for the mouse's turn and look entries should change how
   fast the view turns. This hasn't been tested on a device yet. Changing the
   sensitivity doesn't change any bindings, so it's safe (see the next point).
-  Tilt aiming has its own setting, SENS, in MENU's tray (see
+  Tilt aiming has its own setting, SENS (hold GYRO in MENU's tray, see
   [Tilt aiming](#tilt-aiming)).
 - **Keyboard bindings** (*Setup > Controls*): **leave these at their defaults.**
   The touch buttons press the game's default keys, so if you rebind an action,
@@ -689,9 +875,9 @@ use Setup from the main menu):
 - **I can't see the touch buttons:** they only show while you're playing a level.
   In menus, tap the menu items directly.
 - **The view turns when I move the phone:** tilt aiming is on. Hold MENU and
-  tap GYRO until it says GYRO OFF, or choose GYRO TOUCH so it only aims while
-  a thumb is on the move stick, on the look area or on the buttons around FIRE
-  (see [Tilt aiming](#tilt-aiming)).
+  tap GYRO to switch it off (it says GYRO OFF). Or hold GYRO in the tray and
+  set MODE to TOUCH, so it only aims while a thumb is on the move stick, on
+  the look area or on the buttons around FIRE (see [Tilt aiming](#tilt-aiming)).
 - **Tilt aiming stops for a moment when I move my right thumb to FIRE (GYRO
   TOUCH):** keep your left thumb on the move stick. Tilt aiming then carries on
   while your right thumb is in the air. It only stops when both thumbs are up.
@@ -704,8 +890,11 @@ use Setup from the main menu):
 **Star Wars Jedi Knight: Mysteries of the Sith** (1998), the expansion, has its
 own app: **OpenMoTS**, new in v0.4. It's the same game engine and the same
 touch controls, in a second app with its own icon and its own folder in the
-Files app, so it installs next to OpenJKDF2 and keeps its files and saves
-apart from Jedi Knight's. It only needs Mysteries of the Sith's own files.
+Files app, so it installs next to OpenJKDF2 and keeps its files, saves and
+settings (SENS, GYRO, FPS and CAMERA too) apart from Jedi Knight's. It only
+needs Mysteries of the Sith's own files. The camera, SABER and its saber
+wheel (for Mara's saber), and cheat mode with the CHEAT button all work
+there too.
 
 **How well it's tested:** OpenMoTS has had much less testing than OpenJKDF2.
 It has been tested on a computer, with the real game engine, the Mysteries of
@@ -794,30 +983,27 @@ Things to know:
   here too, except `imayoda` and `sithlord`, which do nothing in Mysteries of
   the Sith.
 
-`sithewok` works in Mysteries of the Sith too: all weapons and ammo, all
-items, every Force power at 4 stars with the top Jedi rank, full health,
-shields and Force meter, invincibility and the endless Force. `sithewok off`
-turns the invincibility and the endless Force off again. The catches:
+`sithewok` works in Mysteries of the Sith too, with everything it does in
+Jedi Knight (see [Cheats](#cheats)): all weapons and ammo, all items, every
+Force power at 4 stars with the top Jedi rank, full health and shields,
+invincibility, the endless Force, safe falls, the Force catching you in pits,
+flying, noclip, and picking a level with DUCK (13 levels). Cheat mode and the
+CHEAT button work the same way. The catches in Mysteries of the Sith:
 
-- The endless Force stays on, even through new levels, loaded games and a new
-  game, until you type `sithewok off` or the app is closed.
-- The invincibility ends when the next level starts, and it doesn't protect
-  you from falling (as in Jedi Knight).
 - Your Force powers stay through the Force screen at the end of each level.
   Normally Mysteries of the Sith takes back powers beyond what your rank
   allows. This lasts until the app is closed, in any game you play (also after
   `sithewok off`). If you load a game saved with these powers after reopening
-  the app, type `sithewok` again before the level ends, or the Force screen
-  turns them back into stars.
+  the app, switch `sithewok` on again before the level ends, or the Force
+  screen turns them back into stars.
 - While you have them, the Force screen's *Choose* numbers and left-over stars
   don't matter: just tap *Ok*.
 - When the story switches to Mara Jade (level 5), the game gives her her own
-  starting powers, rank and weapons. The endless Force stays on; type
-  `sithewok` again for the rest.
-- On Kyle's levels, if you type it in the first couple of seconds of a level,
-  the game can switch the invincibility off when its own start-of-level
-  protection ends. The same can happen when a Super Shield you picked up runs
-  out. Type `sithewok` again.
+  starting powers, rank and weapons, and `sithewok` puts everything back once
+  her level has started. If anything's missing, hold CHEAT to switch it off
+  and on again.
+- After the opening video of a level, your weapon in hand comes back a moment
+  later than in Jedi Knight.
 
 If something doesn't work in OpenMoTS, please say so in your bug report
 ([Reporting bugs](#reporting-bugs)).
@@ -830,9 +1016,20 @@ If something doesn't work in OpenMoTS, please say so in your bug report
   On an iPhone, it has only been checked to start and run so far (see
   [Mysteries of the Sith](#mysteries-of-the-sith)). In OpenJKDF2, please
   ignore *Install Mysteries of the Sith* under *Expansions & Mods*.
-- **The selfie camera is new in v0.5.** They've been tried on an
-  iPhone (photos and lots of selfies in Jedi Knight) and tested on a computer
-  with the real game engine, each selfie checked to put the level back
+- **What's new in v0.6 has been tested mostly on a computer**, with the real
+  game engine and simulated touches: the saber colours and two sabers, cheat
+  mode and its holds (fly, noclip, picking a level), Action Freeze and the
+  cinematic burst, and the new selfies. Some of it has been tried on an
+  iPhone, but not all of it, and not on an iPad. If something looks or works
+  wrong, please report it (see [Reporting bugs](#reporting-bugs)).
+- **Two sabers use Kyle's one-saber moves:** there are no new animations, so
+  in his two-handed swings the blades come from nearly the same place, and
+  the resting stances are in first person only.
+- **Action Freeze close to walls:** the camera keeps out of walls and closed
+  doors, but very close to one the view behind it can come out black.
+- **The selfie camera** (new in v0.5) has been tried on an iPhone (photos and
+  lots of selfies in Jedi Knight) and tested on a computer with the real game
+  engine, each selfie checked to put the level back
   exactly as it was. Selfies in Mysteries of the Sith have only been tested on
   a computer. With low-detail 1990s models, some poses can look a little odd
   up close. If a selfie looks strange, or the game doesn't carry on as before
@@ -871,7 +1068,7 @@ To help track a bug down, please include:
 
 - your device model and iOS version, for example *iPhone 15, iOS 18.5*
 - which app: OpenJKDF2 (Jedi Knight) or OpenMoTS (Mysteries of the Sith)
-- which build you're using: the release name (for example *v0.4*), or, for an
+- which build you're using: the release name (for example *v0.6*), or, for an
   "iOS latest build", the run number and commit from its description. (AltStore
   and Settings show the app's version as 0.9.9: that's the engine's version,
   not the release name.)
