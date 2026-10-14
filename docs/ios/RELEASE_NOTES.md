@@ -309,19 +309,19 @@ While you're typing, most touch buttons don't work. A swipe or long press on FOR
   - **Hold DUCK** still: **pick a level**. After half a second the button shows **1**, then counts up one every 0.4 seconds (with a tick each, and *Level 7 of 21* on the message line), going round to 1 again after the last level. Lift your finger to go to that level. Slide off to cancel.
   - A quick press of JUMP, ACT or DUCK does what it always does.
 
-**Typing `sithewok` again switches it off** (so does `sithewok off`, or the CHEAT button, below): no more invincibility, endless Force, safe falls, flying or noclip. You keep the weapons, items and Force powers it gave you, except a lightsaber you only had from the cheat. Type `sithewok` once more to switch it back on and fill everything back up. It also goes off when you close the app (swipe it away).
+**Typing `sithewok` again switches it off** (so does the CHEAT button, below): no more invincibility, endless Force, safe falls, flying or noclip. You keep the weapons, items and Force powers it gave you, except a lightsaber you only had from the cheat. Type `sithewok` once more to switch it back on and fill everything back up. It also goes off when you close the app (swipe it away).
 
 **Cheat mode: the CHEAT button.** Hold **MENU** and tap **CHEAT** in the tray. A **CHEAT** button with the **red Sith emblem** appears on the top row, `sithewok` goes on, and the Emperor laughs. Then:
 
 - **Hold CHEAT** for half a second (a ring fills) to switch `sithewok` off (the emblem goes grey) or on again (red). A tap does nothing, so you can't switch it by accident.
-- **Typing works too:** typing `sithewok` while it's off switches it on and brings the CHEAT button back (with the laugh). Typing `sithewok` while it's on (or `sithewok off`) switches it off and the button goes away. Holding the button instead leaves it on screen, grey.
+- **Typing works too:** typing `sithewok` while it's off switches it on and brings the CHEAT button back (with the laugh). Typing `sithewok` while it's on switches it off and the button goes away. Holding the button instead leaves it on screen, grey.
 - **To leave cheat mode,** tap CHEAT in the tray again: `sithewok` goes off and the button goes away.
 - The app remembers cheat mode, but `sithewok` itself starts off each time you open the app: hold CHEAT to switch it on.
 - The laugh plays at the game's sound effects volume, so turn that down if you'd rather not hear it.
 
 Catches, in Jedi Knight (Mysteries of the Sith's are in its section below):
 
-- **It can change the story.** With every light and dark power at 4 stars, the two sides cancel out, so when the game picks your path (after level 14) you get the light side unless you've killed more than about one in five of the civilians. `sithewok off` doesn't undo this, because you keep the stars. If you care which side you end up on, keep a save from before you first use `sithewok`, or wait to use it until your path has been set after level 14.
+- **It can change the story.** With every light and dark power at 4 stars, the two sides cancel out, so when the game picks your path (after level 14) you get the light side unless you've killed more than about one in five of the civilians. Switching it off doesn't undo this, because you keep the stars. If you care which side you end up on, keep a save from before you first use `sithewok`, or wait to use it until your path has been set after level 14.
 - On the Force screen after level 14, where your path is set, the game takes the other side's stars away one at a time, which takes about 16 seconds if you've used `sithewok`. Wait until it stops before you tap OK, or your path isn't fully set until a later Force screen.
 - **Picking a level** with DUCK jumps straight there, skipping the story in between, and goes to the level itself rather than the cutscene before it. Where a level number has a light and a dark side version, you get the first one. Keep a normal save of your real progress.
 - Pits that a level's own script uses to end you (rather than an ordinary fall) can still kill you.
@@ -358,7 +358,7 @@ Catches, in Jedi Knight (Mysteries of the Sith's are in its section below):
 
 **`sithewok`** works in Mysteries of the Sith too, with everything it does in Jedi Knight: all weapons and ammo, all items, every Force power at 4 stars with the top Jedi rank, full health and shields, invincibility, the endless Force, safe falls, the Force catching you in pits, flying, noclip, and picking a level with DUCK (13 levels). Cheat mode and the CHEAT button work the same way. The catches in Mysteries of the Sith:
 
-- **Your Force powers stay through the Force screen at the end of each level.** Normally Mysteries of the Sith takes back powers beyond what your rank allows. This lasts until the app is closed, in any game you play (also after `sithewok off`). If you load a game saved with these powers after reopening the app, switch `sithewok` on again before the level ends, or the Force screen turns them back into stars.
+- **Your Force powers stay through the Force screen at the end of each level.** Normally Mysteries of the Sith takes back powers beyond what your rank allows. This lasts until the app is closed, in any game you play (also after you switch `sithewok` off). If you load a game saved with these powers after reopening the app, switch `sithewok` on again before the level ends, or the Force screen turns them back into stars.
 - While you have them, the Force screen's *Choose* numbers and left-over stars don't matter: just tap *Ok*.
 - When the story switches to Mara Jade (level 5), the game gives her her own starting powers, rank and weapons, and `sithewok` puts everything back once her level has started. If anything's missing, hold CHEAT to switch it off and on again.
 - After the opening video of a level, your weapon in hand comes back a moment later than in Jedi Knight.

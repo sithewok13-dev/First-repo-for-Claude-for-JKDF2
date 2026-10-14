@@ -170,7 +170,7 @@ extern int jkHud_bChatOpen;
 // (off unless switched on; remembered), it shows, and sithewok goes on;
 // switched off, sithewok goes off and it hides. Held still this long
 // (sliding off cancels; a tap does nothing) it switches sithewok on or off,
-// as typing "sithewok" or "sithewok off" does. Red whenever the cheat is
+// as typing "sithewok" does. Red whenever the cheat is
 // on, however it was switched (iosGame_IsSithEwokOn, read every frame).
 #define IOSTOUCH_CHEAT_DEFAULTS_KEY @"iosTouchShowCheat"
 #define IOSTOUCH_CHEAT_HOLD 0.5
@@ -4389,7 +4389,7 @@ static int iosTouch_WheelSliceHasRow(int i)
             [self setShowCheat:1];
             iosCheatLaugh_Play(iosGame_SfxVolume());
         }
-        // (typed off -- "sithewok" again, or "sithewok off" -- CHEAT goes too, as the tray's switch
+        // (typed off -- "sithewok" again -- CHEAT goes too, as the tray's switch
         // hides it; CHEAT's own hold leaves it showing, grey)
         if (iosGame_TakeSithEwokTypedOff() && !iosTouch_bCheatOn && iosTouch_bShowCheat) [self setShowCheat:0];
         [self refreshButtonLooks];

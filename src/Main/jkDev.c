@@ -1635,9 +1635,9 @@ int jkDev_Custom_CatchesFalls()
     return jkDev_bNoFallHurt && !sithNet_isMulti;
 }
 
-// Added: sithewok, everything at once, invincible, endless Force, falls don't hurt; "sithewok off" ends
-// the last three, as does typing "sithewok" again while it is on (it switches it). pCmd: typed (NULL:
-// the touch overlay's CHEAT, which says which it wants)
+// Added: sithewok, everything at once, invincible, endless Force, falls don't hurt. Typed, it switches:
+// "sithewok" again while it is on ends the last three (whatever follows it: there is no "sithewok off"
+// any more). pCmd NULL: the touch overlay's CHEAT, which says which it wants ("off", or nothing for on)
 int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
     SithThing *pPlayer;
@@ -1655,7 +1655,7 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 
     if ( pArgStr )
         _sscanf(pArgStr, "%7s", arg);
-    if ( !__strcmpi(arg, "off") || (pCmd && !arg[0] && jkDev_bSithEwokOn) )
+    if ( pCmd ? jkDev_bSithEwokOn : !__strcmpi(arg, "off") )
     {
         jkDev_bSithEwokTypedOff = pCmd != NULL;
         pPlayer->actorParams.flags &= ~SITH_AF_INVULNERABLE;
@@ -1701,7 +1701,7 @@ int jkDev_Custom_SithEwokIsOn()
     return jkDev_bSithEwokOn && !sithNet_isMulti;
 }
 
-// Added: sithewok switched as if typed ("sithewok", or "sithewok off" when on), for the touch overlay's
+// Added: sithewok switched as if typed (typing "sithewok" switches it), for the touch overlay's
 // CHEAT. 1: on now; 0: off now; -1: can't now (multiplayer, no player)
 // Added: whether something on screen shows sithewok is on (the touch overlay's CHEAT)
 void jkDev_Custom_SetSithEwokShown(int bShown)

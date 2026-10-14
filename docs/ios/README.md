@@ -773,12 +773,12 @@ and invincibility. While it's on:
     last level. Lift your finger to go to that level. Slide off to cancel.
   - A quick press of JUMP, ACT or DUCK does what it always does.
 
-**Typing `sithewok` again switches it off** (so does `sithewok off`, or the
-CHEAT button, below): no more invincibility, endless Force, safe falls,
-flying or noclip. You keep the weapons, items and Force powers it gave you,
-except a lightsaber you only had from the cheat. Type `sithewok` once more to
-switch it back on and fill everything back up. It also goes off when you
-close the app (swipe it away).
+**Typing `sithewok` again switches it off** (so does the CHEAT button,
+below): no more invincibility, endless Force, safe falls, flying or noclip.
+You keep the weapons, items and Force powers it gave you, except a lightsaber
+you only had from the cheat. Type `sithewok` once more to switch it back on
+and fill everything back up. It also goes off when you close the app (swipe
+it away).
 
 ### Cheat mode: the CHEAT button
 
@@ -791,8 +791,8 @@ laughs. Then:
   switch it by accident.
 - **Typing works too:** typing `sithewok` while it's off switches it on and
   brings the CHEAT button back (with the laugh). Typing `sithewok` while it's
-  on (or `sithewok off`) switches it off and the button goes away. Holding
-  the button instead leaves it on screen, grey.
+  on switches it off and the button goes away. Holding the button instead
+  leaves it on screen, grey.
 - **To leave cheat mode,** tap CHEAT in the tray again: `sithewok` goes off
   and the button goes away.
 - The app remembers cheat mode, but `sithewok` itself starts off each time
@@ -807,7 +807,7 @@ laughs. Then:
 - **It can change the story.** With every light and dark power at 4 stars,
   the two sides cancel out, so when the game picks your path (after level 14)
   you get the light side unless you've killed more than about one in five of
-  the civilians. `sithewok off` doesn't undo this, because you keep the
+  the civilians. Switching it off doesn't undo this, because you keep the
   stars. If you care which side you end up on, keep a save from before you
   first use `sithewok`, or wait to use it until your path has been set after
   level 14.
@@ -995,7 +995,7 @@ CHEAT button work the same way. The catches in Mysteries of the Sith:
 - Your Force powers stay through the Force screen at the end of each level.
   Normally Mysteries of the Sith takes back powers beyond what your rank
   allows. This lasts until the app is closed, in any game you play (also after
-  `sithewok off`). If you load a game saved with these powers after reopening
+  you switch `sithewok` off). If you load a game saved with these powers after reopening
   the app, switch `sithewok` on again before the level ends, or the Force
   screen turns them back into stars.
 - While you have them, the Force screen's *Choose* numbers and left-over stars
