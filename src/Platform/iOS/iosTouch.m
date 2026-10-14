@@ -30,6 +30,7 @@ extern int stdControl_bControllerEscapeKey;
 extern int jkCutscene_isRendering;
 extern int jkGuiRend_IsMenuActive(void);
 extern int jkHud_IosGetRightGaugeRectPt(float* pX0, float* pY0, float* pX1, float* pY1);
+extern int jkHud_IosGetLeftGaugeRectPt(float* pX0, float* pY0, float* pX1, float* pY1);
 extern int Window_lastXRel;
 extern int Window_lastYRel;
 extern int jkHud_bChatOpen;
@@ -240,6 +241,13 @@ enum { IOSTOUCH_CHIP_SINGLE = 0, IOSTOUCH_CHIP_DUAL, IOSTOUCH_CHIP_LEFT, IOSTOUC
 // Jump selected, a gold ring inside it fills to how high the jump will go
 // (STEPS: a step a star, a tick at each); SMOOTH ticks once, at the highest
 #define IOSTOUCH_JUMPSTYLE_DEFAULTS_KEY @"iosTouchJumpStyle"
+// The controls' sides (the tray's CONTROLS: NORMAL, the move stick on the
+// left and FIRE and its buttons on the right; or SWAPPED, the other way
+// round; remembered). Swapped, the buttons round FIRE are laid out as ever
+// and mirrored across the screen (kept clear of the left gauge, the cutout
+// if it is on the left, and the top row's left end), and the stick starts in
+// the right IOSTOUCH_STICK_ZONE of the screen; the top row stays as it is
+#define IOSTOUCH_SWAPPED_DEFAULTS_KEY @"iosTouchControlsSwapped"
 #define IOSTOUCH_FORCEJUMP_BIN 21 // (SITHBIN_F_JUMP, in both games)
 #define IOSTOUCH_FREEZE_SWIPE 36.0
 #define IOSTOUCH_FREEZE_EDGE 6.0       // (up: to this near the top of the screen counts as far enough...)
@@ -328,6 +336,7 @@ enum {
     KIND_CHEATSWITCH, // (MENU tray) shows or hides the CHEAT button, when the touch lifts on it
     KIND_VIEW,     // tap (on lift): first person or third (iosGame_SetThirdPerson)
     KIND_VIEWSWITCH, // (MENU tray) shows or hides the VIEW button, when the touch lifts on it
+    KIND_CONTROLS, // (MENU tray) the controls' sides: NORMAL or SWAPPED
     KIND_JUMPSTYLE, // (MENU tray) Force Jump's next style: SMOOTH, STEPS or CLASSIC (iosGame_SetForceJumpStyle)
     KIND_CAMERA,   // tap: the photos ticked in the camera options; slide: a burst; hold: the selfie
     KIND_CAMPHOTO, // (camera options) opens or closes the photo kinds' row under them
@@ -377,7 +386,7 @@ enum {
     BTN_SABER,  // between CAMERA and QUICK SAVE, once the saber is had (or sithewok is on)
     BTN_CHEAT,  // ...right of SABER, in cheat mode (switched on in the tray)
     BTN_VIEW,   // ...right of CHEAT: first or third person (switched on in the tray)
-    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYCHEAT, BTN_TRAYVIEW, BTN_TRAYJUMP, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
+    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYCHEAT, BTN_TRAYVIEW, BTN_TRAYJUMP, BTN_TRAYCTRL, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
     // Rows under the tray, one at a time (iosTouch_optRow), hidden until opened:
     BTN_GYROOPT_MODE, BTN_GYROOPT_SENS,  // the gyro options (a hold on the tray's GYRO)
     BTN_CAMROW_PHOTO, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE, // the camera options (a hold on the tray's camera switch)
@@ -413,6 +422,7 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_TRAYCHEAT] = { "",            KIND_CHEATSWITCH, -1,               20.0f, 0 },
     [BTN_TRAYVIEW]  = { "VIEW",        KIND_VIEWSWITCH, -1,                20.0f, 0 },
     [BTN_TRAYJUMP]  = { "JUMP",        KIND_JUMPSTYLE, -1,                 20.0f, 0 },
+    [BTN_TRAYCTRL]  = { "CONTROLS",    KIND_CONTROLS, -1,                  20.0f, 0 },
     [BTN_TRAYKEYS]  = { "",            KIND_CHAT,     -1,                  20.0f, 0 },
     [BTN_GYROOPT_MODE] = { "MODE",     KIND_GYROMODE, -1,                  20.0f, 0 },
     [BTN_GYROOPT_SENS] = { "SENS",     KIND_GYROSENS, -1,                  20.0f, 0 },
@@ -689,6 +699,7 @@ static int iosTouch_bKindsOpen = 0;  // the photo kinds' row, under the camera o
 static int iosTouch_selfieShots = 3; // photos a selfie takes (1, 3 or 5; remembered)
 static int iosTouch_bFreezeOn = 1;   // CAMERA's slide down: Action Freeze (remembered)
 static int iosTouch_jumpStyle = IOSGAME_JUMP_STEPS; // the tray's JUMP (remembered)
+static int iosTouch_bSwapped = 0; // the tray's CONTROLS: SWAPPED (remembered)
 static int iosTouch_jumpTicked = 0;  // how far FORCE's Force Jump ring has ticked this press (steps; SMOOTH: 1 at full)
 static int iosTouch_bFreezing = 0;   // Action Freeze is up
 static int iosTouch_bCinema = 0;     // the cinematic burst is running
@@ -1607,7 +1618,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         iosTouch_GyroSetup();
         // GYRO and SENS say what they are set to on a second line: at the size
         // of a two-line label, condensed so "ALWAYS" fits a circle this small
-        const int aTwoLine[] = { BTN_TRAYGYRO, BTN_TRAYJUMP, BTN_GYROOPT_MODE, BTN_GYROOPT_SENS, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE };
+        const int aTwoLine[] = { BTN_TRAYGYRO, BTN_TRAYJUMP, BTN_TRAYCTRL, BTN_GYROOPT_MODE, BTN_GYROOPT_SENS, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE };
         for (int k = 0; k < IOSTOUCH_COUNT(aTwoLine); k++) {
             const int i = aTwoLine[k];
             aButtonViews[i].font = IOSTouch_WheelFont(IOSTouch_FontSize("GYRO\nALWAYS", iosTouch_aButtons[i].radius));
@@ -1694,6 +1705,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
                                  && js >= 0 && js < IOSGAME_JUMP_NUM_STYLES ? (int)js : IOSGAME_JUMP_STEPS;
             iosGame_SetForceJumpStyle(iosTouch_jumpStyle);
         }
+        iosTouch_bSwapped = [[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_SWAPPED_DEFAULTS_KEY] ? 1 : 0;
         [self refreshGyroLabels]; // (SELFIES and FREEZE, as just read)
 
         freezeClose = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, IOSTOUCH_FREEZE_CLOSE_RADIUS * 2, IOSTOUCH_FREEZE_CLOSE_RADIUS * 2)];
@@ -1915,6 +1927,18 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     return self;
 }
 
+// The gauge the buttons round FIRE keep clear of, as the layout sees it (the
+// right one; swapped, the left one mirrored across a screen W wide, as the
+// buttons are laid out on the right and then mirrored)
+static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
+{
+    if (!iosTouch_bSwapped) return jkHud_IosGetRightGaugeRectPt(&g[0], &g[1], &g[2], &g[3]);
+    float l[4] = { 0, 0, 0, 0 };
+    if (!jkHud_IosGetLeftGaugeRectPt(&l[0], &l[1], &l[2], &l[3])) return 0;
+    g[0] = (float)W - l[2]; g[1] = l[1]; g[2] = (float)W - l[0]; g[3] = l[3];
+    return 1;
+}
+
 - (void)layoutSubviews
 {
     [super layoutSubviews];
@@ -1929,10 +1953,10 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     CGFloat top = MAX(in.top, 8.0);
     CGFloat bottom = H - MAX(in.bottom, 8.0);
 
-    // Where the HUD's right (ammo/force) gauge is; iosTouch_Update re-runs
-    // this layout whenever it moves
+    // Where the HUD's right (ammo/force) gauge is (swapped: the left one,
+    // mirrored); iosTouch_Update re-runs this layout whenever it moves
     float g[4] = {0, 0, 0, 0};
-    iosTouch_bLayoutGauge = jkHud_IosGetRightGaugeRectPt(&g[0], &g[1], &g[2], &g[3]);
+    iosTouch_bLayoutGauge = iosTouch_LayoutGaugeRect(W, g);
     memcpy(iosTouch_aLayoutGauge, g, sizeof(g));
 
     // FIRE in the corner, left of the gauge. right - 76 clears it on notched
@@ -1965,7 +1989,9 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     // edge. The landscape side insets are the same both ways round, so which
     // side it is on comes from the screen's orientation.
     iosTouch_layoutCutoutRight = iosTouch_CutoutMayBeRight(self);
-    int bCutout = in.right >= 40.0 && iosTouch_layoutCutoutRight;
+    // (swapped: the buttons round FIRE go on the left, so it's the cutout on
+    // the left they keep clear of, mirrored)
+    int bCutout = in.right >= 40.0 && (iosTouch_bSwapped ? !iosTouch_layoutCutoutRight : iosTouch_layoutCutoutRight);
     CGFloat cutX = (in.right >= 55.0) ? W - 29.5 : W - 16.5;
     CGFloat cutR = (in.right >= 55.0) ? 18.5 : 16.5;
     CGFloat cutHalf = ((in.right >= 55.0) ? 63.0 : 105.0) - cutR;
@@ -2144,12 +2170,15 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
                 int bNearTop = 0;                                                      // the top row
                 for (int t = 0; t < IOSTOUCH_COUNT(aTopRow); t++) {
                     iosTouchButton* q = &iosTouch_aButtons[aTopRow[t]];
-                    if (hypot(p.x - q->x, p.y - q->y) < R + q->radius + topGap) bNearTop = 1;
+                    const CGFloat qx = iosTouch_bSwapped ? W - q->x : q->x;              // (swapped: the left end, mirrored)
+                    if (hypot(p.x - qx, p.y - q->y) < R + q->radius + topGap) bNearTop = 1;
                 }
                 if (bNearTop) continue;
-                CGFloat trayClear, trayForce;                                          // MENU's tray
-                iosTouch_TrayKeysAt(menu, left, &p, &trayClear, &trayForce);
-                if (trayClear < trayNeed || trayForce < IOSTOUCH_TRAY_CLEAR) continue;
+                if (!iosTouch_bSwapped) {                                              // MENU's tray (swapped: FORCE is on the other side)
+                    CGFloat trayClear, trayForce;
+                    iosTouch_TrayKeysAt(menu, left, &p, &trayClear, &trayForce);
+                    if (trayClear < trayNeed || trayForce < IOSTOUCH_TRAY_CLEAR) continue;
+                }
                 best = p;
                 bFound = 1;
                 break;
@@ -2157,6 +2186,10 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         }
         f->x = best.x;
         f->y = best.y;
+    }
+    // Swapped: FIRE and its buttons mirrored to the left, as laid out
+    if (iosTouch_bSwapped) {
+        for (int i = BTN_FIRE; i <= BTN_FORCE; i++) iosTouch_aButtons[i].x = W - iosTouch_aButtons[i].x;
     }
 
     // MENU's tray: a row just under the corner -- GYRO, FPS, the camera
@@ -2447,6 +2480,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     const CGFloat R = IOSTOUCH_RUN_R;
     UIEdgeInsets in = self.safeAreaInsets;
     CGFloat x = MAX(o.x, MAX(in.left, 8.0) + 4.0 + R);
+    x = MIN(x, self.bounds.size.width - MAX(in.right, 8.0) - 4.0 - R); // (swapped: the stick on the right)
     CGFloat minY = MAX(in.top, 0.0) + 4.0 + R;
     for (CGFloat h = IOSTOUCH_RUN_DIST; h >= IOSTOUCH_RUN_MIN_DIST && iosTouch_bAlwaysRun == 0; h -= 2.0) {
         CGPoint c = CGPointMake(x, o.y - h);
@@ -3180,6 +3214,7 @@ static int iosTouch_SaberBlade(void)
     aButtonViews[BTN_CAMROW_FREEZE].text = iosTouch_bFreezeOn ? @"FREEZE\nON" : @"FREEZE\nOFF";
     static NSString* aJumpName[IOSGAME_JUMP_NUM_STYLES] = { @"JUMP\nSMOOTH", @"JUMP\nSTEPS", @"JUMP\nCLASSIC" };
     aButtonViews[BTN_TRAYJUMP].text = aJumpName[iosTouch_jumpStyle];
+    aButtonViews[BTN_TRAYCTRL].text = iosTouch_bSwapped ? @"CONTROLS\nSWAPPED" : @"CONTROLS\nNORMAL";
 }
 
 // A tray button picked: it does its thing, and the tray closes -- except
@@ -3214,13 +3249,20 @@ static int iosTouch_SaberBlade(void)
         iosTouch_GyroToggle();
         [self refreshGyroLabels];
     }
+    else if (kind == KIND_CONTROLS) {
+        iosTouch_bSwapped = !iosTouch_bSwapped;
+        [[NSUserDefaults standardUserDefaults] setBool:(iosTouch_bSwapped ? YES : NO) forKey:IOSTOUCH_SWAPPED_DEFAULTS_KEY];
+        [self refreshGyroLabels];
+        [self setNeedsLayout];
+        [self layoutIfNeeded]; // (at once: the tray stays, laid out with the rest)
+    }
     else if (kind == KIND_JUMPSTYLE) {
         iosTouch_jumpStyle = (iosTouch_jumpStyle + 1) % IOSGAME_JUMP_NUM_STYLES;
         iosGame_SetForceJumpStyle(iosTouch_jumpStyle);
         [[NSUserDefaults standardUserDefaults] setInteger:iosTouch_jumpStyle forKey:IOSTOUCH_JUMPSTYLE_DEFAULTS_KEY];
         [self refreshGyroLabels];
     }
-    if (kind == KIND_GYRO || kind == KIND_JUMPSTYLE) [self refreshButtonLooks]; // (the tray stays, for another tap)
+    if (kind == KIND_GYRO || kind == KIND_JUMPSTYLE || kind == KIND_CONTROLS) [self refreshButtonLooks]; // (the tray stays, for another tap)
     else [self setTrayOpen:0];
 }
 
@@ -3920,7 +3962,8 @@ static int iosTouch_WheelSliceHasRow(int i)
             s->role = ROLE_BUTTON;
             iosTouch_aButtonHeld[s->button]++;
         }
-        else if (p.x < self.bounds.size.width * IOSTOUCH_STICK_ZONE && !iosTouch_bStickActive) {
+        else if ((iosTouch_bSwapped ? p.x > self.bounds.size.width * (1.0f - IOSTOUCH_STICK_ZONE)
+                                    : p.x < self.bounds.size.width * IOSTOUCH_STICK_ZONE) && !iosTouch_bStickActive) {
             s->role = ROLE_STICK;
             iosTouch_bStickActive = 1;
             iosTouch_stickX = iosTouch_stickY = 0.0f;
@@ -4844,7 +4887,7 @@ static void iosTouch_UpdateInPool(void)
         // other way up changes neither the size nor the insets, but moves the
         // cutout to the other side.
         float g[4] = {0, 0, 0, 0};
-        int bGauge = jkHud_IosGetRightGaugeRectPt(&g[0], &g[1], &g[2], &g[3]);
+        int bGauge = iosTouch_LayoutGaugeRect(iosTouch_pOverlay.bounds.size.width, g);
         if (bGauge != iosTouch_bLayoutGauge || memcmp(g, iosTouch_aLayoutGauge, sizeof(g)) != 0
             || iosTouch_CutoutMayBeRight(iosTouch_pOverlay) != iosTouch_layoutCutoutRight) {
             [iosTouch_pOverlay setNeedsLayout];

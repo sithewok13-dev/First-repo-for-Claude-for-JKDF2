@@ -275,7 +275,7 @@ screen, the camera cutout and the HUD.
 ```
  NEXT   FORCE   LIGHT  IR  BACTA  CAMERA  SABER  CHEAT  VIEW  (FPS)  QUICK  QUICK  MENU
  WPN    WHEEL   (only items you have)                         SAVE   LOAD
-                          [GYRO] [FPS] [CAMERA] [CHEAT] [VIEW] [JUMP] [keyboard]
+                          [GYRO] [FPS] [CAMERA] [CHEAT] [VIEW] [JUMP] [CONTROLS] [keyboard]
                           (MENU's tray, when held)
                              [MODE] [SENS]             (GYRO held in the tray)
                              [PHOTO] [SELFIES] [FREEZE] (CAMERA held in the tray)
@@ -349,9 +349,9 @@ NOCLIP, LVL SEL) for their cheat holds: see [Cheats](#cheats).
 ### MENU's tray: tilt aiming, FPS, camera, cheat mode, view and keyboard
 
 **Tap MENU** for the game's menu. **Hold MENU** until its ring fills (about
-half a second), and a small tray opens just under it with seven buttons, from
-left to right **GYRO**, **FPS**, **CAMERA**, **CHEAT**, **VIEW**, **JUMP** and
-the **keyboard**.
+half a second), and a small tray opens just under it with eight buttons, from
+left to right **GYRO**, **FPS**, **CAMERA**, **CHEAT**, **VIEW**, **JUMP**,
+**CONTROLS** and the **keyboard**.
 Either keep your thumb down, slide it onto a tray button and lift, or lift
 first and then tap one. Anywhere on the tray's dark backing counts as the
 nearest button.
@@ -379,17 +379,22 @@ nearest button.
 - **JUMP:** how Force Jump works, **STEPS** (the default), **SMOOTH** or
   **CLASSIC**. Each tap goes on to the next, and the tray stays open. See
   [Force Jump](#force-jump).
+- **CONTROLS:** **NORMAL** (the default) has the move stick on the left and
+  FIRE and its buttons on the right. **SWAPPED** puts the move stick where
+  your right thumb lands and mirrors FIRE, ALT, DUCK, ACT, JUMP and FORCE to
+  the left, same sizes and spacing. It takes effect at once and the tray
+  stays open. The top row stays as it is.
 - **Keyboard** (the keyboard symbol, at the right end of the tray): opens the
   game's typing line with the iPhone keyboard, for [cheats](#cheats). Tap it
   again to close the line. While it's open, MENU and the keyboard button are
   lit yellow.
 
-GYRO and JUMP show their setting on the button (for example *GYRO OFF*,
-*JUMP STEPS*), and MODE and SENS show theirs. Each tap on JUMP, MODE or SENS
+GYRO, JUMP and CONTROLS show their setting on the button (for example *GYRO OFF*,
+*JUMP STEPS*), and MODE and SENS show theirs. Each tap on JUMP, CONTROLS, MODE or SENS
 goes on to the next setting, and the tray (or row) stays open so you can tap
 again.
 
-The app remembers GYRO, SENS, FPS, CAMERA and its options, CHEAT, VIEW and JUMP
+The app remembers GYRO, SENS, FPS, CAMERA and its options, CHEAT, VIEW, JUMP and CONTROLS
 next time you open it. The `sithewok` cheat itself always starts off when you open
 the app: hold the CHEAT button to switch it on.
 

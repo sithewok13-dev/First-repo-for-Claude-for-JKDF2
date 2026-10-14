@@ -80,7 +80,7 @@ The touch controls appear once you're playing a level, and hide in menus and cut
 ```
  NEXT   FORCE   LIGHT  IR  BACTA  CAMERA  SABER  CHEAT  VIEW  (FPS)  QUICK  QUICK  MENU
  WPN    WHEEL   (only items you have)                         SAVE   LOAD
-                          [GYRO] [FPS] [CAMERA] [CHEAT] [VIEW] [JUMP] [keyboard]
+                          [GYRO] [FPS] [CAMERA] [CHEAT] [VIEW] [JUMP] [CONTROLS] [keyboard]
                           (MENU's tray, when held)
                              [MODE] [SENS]             (GYRO held in the tray)
                              [PHOTO] [SELFIES] [FREEZE] (CAMERA held in the tray)
@@ -202,9 +202,10 @@ FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them. LIGHT, IR, M
 | **CHEAT** | Cheat mode on or off. On: the CHEAT button appears and `sithewok` goes on. Off: `sithewok` goes off and the button goes away. Yellow while cheat mode is on. See *Cheats* below. |
 | **VIEW** | Shows or hides the **VIEW** button on the top row (yellow while it's shown). **Tap VIEW** to switch between first person (**1P**) and third person (**3P**) at once. The app remembers both; hiding the button keeps the view you picked. The game's own idle camera still swings round to show you after 30 seconds without a touch, and goes back to your view when you play on. |
 | **JUMP** | How Force Jump works: **STEPS** (the default), **SMOOTH** or **CLASSIC**. Each tap goes on to the next, and the tray stays open. See *Force Jump* below. |
+| **CONTROLS** | **NORMAL** (the default): the move stick on the left, FIRE and its buttons on the right. **SWAPPED:** the other way round, the move stick where your right thumb lands and FIRE, ALT, DUCK, ACT, JUMP and FORCE mirrored to the left. Takes effect at once, the tray stays open, and the app remembers it. The top row stays as it is. |
 | **Keyboard** (the keyboard symbol) | Opens the game's typing line with the iPhone keyboard, for cheats. Tap it again to close the line. |
 
-- GYRO and JUMP show their setting on the button (for example *GYRO OFF*, *JUMP STEPS*), and MODE and SENS show theirs.
+- GYRO, JUMP and CONTROLS show their setting on the button (for example *GYRO OFF*, *JUMP STEPS*), and MODE and SENS show theirs.
 - Either keep your thumb down, slide it onto a tray button and lift, or lift first and then tap one. Anywhere on the tray's dark backing counts as the nearest button.
 - Each tap on **JUMP**, **MODE** or **SENS** goes on to the next setting, and the tray (or row) stays open so you can tap again. The tray closes after **FPS**, **CAMERA**, **CHEAT** or the keyboard, or when you touch anywhere else. That touch still counts: touching FIRE closes the tray and fires. Touching MENU again only closes it.
 - If you slide off MENU while holding it, nothing happens.
