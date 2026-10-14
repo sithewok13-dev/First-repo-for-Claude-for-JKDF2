@@ -145,6 +145,9 @@ int iosGame_NumPickableLevels(void);
 // Toggle: 1 on now, 0 off now, -1 can't (multiplayer, no player).
 int iosGame_IsSithEwokOn(void);
 int iosGame_ToggleSithEwok(void);
+// Whether sithewok last went off by being typed ("sithewok" again, or
+// "sithewok off"), once: the overlay then hides CHEAT
+int iosGame_TakeSithEwokTypedOff(void);
 // Whether the overlay's CHEAT button is showing (glowing red while the cheat
 // is on): then a new level puts sithewok on again without saying so
 void iosGame_SetCheatShown(int bShown);

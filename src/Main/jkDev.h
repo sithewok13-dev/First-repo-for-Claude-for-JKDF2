@@ -112,6 +112,7 @@ int jkDev_Custom_SaberButtonShown(); // Added
 void jkDev_Custom_LevelOpened(); // Added
 int jkDev_Custom_SithEwokIsOn(); // Added
 int jkDev_Custom_ToggleSithEwok(); // Added
+int jkDev_Custom_TakeSithEwokTypedOff(); // Added
 void jkDev_Custom_SetSithEwokShown(int bShown); // Added
 #endif
 

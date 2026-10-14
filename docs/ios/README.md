@@ -723,7 +723,7 @@ player. Some cheats need `on` or `off` after them.
 
 | Type this | What it does |
 | --- | --- |
-| `sithewok` / `sithewok off` | Everything at once, plus flying, noclip and picking a level: see [sithewok](#sithewok) below. This one was added by this iOS build. |
+| `sithewok` | Everything at once, plus flying, noclip and picking a level; type it again to switch it off: see [sithewok](#sithewok) below. This one was added by this iOS build. |
 | `jediwannabe on` / `jediwannabe off` | Invincibility on / off |
 | `eriamjh` | Fly (type it again to stop) |
 | `noclip` | Fly through walls (type it again to stop). This one was added by OpenJKDF2. |
@@ -773,11 +773,12 @@ and invincibility. While it's on:
     last level. Lift your finger to go to that level. Slide off to cancel.
   - A quick press of JUMP, ACT or DUCK does what it always does.
 
-`sithewok off` (or the CHEAT button, below) switches it off: no more
-invincibility, endless Force, safe falls, flying or noclip. You keep the
-weapons, items and Force powers it gave you, except a lightsaber you only had
-from the cheat. Type `sithewok` again to fill everything back up. It also
-goes off when you close the app (swipe it away).
+**Typing `sithewok` again switches it off** (so does `sithewok off`, or the
+CHEAT button, below): no more invincibility, endless Force, safe falls,
+flying or noclip. You keep the weapons, items and Force powers it gave you,
+except a lightsaber you only had from the cheat. Type `sithewok` once more to
+switch it back on and fill everything back up. It also goes off when you
+close the app (swipe it away).
 
 ### Cheat mode: the CHEAT button
 
@@ -788,9 +789,10 @@ laughs. Then:
 - **Hold CHEAT** for half a second (a ring fills) to switch `sithewok` off
   (the emblem goes grey) or on again (red). A tap does nothing, so you can't
   switch it by accident.
-- Typing `sithewok` or `sithewok off` works too, and the button follows.
-  Typing `sithewok` while the CHEAT button is hidden brings the button back
-  (with the laugh).
+- **Typing works too:** typing `sithewok` while it's off switches it on and
+  brings the CHEAT button back (with the laugh). Typing `sithewok` while it's
+  on (or `sithewok off`) switches it off and the button goes away. Holding
+  the button instead leaves it on screen, grey.
 - **To leave cheat mode,** tap CHEAT in the tray again: `sithewok` goes off
   and the button goes away.
 - The app remembers cheat mode, but `sithewok` itself starts off each time

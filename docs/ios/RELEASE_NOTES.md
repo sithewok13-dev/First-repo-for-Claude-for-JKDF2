@@ -309,12 +309,12 @@ While you're typing, most touch buttons don't work. A swipe or long press on FOR
   - **Hold DUCK** still: **pick a level**. After half a second the button shows **1**, then counts up one every 0.4 seconds (with a tick each, and *Level 7 of 21* on the message line), going round to 1 again after the last level. Lift your finger to go to that level. Slide off to cancel.
   - A quick press of JUMP, ACT or DUCK does what it always does.
 
-`sithewok off` (or the CHEAT button, below) switches it off: no more invincibility, endless Force, safe falls, flying or noclip. You keep the weapons, items and Force powers it gave you, except a lightsaber you only had from the cheat. Type `sithewok` again to fill everything back up. It also goes off when you close the app (swipe it away).
+**Typing `sithewok` again switches it off** (so does `sithewok off`, or the CHEAT button, below): no more invincibility, endless Force, safe falls, flying or noclip. You keep the weapons, items and Force powers it gave you, except a lightsaber you only had from the cheat. Type `sithewok` once more to switch it back on and fill everything back up. It also goes off when you close the app (swipe it away).
 
 **Cheat mode: the CHEAT button.** Hold **MENU** and tap **CHEAT** in the tray. A **CHEAT** button with the **red Sith emblem** appears on the top row, `sithewok` goes on, and the Emperor laughs. Then:
 
 - **Hold CHEAT** for half a second (a ring fills) to switch `sithewok` off (the emblem goes grey) or on again (red). A tap does nothing, so you can't switch it by accident.
-- Typing `sithewok` or `sithewok off` works too, and the button follows. Typing `sithewok` while the CHEAT button is hidden brings the button back (with the laugh).
+- **Typing works too:** typing `sithewok` while it's off switches it on and brings the CHEAT button back (with the laugh). Typing `sithewok` while it's on (or `sithewok off`) switches it off and the button goes away. Holding the button instead leaves it on screen, grey.
 - **To leave cheat mode,** tap CHEAT in the tray again: `sithewok` goes off and the button goes away.
 - The app remembers cheat mode, but `sithewok` itself starts off each time you open the app: hold CHEAT to switch it on.
 - The laugh plays at the game's sound effects volume, so turn that down if you'd rather not hear it.

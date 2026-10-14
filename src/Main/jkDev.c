@@ -61,6 +61,9 @@ static SithThing* jkDev_pSithEwokPlayer = NULL;
 static int jkDev_sithEwokWait = 0;
 #define JKDEV_SITHEWOK_WAIT 20
 static int jkDev_bSithEwokShown = 0; // something on screen shows it is on (jkDev_Custom_SetSithEwokShown)
+// Added: sithewok last went off by being typed (jkDev_Custom_TakeSithEwokTypedOff): the touch overlay then
+// hides its CHEAT button too, as typing it on shows it
+static int jkDev_bSithEwokTypedOff = 0;
 // Added: sithewok keeps the weapon in hand from level to level: the one in hand (or being switched to)
 // as last seen, and the one to put back in a new level, for at most so many more frames
 static int jkDev_sithEwokWeapon = -1;
@@ -1633,7 +1636,8 @@ int jkDev_Custom_CatchesFalls()
 }
 
 // Added: sithewok, everything at once, invincible, endless Force, falls don't hurt; "sithewok off" ends
-// the last three
+// the last three, as does typing "sithewok" again while it is on (it switches it). pCmd: typed (NULL:
+// the touch overlay's CHEAT, which says which it wants)
 int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
     SithThing *pPlayer;
@@ -1651,8 +1655,9 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 
     if ( pArgStr )
         _sscanf(pArgStr, "%7s", arg);
-    if ( !__strcmpi(arg, "off") )
+    if ( !__strcmpi(arg, "off") || (pCmd && !arg[0] && jkDev_bSithEwokOn) )
     {
+        jkDev_bSithEwokTypedOff = pCmd != NULL;
         pPlayer->actorParams.flags &= ~SITH_AF_INVULNERABLE;
         jkDev_bSithEwokOn = 0;
         jkDev_pSithEwokPlayer = NULL;
@@ -1676,8 +1681,17 @@ int jkDev_Custom_CmdSithEwok(stdDebugConsoleCmd *pCmd, const char *pArgStr)
         return 1;
     }
 
+    jkDev_bSithEwokTypedOff = 0;
     jkDev_Custom_SithEwokOn(pPlayer, 0);
     return 1;
+}
+
+// Added: whether sithewok last went off by being typed, once (cleared by reading it)
+int jkDev_Custom_TakeSithEwokTypedOff()
+{
+    const int b = jkDev_bSithEwokTypedOff;
+    jkDev_bSithEwokTypedOff = 0;
+    return b;
 }
 
 // Added: whether sithewok is on (the one place that says: the cheat typed and the touch overlay's CHEAT

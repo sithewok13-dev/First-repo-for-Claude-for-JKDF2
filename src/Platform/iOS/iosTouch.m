@@ -4389,6 +4389,9 @@ static int iosTouch_WheelSliceHasRow(int i)
             [self setShowCheat:1];
             iosCheatLaugh_Play(iosGame_SfxVolume());
         }
+        // (typed off -- "sithewok" again, or "sithewok off" -- CHEAT goes too, as the tray's switch
+        // hides it; CHEAT's own hold leaves it showing, grey)
+        if (iosGame_TakeSithEwokTypedOff() && !iosTouch_bCheatOn && iosTouch_bShowCheat) [self setShowCheat:0];
         [self refreshButtonLooks];
     }
 

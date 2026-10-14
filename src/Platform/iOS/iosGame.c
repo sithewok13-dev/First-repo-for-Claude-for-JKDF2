@@ -497,6 +497,11 @@ int iosGame_ToggleSithEwok(void)
     return jkDev_Custom_ToggleSithEwok();
 }
 
+int iosGame_TakeSithEwokTypedOff(void)
+{
+    return jkDev_Custom_TakeSithEwokTypedOff();
+}
+
 void iosGame_SetCheatShown(int bShown)
 {
     jkDev_Custom_SetSithEwokShown(bShown);
