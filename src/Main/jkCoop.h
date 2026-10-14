@@ -37,6 +37,8 @@ int jkCoop_IsActive(void);
 
 // The level has ended (its Force power given): the local player's gear kept
 void jkCoop_LevelEnded(void);
+// The multiplayer game left (sithMulti_Shutdown): nothing kept for another game
+void jkCoop_SessionEnded(void);
 // A multiplayer level has been opened
 void jkCoop_LevelOpened(void);
 // Once a frame in a level

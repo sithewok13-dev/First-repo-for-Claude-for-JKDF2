@@ -244,6 +244,9 @@ void sithMulti_RemoveStaticThing(int guid)
 
 void sithMulti_Shutdown()
 {
+#ifdef QOL_IMPROVEMENTS
+    jkCoop_SessionEnded(); // Added: co-op, no gear carried into another game
+#endif
     sithMessage_g_outputstream &= ~1u;
     sithNet_isMulti = 0;
     sithNet_isServer = 0;

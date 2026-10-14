@@ -476,6 +476,9 @@ void jkMain_EndLevelScreenShow(int a1, int a2)
           && (sithPlayer_GetInvItemAmount(SITHBIN_NEW_STARS) <= 0.0 && sithPlayer_GetInvItemAmount(SITHBIN_SPEND_STARS) <= 0.0
            || jkGuiForce_Show(1, 0.0, jkMain_dword_552B98, 0, 0, 1) != -1) )
         {
+#ifdef QOL_IMPROVEMENTS
+            jkCoop_LevelEnded(); // Added: co-op, the stars just spent kept too
+#endif
             jkMain_StartNextLevelInEpisode(0, 1);
             return;
         }
@@ -491,6 +494,9 @@ void jkMain_EndLevelScreenShow(int a1, int a2)
 
             jkPlayer_idkEndLevel();
             if (jkGuiForce_Show(1, 0.0, jkMain_dword_552B98, 0, 0, 1) != -1) {
+#ifdef QOL_IMPROVEMENTS
+                jkCoop_LevelEnded(); // Added: co-op, the stars just spent kept too
+#endif
                 jkMain_StartNextLevelInEpisode(0, 1);
                 return;
             }
@@ -677,7 +683,8 @@ LABEL_28:
             // went another way for this player): that one loaded instead
             if (jkCoop_FollowHostLevel()) {
                 thing_six = 0;
-                jkMain_GameplayShow(a1, a2);
+                // (as a plain level load: a MotS cutscene's return would put its own level name back)
+                jkMain_GameplayShow(a1, JK_GAMEMODE_GAMEPLAY);
                 return;
             }
 #endif

@@ -145,7 +145,9 @@ static int stdComm_ENet_ChannelFor(const void* pData, uint32_t len)
     uint32_t id = 0;
     if (len < 4) return 0;
     memcpy(&id, pData, 4);
-    return (id & 0xFF) == DSS_THINGPOS ? 1 : 0;
+    // (one the game wants to arrive -- teleports, a joining player's copy of
+    // the level -- has a message number in the top half: kept reliable)
+    return ((id & 0xFF) == DSS_THINGPOS && !(id >> 16)) ? 1 : 0;
 }
 
 static void stdComm_ENet_SendRaw(ENetPeer* pPeer, const void* pData, uint32_t len, int channel)

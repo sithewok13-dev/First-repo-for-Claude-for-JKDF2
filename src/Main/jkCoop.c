@@ -28,6 +28,8 @@ int jkCoop_IsActive(void)
 
 // ------------------------------------------------------------------ gear between levels
 
+static char jkCoop_aHostLevel[32]; // (the host's level, below)
+
 // (a kit older than this is from another game: a level, its cutscene and its
 // screens take less)
 #define JKCOOP_KIT_MAX_AGE_MS (15 * 60 * 1000)
@@ -51,7 +53,7 @@ static int jkCoop_bWasDead = 0;
 static SithThing* jkCoop_LocalPlayer(void)
 {
     SithThing* pMe = sithPlayer_g_pLocalPlayerThing;
-    if (!pMe || pMe->type != SITH_THING_PLAYER || !pMe->actorParams.pPlayer || !pMe->actorParams.pPlayer->aItems)
+    if (!pMe || pMe->type != SITH_THING_PLAYER || !pMe->actorParams.pPlayer)
         return NULL;
     return pMe;
 }
@@ -70,9 +72,9 @@ static int jkCoop_BinCarried(int bin)
     return 1;
 }
 
-static void jkCoop_TakeKit(SithThing* pMe)
+static void jkCoop_TakeKit(SithPlayer* pPlayer)
 {
-    SithInventoryItem* aItems = pMe->actorParams.pPlayer->aItems;
+    SithInventoryItem* aItems = pPlayer->aItems;
     for (int i = 0; i < SITHBIN_NUMBINS; i++) {
         jkCoop_aKit[i].amount = 0.0;
         jkCoop_aKit[i].state = 0;
@@ -107,10 +109,18 @@ static void jkCoop_GiveKit(SithThing* pMe, int bLevel)
 
 void jkCoop_LevelEnded(void)
 {
-    SithThing* pMe = jkCoop_LocalPlayer();
-    if (!jkCoop_IsActive() || !pMe)
+    // (the player's record, not their thing: also after the level has closed, the
+    // Force powers screen's choices made)
+    if (!jkCoop_IsActive() || !sithPlayer_g_pLocalPlayer)
         return;
-    jkCoop_TakeKit(pMe);
+    jkCoop_TakeKit(sithPlayer_g_pLocalPlayer);
+}
+
+void jkCoop_SessionEnded(void)
+{
+    jkCoop_bKitValid = 0;
+    jkCoop_bKitToGive = 0;
+    jkCoop_aHostLevel[0] = 0;
 }
 
 void jkCoop_LevelOpened(void)
@@ -142,7 +152,7 @@ void jkCoop_Tick(void)
     }
     if (!jkCoop_bKitTaken) {
         // (this level's starting kit, for coming back after dying)
-        jkCoop_TakeKit(pMe);
+        jkCoop_TakeKit(pMe->actorParams.pPlayer);
         jkCoop_bKitTaken = 1;
     }
     if (jkCoop_bWasDead) {
@@ -221,8 +231,6 @@ void jkCoop_PlacePlayer(SithThing* pPlayer)
 
 // ------------------------------------------------------------------ the host's level
 
-static char jkCoop_aHostLevel[32];
-
 int jkCoop_HostLevelFromJoining(SithMessage* pMsg)
 {
     jkCoop_aHostLevel[0] = 0;
@@ -233,8 +241,16 @@ int jkCoop_HostLevelFromJoining(SithMessage* pMsg)
     NETMSG_POPS32();
     NETMSG_POPS32();
     NETMSG_POPSTR(jkCoop_aHostLevel, 32);
-    if (!jkCoop_aHostLevel[0])
+    int bKnown = 0;
+    for (int i = 0; i < jkEpisode_mLoad.numSeq && jkEpisode_mLoad.paEntries && !bKnown; i++)
+        bKnown = !__strcmpi(jkEpisode_mLoad.paEntries[i].fileName, jkCoop_aHostLevel);
+    // (not a level of this episode: the game's own "wrong level"; nor the one just
+    // loaded, a late answer to an earlier try)
+    if (!jkCoop_aHostLevel[0] || !bKnown
+        || (sithWorld_g_pCurrentWorld && !__strcmpi(sithWorld_g_pCurrentWorld->map_jkl_fname, jkCoop_aHostLevel))) {
+        jkCoop_aHostLevel[0] = 0;
         return 0;
+    }
     stdPlatform_Printf("OpenJKDF2: co-op, the host is on %s\n", jkCoop_aHostLevel);
     return 1;
 }

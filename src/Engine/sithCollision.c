@@ -1230,7 +1230,8 @@ int sithCollision_HasLOS(SithThing *pViewer, SithThing *pTarget, int flag)
 
 #ifdef QOL_IMPROVEMENTS
 // Added: sithCollision_HasLOS's search between two spots, by a ball of the
-// given size, with things (players, enemies) not in the way: 1 if no wall
+// given size, with things (players, enemies) not in the way: 1 if no wall (or
+// opening that can't be passed)
 int sithCollision_CheckPathClearOfWalls(SithSector *sector, rdVector3 *startPos, rdVector3 *endPos, flex_t radius)
 {
     rdVector3 dir;
@@ -1239,7 +1240,9 @@ int sithCollision_CheckPathClearOfWalls(SithSector *sector, rdVector3 *startPos,
     if (dist <= 0.0)
         return 1;
 
-    sithCollision_SearchForCollisions(sector, NULL, startPos, &dir, dist, radius, RAYCAST_2000 | RAYCAST_100 | RAYCAST_20 | RAYCAST_2 | RAYCAST_1);
+    // (not RAYCAST_100: an opening one can see through but not pass, a window
+    // or a force field, is a wall here)
+    sithCollision_SearchForCollisions(sector, NULL, startPos, &dir, dist, radius, RAYCAST_20 | RAYCAST_2 | RAYCAST_1);
     int stackIdx = sithCollision_searchStackIdx;
     int bClear = 1;
     SithCollision* pIter = sithCollision_aCollisions[stackIdx].collisions;
