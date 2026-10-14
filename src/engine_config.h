@@ -66,7 +66,14 @@
 #define MULTI_LEAVEJOIN_DELAY_MS (1000)
 #define MULTI_TIMEOUT_MS (30000)
 #define MULTI_SCORE_UPDATE_INTERVAL_MS (5000)
+#ifdef PLATFORM_ENET
+// Added: ENet paces its own reliable sends, so a joining player's copy of the
+// level goes six times faster (a big level in seconds, not a minute, which
+// matters with several joining at a co-op level's start)
+#define MULTI_BIG_UPDATE_INTERVAL_MS (5)
+#else
 #define MULTI_BIG_UPDATE_INTERVAL_MS (30)
+#endif
 #else // !QOL_IMPROVEMENTS
 #define MULTI_NEXTLEVEL_DELAY_MS (10000)
 #define MULTI_LEAVEJOIN_DELAY_MS (5000)

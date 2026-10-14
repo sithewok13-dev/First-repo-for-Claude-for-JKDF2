@@ -46,6 +46,9 @@
 #define STDCOMM_ENET_MAX_PEERS 32
 #define STDCOMM_ENET_CHANNELS 2       // 0: reliable, in order; 1: unreliable, newest only (positions)
 #define STDCOMM_ENET_TIMEOUT_MS 8000  // (a player gone quiet this long is dropped)
+// (a host gone quiet this long, for a player: longer, as a host sending a
+// level's state to several joining players at once can be slow to answer)
+#define STDCOMM_ENET_HOST_TIMEOUT_MS 20000
 #define STDCOMM_ENET_MAX_MSG 4096
 
 #define stdComm_ENet_infoPrintf(fmt, ...) stdPlatform_Printf(fmt, ##__VA_ARGS__)
@@ -643,7 +646,7 @@ int stdComm_Open(int idx, char16_t* pwPassword)
     stdComm_ENet_myId = 0xFFFFFFFF;
     stdComm_ENet_pHost = enet_host_create(NULL, 1, STDCOMM_ENET_CHANNELS, 0, 0);
     stdComm_ENet_pServer = stdComm_ENet_pHost ? enet_host_connect(stdComm_ENet_pHost, &addr, STDCOMM_ENET_CHANNELS, 0) : NULL;
-    if (stdComm_ENet_pServer) enet_peer_timeout(stdComm_ENet_pServer, 32, STDCOMM_ENET_TIMEOUT_MS, STDCOMM_ENET_TIMEOUT_MS);
+    if (stdComm_ENet_pServer) enet_peer_timeout(stdComm_ENet_pServer, 32, STDCOMM_ENET_HOST_TIMEOUT_MS, STDCOMM_ENET_HOST_TIMEOUT_MS);
     SDL_UnlockMutex(stdComm_ENet_mutex);
     if (!stdComm_ENet_pServer) return 0x88770154 + 1;
 
