@@ -4383,6 +4383,9 @@ static int iosTouch_WheelSliceHasRow(int i)
     [self setRing:bactaRing progress:bactaProgress];
     if (iosGame_IsSithEwokOn() != iosTouch_bCheatOn) {
         iosTouch_bCheatOn = iosGame_IsSithEwokOn();
+        // (switched on some other way -- typed "sithewok" -- with CHEAT hidden: shown, as the
+        // tray's switch shows it)
+        if (iosTouch_bCheatOn && !iosTouch_bShowCheat) [self setShowCheat:1];
         [self refreshButtonLooks];
     }
 

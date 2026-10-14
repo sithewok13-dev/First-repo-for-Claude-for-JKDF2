@@ -1845,9 +1845,7 @@ static void jkDev_Custom_SithEwokOn(SithThing *pPlayer, int bAgain)
     jkDev_bSithEwokOn = 1;
     jkDev_pSithEwokPlayer = pPlayer;
     jkDev_sithEwokWait = 0;
-    // (no message for it going on; put on again for a new level, a short reminder only where the touch
-    // overlay's CHEAT isn't showing, red, that it is on)
-    if ( bAgain && !jkDev_bSithEwokShown )
-        sithConsole_PrintString("sithewok: still on");
+    // (no message for it going on, nor for its being put on again for a new level)
+    (void)bAgain;
 }
 #endif
