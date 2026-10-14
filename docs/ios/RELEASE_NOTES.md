@@ -13,7 +13,7 @@
   into a visible one.
 -->
 
-**OpenJKDF2 for iOS v0.6**: an unofficial iPhone and iPad build of [OpenJKDF2](https://github.com/shinyquagsire23/OpenJKDF2), the open-source Jedi Knight: Dark Forces II engine, with on-screen touch controls. **New in this release: lightsabers your way, cheat mode, and a photo camera that stops time.** Pick your blade's colour from 17, or fight with **two sabers** at once, each in its own colour. Switch on **cheat mode** and a red Sith emblem button turns `sithewok` on and off, with new powers on the buttons you already use: **fly**, walk **through walls**, and **jump to any level**. And the camera now does **Action Freeze**: stop the fight mid-blast, swing the camera round it and take your shot, or let it sweep round the action by itself for five cinematic photos. It's all in both apps, Jedi Knight and Mysteries of the Sith. Coming from v0.4? You also get the **selfie camera** from v0.5. From v0.3 or older? Also **Mysteries of the Sith** in its own app, **OpenMoTS**. It's still **experimental**, so expect bugs.
+**OpenJKDF2 for iOS v0.7**: an unofficial iPhone and iPad build of [OpenJKDF2](https://github.com/shinyquagsire23/OpenJKDF2), the open-source Jedi Knight: Dark Forces II engine, with on-screen touch controls. **New in this release: Force Jump the way you remember it, and a cheat that never runs dry.** Hold FORCE and a gold ring fills as Kyle gathers the Force: a tap is a small hop, a full hold the highest leap your stars allow, so you choose every jump. With `sithewok` on, every kind of ammo is full and stays full however much you fire, and typing `sithewok` again switches it off. It's all in both apps, Jedi Knight and Mysteries of the Sith. Coming from v0.5? You also get **lightsaber colours and two sabers**, **cheat mode** with its Sith emblem button, and **Action Freeze** from v0.6. From v0.4 or older? Also the **selfie camera**, and **Mysteries of the Sith** in its own app, **OpenMoTS**. It's still **experimental**, so expect bugs.
 
 **You need your own copy of the game; no game files are included.** OpenJKDF2 needs Star Wars Jedi Knight: Dark Forces II, and OpenMoTS needs Star Wars Jedi Knight: Mysteries of the Sith (GOG and Steam sell both).
 
@@ -23,9 +23,16 @@
 
 **New here?** *Known limitations*, *Requirements* and *Install* are near the bottom of this page, just above the download.
 
-### What's in v0.6
+### What's in v0.7
 
-New since v0.5, in both apps:
+New since v0.6, in both apps:
+
+- **Force Jump by how long you hold:** a new **JUMP** button in MENU's hidden tray picks how FORCE's hold works. **SMOOTH** (the default): a tap is the lowest Force Jump, and the longer you hold, the higher it goes, up to the highest for your stars, with a **gold ring** filling inside FORCE so you can see how high you'll go. **STEPS:** the same heights in clear steps, with a tick at each. **CLASSIC:** the original game, where a quick tap is the highest jump. See *Force Jump* below.
+- **Endless ammo with `sithewok`:** every kind of ammo is filled to its most and refills as you fire, the battery for the field light and IR goggles too.
+- **Typing `sithewok` switches the cheat on or off.** Typed on, the CHEAT button appears (with the Emperor's laugh); typed off, it goes away. There's no separate `sithewok off` any more.
+- **SABER shows whenever Kyle has a lightsaber,** however he got it. A lightsaber only the cheat gave still goes when the cheat goes off; one the story gave him stays.
+
+Added in v0.6 (if you're coming from v0.5):
 
 - **Lightsaber colours:** a **SABER** button on the top row (once you have the lightsaber) opens a saber wheel with **17 colours**: the game's own (ORIGINAL), red, crimson, orange, amber, yellow, lime, green, teal, cyan, light blue, blue, purple, magenta, pink, white and black. It changes only how your blade looks, in first and third person and in photos. See *The lightsaber: SABER* below.
 - **Two sabers:** choose **DUAL** on the saber wheel and Kyle (or Mara) fights with a saber in each hand, each in its own colour. The second blade strikes too. In first person both arms move, and between fights the two sabers settle into a few natural resting stances, with a faint shimmer on each blade.
@@ -377,7 +384,8 @@ Catches, in Jedi Knight (Mysteries of the Sith's are in its section below):
 
 ### Known limitations
 
-- **What's new in v0.6 has been tested mostly on a computer**, with the real game engine and simulated touches: the saber colours and two sabers, cheat mode and its holds (fly, noclip, picking a level), Action Freeze and the cinematic burst, and the new selfies. Some of it has been tried on an iPhone, but not all of it, and not on an iPad. **If something looks or works wrong, please report it** (see *Found a bug?*).
+- **What's new in v0.7 has only been tested on a computer** so far, with the real game engine and simulated touches: the Force Jump styles and their ring, the endless ammo, and typing `sithewok` to switch it. It hasn't been tried on an iPhone yet. **If a jump feels wrong, please report it** (see *Found a bug?*), and CLASSIC in MENU's tray brings back the original.
+- **What was new in v0.6 has been tested mostly on a computer**, with the real game engine and simulated touches: the saber colours and two sabers, cheat mode and its holds (fly, noclip, picking a level), Action Freeze and the cinematic burst, and the new selfies. Some of it has been tried on an iPhone, but not all of it, and not on an iPad. **If something looks or works wrong, please report it** (see *Found a bug?*).
 - **Two sabers use Kyle's one-saber moves:** there are no new animations, so in his two-handed swings the blades come from nearly the same place, and the resting stances are in first person only.
 - **Action Freeze close to walls:** the camera keeps out of walls and closed doors, but very close to one the view behind it can come out black.
 - **The selfie camera** has been tried on an iPhone (lots of selfies and photos in Jedi Knight), and tested on a computer with the real game engine, with each selfie checked to put the whole level back exactly as it was. Selfies in Mysteries of the Sith have only been tested on a computer. With low-detail 1990s models, some poses can look a little odd up close. **If a selfie looks strange, or the game doesn't carry on as before after one, please report it** (see *Found a bug?*).
@@ -416,7 +424,7 @@ The setup guide covers each step, including Developer Mode and "Untrusted Develo
 
 **Download:** under *Assets* below (not the *Source code* files): `OpenJKDF2-iOS-unsigned.ipa` is Jedi Knight (OpenJKDF2), and `OpenJKDF2-MotS-iOS-unsigned.ipa` is Mysteries of the Sith (OpenMoTS). The *iOS latest build* prerelease, also on the Releases page, is rebuilt automatically after every code change and may be broken: use this release.
 
-**Found a bug?** Please report it here, not to the upstream OpenJKDF2 project, and say you're on **v0.6** and which app, OpenJKDF2 or OpenMoTS (AltStore and Settings show 0.9.9 for both: that's the engine's version): https://github.com/sithewok13-dev/OpenJKDF2-iOS/issues
+**Found a bug?** Please report it here, not to the upstream OpenJKDF2 project, and say you're on **v0.7** and which app, OpenJKDF2 or OpenMoTS (AltStore and Settings show 0.9.9 for both: that's the engine's version): https://github.com/sithewok13-dev/OpenJKDF2-iOS/issues
 
 ---
 
