@@ -499,7 +499,7 @@ typedef struct {
 } iosSaberEcho;
 
 // Each two-saber player's (the player's own, and in multiplayer others'): their arms and poses kept
-#define IOSSABER_ARM_SLOTS 4
+#define IOSSABER_ARM_SLOTS 8
 typedef struct {
     SithThing* pThing;
     uint32_t usedMs;

@@ -284,7 +284,7 @@ LABEL_14:
                 else
                 {
 LABEL_22:
-                    if ( v2 < (unsigned int)DSS_MAX )
+                    if ( v2 < 65 ) // Added: the handlers' table holds 65 (was DSS_MAX, 66: one past its end)
                     {
                         if ( sithMessage_aTypeFuncs[v2] )
                             sithMessage_aTypeFuncs[v2](&sithComm_netMsgTmp);

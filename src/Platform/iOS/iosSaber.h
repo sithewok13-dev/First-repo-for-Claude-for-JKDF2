@@ -70,7 +70,7 @@ void iosSaber_EndBlade(struct rdThing* pLine);
 int iosSaber_HasSecondBlade(struct SithThing* pThing);
 
 // Second, the two-saber style's left arm (rdPuppet_BuildJointMatrices, each
-// joint posed and not yet put together; each two-saber player's, up to four
+// joint posed and not yet put together; each two-saber player's, up to eight
 // at once): the player's left arm takes the
 // right arm's pose of IOSSABER_ECHO_MS before, mirrored, so the two sabers
 // are held apart and swing one after the other, the second blade striking
