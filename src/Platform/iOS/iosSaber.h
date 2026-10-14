@@ -80,6 +80,11 @@ void iosSaber_PoseArms(struct rdThing* pRdThing);
 // (they are made again, from the next level's palette, when next drawn)
 void iosSaber_FreeWorld(void);
 
+// A thing drawn (sithRender_RenderThing): a saber the player threw, in its
+// colour (iosSaberThrow_ThrownColour) just while it is drawn, between these
+void iosSaber_BeginThrown(struct SithThing* pThing);
+void iosSaber_EndThrown(struct SithThing* pThing);
+
 #ifdef __cplusplus
 }
 #endif

@@ -20,6 +20,9 @@
 #include "Main/jkMain.h"
 #include "Main/jkStrings.h"
 #include "Main/jkQuakeConsole.h"
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosSaberThrow.h" // Added
+#endif
 #include "stdPlatform.h"
 #include "wprintf.h"
 #include "Dss/sithMulti.h"
@@ -79,6 +82,7 @@ static int jkDev_lastOtherWeapon = -1;
 static int jkDev_sithEwokPower = -1;
 static int jkDev_sithEwokPowerBack = -1;
 static void jkDev_Custom_TakeCheatSaber(SithThing *pPlayer);
+static void jkDev_Custom_SaberThrowForget();
 static void jkDev_Custom_KeepForceFull();
 static void jkDev_Custom_SithEwokOn(SithThing *pPlayer, int bAgain);
 #endif
@@ -243,6 +247,9 @@ void jkDev_DrawLog()
 #ifdef QOL_IMPROVEMENTS
     // Added: sithewok's endless Force, after the tick and before the HUD draws the meter
     jkDev_Custom_KeepForceFull();
+#endif
+#ifdef TARGET_IOS
+    iosSaberThrow_Tick(); // Added: two sabers' Saber Throw, once a frame
 #endif
 
     // Added: Prevent crashes
@@ -1757,6 +1764,7 @@ void jkDev_Custom_SithEwokRestored()
 // (the loaded game has its own in hand)
 void jkDev_Custom_GameLoaded()
 {
+    jkDev_Custom_SaberThrowForget();
     jkDev_Custom_SithEwokRestored();
     jkDev_sithEwokWeaponBack = -1;
     jkDev_sithEwokPowerBack = -1; // (the loaded game's own power selected)
@@ -1779,6 +1787,69 @@ void jkDev_Custom_GameLoaded()
 // that) taken back, with sithewok going off or a game loaded without it: if it is in hand or on its way,
 // the last other weapon the player had in hand instead (else the game's own best pick). One the game
 // gave is never touched.
+// Added: the lightsaber through a throw (Saber Throw: the game's, or two sabers' iosSaberThrow), so a throw
+// never changes whose it is: the time it was last taken away for one (-1: not out), and the time the
+// cheat took back a saber only it gave while one was out (-1: none)
+static flex_d_t jkDev_saberAwaySecs = -1.0;
+static flex_d_t jkDev_saberRevokedSecs = -1.0;
+static int jkDev_bTakingCheatSaber = 0;
+#define JKDEV_SABER_THROW_SECS 12.0 // (a throw is back well within this: the game's gives it back after 5 s)
+
+static int jkDev_Custom_Within(flex_d_t since)
+{
+    return since >= 0.0 && sithTime_g_secGameTime >= since && sithTime_g_secGameTime - since < JKDEV_SABER_THROW_SECS;
+}
+
+static int jkDev_Custom_SaberOut()
+{
+#ifdef TARGET_IOS
+    if ( iosSaberThrow_AnyOut() )
+        return 1;
+#endif
+    return jkDev_Custom_Within(jkDev_saberAwaySecs);
+}
+
+// Added: for sithInventory_SetInventory, the local player's lightsaber (single player): taken away
+// (the game's throw takes it while it flies) noted; given while a throw is out, it comes back as it
+// was had -- the cheat's mark kept -- or, if the cheat took back a saber only it gave meanwhile, not at
+// all. Returns whether the cheat's mark may go (any other grant: had for real from then on).
+int jkDev_Custom_SaberThrowCheck(SithThing *pThing, int typeId, SithInventoryItem *info, flex_t origAmt)
+{
+    // (Saber Throw is Mysteries of the Sith's: Jedi Knight's scripts taking the saber and giving it back,
+    // as level 17's start does, are grants as ever)
+    if ( !Main_bMotsCompat || sithNet_isMulti || !pThing || pThing != sithPlayer_g_pLocalPlayerThing || typeId != jkDev_Custom_SaberBin() )
+        return 1;
+    if ( info->amount <= 0.0 )
+    {
+        if ( origAmt > 0.0 && !jkDev_bTakingCheatSaber )
+            jkDev_saberAwaySecs = sithTime_g_secGameTime;
+        return 1;
+    }
+    if ( jkDev_Custom_Within(jkDev_saberRevokedSecs) )
+    {
+        info->amount = origAmt; // (the cheat took it back: not given)
+        return 0;
+    }
+    if ( !jkDev_Custom_SaberOut() )
+        return 1;
+    if ( origAmt <= 0.0 )
+        jkDev_saberAwaySecs = -1.0; // (back)
+#ifdef TARGET_IOS
+    iosSaberThrow_SaberGiven();
+#endif
+    return 0;
+}
+
+// Added: a new level or a load: no throw out
+static void jkDev_Custom_SaberThrowForget()
+{
+    jkDev_saberAwaySecs = -1.0;
+    jkDev_saberRevokedSecs = -1.0;
+#ifdef TARGET_IOS
+    iosSaberThrow_Reset();
+#endif
+}
+
 static void jkDev_Custom_TakeCheatSaber(SithThing *pPlayer)
 {
     const int bin = jkDev_Custom_SaberBin();
@@ -1787,7 +1858,15 @@ static void jkDev_Custom_TakeCheatSaber(SithThing *pPlayer)
         return;
     const int cur = pPlayer->actorParams.pPlayer->curWeaponID;
     const int bInHand = cur == bin || sithWeapon_8BD024 == bin;
+    // (thrown: when it comes back, it isn't given; and nothing of it out any more)
+    if ( jkDev_Custom_SaberOut() )
+        jkDev_saberRevokedSecs = sithTime_g_secGameTime;
+#ifdef TARGET_IOS
+    iosSaberThrow_Reset();
+#endif
+    jkDev_bTakingCheatSaber = 1;
     sithInventory_SetInventory(pPlayer, bin, 0.0);
+    jkDev_bTakingCheatSaber = 0;
     pSaber->state &= ~SITHINVENTORY_ITEM_CHEAT_GIVEN;
     if ( !bInHand )
         return;
@@ -1842,6 +1921,7 @@ static int jkDev_Custom_PutWeaponBack(SithThing *pPlayer)
 // in hand is put back, right away where it can be; and the Force power selected, once given again
 void jkDev_Custom_LevelOpened()
 {
+    jkDev_Custom_SaberThrowForget();
     jkDev_sithEwokWeaponBack = -1;
     jkDev_sithEwokPowerBack = -1;
     if ( !jkDev_bSithEwokOn || sithNet_isMulti || !sithWorld_g_pCurrentWorld )

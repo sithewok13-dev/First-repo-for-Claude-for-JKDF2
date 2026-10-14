@@ -2,6 +2,8 @@
 
 #include "Platform/iOS/iosSaber.h"
 #include "Platform/iOS/iosStance.h"
+#include "Platform/iOS/iosSaberThrow.h"
+#include "Primitives/rdModel3.h"
 
 #ifdef TARGET_IOS
 
@@ -289,6 +291,82 @@ static int iosSaber_Load(int id)
     return 1;
 }
 
+// ------------------------------------------------------------ thrown sabers
+
+// A thrown saber (Mysteries of the Sith's +fsab_..., a spinning model whose
+// blade is its first material, sab0<colour>.mat) drawn in a colour: the game's
+// own thrown blade for its seven, and the others made from its green or blue
+// one as the hand-held blades are (iosSaber_MakeTexels), loaded as needed and
+// freed with the level. While one is drawn, its blade's faces have it.
+static rdMaterial iosSaber_aThrownMat[IOSSABER_NUM_COLOURS];
+static int iosSaber_aThrownLoaded[IOSSABER_NUM_COLOURS]; // 1: loaded; -1: tried, and couldn't be
+static rdModel3* iosSaber_pThrownModel = NULL; // (the one being drawn, its blade as it was)
+static rdMaterial* iosSaber_pThrownBlade = NULL;
+
+static const char* iosSaber_ThrownName(const char* key)
+{
+    static const char* aMap[][2] = { { "red", "red" }, { "dred", "dred" }, { "orange", "oran" }, { "yellow", "yell" },
+                                     { "green", "gree" }, { "blue", "blue" }, { "purple", "purp" } };
+    for (int i = 0; key && i < (int)(sizeof(aMap) / sizeof(aMap[0])); i++)
+        if (!strcmp(aMap[i][0], key)) return aMap[i][1];
+    return NULL;
+}
+
+static rdMaterial* iosSaber_ThrownMat(int id)
+{
+    if (id <= IOSSABER_COLOUR_GAME || id >= IOSSABER_NUM_COLOURS) return NULL;
+    if (iosSaber_aThrownLoaded[id]) return iosSaber_aThrownLoaded[id] > 0 ? &iosSaber_aThrownMat[id] : NULL;
+    iosSaber_aThrownLoaded[id] = -1;
+    const iosSaberColour* c = &iosSaber_aColours[id];
+    const char* name = iosSaber_ThrownName(c->stock ? c->stock : c->from);
+    const rdColor24* pal = (sithWorld_g_pCurrentWorld && sithWorld_g_pCurrentWorld->colormaps)
+                           ? sithWorld_g_pCurrentWorld->colormaps[0].colors : NULL;
+    if (!name || (!c->stock && !pal)) return NULL;
+    char path[64];
+    snprintf(path, sizeof(path), "3do\\mat\\sab0%s.mat", name); // (as the thrown saber models have them)
+    if (!rdMaterial_LoadEntry(path, &iosSaber_aThrownMat[id], 0, 0)) return NULL;
+    if (!c->stock && !iosSaber_Recolour(&iosSaber_aThrownMat[id], c, pal)) {
+        iosSaber_FreeMaterial(&iosSaber_aThrownMat[id]);
+        return NULL;
+    }
+    iosSaber_aThrownLoaded[id] = 1;
+    return &iosSaber_aThrownMat[id];
+}
+
+static void iosSaber_SwapThrownBlade(rdModel3* m, rdMaterial* from, rdMaterial* to)
+{
+    for (uint32_t g = 0; g < m->numGeos && g < 4; g++) {
+        for (uint32_t k = 0; k < m->aGeos[g].numMeshes; k++) {
+            rdMesh* mesh = &m->aGeos[g].aMeshes[k];
+            for (int f = 0; f < mesh->numFaces; f++)
+                if (mesh->faces[f].material == from) mesh->faces[f].material = to;
+        }
+    }
+}
+
+void iosSaber_BeginThrown(SithThing* pThing)
+{
+    iosSaber_pThrownModel = NULL;
+    const int id = iosSaberThrow_ThrownColour(pThing);
+    if (id <= IOSSABER_COLOUR_GAME || pThing->renderData.type != RD_THING_MODEL3) return;
+    rdModel3* m = pThing->renderData.model3;
+    if (!m || m->sizeMaterials < 1 || !m->aMaterials || !m->aMaterials[0]) return;
+    rdMaterial* pMat = iosSaber_ThrownMat(id);
+    if (!pMat) return;
+    iosSaber_pThrownModel = m;
+    iosSaber_pThrownBlade = m->aMaterials[0];
+    iosSaber_SwapThrownBlade(m, iosSaber_pThrownBlade, pMat);
+}
+
+void iosSaber_EndThrown(SithThing* pThing)
+{
+    if (!iosSaber_pThrownModel) return;
+    const int id = iosSaberThrow_ThrownColour(pThing);
+    if (id > IOSSABER_COLOUR_GAME && iosSaber_aThrownLoaded[id] > 0)
+        iosSaber_SwapThrownBlade(iosSaber_pThrownModel, &iosSaber_aThrownMat[id], iosSaber_pThrownBlade);
+    iosSaber_pThrownModel = NULL;
+}
+
 static rdModel3* iosSaber_pArmModel; // (below: the second saber's arm)
 static int iosSaber_echoCount;
 
@@ -299,6 +377,10 @@ void iosSaber_FreeWorld(void)
             for (int p = 0; p < IOSSABER_NUM_PARTS; p++) iosSaber_FreeMaterial(&iosSaber_aMat[id][p]);
         }
         iosSaber_aLoaded[id] = 0;
+    }
+    for (int id = 0; id < IOSSABER_NUM_COLOURS; id++) {
+        if (iosSaber_aThrownLoaded[id] > 0) iosSaber_FreeMaterial(&iosSaber_aThrownMat[id]);
+        iosSaber_aThrownLoaded[id] = 0;
     }
     // (the arms' joints found again for the next level's model, even one at the same address)
     iosSaber_pArmModel = NULL;
@@ -317,7 +399,9 @@ int iosSaber_HasSecondBlade(SithThing* pThing)
 {
     // (not in a selfie: it poses the player with one hand on the phone and the other free, or showing off
     // the one weapon)
-    return iosSaber_IsPlayers(pThing) && iosSaber_aStyles[iosSaber_style].numBlades >= 2 && !iosSelfie_IsActive();
+    // (and both in hand: one thrown, the other is held as one saber, iosSaberThrow)
+    return iosSaber_IsPlayers(pThing) && iosSaber_aStyles[iosSaber_style].numBlades >= 2 && !iosSelfie_IsActive()
+           && iosSaberThrow_HandsInHand() == 3;
 }
 
 // (the blade's width as it was, while it is drawn shimmering: two sabers)
@@ -346,7 +430,10 @@ void iosSaber_BeginBlade(SithThing* pThing, rdThing* pLine, int blade)
     const iosSaberStyle* st = &iosSaber_aStyles[iosSaber_style];
     // (a blade the style doesn't have -- the game's own second one -- as its first)
     if (blade < 0 || blade >= st->numBlades) blade = 0;
-    const int id = iosSaber_aColour[iosSaber_style][blade];
+    int id = iosSaber_aColour[iosSaber_style][blade];
+    // (two sabers with the right one thrown: the left one, in hand, in its own colour)
+    if (iosSaber_style == IOSSABER_STYLE_DUAL && blade == 0 && iosSaber_IsPlayers(pThing) && iosSaberThrow_HandsInHand() == 2)
+        id = iosSaber_aColour[IOSSABER_STYLE_DUAL][1];
     if (id == IOSSABER_COLOUR_GAME || !iosSaber_Load(id)) return;
     rdPolyline* l = pLine->polyline;
     iosSaber_pSavedSide = l->face.material;

@@ -275,6 +275,7 @@ New in v0.6. Once you have the lightsaber (or while `sithewok` is on), a **SABER
 - **Two sabers fight for real:** the second blade strikes, deals damage and throws sparks like the first. In first person both arms move, and between swings the two sabers settle into a few natural resting stances, with a faint shimmer on each blade. Kyle has no new animations, so in his two-handed swings the blades come from nearly the same place.
 - **Only the look changes,** and only in your own single-player game: the saber's damage, your saves and the levels are untouched. The colours show in first and third person, in selfies and in Action Freeze. The app remembers your colours and style.
 - A lightsaber that only `sithewok` gave you goes away again when the cheat goes off (see *Cheats*). One the game gave you stays.
+- **Saber Throw (Mysteries of the Sith):** a thrown saber flies in its own colour, any of the 17. **With two sabers, each tap of FORCE throws one:** the right saber first, then the left (at least a quarter of a second later, on a slightly different path). Mara fights on with the one still in her hand, and each saber comes back to its own hand when she catches it. Each throw costs the power's usual Force, and with both thrown she's on her fists until one comes back, as in the original. With one saber, Saber Throw is exactly the original.
 
 #### The FORCE button and the Force meter
 

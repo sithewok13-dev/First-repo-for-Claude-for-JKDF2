@@ -707,6 +707,14 @@ cancels, and the game holds still while the wheel is open.
   remembers your colours and style.
 - A lightsaber that only `sithewok` gave you goes away again when the cheat
   goes off (see [Cheats](#cheats)). One the game gave you stays.
+- **Saber Throw** (Mysteries of the Sith): a thrown saber flies in its own
+  colour, any of the 17. **With two sabers, each tap of FORCE throws one:**
+  the right saber first, then the left (at least a quarter of a second
+  later, on a slightly different path). Mara fights on with the one still
+  in her hand, and each saber comes back to its own hand when she catches
+  it. Each throw costs the power's usual Force, and with both thrown she's
+  on her fists until one comes back, as in the original. With one saber,
+  Saber Throw is exactly the original.
 
 ## Saving and loading
 

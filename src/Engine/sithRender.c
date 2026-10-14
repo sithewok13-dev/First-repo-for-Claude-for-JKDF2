@@ -37,6 +37,7 @@
 #include "Platform/iOS/iosSelfie.h" // Added
 #include "Platform/iOS/iosPhotoCam.h" // Added
 #include "Platform/iOS/iosFreeze.h" // Added
+#include "Platform/iOS/iosSaber.h" // Added
 // Added: the photo camera (the selfie, Action Freeze) only looks: what it sees
 // isn't sighted, seen on the map, marked as on screen, or flashed (iosPhotoCam)
 #define SITHRENDER_PHOTO_LOOKING() iosPhotoCam_IsActive()
@@ -3052,7 +3053,13 @@ int sithRender_RenderThing(SithThing *pThing)
     }
 #endif
 
+#ifdef TARGET_IOS
+    iosSaber_BeginThrown(pThing); // Added: a thrown saber in its colour
+#endif
     ret = rdThing_Draw(&pThing->renderData, &pThing->orient);
+#ifdef TARGET_IOS
+    iosSaber_EndThrown(pThing);
+#endif
     rdVector_Zero3(&pThing->orient.scale);
     if (sithRender_pExtraThingRenderFunc && (pThing->flags & SITH_TF_RENDERWEAPON)) {
         sithRender_pExtraThingRenderFunc(pThing);
