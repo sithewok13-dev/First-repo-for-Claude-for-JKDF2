@@ -810,8 +810,9 @@ static SithInventoryItem* jkDev_Custom_Item(SithThing *pPlayer, int bin)
     return &pPlayer->actorParams.pPlayer->aItems[bin];
 }
 
-// Added: whether the touch overlay's SABER shows: the saber had for real (not just from a cheat), or
-// sithewok on (single player, in a level)
+// Added: whether the touch overlay's SABER shows: a saber in the inventory, however it came (a cheat's
+// too: one only sithewok gave goes when it goes off, jkDev_Custom_TakeCheatSaber), or sithewok on (single
+// player, in a level)
 int jkDev_Custom_SaberButtonShown()
 {
     if ( sithNet_isMulti || !sithWorld_g_pCurrentWorld )
@@ -820,7 +821,7 @@ int jkDev_Custom_SaberButtonShown()
     SithInventoryItem *pSaber = jkDev_Custom_Item(pPlayer, jkDev_Custom_SaberBin());
     if ( !pSaber )
         return 0;
-    return jkDev_bSithEwokOn || (pSaber->amount > 0.0 && !(pSaber->state & SITHINVENTORY_ITEM_CHEAT_GIVEN));
+    return jkDev_bSithEwokOn || pSaber->amount > 0.0;
 }
 #endif
 
