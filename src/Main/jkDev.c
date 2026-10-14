@@ -15,6 +15,10 @@
 #include "World/sithActor.h"
 #include "World/sithWeapon.h"
 #include "Gameplay/sithTime.h"
+#ifdef PLATFORM_ENET
+#include "Win95/stdComm.h"
+static void jkDev_Custom_HostAddressTick(void); // Added
+#endif
 #include "Main/sithCommand.h"
 #include "Main/Main.h"
 #include "Main/jkMain.h"
@@ -252,6 +256,9 @@ void jkDev_DrawLog()
 #ifdef TARGET_IOS
     iosSaberThrow_Tick(); // Added: two sabers' Saber Throw, once a frame
     iosGame_ViewTick(); // Added: the view the player picked (VIEW), kept
+#endif
+#ifdef PLATFORM_ENET
+    jkDev_Custom_HostAddressTick();
 #endif
 
     // Added: Prevent crashes
@@ -1921,8 +1928,34 @@ static int jkDev_Custom_PutWeaponBack(SithThing *pPlayer)
 
 // Added: a level opened (jkMain, single player; not a loaded game): with sithewok on, the weapon that was
 // in hand is put back, right away where it can be; and the Force power selected, once given again
+#ifdef PLATFORM_ENET
+// Added: the host told, a moment into each level, where others can join it
+// (its address on the local network: what they type on the Join screen)
+static flex_t jkDev_hostAddrAt = -1.0;
+
+static void jkDev_Custom_HostAddressTick(void)
+{
+    if (jkDev_hostAddrAt < 0.0 || sithTime_g_secGameTime < jkDev_hostAddrAt) return;
+    jkDev_hostAddrAt = -1.0;
+    if (!sithNet_isMulti || !sithNet_isServer) return;
+    char aAddr[200];
+    stdComm_ENet_GetLocalAddresses(aAddr, sizeof(aAddr));
+    char aMsg[256];
+    if (aAddr[0]) stdString_snprintf(aMsg, sizeof(aMsg), "Others can join at %s", aAddr);
+    else stdString_snprintf(aMsg, sizeof(aMsg), "Hosting (no local network address found)");
+    stdPlatform_Printf("%s\n", aMsg);
+    char16_t wMsg[256];
+    stdString_CharToWchar(wMsg, aMsg, 255);
+    wMsg[255] = 0;
+    jkDev_PrintUniString(wMsg);
+}
+#endif
+
 void jkDev_Custom_LevelOpened()
 {
+#ifdef PLATFORM_ENET
+    jkDev_hostAddrAt = (sithNet_isMulti && sithNet_isServer) ? sithTime_g_secGameTime + 2.0 : -1.0;
+#endif
     jkDev_Custom_SaberThrowForget();
     jkDev_sithEwokWeaponBack = -1;
     jkDev_sithEwokPowerBack = -1;

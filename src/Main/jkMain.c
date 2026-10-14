@@ -654,6 +654,9 @@ LABEL_28:
                 if ( sithNet_isMulti )
                     jkDSS_wrap_SendSaberInfo_alt();
             }
+#ifdef QOL_IMPROVEMENTS
+            jkDev_Custom_LevelOpened(); // Added: (multiplayer) the host's address shown
+#endif
         }
         else {
             thing_six = 1;

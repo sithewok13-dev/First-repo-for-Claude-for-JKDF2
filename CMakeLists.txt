@@ -50,6 +50,10 @@ set(TARGET_USE_CURL FALSE)
 set(TARGET_USE_PHYSFS FALSE)
 set(TARGET_USE_BASICSOCKETS FALSE)
 set(TARGET_USE_GAMENETWORKINGSOCKETS FALSE)
+set(TARGET_USE_ENET FALSE)
+# Added: -DOPENJKDF2_NET_ENET=ON: multiplayer over ENet instead of GameNetworkingSockets
+# (as the iOS apps have it, so a desktop build can play with them)
+option(OPENJKDF2_NET_ENET "Multiplayer over ENet (as on iOS)" OFF)
 set(TARGET_USE_LIBSMACKER FALSE)
 set(TARGET_USE_LIBSMUSHER FALSE)
 set(TARGET_USE_SDL2 FALSE)
@@ -163,6 +167,10 @@ endif()
 
 # Establishes compile options, binary/library names, defines, etc
 plat_initialize()
+if(OPENJKDF2_NET_ENET)
+    set(TARGET_USE_GAMENETWORKINGSOCKETS FALSE)
+    set(TARGET_USE_ENET TRUE)
+endif()
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
@@ -279,6 +287,10 @@ if (EXPERIMENTAL_FIXED_POINT)
 endif()
 
 add_library(sith_engine OBJECT ${ENGINE_SOURCE_FILES})
+# Added: ENet (multiplayer, TARGET_USE_ENET) on Windows needs Winsock and the multimedia timer
+if(TARGET_USE_ENET AND WIN32)
+    target_link_libraries(sith_engine PRIVATE ws2_32 winmm)
+endif()
 # Generate cog headers (generated/globals.h) fully before compiling any engine
 # source -- many include it transitively, and a parallel build otherwise races the
 # generation and reads a half-written header. See precompile_globals.cmake.

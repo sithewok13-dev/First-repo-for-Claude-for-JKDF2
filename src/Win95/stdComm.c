@@ -20,6 +20,9 @@ int stdComm_Startup()
 #ifdef PLATFORM_GNS
     stdComm_GNS_Startup();
 #endif
+#ifdef PLATFORM_ENET
+    stdComm_ENet_Startup();
+#endif
 #ifdef PLATFORM_NOSOCKETS
     stdComm_None_Startup();
 #endif
@@ -37,6 +40,9 @@ void stdComm_Shutdown()
     }
 #ifdef PLATFORM_GNS
     stdComm_GNS_Shutdown();
+#endif
+#ifdef PLATFORM_ENET
+    stdComm_ENet_Shutdown();
 #endif
 }
 

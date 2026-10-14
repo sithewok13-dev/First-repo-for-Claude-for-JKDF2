@@ -71,7 +71,7 @@ if((NOT GLEW_FOUND OR CMAKE_CROSSCOMPILING) AND NOT PLAT_WASM AND NOT TARGET_USE
     include(build_glew)
 endif()
 
-if (NOT TARGET_USE_BASICSOCKETS AND NOT TARGET_USE_GAMENETWORKINGSOCKETS)
+if (NOT TARGET_USE_BASICSOCKETS AND NOT TARGET_USE_GAMENETWORKINGSOCKETS AND NOT TARGET_USE_ENET)
     set(TARGET_USE_NOSOCKETS TRUE)
 endif()
 
@@ -120,6 +120,27 @@ if(TARGET_USE_GAMENETWORKINGSOCKETS)
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_GNS_SRCS})
 
     add_compile_definitions(PLATFORM_GNS)
+endif()
+
+# Added: multiplayer over ENet (lib/enet, a few plain C files built in here):
+# what the iOS apps use, and desktop builds that want to play with them
+if(TARGET_USE_ENET)
+    set(ENET_DIR ${PROJECT_SOURCE_DIR}/lib/enet)
+    set(TARGET_ENET_LIB_SRCS
+        ${ENET_DIR}/callbacks.c ${ENET_DIR}/compress.c ${ENET_DIR}/host.c ${ENET_DIR}/list.c
+        ${ENET_DIR}/packet.c ${ENET_DIR}/peer.c ${ENET_DIR}/protocol.c)
+    if(WIN32)
+        list(APPEND TARGET_ENET_LIB_SRCS ${ENET_DIR}/win32.c)
+    else()
+        list(APPEND TARGET_ENET_LIB_SRCS ${ENET_DIR}/unix.c)
+        set_source_files_properties(${TARGET_ENET_LIB_SRCS} PROPERTIES COMPILE_DEFINITIONS
+            "HAS_FCNTL=1;HAS_POLL=1;HAS_GETADDRINFO=1;HAS_GETNAMEINFO=1;HAS_INET_PTON=1;HAS_INET_NTOP=1;HAS_MSGHDR_FLAGS=1;HAS_SOCKLEN_T=1")
+    endif()
+    include_directories(${ENET_DIR}/include)
+    file(GLOB TARGET_ENET_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/ENet/*.c)
+    list(APPEND ENGINE_SOURCE_FILES ${TARGET_ENET_SRCS} ${TARGET_ENET_LIB_SRCS})
+
+    add_compile_definitions(PLATFORM_ENET)
 endif()
 
 if(TARGET_USE_BASICSOCKETS)

@@ -83,5 +83,10 @@
 	     Without this key iOS ends the app at that question. -->
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>The CAMERA button saves its photos to your library.</string>
+	<!-- Multiplayer (src/Platform/Networking/ENet) talks to the other players'
+	     devices on the Wi-Fi network: iOS asks once, the first time the game
+	     hosts or joins, and without this key it refuses. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Multiplayer connects to the other players' devices on your Wi-Fi network.</string>
 </dict>
 </plist>

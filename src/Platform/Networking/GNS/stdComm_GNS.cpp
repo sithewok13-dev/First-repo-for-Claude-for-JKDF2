@@ -252,6 +252,10 @@ static void InitSteamDatagramConnectionSockets()
 
     g_logTimeZero = g_SteamNetworkingUtils()->GetLocalTimestamp();
 
+    // Added: a player whose game has gone away (closed, crashed, out of Wi-Fi)
+    // is dropped after 8 s rather than the library's 10 s plus retries
+    g_SteamNetworkingUtils()->SetGlobalConfigValueInt32( k_ESteamNetworkingConfig_TimeoutConnected, 8000 );
+
     g_SteamNetworkingUtils()->SetDebugOutputFunction( k_ESteamNetworkingSocketsDebugOutputType_Msg, DebugOutput );
     stdComm_GNS_bInitted = 1;
 }

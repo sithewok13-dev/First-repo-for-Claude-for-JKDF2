@@ -20,13 +20,15 @@ macro(plat_initialize)
     include(cmake_modules/plat_feat_full_sdl2.cmake)
 
     # Same trims as Android: no auto-updater, no GameNetworkingSockets (protobuf
-    # + GNS do not cross-compile cleanly to iOS and multiplayer is not the point
-    # of this target), no PhysFS, and OpenAL is built from source rather than found.
+    # + GNS do not cross-compile cleanly to iOS), no PhysFS, and OpenAL is built
+    # from source rather than found. Multiplayer goes over ENet instead (a few
+    # plain C files: TARGET_USE_ENET, src/Platform/Networking/ENet).
     set(TARGET_USE_PHYSFS FALSE)
     set(TARGET_USE_CURL FALSE)
     set(TARGET_BUILD_TESTS FALSE)
     set(TARGET_FIND_OPENAL FALSE)
     set(TARGET_USE_GAMENETWORKINGSOCKETS FALSE)
+    set(TARGET_USE_ENET TRUE)
 
     set(TARGET_IOS TRUE)
 
