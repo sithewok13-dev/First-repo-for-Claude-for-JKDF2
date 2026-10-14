@@ -78,9 +78,9 @@ Still here from v0.1: the floating move stick with its run marker, drag to look,
 The touch controls appear once you're playing a level, and hide in menus and cutscenes (there you just tap, like clicking with a mouse). The game runs in landscape, either way round. **Both apps have the same controls.** What's different in Mysteries of the Sith (its wheels and cheats) is in *Mysteries of the Sith: the OpenMoTS app* below.
 
 ```
- NEXT   FORCE   LIGHT  IR  BACTA  CAMERA  SABER  CHEAT  (FPS)  QUICK  QUICK  MENU
+ NEXT   FORCE   LIGHT  IR  BACTA  CAMERA  SABER  CHEAT  VIEW  (FPS)  QUICK  QUICK  MENU
  WPN    WHEEL   (only items you have)                         SAVE   LOAD
-                          [GYRO] [FPS] [CAMERA] [CHEAT] [JUMP] [keyboard]
+                          [GYRO] [FPS] [CAMERA] [CHEAT] [VIEW] [JUMP] [keyboard]
                           (MENU's tray, when held)
                              [MODE] [SENS]             (GYRO held in the tray)
                              [PHOTO] [SELFIES] [FREEZE] (CAMERA held in the tray)
@@ -186,6 +186,7 @@ With **FREEZE** switched off (in CAMERA's options, below), a slide in any direct
 | **CAMERA** (the camera symbol) | top, in the middle | Hold still: a selfie. Tap: a photo. Slide sideways: a burst. Slide down: Action Freeze. Slide up: the cinematic burst. See *The camera* above. |
 | **SABER** (a lightsaber) | top, right of CAMERA (once you have the lightsaber) | The saber wheel: blade colours, one saber or two. See *The lightsaber: SABER* below. |
 | **CHEAT** (the Sith emblem) | top, right of SABER (cheat mode only) | Hold for half a second: `sithewok` off or on. Red while it's on. See *Cheats* below. |
+| **VIEW** (1P or 3P) | top, right of CHEAT (once switched on in MENU's tray) | **Tap:** first person or third person, at once. |
 
 FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them. LIGHT, IR, MENU, CAMERA and the tray buttons act when you **lift** your finger, so if you touch one by mistake, slide off before you lift (on CAMERA, a slide starts a burst or Action Freeze instead: see *The camera* above). BACTA and CHEAT need a hold, so a brush past does nothing. While `sithewok` is on, JUMP, ACT and DUCK show a small red second line (FLY, NOCLIP, LVL SEL) for their cheat holds: see *Cheats* below.
 
@@ -199,10 +200,11 @@ FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them. LIGHT, IR, M
 | **FPS** | Shows or hides a frame-rate counter, to the left of QUICK SAVE. Yellow while the counter is on. |
 | **CAMERA** (the camera symbol) | **Tap:** shows or hides the CAMERA button (yellow while it's shown). **Touch and hold** until its ring fills: CAMERA's options, **PHOTO**, **SELFIES** and **FREEZE**. See *The camera* above. |
 | **CHEAT** | Cheat mode on or off. On: the CHEAT button appears and `sithewok` goes on. Off: `sithewok` goes off and the button goes away. Yellow while cheat mode is on. See *Cheats* below. |
-| **JUMP** | How Force Jump works: **SMOOTH** (the default), **STEPS** or **CLASSIC**. Each tap goes on to the next, and the tray stays open. See *Force Jump* below. |
+| **VIEW** | Shows or hides the **VIEW** button on the top row (yellow while it's shown). **Tap VIEW** to switch between first person (**1P**) and third person (**3P**) at once. The app remembers both; hiding the button keeps the view you picked. The game's own idle camera still swings round to show you after 30 seconds without a touch, and goes back to your view when you play on. |
+| **JUMP** | How Force Jump works: **STEPS** (the default), **SMOOTH** or **CLASSIC**. Each tap goes on to the next, and the tray stays open. See *Force Jump* below. |
 | **Keyboard** (the keyboard symbol) | Opens the game's typing line with the iPhone keyboard, for cheats. Tap it again to close the line. |
 
-- GYRO and JUMP show their setting on the button (for example *GYRO OFF*, *JUMP SMOOTH*), and MODE and SENS show theirs.
+- GYRO and JUMP show their setting on the button (for example *GYRO OFF*, *JUMP STEPS*), and MODE and SENS show theirs.
 - Either keep your thumb down, slide it onto a tray button and lift, or lift first and then tap one. Anywhere on the tray's dark backing counts as the nearest button.
 - Each tap on **JUMP**, **MODE** or **SENS** goes on to the next setting, and the tray (or row) stays open so you can tap again. The tray closes after **FPS**, **CAMERA**, **CHEAT** or the keyboard, or when you touch anywhere else. That touch still counts: touching FIRE closes the tray and fires. Touching MENU again only closes it.
 - If you slide off MENU while holding it, nothing happens.
@@ -289,8 +291,8 @@ New in v0.6. Once you have the lightsaber (or while `sithewok` is on), a **SABER
 
 Force Jump jumps when you **lift** your finger off FORCE, and how long you held it decides how high. It has 4 levels (the stars on the Force wheel): each star raises the highest jump, and gives you a little longer to reach it (0.35 s a star, so 1.4 s at 4 stars). Choose how holding works with **JUMP** in MENU's tray:
 
-- **SMOOTH** (the default): a **tap** is the lowest Force Jump (a bit under half the full height). The longer you hold, the higher it goes, smoothly, up to the highest for your stars. A **gold ring** fills inside FORCE as you hold, with a light tick when it's full: lift whenever the ring shows the height you want.
-- **STEPS:** the same heights in clear steps, one a star. A tap is the lowest step, and every 0.35 s you hold goes up a step, with a tick and a quarter more of the gold ring (at 4 stars), to the highest.
+- **SMOOTH:** a **tap** is the lowest Force Jump (a bit under half the full height). The longer you hold, the higher it goes, smoothly, up to the highest for your stars. A **gold ring** fills inside FORCE as you hold, with a light tick when it's full: lift whenever the ring shows the height you want.
+- **STEPS** (the default): the same heights in clear steps, one a star. A tap is the lowest step, and every 0.35 s you hold goes up a step, with a tick and a quarter more of the gold ring (at 4 stars), to the highest.
 - **CLASSIC:** exactly as the original game: a quick tap is the **highest** jump, and so is a hold past the highest; only a hold in between is lower. No ring.
 
 In every style the jump costs the same Force and needs you on the ground (or on water), and the other Force powers work as before.

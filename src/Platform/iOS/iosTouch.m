@@ -173,6 +173,14 @@ extern int jkHud_bChatOpen;
 // as typing "sithewok" does. Red whenever the cheat is
 // on, however it was switched (iosGame_IsSithEwokOn, read every frame).
 #define IOSTOUCH_CHEAT_DEFAULTS_KEY @"iosTouchShowCheat"
+// The VIEW button (right of CHEAT, or of SABER without it): first or third
+// person, a tap each way at once; it says 1P or 3P. Switched on in MENU's
+// tray (off unless switched on; remembered); switched off, it hides and the
+// view stays as picked. The view picked is remembered too (first person to
+// start with); the game's own idle camera still comes and goes over it
+// (iosGame_SetThirdPerson)
+#define IOSTOUCH_VIEW_DEFAULTS_KEY @"iosTouchShowView"
+#define IOSTOUCH_THIRDPERSON_DEFAULTS_KEY @"iosTouchThirdPerson"
 #define IOSTOUCH_CHEAT_HOLD 0.5
 // BACTA uses a bacta tank only once held this long (a tap does nothing;
 // lifted or slid off sooner, nothing); one a press, its ring filling meanwhile
@@ -227,7 +235,7 @@ enum { IOSTOUCH_CHIP_SINGLE = 0, IOSTOUCH_CHIP_DUAL, IOSTOUCH_CHIP_LEFT, IOSTOUC
 #define IOSTOUCH_FLY_STILL 10.0
 #define IOSTOUCH_LEVEL_STEP 0.4
 #define IOSTOUCH_FREEZE_DEFAULTS_KEY @"iosTouchFreeze"
-// Force Jump's style (the tray's JUMP: IOSGAME_JUMP_SMOOTH, the default, STEPS
+// Force Jump's style (the tray's JUMP: SMOOTH, IOSGAME_JUMP_STEPS, the default,
 // or CLASSIC; remembered). In SMOOTH and STEPS, while FORCE is held with Force
 // Jump selected, a gold ring inside it fills to how high the jump will go
 // (STEPS: a step a star, a tick at each); SMOOTH ticks once, at the highest
@@ -318,6 +326,8 @@ enum {
     KIND_CAMSWITCH, // (MENU tray) shows or hides the CAMERA button, when the touch lifts on it
     KIND_CHEAT,    // held still IOSTOUCH_CHEAT_HOLD: the sithewok cheat on or off (a tap does nothing)
     KIND_CHEATSWITCH, // (MENU tray) shows or hides the CHEAT button, when the touch lifts on it
+    KIND_VIEW,     // tap (on lift): first person or third (iosGame_SetThirdPerson)
+    KIND_VIEWSWITCH, // (MENU tray) shows or hides the VIEW button, when the touch lifts on it
     KIND_JUMPSTYLE, // (MENU tray) Force Jump's next style: SMOOTH, STEPS or CLASSIC (iosGame_SetForceJumpStyle)
     KIND_CAMERA,   // tap: the photos ticked in the camera options; slide: a burst; hold: the selfie
     KIND_CAMPHOTO, // (camera options) opens or closes the photo kinds' row under them
@@ -366,7 +376,8 @@ enum {
     BTN_CAMERA, // the middle of the top row, while switched on in the tray
     BTN_SABER,  // between CAMERA and QUICK SAVE, once the saber is had (or sithewok is on)
     BTN_CHEAT,  // ...right of SABER, in cheat mode (switched on in the tray)
-    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYCHEAT, BTN_TRAYJUMP, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
+    BTN_VIEW,   // ...right of CHEAT: first or third person (switched on in the tray)
+    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYCHEAT, BTN_TRAYVIEW, BTN_TRAYJUMP, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
     // Rows under the tray, one at a time (iosTouch_optRow), hidden until opened:
     BTN_GYROOPT_MODE, BTN_GYROOPT_SENS,  // the gyro options (a hold on the tray's GYRO)
     BTN_CAMROW_PHOTO, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE, // the camera options (a hold on the tray's camera switch)
@@ -395,10 +406,12 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_CAMERA]    = { "",            KIND_CAMERA,   -1,                  22.0f, 0 },
     [BTN_SABER]     = { "",            KIND_WHEEL,    -1,                  22.0f, 0 },
     [BTN_CHEAT]     = { "",            KIND_CHEAT,    -1,                  22.0f, 0 },
+    [BTN_VIEW]      = { "1P",          KIND_VIEW,     -1,                  22.0f, 0 },
     [BTN_TRAYGYRO]  = { "GYRO",        KIND_GYRO,     -1,                  20.0f, 0 },
     [BTN_TRAYFPS]   = { "FPS",         KIND_FPS,      -1,                  20.0f, 0 },
     [BTN_TRAYCAM]   = { "",            KIND_CAMSWITCH, -1,                 20.0f, 0 },
     [BTN_TRAYCHEAT] = { "",            KIND_CHEATSWITCH, -1,               20.0f, 0 },
+    [BTN_TRAYVIEW]  = { "VIEW",        KIND_VIEWSWITCH, -1,                20.0f, 0 },
     [BTN_TRAYJUMP]  = { "JUMP",        KIND_JUMPSTYLE, -1,                 20.0f, 0 },
     [BTN_TRAYKEYS]  = { "",            KIND_CHAT,     -1,                  20.0f, 0 },
     [BTN_GYROOPT_MODE] = { "MODE",     KIND_GYROMODE, -1,                  20.0f, 0 },
@@ -661,6 +674,8 @@ static int iosTouch_bShowFps = 0;
 static int iosTouch_bShowCamera = 0;
 static int iosTouch_bShowSaber = 0;
 static int iosTouch_bShowCheat = 0;
+static int iosTouch_bShowView = 0;
+static int iosTouch_bThirdPerson = 0; // VIEW: the view picked, as shown (3P)
 static int iosTouch_bCheatOn = 0;   // the sithewok cheat, as last read (CHEAT red)
 static int iosTouch_bFpsBottom = 0; // the FPS readout at the bottom of the screen, making room for SABER and CHEAT
 // With two blades, the one a colour picked on the saber wheel goes to
@@ -673,7 +688,7 @@ static int iosTouch_optRow = 0;      // IOSTOUCH_ROW_*: the row open under the t
 static int iosTouch_bKindsOpen = 0;  // the photo kinds' row, under the camera options
 static int iosTouch_selfieShots = 3; // photos a selfie takes (1, 3 or 5; remembered)
 static int iosTouch_bFreezeOn = 1;   // CAMERA's slide down: Action Freeze (remembered)
-static int iosTouch_jumpStyle = IOSGAME_JUMP_SMOOTH; // the tray's JUMP (remembered)
+static int iosTouch_jumpStyle = IOSGAME_JUMP_STEPS; // the tray's JUMP (remembered)
 static int iosTouch_jumpTicked = 0;  // how far FORCE's Force Jump ring has ticked this press (steps; SMOOTH: 1 at full)
 static int iosTouch_bFreezing = 0;   // Action Freeze is up
 static int iosTouch_bCinema = 0;     // the cinematic burst is running
@@ -1549,6 +1564,12 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         aButtonViews[BTN_CHEAT].hidden = !iosTouch_bShowCheat;
         iosGame_SetCheatShown(iosTouch_bShowCheat);
         iosTouch_bCheatOn = iosGame_IsSithEwokOn();
+        // VIEW and its tray switch; the view picked, as remembered
+        iosTouch_bShowView = [[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_VIEW_DEFAULTS_KEY] ? 1 : 0;
+        aButtonViews[BTN_VIEW].hidden = !iosTouch_bShowView;
+        iosTouch_bThirdPerson = [[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_THIRDPERSON_DEFAULTS_KEY] ? 1 : 0;
+        iosGame_SetThirdPerson(iosTouch_bThirdPerson);
+        aButtonViews[BTN_VIEW].text = iosTouch_bThirdPerson ? @"3P" : @"1P";
 
         // Around FORCE: the force meter, a ring that empties as the meter does
         // (QUICK LOAD's ring the other way round) and glows when full
@@ -1668,7 +1689,9 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             iosTouch_bFreezeOn = [[NSUserDefaults standardUserDefaults] boolForKey:IOSTOUCH_FREEZE_DEFAULTS_KEY] ? 1 : 0;
         {
             const NSInteger js = [[NSUserDefaults standardUserDefaults] integerForKey:IOSTOUCH_JUMPSTYLE_DEFAULTS_KEY];
-            iosTouch_jumpStyle = (js >= 0 && js < IOSGAME_JUMP_NUM_STYLES) ? (int)js : IOSGAME_JUMP_SMOOTH;
+            // (STEPS, unless one was picked before)
+            iosTouch_jumpStyle = [[NSUserDefaults standardUserDefaults] objectForKey:IOSTOUCH_JUMPSTYLE_DEFAULTS_KEY]
+                                 && js >= 0 && js < IOSGAME_JUMP_NUM_STYLES ? (int)js : IOSGAME_JUMP_STEPS;
             iosGame_SetForceJumpStyle(iosTouch_jumpStyle);
         }
         [self refreshGyroLabels]; // (SELFIES and FREEZE, as just read)
@@ -2004,21 +2027,35 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
     // CAMERA in the middle of the screen (well clear of BACTA and the FPS
     // readout even on the narrowest iPhone, 667 pt)
     iosTouch_aButtons[BTN_CAMERA].x = W * 0.5;
-    // SABER and CHEAT (those switched on, in that order) between CAMERA and
-    // QUICK SAVE, evenly: between the burst's count (right of CAMERA) and the
-    // FPS readout (left of QUICK SAVE), where they leave room (one alone:
-    // halfway, at least 4 pt each side; two: at least 8 pt apart). Where
+    // SABER, CHEAT and VIEW (those switched on, in that order) between CAMERA
+    // and QUICK SAVE, evenly: between the burst's count (right of CAMERA) and
+    // the FPS readout (left of QUICK SAVE), where they leave room (one alone:
+    // halfway, at least 4 pt each side; more: at least 8 pt apart). Where
     // they don't: with the burst's count under CAMERA; then with the FPS
-    // readout at the bottom of the screen; then both. (Neither switched on:
-    // where SABER alone would be.)
+    // readout at the bottom of the screen; then both; then with CAMERA
+    // moved left. (None switched on: where SABER alone would be.)
     iosTouch_bBurstUnder = 0;
     iosTouch_bFpsBottom = 0;
     {
         iosTouchButton* cam = &iosTouch_aButtons[BTN_CAMERA];
-        iosTouchButton* aMid[2] = { &iosTouch_aButtons[BTN_SABER], &iosTouch_aButtons[BTN_CHEAT] };
-        const int aShow[2] = { iosTouch_bShowSaber, iosTouch_bShowCheat };
-        const int n = MAX(aShow[0] + aShow[1], 1);
+        iosTouchButton* aMid[3] = { &iosTouch_aButtons[BTN_SABER], &iosTouch_aButtons[BTN_CHEAT], &iosTouch_aButtons[BTN_VIEW] };
+        const int aShow[3] = { iosTouch_bShowSaber, iosTouch_bShowCheat, iosTouch_bShowView };
+        const int n = MAX(aShow[0] + aShow[1] + aShow[2], 1);
         const CGFloat R = aMid[0]->radius, minGap = (n > 1) ? 8.0 : 4.0;
+        const CGFloat qsLeft = iosTouch_aButtons[BTN_QUICKSAVE].x - iosTouch_aButtons[BTN_QUICKSAVE].radius;
+        // (too many for the room right of CAMERA even with both labels moved,
+        // on the narrower screens with all three on: CAMERA moves left as far
+        // as it needs, but no nearer the last item button showing, or FORCE
+        // WHEEL, than the gap)
+        {
+            const CGFloat need = n * 2.0 * R + (n + 1) * minGap;
+            CGFloat leftRight = iosTouch_aButtons[BTN_WHEEL].x + iosTouch_aButtons[BTN_WHEEL].radius;
+            const int aItem[3] = { BTN_LIGHT, BTN_IR, BTN_BACTA };
+            for (int i = 0; i < 3; i++)
+                if (!aButtonViews[aItem[i]].hidden) leftRight = MAX(leftRight, iosTouch_aButtons[aItem[i]].x + iosTouch_aButtons[aItem[i]].radius);
+            if (qsLeft - (cam->x + cam->radius) < need)
+                cam->x = MAX(qsLeft - need - cam->radius, leftRight + 10.0 + cam->radius);
+        }
         const CGFloat camEdge = cam->x + cam->radius;
         const CGFloat burstEdge = camEdge + 20.0 + IOSTOUCH_BURST_LABEL_HALF;
         const CGFloat fpsEdge = right - IOSTOUCH_FPS_LABEL_X - IOSTOUCH_FPS_LABEL_HALF;
@@ -2027,18 +2064,18 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         const CGFloat aHi[4] = { fpsEdge, fpsEdge, qsEdge, qsEdge };
         int k = 0;
         while (k < 3 && (aHi[k] - aLo[k] - n * 2.0 * R) / (n + 1) < minGap) k++;
-        const int bAny = aShow[0] || aShow[1];
+        const int bAny = aShow[0] || aShow[1] || aShow[2];
         iosTouch_bBurstUnder = bAny && (k & 1);
         iosTouch_bFpsBottom = bAny && k >= 2;
         const CGFloat G = (aHi[k] - aLo[k] - n * 2.0 * R) / (n + 1);
         int slot = 0;
-        for (int b = 0; b < 2; b++) {
+        for (int b = 0; b < 3; b++) {
             const int i = aShow[b] ? slot++ : 0; // (one not shown: in the first place, out of the way)
             aMid[b]->x = aLo[k] + G * (i + 1) + R * (2 * i + 1);
         }
     }
     const int aTopRow[] = { BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA,
-                            BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU, BTN_CAMERA, BTN_SABER, BTN_CHEAT };
+                            BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU, BTN_CAMERA, BTN_SABER, BTN_CHEAT, BTN_VIEW };
     for (int i = 0; i < IOSTOUCH_COUNT(aTopRow); i++) {
         iosTouch_aButtons[aTopRow[i]].y = top + 26;
     }
@@ -2302,6 +2339,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
                   || (i == BTN_TRAYFPS && iosTouch_bShowFps)
                   || (i == BTN_TRAYCAM && iosTouch_bShowCamera)
                   || (i == BTN_TRAYCHEAT && iosTouch_bShowCheat)
+                  || (i == BTN_TRAYVIEW && iosTouch_bShowView)
                   || (iosTouch_IsCamOptButton(i) && (iosTouch_cameraKinds & iosTouch_aButtons[i].bin))
                   || (i == BTN_CAMROW_PHOTO && iosTouch_bKindsOpen)
                   || (i == BTN_CAMROW_FREEZE && iosTouch_bFreezeOn)
@@ -2507,6 +2545,25 @@ static void iosTouch_PhotosAsked(void)
     [[NSUserDefaults standardUserDefaults] setBool:(iosTouch_bShowCheat ? YES : NO) forKey:IOSTOUCH_CHEAT_DEFAULTS_KEY];
     [self setNeedsLayout];
     [self refreshButtonLooks];
+}
+
+// VIEW shown or hidden (the tray's switch), and remembered; the view as picked
+- (void)setShowView:(int)bShow
+{
+    iosTouch_bShowView = bShow != 0;
+    aButtonViews[BTN_VIEW].hidden = !iosTouch_bShowView;
+    [[NSUserDefaults standardUserDefaults] setBool:(iosTouch_bShowView ? YES : NO) forKey:IOSTOUCH_VIEW_DEFAULTS_KEY];
+    [self setNeedsLayout];
+    [self refreshButtonLooks];
+}
+
+// The view picked (VIEW's tap, or a keyboard's camera key), shown and remembered
+- (void)setThirdPerson:(int)bThird
+{
+    iosTouch_bThirdPerson = bThird != 0;
+    iosGame_SetThirdPerson(iosTouch_bThirdPerson);
+    aButtonViews[BTN_VIEW].text = iosTouch_bThirdPerson ? @"3P" : @"1P";
+    [[NSUserDefaults standardUserDefaults] setBool:(iosTouch_bThirdPerson ? YES : NO) forKey:IOSTOUCH_THIRDPERSON_DEFAULTS_KEY];
 }
 
 // Cheat mode left (the tray's switch): the cheat off, CHEAT hidden, the
@@ -3149,6 +3206,9 @@ static int iosTouch_SaberBlade(void)
             if (!iosGame_IsSithEwokOn()) iosGame_ToggleSithEwok();
             iosCheatLaugh_Play(iosGame_SfxVolume()); // (the Emperor approves; also on typing it, CHEAT hidden)
         }
+    }
+    else if (kind == KIND_VIEWSWITCH) {
+        [self setShowView:!iosTouch_bShowView];
     }
     else if (kind == KIND_GYRO && iosTouch_GyroAvailable()) {
         iosTouch_GyroToggle();
@@ -4154,6 +4214,9 @@ static int iosTouch_WheelSliceHasRow(int i)
                         // A tap (by the touch's own clock); not after a burst or a hold
                         [self takePhotos];
                     }
+                    else if (b->kind == KIND_VIEW && !aButtonViews[s->button].hidden) {
+                        [self setThirdPerson:!iosTouch_bThirdPerson];
+                    }
                     else if (b->kind == KIND_MENU && !s->bFired) {
                         // A tap: Escape (the menu, or closing the typing line)
                         iosTouch_menuPulse = IOSTOUCH_MENU_PULSE_UPDATES;
@@ -4241,6 +4304,8 @@ static int iosTouch_WheelSliceHasRow(int i)
         }
     }
     if (iosTouch_bShowSaber) [self refreshSaberIcons];
+    // VIEW: the view picked by a keyboard's camera key, shown and remembered
+    if (iosGame_IsThirdPerson() != iosTouch_bThirdPerson) [self setThirdPerson:iosGame_IsThirdPerson()];
     // DUCK's level pick: dropped (DUCK's label back) once its finger is no
     // longer a button press -- a wheel, Action Freeze, the burst or a selfie
     // took every touch; and a level lifted for loads only when none of those
@@ -4593,6 +4658,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     // The game's Always Run option can change (in its options menu): the
     // stick has its run marker only while it is off. The marker also moves
     // out of the way of an item button that has just appeared.
+    if (bItemsChanged && iosTouch_bShowView) [self setNeedsLayout]; // (CAMERA's room on the narrowest screens: iosTouch_aButtons[BTN_CAMERA])
     int bAlwaysRun = iosGame_IsAlwaysRun();
     if (bAlwaysRun != iosTouch_bAlwaysRun || bItemsChanged) {
         iosTouch_bAlwaysRun = bAlwaysRun;

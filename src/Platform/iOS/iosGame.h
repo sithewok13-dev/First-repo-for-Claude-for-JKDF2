@@ -47,9 +47,9 @@ void iosGame_SelectPower(int bin);
 // own script (force_jump.cog) jumps on the lift, as high as FORCE was held:
 // from 0.15 s to its longest, 0.35 s a star (4 stars: 1.4 s); but a tap
 // under 0.15 s, like a hold past the longest, is its highest jump.
-//   SMOOTH (the default): a tap is its lowest jump, a hold goes higher
+//   SMOOTH: a tap is its lowest jump, a hold goes higher
 //     smoothly, to the highest at the longest.
-//   STEPS: as high as the step reached, one a star: the lowest at once, one
+//   STEPS (the default): as high as the step reached, one a star: the lowest at once, one
 //     step higher every 0.35 s, the highest at the last.
 //   CLASSIC: the game's own, unchanged.
 enum { IOSGAME_JUMP_SMOOTH = 0, IOSGAME_JUMP_STEPS, IOSGAME_JUMP_CLASSIC, IOSGAME_JUMP_NUM_STYLES };
@@ -173,6 +173,17 @@ void iosGame_SetCheatShown(int bShown);
 // Whether the overlay's SABER shows: the player has the saber for real (the
 // game gave it, not just a cheat), or sithewok is on
 int iosGame_IsSaberButtonShown(void);
+// The view the player picked (the overlay's VIEW: 0 first person, 1 third;
+// remembered there). Kept as the game's own camera choice (its camera key's):
+// a new level, a load or the game's own idle camera ending come back to it,
+// and the idle camera (and the photo cameras) are left to come and go
+void iosGame_SetThirdPerson(int bThird);
+int iosGame_IsThirdPerson(void);
+// Once a frame: the game's camera choice put back to the player's, if
+// something reset it (a new level, a load); and the camera key's own change
+// taken as the player's
+void iosGame_ViewTick(void);
+void iosGame_ViewKeyCycled(void);
 // The game's sound effects volume (0..1, the Sound setup screen's)
 float iosGame_SfxVolume(void);
 

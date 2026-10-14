@@ -273,9 +273,9 @@ The layout looks roughly like this. Exact positions shift a little to fit your
 screen, the camera cutout and the HUD.
 
 ```
- NEXT   FORCE   LIGHT  IR  BACTA  CAMERA  SABER  CHEAT  (FPS)  QUICK  QUICK  MENU
+ NEXT   FORCE   LIGHT  IR  BACTA  CAMERA  SABER  CHEAT  VIEW  (FPS)  QUICK  QUICK  MENU
  WPN    WHEEL   (only items you have)                         SAVE   LOAD
-                          [GYRO] [FPS] [CAMERA] [CHEAT] [JUMP] [keyboard]
+                          [GYRO] [FPS] [CAMERA] [CHEAT] [VIEW] [JUMP] [keyboard]
                           (MENU's tray, when held)
                              [MODE] [SENS]             (GYRO held in the tray)
                              [PHOTO] [SELFIES] [FREEZE] (CAMERA held in the tray)
@@ -333,6 +333,7 @@ never cover them, and long lines wrap between words.
 | **CAMERA** (the camera symbol) | top, in the middle | **Hold still:** a selfie. **Tap:** a photo. **Slide sideways:** a burst. **Slide down:** Action Freeze. **Slide up:** the cinematic burst. See [The camera](#the-camera). |
 | **SABER** (a lightsaber) | top, right of CAMERA (once you have the lightsaber) | Opens the saber wheel: blade colours, one saber or two. See [The lightsaber: SABER](#the-lightsaber-saber). |
 | **CHEAT** (the red Sith emblem) | top, right of SABER (cheat mode only) | **Hold** for half a second: `sithewok` off or on. Red while it's on. See [Cheats](#cheats). |
+| **VIEW** (1P or 3P) | top, right of CHEAT (once switched on in MENU's tray) | **Tap:** first person or third person, at once. |
 
 FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them.
 LIGHT, IR, MENU, CAMERA and the tray buttons act when you **lift** your finger
@@ -345,12 +346,12 @@ however you touch it. While
 `sithewok` is on, JUMP, ACT and DUCK show a small red second line (FLY,
 NOCLIP, LVL SEL) for their cheat holds: see [Cheats](#cheats).
 
-### MENU's tray: tilt aiming, FPS, camera, cheat mode and keyboard
+### MENU's tray: tilt aiming, FPS, camera, cheat mode, view and keyboard
 
 **Tap MENU** for the game's menu. **Hold MENU** until its ring fills (about
-half a second), and a small tray opens just under it with six buttons, from
-left to right **GYRO**, **FPS**, **CAMERA**, **CHEAT**, **JUMP** and the
-**keyboard**.
+half a second), and a small tray opens just under it with seven buttons, from
+left to right **GYRO**, **FPS**, **CAMERA**, **CHEAT**, **VIEW**, **JUMP** and
+the **keyboard**.
 Either keep your thumb down, slide it onto a tray button and lift, or lift
 first and then tap one. Anywhere on the tray's dark backing counts as the
 nearest button.
@@ -369,7 +370,13 @@ nearest button.
 - **CHEAT:** cheat mode on or off. On, the CHEAT button appears and
   `sithewok` goes on. Off, `sithewok` goes off and the button goes away.
   Yellow while cheat mode is on. See [Cheats](#cheats).
-- **JUMP:** how Force Jump works, **SMOOTH** (the default), **STEPS** or
+- **VIEW:** shows or hides the **VIEW** button on the top row, after CHEAT
+  (yellow while it's shown). **Tap VIEW** to switch between first person
+  (**1P**) and third person (**3P**) at once. The app remembers both, and
+  starts in first person; hiding the button keeps the view you picked. The
+  game's own idle camera still swings round to show you after 30 seconds
+  without a touch, and goes back to your view when you play on.
+- **JUMP:** how Force Jump works, **STEPS** (the default), **SMOOTH** or
   **CLASSIC**. Each tap goes on to the next, and the tray stays open. See
   [Force Jump](#force-jump).
 - **Keyboard** (the keyboard symbol, at the right end of the tray): opens the
@@ -378,18 +385,18 @@ nearest button.
   lit yellow.
 
 GYRO and JUMP show their setting on the button (for example *GYRO OFF*,
-*JUMP SMOOTH*), and MODE and SENS show theirs. Each tap on JUMP, MODE or SENS
+*JUMP STEPS*), and MODE and SENS show theirs. Each tap on JUMP, MODE or SENS
 goes on to the next setting, and the tray (or row) stays open so you can tap
 again.
 
-The app remembers GYRO, SENS, FPS, CAMERA and its options, CHEAT and JUMP
+The app remembers GYRO, SENS, FPS, CAMERA and its options, CHEAT, VIEW and JUMP
 next time you open it. The `sithewok` cheat itself always starts off when you open
 the app: hold the CHEAT button to switch it on.
 
 The tray usually sits right under MENU. On smaller screens (with the camera
 cutout on the right, with Display Zoom, or at a large HUD Scale) it sits
 further left, so that it never covers FORCE or the buttons around FIRE. The
-tray closes after you pick FPS, CAMERA, CHEAT or the keyboard, or when you
+tray closes after you pick FPS, CAMERA, CHEAT, VIEW or the keyboard, or when you
 touch anywhere else. That touch still counts: touching FIRE closes the tray
 and fires. Touching MENU again just closes it. If you slide off MENU while
 holding it, nothing happens.
@@ -582,12 +589,12 @@ each star raises the highest jump, and gives you a little longer to reach it
 (0.35 s a star, so 1.4 s at 4 stars). Choose how holding works with **JUMP**
 in MENU's tray:
 
-- **SMOOTH** (the default): a **tap** is the lowest Force Jump (a bit under
+- **SMOOTH:** a **tap** is the lowest Force Jump (a bit under
   half the full height). The longer you hold, the higher it goes, smoothly,
   up to the highest for your stars. A **gold ring** fills inside FORCE as you
   hold, with a light tick when it's full: lift whenever the ring shows the
   height you want.
-- **STEPS:** the same heights in clear steps, one a star. A tap is the lowest
+- **STEPS** (the default): the same heights in clear steps, one a star. A tap is the lowest
   step, and every 0.35 s you hold goes up a step, with a tick and a quarter
   more of the gold ring (at 4 stars), to the highest.
 - **CLASSIC:** exactly as the original game: a quick tap is the **highest**

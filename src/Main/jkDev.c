@@ -22,6 +22,7 @@
 #include "Main/jkQuakeConsole.h"
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosSaberThrow.h" // Added
+#include "Platform/iOS/iosGame.h" // Added
 #endif
 #include "stdPlatform.h"
 #include "wprintf.h"
@@ -250,6 +251,7 @@ void jkDev_DrawLog()
 #endif
 #ifdef TARGET_IOS
     iosSaberThrow_Tick(); // Added: two sabers' Saber Throw, once a frame
+    iosGame_ViewTick(); // Added: the view the player picked (VIEW), kept
 #endif
 
     // Added: Prevent crashes

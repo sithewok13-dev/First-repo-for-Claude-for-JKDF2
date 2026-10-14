@@ -18,6 +18,7 @@
 #include "Main/jkMain.h"
 #include "World/jkPlayer.h"
 #include "World/sithWorld.h"
+#include "Engine/sithCamera.h"
 #include "stdPlatform.h"
 #include "jk.h"
 
@@ -43,7 +44,7 @@ static SithThing* iosGame_GetPlayer(void)
 
 // ------------------------------------------------------------ Force Jump
 
-static int iosGame_forceJumpStyle = IOSGAME_JUMP_SMOOTH;
+static int iosGame_forceJumpStyle = IOSGAME_JUMP_STEPS;
 
 void iosGame_SetForceJumpStyle(int style)
 {
@@ -628,6 +629,44 @@ void iosGame_ToggleChat(void)
     }
     if (iosGame_GetPlayer())
         jkHud_Chat();
+}
+
+// The view the player picked (VIEW): the game's own camera choice (0 first
+// person, 1 third) is kept to it. Only that choice changes here; the camera
+// itself only while one of those two is showing, so the idle camera, a
+// cutscene's or the photo cameras are left alone, and come back to it
+static int iosGame_bThirdPerson = 0;
+
+void iosGame_SetThirdPerson(int bThird)
+{
+    iosGame_bThirdPerson = bThird ? 1 : 0;
+    iosGame_ViewTick();
+}
+
+int iosGame_IsThirdPerson(void)
+{
+    return iosGame_bThirdPerson;
+}
+
+void iosGame_ViewTick(void)
+{
+    SithThing* pPlayer = iosGame_GetPlayer();
+    if (!pPlayer || (pPlayer->flags & (SITH_TF_DEAD | SITH_TF_DESTROYED)) || !sithCamera_g_pCurCamera) return;
+    sithCamera_g_curCycleCamNum = iosGame_bThirdPerson;
+    // (the camera itself: only the player's own view the other way round -- not
+    // a cutscene, even one the level shows through the same camera)
+    SithCamera* pWant = &sithCamera_g_aCameras[iosGame_bThirdPerson];
+    SithCamera* pOther = &sithCamera_g_aCameras[!iosGame_bThirdPerson];
+    if (sithCamera_g_pCurCamera == pOther && pOther->pPrimaryFocusThing == pPlayer && pWant->pPrimaryFocusThing == pPlayer
+        && !(sithCamera_g_stateFlags & 1))
+        sithCamera_SetCurrentToCycleCamera();
+}
+
+void iosGame_ViewKeyCycled(void)
+{
+    // (a keyboard's camera key: taken as the player's pick; the overlay
+    // reads it back and remembers it)
+    iosGame_bThirdPerson = sithCamera_g_curCycleCamNum ? 1 : 0;
 }
 
 #endif // TARGET_IOS
