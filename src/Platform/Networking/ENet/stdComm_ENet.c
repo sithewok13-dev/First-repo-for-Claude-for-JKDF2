@@ -139,8 +139,10 @@ static int stdComm_ENet_PeerId(ENetPeer* pPeer)
 // replaces an older one) unreliable, everything else reliable and in order
 static int stdComm_ENet_ChannelFor(const void* pData, uint32_t len)
 {
-    (void)pData; (void)len;
-    return 0;
+    uint32_t id = 0;
+    if (len < 4) return 0;
+    memcpy(&id, pData, 4);
+    return (id & 0xFF) == DSS_THINGPOS ? 1 : 0;
 }
 
 static void stdComm_ENet_SendRaw(ENetPeer* pPeer, const void* pData, uint32_t len, int channel)

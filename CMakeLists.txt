@@ -51,9 +51,10 @@ set(TARGET_USE_PHYSFS FALSE)
 set(TARGET_USE_BASICSOCKETS FALSE)
 set(TARGET_USE_GAMENETWORKINGSOCKETS FALSE)
 set(TARGET_USE_ENET FALSE)
-# Added: -DOPENJKDF2_NET_ENET=ON: multiplayer over ENet instead of GameNetworkingSockets
-# (as the iOS apps have it, so a desktop build can play with them)
-option(OPENJKDF2_NET_ENET "Multiplayer over ENet (as on iOS)" OFF)
+# Added: multiplayer over ENet (OPENJKDF2_NET_ENET, on by default) rather than
+# GameNetworkingSockets, on every platform, so that desktop builds and the iOS
+# apps play together; -DOPENJKDF2_NET_ENET=OFF goes back to each platform's own
+option(OPENJKDF2_NET_ENET "Multiplayer over ENet (as on iOS)" ON)
 set(TARGET_USE_LIBSMACKER FALSE)
 set(TARGET_USE_LIBSMUSHER FALSE)
 set(TARGET_USE_SDL2 FALSE)
@@ -167,7 +168,8 @@ endif()
 
 # Establishes compile options, binary/library names, defines, etc
 plat_initialize()
-if(OPENJKDF2_NET_ENET)
+# (only where the platform had networking already: GameNetworkingSockets; iOS sets ENet itself)
+if(OPENJKDF2_NET_ENET AND TARGET_USE_GAMENETWORKINGSOCKETS)
     set(TARGET_USE_GAMENETWORKINGSOCKETS FALSE)
     set(TARGET_USE_ENET TRUE)
 endif()
