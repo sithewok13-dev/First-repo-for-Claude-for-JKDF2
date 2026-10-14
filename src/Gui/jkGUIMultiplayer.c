@@ -17,6 +17,7 @@
 #include "Platform/wuRegistry.h"
 #include "General/stdString.h"
 #include "Devices/sithComm.h"
+#include "Main/jkCoop.h" // Added
 
 static int jkGuiMultiplayer_bInitted = 0;
 static int32_t jkGuiMultiplayer_aElements2_aIdk[2] = {0xd, 0xe};
@@ -441,6 +442,14 @@ int jkGuiMultiplayer_CogMsgHandleJoining(SithMessage *msg)
                 v2 = jkStrings_GetUniStringWithFallback("GUINET_JOINERROR");
                 goto LABEL_9;
             case 6:
+#ifdef QOL_IMPROVEMENTS
+                // Added: co-op, the host is on another level: go there instead
+                if (jkCoop_HostLevelFromJoining(msg)) {
+                    jkGuiMultiplayer_menu4.lastClicked = -2;
+                    sithMessage_StopProcessMessages();
+                    break;
+                }
+#endif
                 v3 = jkStrings_GetUniStringWithFallback("GUINET_WRONGLEVEL");
                 v2 = jkStrings_GetUniStringWithFallback("GUINET_JOINERROR");
 LABEL_9:

@@ -672,6 +672,15 @@ LABEL_28:
             }
 #endif
             sithClose();
+#ifdef QOL_IMPROVEMENTS
+            // Added: co-op, the host is on another level (the campaign's path
+            // went another way for this player): that one loaded instead
+            if (jkCoop_FollowHostLevel()) {
+                thing_six = 0;
+                jkMain_GameplayShow(a1, a2);
+                return;
+            }
+#endif
             sithMulti_Shutdown();
             if ( jkGuiRend_thing_five )
                 jkGuiRend_thing_four = 1;

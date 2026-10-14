@@ -14,6 +14,9 @@
 // - Starting spots: everyone starts (and comes back) where the one player
 //   would; one already standing there, the next is put beside them (on the
 //   floor, no wall between) rather than inside them.
+// - The host's level: a guest whose campaign went another way (Jedi
+//   Knight's light or dark path is each player's own choice) is told by the
+//   host which level it is on when joining, and loads that one instead.
 
 #ifndef _MAIN_JKCOOP_H
 #define _MAIN_JKCOOP_H
@@ -42,6 +45,13 @@ void jkCoop_Tick(void);
 // A player just put at their starting spot (sithPlayer_SpawnPlayerAt's
 // placement): moved beside anyone already standing there, in co-op
 void jkCoop_PlacePlayer(SithThing* pPlayer);
+
+// A guest's join answered "not this level" by a co-op host that said which
+// level it is on (sithMulti_ProcessJoinRequest): kept, 1 if so
+int jkCoop_HostLevelFromJoining(SithMessage* pMsg);
+// After that join gave up: the host's level made the one to load (the
+// episode put there too), 1 if so; the caller then loads it
+int jkCoop_FollowHostLevel(void);
 
 // A menu about to be shown that, in co-op, goes on (as its OK) by itself after
 // msWait; its own idle function, if any, still runs. Call jkCoop_MenuDone

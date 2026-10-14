@@ -22,6 +22,7 @@
 #include "AI/sithAI.h"
 #include "Devices/sithComm.h"
 #include "stdPlatform.h"
+#include "Main/jkCoop.h" // Added
 
 #define sithMulti_infoPrintf(fmt, ...) stdPlatform_Printf(fmt, ##__VA_ARGS__)
 #define sithMulti_verbosePrintf(fmt, ...) if (Main_bVerboseNetworking) \
@@ -1069,6 +1070,11 @@ int sithMulti_ProcessJoinRequest(SithMessage *pMsg)
             NETMSG_START;
             NETMSG_PUSHS32(6);
             NETMSG_PUSHS32(0);
+#ifdef QOL_IMPROVEMENTS
+            // Added: co-op, the level the host is on, for the player to follow
+            if (jkCoop_IsActive())
+                NETMSG_PUSHSTR(sithWorld_g_pCurrentWorld->map_jkl_fname, 32);
+#endif
             NETMSG_END(DSS_JOINING);
 
             sithComm_SendMsgToPlayer(&sithComm_netMsgTmp, v1, 1, 0);

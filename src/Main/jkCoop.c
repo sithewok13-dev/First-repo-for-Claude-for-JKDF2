@@ -16,6 +16,10 @@
 #include "World/sithSector.h"
 #include "World/sithWorld.h"
 #include "Primitives/rdVector.h"
+#include "Main/jkEpisode.h"
+#include "Main/jkMain.h"
+#include "General/stdString.h"
+#include "Win95/stdComm.h"
 
 int jkCoop_IsActive(void)
 {
@@ -213,6 +217,42 @@ void jkCoop_PlacePlayer(SithThing* pPlayer)
         }
     }
     // (nowhere free: where the game put them)
+}
+
+// ------------------------------------------------------------------ the host's level
+
+static char jkCoop_aHostLevel[32];
+
+int jkCoop_HostLevelFromJoining(SithMessage* pMsg)
+{
+    jkCoop_aHostLevel[0] = 0;
+    // (code, 0, then the level's file name: 32 bytes)
+    if (!pMsg || !jkCoop_IsActive() || stdComm_bIsServer || pMsg->netMsg.msg_size < 8 + 32)
+        return 0;
+    NETMSG_IN_START(pMsg);
+    NETMSG_POPS32();
+    NETMSG_POPS32();
+    NETMSG_POPSTR(jkCoop_aHostLevel, 32);
+    if (!jkCoop_aHostLevel[0])
+        return 0;
+    stdPlatform_Printf("OpenJKDF2: co-op, the host is on %s\n", jkCoop_aHostLevel);
+    return 1;
+}
+
+int jkCoop_FollowHostLevel(void)
+{
+    if (!jkCoop_aHostLevel[0] || !jkCoop_IsActive())
+        return 0;
+    // (only a level of this episode)
+    if (!jkEpisode_idk4(&jkEpisode_mLoad, jkCoop_aHostLevel)) {
+        jkCoop_aHostLevel[0] = 0;
+        return 0;
+    }
+    stdString_SafeStrCopy(jkMain_aLevelJklFname, jkCoop_aHostLevel, 128);
+    jkPlayer_bLoadingSomething = 1; // (the next level worked out from this one)
+    jkSmack_gameMode = 2;
+    jkCoop_aHostLevel[0] = 0;
+    return 1;
 }
 
 // ------------------------------------------------------------------ menus that go on by themselves

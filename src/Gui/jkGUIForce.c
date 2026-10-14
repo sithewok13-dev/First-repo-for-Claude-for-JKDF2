@@ -646,8 +646,8 @@ int jkGuiForce_Show(int bCanSpendStars, int isMulti, int a4, char16_t* a5, int *
 
     int clicked;
 #ifdef QOL_IMPROVEMENTS
-    if (bCanSpendStars)
-        jkCoop_MenuAutoContinue(jkGuiForce_pMenu, JKCOOP_FORCE_WAIT_MS); // Added: co-op, goes on by itself
+    if (bCanSpendStars || bEnableIdk)
+        jkCoop_MenuAutoContinue(jkGuiForce_pMenu, JKCOOP_FORCE_WAIT_MS); // Added: co-op, goes on by itself (and the path decision)
 #endif
     while (1)
     {
