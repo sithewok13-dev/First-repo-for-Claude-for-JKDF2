@@ -698,8 +698,10 @@ cancels, and the game holds still while the wheel is open.
   Each style keeps its own colours.
 - **Two sabers fight for real:** the second blade strikes, deals damage and
   throws sparks like the first. In first person both arms move, and between
-  swings the two sabers settle into a few natural resting stances, with a
-  faint shimmer on each blade. Kyle has no new animations, so in his
+  swings the two sabers rest naturally: they rise and fall with Kyle's
+  breathing, each hand drifts on its own and now and then makes a small
+  adjustment, and once in a while he brings them into a brief guard or a
+  loose X before relaxing again. A faint shimmer plays on each blade. Kyle has no new animations, so in his
   two-handed swings the blades come from nearly the same place.
 - **Only the look changes,** and only in your own single-player game: the
   saber's damage, your saves and the levels are untouched. The colours show
