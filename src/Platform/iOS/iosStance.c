@@ -14,9 +14,10 @@
 // A hand's pose, on top of the arm's own animation: its blade tipped out
 // (roll, degrees; + away from the middle of the view), its tip toward the
 // middle of the view (pitch, degrees; + forward), and the hand lowered and
-// brought forward (model units)
+// brought forward (model units), and the hand moved out from the middle of the view (side: in
+// IOSSTANCE_SIDE, the resting spread)
 typedef struct {
-    float roll, pitch, lower, fwd;
+    float roll, pitch, lower, fwd, side;
 } iosStancePose;
 
 typedef struct {
@@ -24,7 +25,7 @@ typedef struct {
 } iosStanceDef;
 
 // Five layers, from the slowest:
-//  - the posture: the relaxed V most of the time, now and then another,
+//  - the posture: the casual gunslinger most of the time, now and then another,
 //    moved between on springs, the left hand a moment after the right
 //  - the body, shared by both hands (breathing, a slow weight shift): the
 //    larger part of the movement, so the two sabers move with one person
@@ -47,14 +48,14 @@ typedef struct {
 // All of it fades out at once for a swing, and back after.
 
 enum {
-    IOSSTANCE_V = 0,     // both out in a loose V, the left a little lower
-    IOSSTANCE_HIGHLOW,   // one nearly upright and higher, the other out and low (the hands swap at times)
-    IOSSTANCE_DUELIST,   // the right tipped toward the middle, the left low and out
-    IOSSTANCE_WIDE,      // both further out, the middle of the view open
-    IOSSTANCE_LOW,       // both hands low, the blades rising from the bottom corners
+    IOSSTANCE_V = 0,     // the casual gunslinger: hands apart and a little low, blades out (most of the time)
+    IOSSTANCE_HIGHLOW,   // wandering: one nearly upright and higher, the other out and low (the hands swap at times)
+    IOSSTANCE_DUELIST,   // the forward-back guard: the right forward and up, the left back and low
+    IOSSTANCE_WIDE,      // wandering: both further out
+    IOSSTANCE_LOW,       // wandering: both hands low
     IOSSTANCE_READY,     // both a little forward, the right leading (after a fight)
     // the accents (brief, then back to the posture)
-    IOSSTANCE_CROSS,     // the blades brought into a loose X low down
+    IOSSTANCE_CROSS,     // the hands brought in, the blades in a quick small X (the only time they cross)
     IOSSTANCE_GUARD,     // a quick high-low guard
     IOSSTANCE_PARRY,     // the right turned in across the middle, as in a small parry
     IOSSTANCE_BLOCK,     // both brought up and forward, as if to block
@@ -64,24 +65,33 @@ enum {
 
 #define IOSSTANCE_U 0.001f // (a model unit's thousandth: a hand moves a few of these)
 static const iosStanceDef iosStance_aDef[IOSSTANCE_NUM] = {
-    [IOSSTANCE_V]       = { { {  9.0f,  0.0f,  0.0f * IOSSTANCE_U, 0.0f }, {  9.0f,  0.0f,  4.0f * IOSSTANCE_U, 0.0f } } },
-    [IOSSTANCE_HIGHLOW] = { { { -3.0f,  2.0f, -4.0f * IOSSTANCE_U, 0.0f }, { 22.0f,  0.0f,  9.0f * IOSSTANCE_U, 0.0f } } },
-    [IOSSTANCE_DUELIST] = { { { -12.0f, 12.0f, -2.0f * IOSSTANCE_U, 4.0f * IOSSTANCE_U }, { 20.0f, -4.0f, 9.0f * IOSSTANCE_U, 0.0f } } },
-    [IOSSTANCE_WIDE]    = { { { 19.0f,  0.0f,  2.0f * IOSSTANCE_U, 0.0f }, { 19.0f,  0.0f,  3.0f * IOSSTANCE_U, 0.0f } } },
-    [IOSSTANCE_LOW]     = { { { 18.0f, -6.0f, 26.0f * IOSSTANCE_U, 0.0f }, { 18.0f, -6.0f, 28.0f * IOSSTANCE_U, 0.0f } } },
-    [IOSSTANCE_READY]   = { { { -5.0f, 14.0f, -2.0f * IOSSTANCE_U, 6.0f * IOSSTANCE_U }, { -2.0f, 10.0f, 0.0f, 4.0f * IOSSTANCE_U } } },
-    [IOSSTANCE_CROSS]   = { { { -26.0f, 4.0f, 10.0f * IOSSTANCE_U, 2.0f * IOSSTANCE_U }, { -26.0f, 4.0f, 10.0f * IOSSTANCE_U, 2.0f * IOSSTANCE_U } } },
-    [IOSSTANCE_GUARD]   = { { { -6.0f,  5.0f, -8.0f * IOSSTANCE_U, 2.0f * IOSSTANCE_U }, { 20.0f, -2.0f, 11.0f * IOSSTANCE_U, 0.0f } } },
-    [IOSSTANCE_PARRY]   = { { { -17.0f, 9.0f, -2.0f * IOSSTANCE_U, 4.0f * IOSSTANCE_U }, {  8.0f,  2.0f,  5.0f * IOSSTANCE_U, 0.0f } } },
-    [IOSSTANCE_BLOCK]   = { { { -5.0f, 11.0f, -6.0f * IOSSTANCE_U, 5.0f * IOSSTANCE_U }, { -3.0f,  9.0f, -4.0f * IOSSTANCE_U, 4.0f * IOSSTANCE_U } } },
+    // (roll, pitch, lower, fwd, side) for the right hand, then the left
+    // the casual gunslinger: hands apart and a little low, blades out, the left lower
+    [IOSSTANCE_V]       = { { { 13.0f,  1.0f,  2.0f * IOSSTANCE_U,  0.0f,               1.00f }, { 14.0f,  0.0f,  5.0f * IOSSTANCE_U,  0.0f,               1.00f } } },
+    // the wandering guard, one hand high and nearly upright, the other out and low (swapped at times)
+    [IOSSTANCE_HIGHLOW] = { { {  5.0f,  3.0f, -3.0f * IOSSTANCE_U,  1.0f * IOSSTANCE_U, 0.85f }, { 22.0f,  0.0f, 11.0f * IOSSTANCE_U,  0.0f,               1.10f } } },
+    // the forward-back guard: the right forward and up, the left back and low
+    [IOSSTANCE_DUELIST] = { { {  5.0f, 10.0f, -2.0f * IOSSTANCE_U,  6.0f * IOSSTANCE_U, 0.80f }, { 20.0f, -3.0f, 10.0f * IOSSTANCE_U, -2.0f * IOSSTANCE_U, 1.10f } } },
+    // the wandering guard, wider
+    [IOSSTANCE_WIDE]    = { { { 19.0f,  0.0f,  4.0f * IOSSTANCE_U,  0.0f,               1.25f }, { 19.0f,  0.0f,  5.0f * IOSSTANCE_U,  0.0f,               1.25f } } },
+    // the wandering guard, low
+    [IOSSTANCE_LOW]     = { { { 18.0f, -6.0f, 22.0f * IOSSTANCE_U,  0.0f,               1.10f }, { 18.0f, -6.0f, 24.0f * IOSSTANCE_U,  0.0f,               1.10f } } },
+    // ready (after a fight): both a little forward, the right leading
+    [IOSSTANCE_READY]   = { { {  4.0f, 12.0f, -1.0f * IOSSTANCE_U,  6.0f * IOSSTANCE_U, 0.80f }, {  6.0f,  9.0f,  1.0f * IOSSTANCE_U,  4.0f * IOSSTANCE_U, 0.85f } } },
+    // the accents: a quick small X (the hands come in for it), a high-low guard, a practice parry, a block
+    [IOSSTANCE_CROSS]   = { { { -20.0f, 4.0f,  9.0f * IOSSTANCE_U,  2.0f * IOSSTANCE_U, 0.35f }, { -20.0f, 4.0f,  9.0f * IOSSTANCE_U,  2.0f * IOSSTANCE_U, 0.35f } } },
+    [IOSSTANCE_GUARD]   = { { {  1.0f,  5.0f, -7.0f * IOSSTANCE_U,  2.0f * IOSSTANCE_U, 0.80f }, { 20.0f, -2.0f, 11.0f * IOSSTANCE_U,  0.0f,               1.05f } } },
+    [IOSSTANCE_PARRY]   = { { { -13.0f, 9.0f, -2.0f * IOSSTANCE_U,  4.0f * IOSSTANCE_U, 0.60f }, { 11.0f,  2.0f,  6.0f * IOSSTANCE_U,  0.0f,               1.00f } } },
+    [IOSSTANCE_BLOCK]   = { { { -2.0f, 11.0f, -6.0f * IOSSTANCE_U,  5.0f * IOSSTANCE_U, 0.75f }, {  0.0f,  9.0f, -4.0f * IOSSTANCE_U,  4.0f * IOSSTANCE_U, 0.75f } } },
 };
 // How often each posture is picked after the V, and each accent, out of their sums
 static const int iosStance_aWeight[IOSSTANCE_NUM] = {
     [IOSSTANCE_HIGHLOW] = 30, [IOSSTANCE_DUELIST] = 24, [IOSSTANCE_WIDE] = 20, [IOSSTANCE_LOW] = 16, [IOSSTANCE_READY] = 6,
     [IOSSTANCE_CROSS] = 30, [IOSSTANCE_GUARD] = 30, [IOSSTANCE_PARRY] = 22, [IOSSTANCE_BLOCK] = 18,
 };
-// The resting hands a little further apart than the postures above have them (degrees out)
-#define IOSSTANCE_SPREAD 4.5f
+// The resting blades tipped further out than the postures above have them (degrees)
+// (with the hands apart the blades look tipped in, seen from behind them: this much more keeps them out)
+#define IOSSTANCE_SPREAD 15.0f
 
 // Posture timing (seconds): the V held this long (now and then much longer), another this long;
 // after a fight, ready this long
@@ -96,6 +106,8 @@ static const int iosStance_aWeight[IOSSTANCE_NUM] = {
 // Accents (gestures now): held this long
 #define IOSSTANCE_ACCENT_MIN 0.8f
 #define IOSSTANCE_ACCENT_MAX 1.2f
+#define IOSSTANCE_CROSS_MIN 0.55f // (the X: quicker)
+#define IOSSTANCE_CROSS_MAX 0.8f
 // Small adjustments: the gaps between them mostly 3-8 s (most often near the middle); one in six
 // a quiet stretch of 8-12 s; one in eight a second straight after (1-2 s: a re-grip); each lasts
 // 0.7-1.2 s, eased in and out; the other hand answers a tenth as much a moment later
@@ -127,6 +139,8 @@ static const int iosStance_aWeight[IOSSTANCE_NUM] = {
 #define IOSSTANCE_BREATH_PITCH 0.7f
 #define IOSSTANCE_SHIFT_HZ 0.07f
 #define IOSSTANCE_SHIFT_ROLL 1.6f
+#define IOSSTANCE_SHIFT_SIDE 0.05f  // (the hands carried across with the weight, of the spread)
+#define IOSSTANCE_WANDER 0.07f      // (each hand's slow drift in and out, of the spread)
 #define IOSSTANCE_FLOAT 1.6f // (each hand's own waves, against what they were)
 
 // The gestures (eagerness 0-1 rising while calm: about 0.2 at 5 s, 0.45 at 15 s, 0.7 at 30 s)
@@ -140,6 +154,8 @@ static const int iosStance_aWeight[IOSSTANCE_NUM] = {
 #define IOSSTANCE_LEAN_PITCH 2.5f
 #define IOSSTANCE_LEAD_FWD (3.0f * IOSSTANCE_U) // (the leading hand ahead, the other back half as much)
 #define IOSSTANCE_LEAD_PITCH 2.0f
+#define IOSSTANCE_LEAD_REST_FWD (1.5f * IOSSTANCE_U)
+#define IOSSTANCE_LEAD_REST_RISE (2.0f * IOSSTANCE_U)
 enum { IOSSTANCE_SHAPE_SNAP = 0, IOSSTANCE_SHAPE_HOLD, IOSSTANCE_SHAPE_HALF, IOSSTANCE_SHAPE_BUMP };
 enum { IOSSTANCE_G_ONE = 0, IOSSTANCE_G_BOTH, IOSSTANCE_G_ACCENT, IOSSTANCE_G_GUARDS, IOSSTANCE_G_LEAD };
 typedef struct {
@@ -158,21 +174,21 @@ static const iosStanceGesture iosStance_aGesture[IOSSTANCE_GE_NUM] = {
     // a change of guard (another posture)
     [IOSSTANCE_GE_GUARDS] = { IOSSTANCE_G_GUARDS, 0.20f, 20, 12.0f, 0.0f, 0, 0, { 0 } },
     // an impatient flick of one wrist: the tip in and up, quick, then easy back
-    [IOSSTANCE_GE_FLICK]  = { IOSSTANCE_G_ONE, 0.25f, 24, 10.0f, 0.45f, IOSSTANCE_SHAPE_SNAP, 0, { -9.0f, 4.0f, 0.0f, 0.0f } },
+    [IOSSTANCE_GE_FLICK]  = { IOSSTANCE_G_ONE, 0.25f, 24, 10.0f, 0.45f, IOSSTANCE_SHAPE_SNAP, 0, { -9.0f, 4.0f, 0.0f, 0.0f, -0.06f } },
     // the other hand takes the lead
     [IOSSTANCE_GE_LEAD]   = { IOSSTANCE_G_LEAD, 0.30f, 12, 15.0f, 0.0f, 0, 0, { 0 } },
     // one saber raised as if a blow were coming, held a moment, then let down
-    [IOSSTANCE_GE_RAISE]  = { IOSSTANCE_G_ONE, 0.45f, 14, 18.0f, 1.4f, IOSSTANCE_SHAPE_HOLD, 0, { -4.0f, 7.0f, -9.0f * IOSSTANCE_U, 2.0f * IOSSTANCE_U } },
+    [IOSSTANCE_GE_RAISE]  = { IOSSTANCE_G_ONE, 0.45f, 14, 18.0f, 1.4f, IOSSTANCE_SHAPE_HOLD, 0, { -4.0f, 7.0f, -9.0f * IOSSTANCE_U, 2.0f * IOSSTANCE_U, -0.10f } },
     [IOSSTANCE_GE_GUARD]  = { IOSSTANCE_G_ACCENT, 0.40f, 10, 20.0f, 0.0f, 0, IOSSTANCE_GUARD, { 0 } },
     [IOSSTANCE_GE_PARRY]  = { IOSSTANCE_G_ACCENT, 0.45f, 12, 20.0f, 0.0f, 0, IOSSTANCE_PARRY, { 0 } },
     [IOSSTANCE_GE_CROSS]  = { IOSSTANCE_G_ACCENT, 0.50f, 10, 25.0f, 0.0f, 0, IOSSTANCE_CROSS, { 0 } },
     // a feint: the leading saber pushed forward and dipped, pulled back
-    [IOSSTANCE_GE_FEINT]  = { IOSSTANCE_G_ONE, 0.55f, 12, 20.0f, 0.6f, IOSSTANCE_SHAPE_SNAP, 0, { 0.0f, 8.0f, -2.0f * IOSSTANCE_U, 7.0f * IOSSTANCE_U } },
+    [IOSSTANCE_GE_FEINT]  = { IOSSTANCE_G_ONE, 0.55f, 12, 20.0f, 0.6f, IOSSTANCE_SHAPE_SNAP, 0, { 0.0f, 8.0f, -2.0f * IOSSTANCE_U, 7.0f * IOSSTANCE_U, -0.08f } },
     // a block begun with both, let go halfway
-    [IOSSTANCE_GE_ABORT]  = { IOSSTANCE_G_BOTH, 0.55f, 10, 20.0f, 0.8f, IOSSTANCE_SHAPE_HALF, 0, { -6.0f, 10.0f, -6.0f * IOSSTANCE_U, 4.0f * IOSSTANCE_U } },
+    [IOSSTANCE_GE_ABORT]  = { IOSSTANCE_G_BOTH, 0.55f, 10, 20.0f, 0.8f, IOSSTANCE_SHAPE_HALF, 0, { -6.0f, 10.0f, -6.0f * IOSSTANCE_U, 4.0f * IOSSTANCE_U, -0.15f } },
     [IOSSTANCE_GE_BLOCK]  = { IOSSTANCE_G_ACCENT, 0.65f, 6, 30.0f, 0.0f, 0, IOSSTANCE_BLOCK, { 0 } },
     // the rare confident one: a loose roll of one wrist outward and back (no spin)
-    [IOSSTANCE_GE_ROLL]   = { IOSSTANCE_G_ONE, 0.80f, 4, 60.0f, 0.9f, IOSSTANCE_SHAPE_BUMP, 0, { 38.0f, 3.0f, 0.0f, 0.0f } },
+    [IOSSTANCE_GE_ROLL]   = { IOSSTANCE_G_ONE, 0.80f, 4, 60.0f, 0.9f, IOSSTANCE_SHAPE_BUMP, 0, { 38.0f, 3.0f, 0.0f, 0.0f, 0.05f } },
 };
 // How often one comes, by eagerness (a second's chance, while one may): none below the first
 #define IOSSTANCE_RATE(e) ((e) < 0.2f ? 0.0f : (e) < 0.45f ? (1.0f / 18.0f) : (e) < 0.7f ? (1.0f / 11.0f) : (1.0f / 8.0f))
@@ -181,16 +197,22 @@ static const iosStanceGesture iosStance_aGesture[IOSSTANCE_GE_NUM] = {
 #define IOSSTANCE_ROLL_MAX 42.0f
 #define IOSSTANCE_PITCH_MIN -12.0f
 #define IOSSTANCE_PITCH_MAX 20.0f
+// The hands apart: the resting spread (model units, each hand out from the middle), and the limits
+#define IOSSTANCE_SIDE 0.022f // (the hilts near a third of the way in from each side of the view)
+#define IOSSTANCE_SIDE_MIN 0.25f
+#define IOSSTANCE_SIDE_MAX 1.4f
+// Outside an accent no blade tips in further than this (degrees), so the blades never meet at rest
+#define IOSSTANCE_OPEN_ROLL_MIN 3.0f
 
 // The small adjustments: what moves, at its fullest
 enum { IOSSTANCE_M_DIP = 0, IOSSTANCE_M_RISE, IOSSTANCE_M_ROLL_OUT, IOSSTANCE_M_ROLL_IN, IOSSTANCE_M_FORWARD, IOSSTANCE_M_CENTRE, IOSSTANCE_M_NUM };
 static const iosStancePose iosStance_aMicro[IOSSTANCE_M_NUM] = {
-    [IOSSTANCE_M_DIP]      = { -1.0f, -2.5f,  5.0f * IOSSTANCE_U, 0.0f },
-    [IOSSTANCE_M_RISE]     = {  0.0f,  2.0f, -4.5f * IOSSTANCE_U, 0.0f },
-    [IOSSTANCE_M_ROLL_OUT] = {  6.0f,  0.0f,  0.0f, 0.0f },
-    [IOSSTANCE_M_ROLL_IN]  = { -5.5f,  1.0f,  0.0f, 0.0f },
-    [IOSSTANCE_M_FORWARD]  = {  0.0f,  3.0f, -1.0f * IOSSTANCE_U, 5.0f * IOSSTANCE_U },
-    [IOSSTANCE_M_CENTRE]   = { -2.5f,  1.0f, -1.5f * IOSSTANCE_U, 1.0f * IOSSTANCE_U },
+    [IOSSTANCE_M_DIP]      = { -1.0f, -2.5f,  5.0f * IOSSTANCE_U, 0.0f,                0.03f },
+    [IOSSTANCE_M_RISE]     = {  0.0f,  2.0f, -4.5f * IOSSTANCE_U, 0.0f,               -0.03f },
+    [IOSSTANCE_M_ROLL_OUT] = {  6.0f,  0.0f,  0.0f,               0.0f,                0.07f },
+    [IOSSTANCE_M_ROLL_IN]  = { -5.5f,  1.0f,  0.0f,               0.0f,               -0.07f },
+    [IOSSTANCE_M_FORWARD]  = {  0.0f,  3.0f, -1.0f * IOSSTANCE_U, 5.0f * IOSSTANCE_U, -0.04f },
+    [IOSSTANCE_M_CENTRE]   = { -2.5f,  1.0f, -1.5f * IOSSTANCE_U, 1.0f * IOSSTANCE_U, -0.05f },
 };
 static const int iosStance_aMicroWeight[IOSSTANCE_M_NUM] = { 22, 18, 18, 16, 14, 12 };
 
@@ -258,6 +280,7 @@ static void iosStance_BeginFor(int stance, float now, float dwell)
         if (iosStance_Rand01() < IOSSTANCE_HOME_LONG_CHANCE) d = iosStance_RandRange(IOSSTANCE_HOME_MAX, IOSSTANCE_HOME_LONG_MAX);
         iosStance_s.stanceEnd = now + d;
     }
+    else if (stance == IOSSTANCE_CROSS) iosStance_s.stanceEnd = now + iosStance_RandRange(IOSSTANCE_CROSS_MIN, IOSSTANCE_CROSS_MAX);
     else if (iosStance_IsAccent(stance)) iosStance_s.stanceEnd = now + iosStance_RandRange(IOSSTANCE_ACCENT_MIN, IOSSTANCE_ACCENT_MAX);
     else if (stance == IOSSTANCE_READY) iosStance_s.stanceEnd = now + iosStance_RandRange(IOSSTANCE_READY_MIN, IOSSTANCE_READY_MAX);
     else iosStance_s.stanceEnd = now + iosStance_RandRange(IOSSTANCE_AWAY_MIN, IOSSTANCE_AWAY_MAX);
@@ -276,6 +299,7 @@ static void iosStance_BeginFor(int stance, float now, float dwell)
             aOut[h]->pitch = from.pitch + (to.pitch - from.pitch) * r + iosStance_RandRange(-2.0f, 2.0f);
             aOut[h]->lower = from.lower + (to.lower - from.lower) * r + iosStance_RandRange(-2.0f, 2.0f) * IOSSTANCE_U;
             aOut[h]->fwd = from.fwd + (to.fwd - from.fwd) * r;
+            aOut[h]->side = from.side + (to.side - from.side) * r + iosStance_RandRange(-0.06f, 0.06f);
         }
     }
     iosStance_s.leftSwitchAt = (stance == IOSSTANCE_CROSS) ? now : now + IOSSTANCE_LEFT_LAG * iosStance_RandRange(0.6f, 1.4f);
@@ -344,7 +368,7 @@ static void iosStance_Spring(iosStancePose* x, iosStancePose* v, const iosStance
 {
     // critically damped: no overshoot, eased in and out; carries on smoothly from wherever it is
     float* px = &x->roll; float* pv = &v->roll; const float* pt = &target->roll;
-    for (int k = 0; k < 4; k++) {
+    for (int k = 0; k < (int)(sizeof(iosStancePose) / sizeof(float)); k++) {
         float a = w * w * (pt[k] - px[k]) - 2.0f * w * pv[k];
         pv[k] += a * dt;
         px[k] += pv[k] * dt;
@@ -528,16 +552,20 @@ void iosStance_Update(SithThing* pActor, int bBusy)
     for (int h = 0; h < 2; h++) {
         if (!iosStance_IsAccent(iosStance_s.stance)) {
             aGoal[h].roll += IOSSTANCE_SPREAD;
+            if (aGoal[h].roll < IOSSTANCE_OPEN_ROLL_MIN) aGoal[h].roll = IOSSTANCE_OPEN_ROLL_MIN;
             // eager: leaning in a touch, one hand leading
             const float e = iosStance_s.eager;
             aGoal[h].fwd += e * IOSSTANCE_LEAN_FWD + (h == iosStance_s.leadHand ? e * IOSSTANCE_LEAD_FWD : -0.5f * e * IOSSTANCE_LEAD_FWD);
             aGoal[h].pitch += e * IOSSTANCE_LEAN_PITCH + (h == iosStance_s.leadHand ? e * IOSSTANCE_LEAD_PITCH : 0.0f);
+            // (and always a little: the leading hand a touch forward and higher)
+            if (h == iosStance_s.leadHand) { aGoal[h].fwd += IOSSTANCE_LEAD_REST_FWD; aGoal[h].lower -= IOSSTANCE_LEAD_REST_RISE; }
         }
         if (pActor) {
             const iosStancePose low = iosStance_aDef[IOSSTANCE_LOW].aHand[h];
             const float k = 0.5f * run;
             aGoal[h].roll += (low.roll - aGoal[h].roll) * k;
             aGoal[h].lower += (low.lower - aGoal[h].lower) * k;
+            aGoal[h].side += (low.side - aGoal[h].side) * k;
             if (pActor->physicsParams.flags & SITH_PF_CROUCHING) aGoal[h].lower += 5.0f * IOSSTANCE_U;
             if (pActor->attach_flags == 0 && !(pActor->physicsParams.flags & SITH_PF_FLY)) aGoal[h].lower -= 4.0f * IOSSTANCE_U;
         }
@@ -586,6 +614,7 @@ static void iosStance_AddLife(int hand, float t, iosStancePose* p)
     p->pitch += IOSSTANCE_BREATH_PITCH * breath;
     const float shift = IOSSTANCE_SHIFT_ROLL * sinf(twoPi * IOSSTANCE_SHIFT_HZ * tb + 0.4f);
     p->roll += hand ? -shift : shift;
+    p->side += (hand ? -IOSSTANCE_SHIFT_SIDE : IOSSTANCE_SHIFT_SIDE) * sinf(twoPi * IOSSTANCE_SHIFT_HZ * tb + 0.4f);
     // each hand's own float: slow waves at uneven rates, different for each hand
     const float ph = hand ? 1.7f : 0.0f;
     const float fr = hand ? 1.13f : 1.0f;
@@ -593,6 +622,7 @@ static void iosStance_AddLife(int hand, float t, iosStancePose* p)
     p->roll += k * (1.1f * sinf(twoPi * 0.21f * fr * t + ph) + 0.5f * sinf(twoPi * 0.37f * fr * t + 2.0f * ph) + 0.25f * sinf(twoPi * 0.61f * fr * t + 0.3f));
     p->pitch += k * (0.8f * sinf(twoPi * 0.17f * fr * t + 0.5f + ph) + 0.3f * sinf(twoPi * 0.41f * fr * t) + 0.2f * sinf(twoPi * 0.53f * fr * t + 1.1f * ph));
     p->lower += k * 0.6f * IOSSTANCE_U * sinf(twoPi * 0.29f * fr * t + 0.6f + ph);
+    p->side += IOSSTANCE_WANDER * (sinf(twoPi * 0.043f * fr * t + 2.3f * ph) + 0.4f * sinf(twoPi * 0.11f * fr * t + 0.9f));
     // the small adjustment: the hand making it in full, the other answering faintly a moment later
     if (iosStance_s.microDur > 0.0f) {
         const int bMine = hand == iosStance_s.microHand;
@@ -603,6 +633,7 @@ static void iosStance_AddLife(int hand, float t, iosStancePose* p)
         p->pitch += b * m->pitch;
         p->lower += b * m->lower;
         p->fwd += b * m->fwd;
+        p->side += b * m->side;
     }
     // a gesture: the hand making it (or both)
     if (iosStance_s.gesture >= 0) {
@@ -619,6 +650,7 @@ static void iosStance_AddLife(int hand, float t, iosStancePose* p)
             p->pitch += b * g->d.pitch;
             p->lower += b * g->d.lower;
             p->fwd += b * g->d.fwd;
+            p->side += b * g->d.side;
         }
     }
 }
@@ -629,7 +661,7 @@ int iosStance_GetHand(int hand, const rdVector3* pPivot, rdMatrix34* pOut)
     const float w = iosStance_s.weight;
     const iosStancePose base = iosStance_s.aPose[hand];
     iosStancePose p = base;
-    iosStancePose life = { 0.0f, 0.0f, 0.0f, 0.0f };
+    iosStancePose life = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
     iosStance_AddLife(hand, iosStance_s.t, &life);
     // (less of the life while a swing has the arm, and while running)
     const float lifeK = (0.35f + 0.65f * w) * (1.0f - 0.5f * iosStance_s.run);
@@ -637,11 +669,14 @@ int iosStance_GetHand(int hand, const rdVector3* pPivot, rdMatrix34* pOut)
     p.pitch += lifeK * life.pitch;
     p.lower += lifeK * life.lower;
     p.fwd += lifeK * life.fwd;
+    p.side += lifeK * life.side;
     // (within limits: no blade across the middle of the view)
     if (p.roll < IOSSTANCE_ROLL_MIN) p.roll = IOSSTANCE_ROLL_MIN;
     if (p.roll > IOSSTANCE_ROLL_MAX) p.roll = IOSSTANCE_ROLL_MAX;
     if (p.pitch < IOSSTANCE_PITCH_MIN) p.pitch = IOSSTANCE_PITCH_MIN;
     if (p.pitch > IOSSTANCE_PITCH_MAX) p.pitch = IOSSTANCE_PITCH_MAX;
+    if (p.side < IOSSTANCE_SIDE_MIN) p.side = IOSSTANCE_SIDE_MIN;
+    if (p.side > IOSSTANCE_SIDE_MAX) p.side = IOSSTANCE_SIDE_MAX;
     // The stance itself, as much as the weight says (a swing: none; the life stays, less of it)
     rdVector3 pyr;
     pyr.x = (w * p.pitch) + (1.0f - w) * (p.pitch - base.pitch);
@@ -652,7 +687,7 @@ int iosStance_GetHand(int hand, const rdVector3* pPivot, rdMatrix34* pOut)
     // turned round the hand, then moved
     rdVector3 rp;
     rdMatrix_TransformVector34(&rp, pPivot, &r);
-    r.scale.x = pPivot->x - rp.x;
+    r.scale.x = pPivot->x - rp.x + IOSSTANCE_SIDE * (w * p.side + (1.0f - w) * (p.side - base.side));
     r.scale.y = pPivot->y - rp.y + (w * p.fwd + (1.0f - w) * (p.fwd - base.fwd));
     r.scale.z = pPivot->z - rp.z - (w * p.lower + (1.0f - w) * (p.lower - base.lower));
     *pOut = r;

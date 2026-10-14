@@ -698,7 +698,10 @@ cancels, and the game holds still while the wheel is open.
   Each style keeps its own colours.
 - **Two sabers fight for real:** the second blade strikes, deals damage and
   throws sparks like the first. In first person both arms move, and between
-  swings the two sabers rest naturally: they rise and fall with Kyle's
+  swings he holds the two sabers casually, hands apart and a little low,
+  blades tipped out, the middle of the view clear; now and then he shifts
+  to a forward-and-back guard or lets his hands wander, and the sabers
+  cross only in a quick X now and then. They rise and fall with Kyle's
   breathing, each hand drifts on its own and now and then makes a small
   adjustment. The longer he stands still, the more restless he gets: he
   leans in with one saber leading, flicks a wrist, feints, half raises a
