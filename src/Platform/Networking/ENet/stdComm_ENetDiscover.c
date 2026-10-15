@@ -54,9 +54,16 @@ static int stdComm_ENetDiscover_advertiseSerial = 0;   // (changed whenever what
 static stdCommENetDiscoverGame stdComm_ENetDiscover_mine;
 static int stdComm_ENetDiscover_minePort = 0;
 static int stdComm_ENetDiscover_bWantBrowse = 0;
-static int stdComm_ENetDiscover_bRefsClosed = 0;
-static uint32_t stdComm_ENetDiscover_retryMs = 0;        // (Bonjour itself gone (restarted): not asked again before)
-#define STDCOMM_ENETDISCOVER_RETRY_MS 3000        // (the thread's: a game's asking closed while answering)
+static int stdComm_ENetDiscover_bRefsClosed = 0;        // (the thread's: a ref closed while answering the others)
+static uint32_t stdComm_ENetDiscover_retryMs = 0;        // (Bonjour itself gone (restarted): advertising not tried again before)
+static uint32_t stdComm_ENetDiscover_browseRetryMs = 0;  // (and browsing)
+static uint32_t stdComm_ENetDiscover_browseOpenMs = 0;   // (when the browse was opened)
+#define STDCOMM_ENETDISCOVER_RETRY_MS 3000
+// (iOS: the Local Network permission refused; not every dns_sd.h has the name)
+#define STDCOMM_ENETDISCOVER_ERR_POLICYDENIED (-65570)
+static volatile int stdComm_ENetDiscover_bBlocked = 0;  // (the last browse refused that way)
+static int stdComm_ENetDiscover_bBrowseFailed = 0;       // (the thread's: the browse callback said it failed)
+#define STDCOMM_ENETDISCOVER_ALLOWED_MS 2000             // (a browse open this long without a refusal: allowed)
 static char stdComm_ENetDiscover_browseGame[8];
 static stdCommENetDiscoverSeen stdComm_ENetDiscover_aSeen[STDCOMM_ENETDISCOVER_MAX_GAMES];
 
@@ -144,6 +151,7 @@ static void stdComm_ENetDiscover_MakeTxt(TXTRecordRef* pTxt, char* buf, int bufL
     stdComm_ENetDiscover_TxtSet(pTxt, "p", num);
     stdComm_ENetDiscover_TxtSet(pTxt, "m", g->mode);
     stdComm_ENetDiscover_TxtSet(pTxt, "l", g->level);
+    stdComm_ENetDiscover_TxtSet(pTxt, "t", g->title);
     snprintf(num, sizeof(num), "%d", g->numPlayers);
     stdComm_ENetDiscover_TxtSet(pTxt, "n", num);
     snprintf(num, sizeof(num), "%d", g->maxPlayers);
@@ -228,6 +236,7 @@ static void DNSSD_API stdComm_ENetDiscover_Resolved(DNSServiceRef ref, DNSServic
     stdComm_ENetDiscover_TxtGet(txtLen, txtRecord, "p", port, sizeof(port));
     stdComm_ENetDiscover_TxtGet(txtLen, txtRecord, "m", g.mode, sizeof(g.mode));
     stdComm_ENetDiscover_TxtGet(txtLen, txtRecord, "l", g.level, sizeof(g.level));
+    stdComm_ENetDiscover_TxtGet(txtLen, txtRecord, "t", g.title, sizeof(g.title));
     stdComm_ENetDiscover_TxtGet(txtLen, txtRecord, "n", num, sizeof(num));
     g.numPlayers = atoi(num);
     stdComm_ENetDiscover_TxtGet(txtLen, txtRecord, "x", num, sizeof(num));
@@ -261,7 +270,13 @@ static void DNSSD_API stdComm_ENetDiscover_Browsed(DNSServiceRef ref, DNSService
                                                    const char* domain, void* ctx)
 {
     (void)ref; (void)ctx;
-    if (err != kDNSServiceErr_NoError) return;
+    if (err != kDNSServiceErr_NoError) {
+        // (refused: the browse closed and tried again in a while; the Join screen says why)
+        if (err == STDCOMM_ENETDISCOVER_ERR_POLICYDENIED) stdComm_ENetDiscover_bBlocked = 1;
+        stdComm_ENetDiscover_bBrowseFailed = 1;
+        return;
+    }
+    stdComm_ENetDiscover_bBlocked = 0;
     SDL_LockMutex(stdComm_ENetDiscover_mutex);
     stdCommENetDiscoverSeen* pFree = NULL;
     stdCommENetDiscoverSeen* pFound = NULL;
@@ -305,12 +320,19 @@ static void stdComm_ENetDiscover_UpdateBrowsing(void)
         return;
     }
     if (!stdComm_ENetDiscover_browse) {
-        if ((int32_t)(stdComm_ENetDiscover_Now() - stdComm_ENetDiscover_retryMs) < 0) return;
-        if (DNSServiceBrowse(&stdComm_ENetDiscover_browse, 0, 0, STDCOMM_ENETDISCOVER_SERVICE, NULL,
-                             stdComm_ENetDiscover_Browsed, NULL) != kDNSServiceErr_NoError) {
+        if ((int32_t)(stdComm_ENetDiscover_Now() - stdComm_ENetDiscover_browseRetryMs) < 0) return;
+        DNSServiceErrorType err = DNSServiceBrowse(&stdComm_ENetDiscover_browse, 0, 0, STDCOMM_ENETDISCOVER_SERVICE, NULL,
+                                                   stdComm_ENetDiscover_Browsed, NULL);
+        if (err != kDNSServiceErr_NoError) {
+            if (err == STDCOMM_ENETDISCOVER_ERR_POLICYDENIED) stdComm_ENetDiscover_bBlocked = 1;
             stdComm_ENetDiscover_browse = NULL;
+            stdComm_ENetDiscover_browseRetryMs = stdComm_ENetDiscover_Now() + STDCOMM_ENETDISCOVER_RETRY_MS;
             return;
         }
+        stdComm_ENetDiscover_browseOpenMs = stdComm_ENetDiscover_Now();
+    }
+    else if (stdComm_ENetDiscover_bBlocked && stdComm_ENetDiscover_Now() - stdComm_ENetDiscover_browseOpenMs > STDCOMM_ENETDISCOVER_ALLOWED_MS) {
+        stdComm_ENetDiscover_bBlocked = 0; // (open a while, not refused: allowed now)
     }
     const uint32_t now = stdComm_ENetDiscover_Now();
     SDL_LockMutex(stdComm_ENetDiscover_mutex);
@@ -371,14 +393,26 @@ static int stdComm_ENetDiscover_Thread(void* unused)
             // (one closed meanwhile, by a game gone: the rest left for the next time round)
             int fd = DNSServiceRefSockFD(aRef[i]);
             if (fd >= 0 && FD_ISSET(fd, &fds)) {
+                stdComm_ENetDiscover_bBrowseFailed = 0;
                 DNSServiceErrorType err = DNSServiceProcessResult(aRef[i]);
+                if (aRef[i] == stdComm_ENetDiscover_browse && stdComm_ENetDiscover_bBrowseFailed && err == kDNSServiceErr_NoError)
+                    err = kDNSServiceErr_Unknown; // (the browse said it failed: closed as below)
                 if (err != kDNSServiceErr_NoError && (aRef[i] == stdComm_ENetDiscover_register || aRef[i] == stdComm_ENetDiscover_browse)) {
                     // (Bonjour itself gone, restarted, or the app put away: closed, opened again in a while,
                     // never spun on a socket that has nothing more to say)
-                    if (aRef[i] == stdComm_ENetDiscover_register) stdComm_ENetDiscover_register = NULL;
-                    else stdComm_ENetDiscover_browse = NULL;
+                    if (aRef[i] == stdComm_ENetDiscover_register) {
+                        stdComm_ENetDiscover_register = NULL;
+                        stdComm_ENetDiscover_retryMs = stdComm_ENetDiscover_Now() + STDCOMM_ENETDISCOVER_RETRY_MS;
+                    }
+                    else {
+                        // (and what it had heard forgotten: heard again when it works)
+                        stdComm_ENetDiscover_browse = NULL;
+                        stdComm_ENetDiscover_browseRetryMs = stdComm_ENetDiscover_Now() + STDCOMM_ENETDISCOVER_RETRY_MS;
+                        SDL_LockMutex(stdComm_ENetDiscover_mutex);
+                        for (int k = 0; k < STDCOMM_ENETDISCOVER_MAX_GAMES; k++) stdComm_ENetDiscover_Forget(&stdComm_ENetDiscover_aSeen[k]);
+                        SDL_UnlockMutex(stdComm_ENetDiscover_mutex);
+                    }
                     DNSServiceRefDeallocate(aRef[i]);
-                    stdComm_ENetDiscover_retryMs = stdComm_ENetDiscover_Now() + STDCOMM_ENETDISCOVER_RETRY_MS;
                     stdComm_ENetDiscover_bRefsClosed = 1;
                     continue;
                 }
@@ -417,6 +451,11 @@ static void stdComm_ENetDiscover_EnsureThread(void)
 int stdComm_ENetDiscover_IsAvailable(void)
 {
     return 1;
+}
+
+int stdComm_ENetDiscover_IsBlocked(void)
+{
+    return stdComm_ENetDiscover_bBlocked;
 }
 
 void stdComm_ENetDiscover_Advertise(const stdCommENetDiscoverGame* pGame, int port)
@@ -491,6 +530,7 @@ void stdComm_ENetDiscover_Shutdown(void)
 
 // (no Bonjour here: nothing is found, and an address is typed)
 int stdComm_ENetDiscover_IsAvailable(void) { return 0; }
+int stdComm_ENetDiscover_IsBlocked(void) { return 0; }
 void stdComm_ENetDiscover_Advertise(const stdCommENetDiscoverGame* pGame, int port) { (void)pGame; (void)port; }
 void stdComm_ENetDiscover_StopAdvertising(void) {}
 void stdComm_ENetDiscover_StartBrowsing(const char* game) { (void)game; }

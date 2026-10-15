@@ -27,6 +27,7 @@
 #include "jk.h"
 #include "Main/Main.h"
 #include "Main/jkCoopSave.h"
+#include "Gui/jkGUITitle.h"
 
 #include "SDL2_helper.h"
 
@@ -492,6 +493,25 @@ static void stdComm_ENet_ServerEvent(ENetEvent* ev)
 
 // ------------------------------------------------------------------ a player's events
 
+// The answer to a host's challenge (a game with a password) made: the key from the password, the session
+// (pSession) started, and the HELLO to send; 0 if no random numbers
+static int stdComm_ENet_MakeHello(stdCommENetCryptoSession* pSession, const uint16_t* pPassword, const uint8_t* pChallenge,
+                                  uint8_t hello[STDCOMM_ENET_HELLO_LEN])
+{
+    uint8_t passwordKey[STDCOMM_ENETCRYPTO_KEY_LEN];
+    const uint32_t magic = STDCOMM_ENET_MAGIC_HELLO;
+    memcpy(hello, &magic, 4);
+    if (!stdComm_ENetCrypto_Random(hello + 4, STDCOMM_ENETCRYPTO_NONCE_LEN))
+        return 0;
+    stdComm_ENetCrypto_PasswordKey(pPassword, pChallenge + 4, passwordKey);
+    stdComm_ENetCrypto_StartSession(pSession, passwordKey, pChallenge + 4 + STDCOMM_ENETCRYPTO_SALT_LEN,
+                                    hello + 4, STDCOMM_ENETCRYPTO_FROM_PLAYER);
+    memset(passwordKey, 0, sizeof(passwordKey));
+    stdComm_ENetCrypto_Seal(pSession, 0, STDCOMM_ENET_HELLO_TEXT, STDCOMM_ENET_HELLO_TEXT_LEN,
+                            hello + 4 + STDCOMM_ENETCRYPTO_NONCE_LEN, STDCOMM_ENET_HELLO_TEXT_LEN + STDCOMM_ENETCRYPTO_OVERHEAD);
+    return 1;
+}
+
 // The host's challenge (a game with a password) answered: the key made from the password typed, and
 // the connection encrypted from now on; none typed: the wrong password
 static void stdComm_ENet_AnswerChallenge(ENetPeer* pPeer, const uint8_t* pChallenge)
@@ -502,20 +522,11 @@ static void stdComm_ENet_AnswerChallenge(ENetPeer* pPeer, const uint8_t* pChalle
         enet_peer_disconnect(pPeer, 0);
         return;
     }
-    uint8_t passwordKey[STDCOMM_ENETCRYPTO_KEY_LEN];
     uint8_t hello[STDCOMM_ENET_HELLO_LEN];
-    const uint32_t magic = STDCOMM_ENET_MAGIC_HELLO;
-    memcpy(hello, &magic, 4);
-    if (!stdComm_ENetCrypto_Random(hello + 4, STDCOMM_ENETCRYPTO_NONCE_LEN)) {
+    if (!stdComm_ENet_MakeHello(&stdComm_ENet_clientCrypto, stdComm_ENet_joinPassword, pChallenge, hello)) {
         enet_peer_disconnect(pPeer, 0);
         return;
     }
-    stdComm_ENetCrypto_PasswordKey(stdComm_ENet_joinPassword, pChallenge + 4, passwordKey);
-    stdComm_ENetCrypto_StartSession(&stdComm_ENet_clientCrypto, passwordKey, pChallenge + 4 + STDCOMM_ENETCRYPTO_SALT_LEN,
-                                    hello + 4, STDCOMM_ENETCRYPTO_FROM_PLAYER);
-    memset(passwordKey, 0, sizeof(passwordKey));
-    stdComm_ENetCrypto_Seal(&stdComm_ENet_clientCrypto, 0, STDCOMM_ENET_HELLO_TEXT, STDCOMM_ENET_HELLO_TEXT_LEN,
-                            hello + 4 + STDCOMM_ENETCRYPTO_NONCE_LEN, STDCOMM_ENET_HELLO_TEXT_LEN + STDCOMM_ENETCRYPTO_OVERHEAD);
     stdComm_ENet_SendPlain(pPeer, hello, sizeof(hello), 0);
     stdComm_ENet_verbosePrintf("ENet: answered the game's password challenge\n");
 }
@@ -739,6 +750,69 @@ int stdComm_ENet_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int time
     return stdComm_ENet_QueryServer(&addr, pOut, timeoutMs, pbKeepGoing);
 }
 
+int stdComm_ENet_CheckPassword(const char* pAddress, const char16_t* pwPassword, int timeoutMs, volatile int* pbKeepGoing)
+{
+    ENetAddress addr;
+    if (!stdComm_ENet_bInitted) return -1;
+    if (!stdComm_ENet_ParseAddressText(pAddress, &addr)) return -1;
+    uint16_t password[33];
+    memset(password, 0, sizeof(password));
+    for (int i = 0; pwPassword && i < 32 && pwPassword[i]; i++) password[i] = (uint16_t)pwPassword[i];
+
+    ENetHost* h = enet_host_create(NULL, 1, STDCOMM_ENET_CHANNELS, 0, 0);
+    if (!h) return -1;
+    ENetPeer* p = enet_host_connect(h, &addr, STDCOMM_ENET_CHANNELS, 0);
+    stdCommENetCryptoSession session;
+    memset(&session, 0, sizeof(session));
+    int result = -1, bDone = 0;
+    if (p) {
+        enet_peer_timeout(p, 32, timeoutMs, timeoutMs);
+        const uint32_t start = stdPlatform_GetTimeMsec();
+        while (!bDone && stdPlatform_GetTimeMsec() - start < (uint32_t)timeoutMs && (!pbKeepGoing || *pbKeepGoing)) {
+            ENetEvent ev;
+            if (enet_host_service(h, &ev, 50) <= 0) continue;
+            if (ev.type == ENET_EVENT_TYPE_RECEIVE) {
+                const ENetPacket* pk = ev.packet;
+                uint32_t magic = 0;
+                if (pk->dataLength >= 4) memcpy(&magic, pk->data, 4);
+                if (!session.bOn && pk->dataLength == STDCOMM_ENET_CHALLENGE_LEN && magic == STDCOMM_ENET_MAGIC_CHALLENGE) {
+                    // (the challenge: answered as joining would)
+                    uint8_t hello[STDCOMM_ENET_HELLO_LEN];
+                    if (stdComm_ENet_MakeHello(&session, password, pk->data, hello))
+                        stdComm_ENet_SendPlain(p, hello, sizeof(hello), 0);
+                }
+                else if (!session.bOn && pk->dataLength == sizeof(stdCommENetInfo)) {
+                    stdCommENetInfo info;
+                    memcpy(&info, pk->data, sizeof(info));
+                    if (info.id) { result = 1; bDone = 1; } // (no password asked for)
+                }
+                else if (session.bOn) {
+                    // (an id, sealed: the password was right)
+                    uint8_t buf[sizeof(stdCommENetInfo)];
+                    if (stdComm_ENetCrypto_Open(&session, ev.channelID, pk->data, pk->dataLength, buf, sizeof(buf)) == (int)sizeof(buf)) {
+                        result = 1;
+                        bDone = 1;
+                    }
+                }
+                enet_packet_destroy(ev.packet);
+            }
+            else if (ev.type == ENET_EVENT_TYPE_DISCONNECT) {
+                result = ev.data == STDCOMM_ENET_REASON_PASSWORD ? 0 : -1;
+                bDone = 1;
+                p = NULL;
+            }
+        }
+        if (p) {
+            enet_peer_disconnect_now(p, 0);
+            enet_host_flush(h);
+        }
+    }
+    enet_host_destroy(h);
+    stdComm_ENetCrypto_EndSession(&session);
+    memset(password, 0, sizeof(password));
+    return result;
+}
+
 // The game at the address typed, read for the Join screen
 static void stdComm_ENet_GetServerInfo(const ENetAddress* pAddr)
 {
@@ -820,6 +894,18 @@ static void stdComm_ENet_Advertise(void)
     const int flags = sithMulti_multiModeFlags ? sithMulti_multiModeFlags : stdComm_ENet_storedEntry.multiModeFlags;
     snprintf(g.mode, sizeof(g.mode), "%s", (flags & MULTIMODEFLAG_COOP) ? "coop" : (flags & MULTIMODEFLAG_TEAMS) ? "team" : "dm");
     snprintf(g.level, sizeof(g.level), "%s", stdComm_ENet_storedEntry.mapJklFname);
+#ifdef QOL_IMPROVEMENTS
+    // (and its title, as the loading screen shows it, plain text)
+    char16_t wTitle[64];
+    if (jkGuiTitle_LevelTitle(&jkCog_strings, stdComm_ENet_storedEntry.mapJklFname, wTitle, 64)) {
+        int n = 0;
+        for (int i = 0; wTitle[i] && n < (int)sizeof(g.title) - 1; i++) {
+            const char16_t c = wTitle[i];
+            g.title[n++] = (c == 0x2018 || c == 0x2019) ? '\'' : (c >= 0x20 && c < 0x7F) ? (char)c : '?';
+        }
+        g.title[n] = 0;
+    }
+#endif
     g.numPlayers = stdComm_ENet_RealConnectedPlayers();
     g.maxPlayers = (int)stdComm_ENet_storedEntry.maxPlayers;
     if (jkGuiNetHost_bIsDedicated && g.maxPlayers > 1) g.maxPlayers--;

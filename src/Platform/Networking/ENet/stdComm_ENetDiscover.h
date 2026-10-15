@@ -33,6 +33,7 @@ typedef struct stdCommENetDiscoverGame
     char game[8];        // ("jk", "mots")
     char mode[8];        // ("dm", "team", "ctf", "coop")
     char level[40];      // (the level's file, e.g. "01narshadda.jkl")
+    char title[64];      // (the level's title, plain text: "" if not known)
     int numPlayers;
     int maxPlayers;
     int bPassword;
@@ -40,6 +41,8 @@ typedef struct stdCommENetDiscoverGame
 
 // 1 if this build can find (and be found)
 int stdComm_ENetDiscover_IsAvailable(void);
+// 1 if the system refused to let it look (iOS: the app's Local Network permission is off)
+int stdComm_ENetDiscover_IsBlocked(void);
 
 // Hosting: said to the network (pGame's address and host id needn't be filled: the host's own
 // addresses, the port it listens on, and its id are added), again whenever what it says changes (the

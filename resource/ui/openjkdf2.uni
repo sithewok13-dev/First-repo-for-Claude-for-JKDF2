@@ -1,4 +1,4 @@
-MSGS 148          # <--- DON'T FORGET TO UPDATE THIS COUNT
+MSGS 150          # <--- DON'T FORGET TO UPDATE THIS COUNT
 
 #  "<key>"     <unused number>   "<string>"
 
@@ -98,10 +98,12 @@ MSGS 148          # <--- DON'T FORGET TO UPDATE THIS COUNT
    "GUIEXT_MP_NEARBY"               0 "Games on this Wi-Fi"
    "GUIEXT_MP_SEARCHING"            0 "Looking for games... (none yet)"
    "GUIEXT_MP_NO_DISCOVERY"         0 "This device can't look for games. Type an address below."
+   "GUIEXT_MP_BLOCKED"              0 "Not allowed to look. Turn on Settings > Privacy > Local Network for this app."
    "GUIEXT_MP_RECENT"               0 "Played before"
    "GUIEXT_MP_ADDRESS"              0 "Address:"
    "GUIEXT_MP_JOIN_BUTTON"          0 "Join"
    "GUIEXT_MP_CONNECTING"           0 "Connecting..."
+   "GUIEXT_MP_CHECKING_PASSWORD"    0 "Checking the password..."
    "GUIEXT_MP_CHECKING"             0 "checking..."
    "GUIEXT_MP_NOT_ANSWERING"        0 "not answering"
    "GUIEXT_MP_MODE_COOP"            0 "Co-op"

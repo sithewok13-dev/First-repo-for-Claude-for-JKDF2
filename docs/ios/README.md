@@ -788,7 +788,8 @@ from elsewhere.
 
 The first time, iOS asks to let the app find devices on your network.
 Say **Allow**, or nobody can find or join your game. (If you said no:
-*Settings > Privacy & Security > Local Network*.)
+*Settings > Privacy & Security > Local Network*. Join Game also tells you
+when it isn't allowed to look.)
 
 ### Joining
 
@@ -799,7 +800,8 @@ Say **Allow**, or nobody can find or join your game. (If you said no:
      found on the Wi-Fi instead.
    - For a friend elsewhere, type their address in the **Address** box and
      tap **Join**.
-3. If the game has a password, type it.
+3. If the game has a password, type it. If it's wrong, it says so and you
+   can type it again.
 4. Pick your character (the first time, you make one), and you're in.
 
 If joining fails, the message says why: a mistyped address, no game at

@@ -121,6 +121,25 @@ char jkGuiTitle_sub_4189A0(char *a1)
     return result;
 }
 
+#ifdef QOL_IMPROVEMENTS
+// Added: a level's title (as the loading screen shows it) looked up and nothing else done; 0 if it has none
+int jkGuiTitle_LevelTitle(stdStrTable *strTable, const char *jkl_fname, char16_t *pOut, int outLen)
+{
+    char key[64];
+    char16_t *title;
+
+    stdFnames_CopyShortName(key, 64, (char*)jkl_fname);
+    jkGuiTitle_sub_4189A0(key);
+    title = stdStrTable_GetValue(&jkStrings_tableExtOver, key);
+    if ( !title && strTable )
+        title = stdStrTable_GetValue(strTable, key);
+    if ( !title || !title[0] )
+        return 0;
+    stdString_SafeWStrCopy(pOut, title, outLen);
+    return 1;
+}
+#endif
+
 char16_t* jkGuiTitle_quicksave_related_func1(stdStrTable *strTable, char *jkl_fname)
 {
     char16_t *retval;

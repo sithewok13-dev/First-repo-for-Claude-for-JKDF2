@@ -170,10 +170,14 @@ static jkGuiElement jkGuiMultiLobby_aPassword[] = {
     { ELEMENT_TEXTBOX,    0,  0, NULL,                        16, { 170, 212, 300, 32 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_TEXTBUTTON, 1,  2, NULL                   ,     3, { 460, 420, 160, 56 },  1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_TEXTBUTTON, -1, 2, NULL            ,            3, { 20, 420, 160, 56 },   1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
+    { ELEMENT_TEXT,       0,  0, NULL,                        3, { 20, 262, 600, 30 },   1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_END,        0,  0, NULL,                        0, { 0, 0, 0, 0 },         0, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
 };
-static const char* const jkGuiMultiLobby_aPassword_words[] = { "GUINET_PASSWORD", NULL, "GUIEXT_MP_PASSWORD_PROMPT", NULL, "GUIEXT_MP_JOIN_BUTTON", "GUIEXT_MP_BACK", NULL };
-static jkGuiMenu jkGuiMultiLobby_menuPassword = { jkGuiMultiLobby_aPassword, -1, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, NULL, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0 };
+static const char* const jkGuiMultiLobby_aPassword_words[] = { "GUINET_PASSWORD", NULL, "GUIEXT_MP_PASSWORD_PROMPT", NULL, "GUIEXT_MP_JOIN_BUTTON", "GUIEXT_MP_BACK", NULL, NULL };
+#define LOBBY_PASSWORD_STATUS 6
+static char16_t jkGuiMultiLobby_wPasswordStatus[LOBBY_ROW_LEN];
+static void jkGuiMultiLobby_PasswordIdle(jkGuiMenu* pMenu);
+static jkGuiMenu jkGuiMultiLobby_menuPassword = { jkGuiMultiLobby_aPassword, -1, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, jkGuiMultiLobby_PasswordIdle, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0 };
 
 // ------------------------------------------------------------------ hosts played with before
 
@@ -302,7 +306,9 @@ static int jkGuiMultiLobby_numAsk = 0;
 static char jkGuiMultiLobby_joinAddress[64];
 static int jkGuiMultiLobby_joinAsk = 0;     // (counts up each time a game is picked)
 static int jkGuiMultiLobby_joinAnswered = 0; // (the last one answered: its count)
-static int jkGuiMultiLobby_joinResult = 0;   // (stdComm_ENet_ProbeAddress's)
+static int jkGuiMultiLobby_joinResult = 0;   // (stdComm_ENet_ProbeAddress's, or _CheckPassword's)
+static int jkGuiMultiLobby_bJoinIsPassword = 0; // (the asking: the password typed checked, not the game asked about)
+static char16_t jkGuiMultiLobby_joinPassword[33];
 static jkMultiEntry jkGuiMultiLobby_joinEntry;
 
 // (under the mutex) An address to keep asking about; its entry
@@ -326,13 +332,18 @@ static int jkGuiMultiLobby_AskThread(void* pArg)
         SDL_LockMutex(jkGuiMultiLobby_mutex);
         const int ask = jkGuiMultiLobby_joinAsk;
         const int bPending = ask != jkGuiMultiLobby_joinAnswered;
+        const int bPassword = jkGuiMultiLobby_bJoinIsPassword;
         char address[64];
+        char16_t password[33];
         snprintf(address, sizeof(address), "%s", jkGuiMultiLobby_joinAddress);
+        memcpy(password, jkGuiMultiLobby_joinPassword, sizeof(password));
         SDL_UnlockMutex(jkGuiMultiLobby_mutex);
         if (bPending) {
             jkMultiEntry entry;
             memset(&entry, 0, sizeof(entry));
-            const int r = stdComm_ENet_ProbeAddress(address, &entry, LOBBY_JOIN_ASK_MS, &pSelf->bRun);
+            const int r = bPassword ? stdComm_ENet_CheckPassword(address, password, LOBBY_JOIN_ASK_MS + 2000, &pSelf->bRun)
+                                    : stdComm_ENet_ProbeAddress(address, &entry, LOBBY_JOIN_ASK_MS, &pSelf->bRun);
+            memset(password, 0, sizeof(password));
             SDL_LockMutex(jkGuiMultiLobby_mutex);
             if (pSelf->bRun && jkGuiMultiLobby_joinAsk == ask) {
                 jkGuiMultiLobby_joinEntry = entry;
@@ -432,24 +443,46 @@ static void jkGuiMultiLobby_ModeText(char16_t* pOut, int outLen, const char* mod
     stdString_SafeWStrCopy(pOut, jkGuiMultiLobby_Str(key), outLen);
 }
 
-// A game's row: "name - Mode: level  n/max  (password)"
+// A game's row: "name - Mode: level  n/max  (password)", the level by its title when known (without its
+// "1 - " number, and shortened to fit the row)
+#define LOBBY_ROW_FIT 60
 static void jkGuiMultiLobby_GameRow(char16_t* pOut, int outLen, const char* name, const char* mode, int flags, const char* level,
-                                    int numPlayers, int maxPlayers, int bPassword)
+                                    const char* title, int numPlayers, int maxPlayers, int bPassword)
 {
     char16_t wMode[32];
-    char lvl[40];
+    char lvl[64];
     jkGuiMultiLobby_ModeText(wMode, 32, mode, flags);
-    snprintf(lvl, sizeof(lvl), "%s", level ? level : "");
-    char* dot = strrchr(lvl, '.');
-    if (dot && !strcmp(dot, ".jkl")) *dot = 0;
-    jk_snwprintf(pOut, outLen, u"%S - %s: %S   %d/%d", name, wMode, lvl, numPlayers, maxPlayers);
-    if (maxPlayers > 0 && numPlayers >= maxPlayers) {
-        int n = (int)_wcslen(pOut);
-        jk_snwprintf(pOut + n, outLen - n, u"  (%s)", jkGuiMultiLobby_Str("GUIEXT_MP_FULL"));
+    if (title && title[0]) {
+        const char* t = title;
+        const char* dash = strstr(t, " - ");
+        if (dash && dash - t <= 3) {
+            int bNum = 1;
+            for (const char* c = t; c < dash; c++) bNum = bNum && *c >= '0' && *c <= '9';
+            if (bNum) t = dash + 3;
+        }
+        snprintf(lvl, sizeof(lvl), "%s", t);
     }
-    else if (bPassword) {
+    else {
+        snprintf(lvl, sizeof(lvl), "%s", level ? level : "");
+        char* dot = strrchr(lvl, '.');
+        if (dot && !__strcmpi(dot, ".jkl")) *dot = 0;
+    }
+    const char16_t* wSuffix = (maxPlayers > 0 && numPlayers >= maxPlayers) ? jkGuiMultiLobby_Str("GUIEXT_MP_FULL")
+                            : bPassword ? jkGuiMultiLobby_Str("GUIEXT_MP_HAS_PASSWORD") : NULL;
+    // (the title shortened if the row would be too long)
+    const int fixedLen = (int)strlen(name) + (int)_wcslen(wMode) + 14 + (wSuffix ? (int)_wcslen(wSuffix) + 4 : 0);
+    const int room = LOBBY_ROW_FIT - fixedLen;
+    if ((int)strlen(lvl) > room) {
+        const int keep = room > 6 ? room - 3 : 3;
+        if (keep < (int)strlen(lvl)) {
+            lvl[keep] = 0;
+            strcat(lvl, "...");
+        }
+    }
+    jk_snwprintf(pOut, outLen, u"%S - %s: %S   %d/%d", name, wMode, lvl, numPlayers, maxPlayers);
+    if (wSuffix) {
         int n = (int)_wcslen(pOut);
-        jk_snwprintf(pOut + n, outLen - n, u"  (%s)", jkGuiMultiLobby_Str("GUIEXT_MP_HAS_PASSWORD"));
+        jk_snwprintf(pOut + n, outLen - n, u"  (%s)", wSuffix);
     }
 }
 
@@ -485,7 +518,7 @@ static void jkGuiMultiLobby_UpdateRows(jkGuiMenu* pMenu, int bRedraw)
         jkGuiElement* e = &jkGuiMultiLobby_aJoin[LOBBY_JOIN_NEARBY0 + i];
         if (i < numGames) {
             const stdCommENetDiscoverGame* g = &aGame[i];
-            jkGuiMultiLobby_GameRow(row, LOBBY_ROW_LEN, g->name, g->mode, 0, g->level, g->numPlayers, g->maxPlayers, g->bPassword);
+            jkGuiMultiLobby_GameRow(row, LOBBY_ROW_LEN, g->name, g->mode, 0, g->level, g->title, g->numPlayers, g->maxPlayers, g->bPassword);
             jkGuiMultiLobbyTarget* t = &jkGuiMultiLobby_aNearbyTarget[i];
             snprintf(t->address, sizeof(t->address), "%s", g->address);
             snprintf(t->hostId, sizeof(t->hostId), "%s", g->hostId);
@@ -499,7 +532,8 @@ static void jkGuiMultiLobby_UpdateRows(jkGuiMenu* pMenu, int bRedraw)
     }
     // (nothing nearby: why)
     const char16_t* status = numGames ? u""
-                           : jkGuiMultiLobby_Str(stdComm_ENetDiscover_IsAvailable() ? "GUIEXT_MP_SEARCHING" : "GUIEXT_MP_NO_DISCOVERY");
+                           : jkGuiMultiLobby_Str(!stdComm_ENetDiscover_IsAvailable() ? "GUIEXT_MP_NO_DISCOVERY"
+                                                 : stdComm_ENetDiscover_IsBlocked() ? "GUIEXT_MP_BLOCKED" : "GUIEXT_MP_SEARCHING");
     jkGuiMultiLobby_SetRow(&jkGuiMultiLobby_aJoin[LOBBY_JOIN_NEARBY_STATUS], pMenu, jkGuiMultiLobby_wNearbyStatus, status, numGames == 0, bRedraw);
 
     int n = 0;
@@ -523,7 +557,7 @@ static void jkGuiMultiLobby_UpdateRows(jkGuiMenu* pMenu, int bRedraw)
             int maxPlayers = (int)pEntry->maxPlayers;
             if ((pEntry->sessionFlags & SESSIONFLAG_ISDEDICATED) && maxPlayers > 1) maxPlayers--;
             jkGuiMultiLobby_GameRow(row, LOBBY_ROW_LEN, name[0] ? name : r->name, NULL, pEntry->multiModeFlags, pEntry->mapJklFname,
-                                    pEntry->numPlayers, maxPlayers, (pEntry->sessionFlags & SESSIONFLAG_PASSWORD) != 0);
+                                    NULL, pEntry->numPlayers, maxPlayers, (pEntry->sessionFlags & SESSIONFLAG_PASSWORD) != 0);
         }
         else {
             const char* key = state == LOBBY_ASK_UNKNOWN ? "GUIEXT_MP_CHECKING" : "GUIEXT_MP_NOT_ANSWERING";
@@ -570,12 +604,23 @@ static void jkGuiMultiLobby_JoinIdle(jkGuiMenu* pMenu)
     }
 }
 
+static void jkGuiMultiLobby_PasswordIdle(jkGuiMenu* pMenu)
+{
+    if (!jkGuiMultiLobby_bConnecting) return;
+    jkGuiRend_UpdateAndDrawClickable(&jkGuiMultiLobby_aPassword[LOBBY_PASSWORD_STATUS], pMenu, 1);
+    SDL_LockMutex(jkGuiMultiLobby_mutex);
+    const int bAnswered = jkGuiMultiLobby_joinAnswered == jkGuiMultiLobby_joinAsk;
+    SDL_UnlockMutex(jkGuiMultiLobby_mutex);
+    if (bAnswered) pMenu->lastClicked = LOBBY_ID_ANSWERED;
+}
+
 // The game picked asked about (the asking thread), "Connecting..." shown meanwhile
 static void jkGuiMultiLobby_Pick(jkGuiMenu* pMenu, const jkGuiMultiLobbyTarget* pTarget)
 {
     jkGuiMultiLobby_picked = *pTarget;
     SDL_LockMutex(jkGuiMultiLobby_mutex);
     snprintf(jkGuiMultiLobby_joinAddress, sizeof(jkGuiMultiLobby_joinAddress), "%s", pTarget->address);
+    jkGuiMultiLobby_bJoinIsPassword = 0;
     jkGuiMultiLobby_joinAsk++;
     SDL_UnlockMutex(jkGuiMultiLobby_mutex);
     jkGuiMultiLobby_bConnecting = 1;
@@ -627,19 +672,66 @@ static int jkGuiMultiLobby_Answered(jkGuiMenu* pMenu)
         stdString_WcharToChar(jkGuiMultiLobby_picked.name, entry.serverName, sizeof(jkGuiMultiLobby_picked.name) - 1);
 
     if (entry.sessionFlags & SESSIONFLAG_PASSWORD) {
-        // (the password asked for)
+        // (the password asked for, and checked with the host before going on: a wrong one is typed
+        // again here)
         jkGuiMultiLobby_aPassword[1].wstr = jkGuiMultiLobby_wPasswordTitle;
         stdString_SafeWStrCopy(jkGuiMultiLobby_wPasswordTitle, entry.serverName, LOBBY_ROW_LEN);
         if (!jkGuiMultiLobby_wPasswordTitle[0]) {
             stdString_CharToWchar(jkGuiMultiLobby_wPasswordTitle, jkGuiMultiLobby_picked.name, LOBBY_ROW_LEN - 1);
             jkGuiMultiLobby_wPasswordTitle[LOBBY_ROW_LEN - 1] = 0;
         }
-        jkGuiMultiLobby_aPassword[3].wstr = (char16_t*)jkGuiMultiplayer_stru_556168.field_300;
+        char16_t* pwTyped = (char16_t*)jkGuiMultiplayer_stru_556168.field_300;
+        jkGuiMultiLobby_aPassword[3].wstr = pwTyped;
         jkGuiMultiLobby_aPassword[3].selectedTextEntry = 16;
-        jkGuiRend_MenuSetReturnKeyShortcutElement(&jkGuiMultiLobby_menuPassword, &jkGuiMultiLobby_aPassword[4]);
-        jkGuiRend_MenuSetEscapeKeyShortcutElement(&jkGuiMultiLobby_menuPassword, &jkGuiMultiLobby_aPassword[5]);
-        if (jkGuiRend_DisplayAndReturnClicked(&jkGuiMultiLobby_menuPassword) != 1)
-            return 0;
+        jkGuiMultiLobby_wPasswordStatus[0] = 0;
+        jkGuiMultiLobby_aPassword[LOBBY_PASSWORD_STATUS].wstr = jkGuiMultiLobby_wPasswordStatus;
+        jkGuiMultiLobby_bConnecting = 0;
+        for (;;) {
+            jkGuiRend_MenuSetReturnKeyShortcutElement(&jkGuiMultiLobby_menuPassword, &jkGuiMultiLobby_aPassword[4]);
+            jkGuiRend_MenuSetEscapeKeyShortcutElement(&jkGuiMultiLobby_menuPassword, &jkGuiMultiLobby_aPassword[5]);
+            const int clicked = jkGuiRend_DisplayAndReturnClicked(&jkGuiMultiLobby_menuPassword);
+            if (clicked == LOBBY_ID_ANSWERED) {
+                jkGuiMultiLobby_bConnecting = 0;
+                jkGuiMultiLobby_wPasswordStatus[0] = 0;
+                SDL_LockMutex(jkGuiMultiLobby_mutex);
+                const int r = jkGuiMultiLobby_joinResult;
+                SDL_UnlockMutex(jkGuiMultiLobby_mutex);
+                if (r > 0) {
+                    // (the password joined with is the one checked, whatever was typed meanwhile)
+                    memset(jkGuiMultiplayer_stru_556168.field_300, 0, sizeof(jkGuiMultiplayer_stru_556168.field_300));
+                    SDL_LockMutex(jkGuiMultiLobby_mutex);
+                    for (int i = 0; i < 32 && jkGuiMultiLobby_joinPassword[i]; i++) pwTyped[i] = jkGuiMultiLobby_joinPassword[i];
+                    memset(jkGuiMultiLobby_joinPassword, 0, sizeof(jkGuiMultiLobby_joinPassword));
+                    SDL_UnlockMutex(jkGuiMultiLobby_mutex);
+                    return 1;
+                }
+                if (r == 0) {
+                    jkGuiDialog_ErrorDialog(jkStrings_GetUniStringWithFallback("GUINET_JOINERROR"), jkStrings_GetUniStringWithFallback("GUINET_WRONGPASSWORD"));
+                    memset(jkGuiMultiplayer_stru_556168.field_300, 0, sizeof(jkGuiMultiplayer_stru_556168.field_300));
+                    continue;
+                }
+                char16_t wAddr[64];
+                stdString_CharToWchar(wAddr, jkGuiMultiLobby_picked.address, 63);
+                wAddr[63] = 0;
+                jk_snwprintf(msg, 256, jkGuiMultiLobby_Str("GUIEXT_MP_ERR_NOGAME"), wAddr);
+                jkGuiDialog_ErrorDialog(jkStrings_GetUniStringWithFallback("GUINET_JOINERROR"), msg);
+                return 0;
+            }
+            if (clicked != 1) {
+                jkGuiMultiLobby_bConnecting = 0; // (Back: the checking, if any, forgotten)
+                return 0;
+            }
+            if (!pwTyped[0] || jkGuiMultiLobby_bConnecting) continue; // (one check at a time)
+            SDL_LockMutex(jkGuiMultiLobby_mutex);
+            snprintf(jkGuiMultiLobby_joinAddress, sizeof(jkGuiMultiLobby_joinAddress), "%s", jkGuiMultiLobby_picked.address);
+            memset(jkGuiMultiLobby_joinPassword, 0, sizeof(jkGuiMultiLobby_joinPassword));
+            for (int i = 0; i < 32 && pwTyped[i]; i++) jkGuiMultiLobby_joinPassword[i] = pwTyped[i];
+            jkGuiMultiLobby_bJoinIsPassword = 1;
+            jkGuiMultiLobby_joinAsk++;
+            SDL_UnlockMutex(jkGuiMultiLobby_mutex);
+            jkGuiMultiLobby_bConnecting = 1;
+            stdString_SafeWStrCopy(jkGuiMultiLobby_wPasswordStatus, jkGuiMultiLobby_Str("GUIEXT_MP_CHECKING_PASSWORD"), LOBBY_ROW_LEN);
+        }
     }
     return 1;
 }
