@@ -1,8 +1,9 @@
 # Touch overlay for Android: design
 
-Status: plan only. Nothing here is built yet. The Android app today plays with
-a keyboard, a mouse or a game controller (see `README.md`), and a touch on the
-screen acts as a mouse click (menus work, gameplay does not).
+Status: phases 1 to 5 are built (`src/Platform/Touch/`, on for Android with
+`TOUCHUI_ENABLED`), apart from the saber wheel. Next: the CAMERA and SABER
+buttons (phase 6 and the saber colours), which wait for that engine code to
+leave the iOS-only folder. In the menus a touch still acts as a mouse click.
 
 ## Goal
 

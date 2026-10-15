@@ -2,10 +2,10 @@
 
 An early test build of OpenJKDF2 for Android tablets and phones (64-bit ARM,
 which is nearly every device from the last several years). It has multiplayer
-over ENet (the same as the iOS app), and plays with a keyboard, a mouse or a
-game controller. **On-screen touch controls are not in it yet**: a touch only
-acts as a mouse click, which is enough for the menus. The plan for them is in
-`TOUCH_OVERLAY_PLAN.md`.
+over ENet (the same as the iOS app), and plays with on-screen touch controls
+(the same layout and gestures as the iPhone app), a keyboard, a mouse or a
+game controller. In the menus a touch acts as a mouse click. How the touch
+controls are built is in `TOUCH_OVERLAY_PLAN.md`.
 
 It is one app with two icons: **OpenJKDF2 Enhanced** (Jedi Knight) and
 **OpenMoTS Enhanced** (Mysteries of the Sith). It installs next to upstream's
@@ -99,11 +99,45 @@ Please keep your game files to yourself: don't upload them anywhere.
 
 Tick what works, note what doesn't (a photo of the screen helps).
 
+**Touch controls** (in a level; they work like the iPhone app's)
+- [ ] The buttons show once a level starts, none in the menus or cutscenes,
+      and nothing sits under the camera hole, the screen's rounded corners or
+      the navigation bar. Say how big they feel on the tablet.
+- [ ] Left thumb: the stick appears where it lands and walks. Push up past
+      the ring onto the small "^^" circle: it runs (a light tick).
+- [ ] Right thumb: dragging anywhere else turns the view; dragging on FIRE
+      fires and turns.
+- [ ] FIRE, ALT, DUCK, ACT, JUMP, FORCE (FORCE shows the power and its meter
+      ring, glowing when full).
+- [ ] NEXT WPN / FORCE WHEEL: a quick tap is the next weapon / power. Touch
+      and slide: the wheel opens at once; slide to a slice and lift. Touch and
+      hold still: a ring fills, the wheel opens to tap a slice. The gap at the
+      bottom cancels. The game stands still while a wheel is open. Each slice
+      you cross gives a small tick (if the tablet has haptics). Learned powers
+      show their level as gold stars.
+- [ ] QUICK SAVE / QUICK LOAD: only a hold saves or loads (a ring fills, about
+      a third of a second). Slide off before it fills: nothing.
+- [ ] MENU: a tap opens the game menu. Hold it: the tray opens under it:
+      GYRO (tap: on/off; hold: MODE and SENS), FPS, CHEAT, VIEW, JUMP style,
+      CONTROLS (swap sides), and the keyboard (for cheats). The camera button
+      is there but greyed: not on Android yet.
+- [ ] GYRO: off to start. Switch it on (TOUCH): tilting the tablet aims while
+      a thumb is on the screen; lift both thumbs and the view stays put. Try
+      ALWAYS too, and the SENS steps (1.0x, 1.5x, 2.0x, 3.0x). Both ways round
+      in landscape. If it says NO GYRO, the tablet has no gyroscope.
+- [ ] CHEAT (switch it on in the tray): hold it half a second to turn the
+      cheat on/off; with it on, holding JUMP flies, ACT is noclip, DUCK picks
+      a level.
+- [ ] Use a keyboard, mouse or controller: the buttons hide; touch the screen
+      and they come back.
+- [ ] Quit and start again: GYRO, SENS, FPS, CHEAT, VIEW, CONTROLS are kept.
+
 **Start up**
 - [ ] Both icons appear; each starts its own game (Jedi Knight / MotS).
 - [ ] The intro and menus show, full screen, the right way round.
 - [ ] Sound and music play.
-- [ ] Tapping menu items works (touch acts as a mouse click).
+- [ ] Tapping menu items works (touch acts as a mouse click), and a tap
+      skips a cutscene.
 
 **Keyboard and mouse** (Bluetooth or USB)
 - [ ] Walk with W/A/S/D, fire, jump, use; Esc opens the menu.
@@ -134,7 +168,12 @@ another Android)
 
 ## Known gaps
 
-- No on-screen touch controls yet (planned).
+- Touch controls not in yet: the CAMERA button (photos, selfies, Action
+  Freeze) and the SABER button with its colour wheel. They need engine code
+  that is only on iOS for now; they come next.
+- The touch controls were tested on a Linux test setup with the real game and
+  simulated touches, not on an Android device: sizes, the gyro's direction
+  and the haptics need a check on the tablet.
 - No automatic "games nearby" list on Android (needs Android's own network
   discovery wired in); join by address works.
 - Not tested on a device by us at all: this build was only compiled and checked
