@@ -287,9 +287,9 @@ int iosFreeze_Begin(void)
     SithSector* eyeSector = cur->sector;
 
     // The focus: what is being looked at
-    rdVector3 far = eye;
-    rdVector_ScaleAdd3Acc(&far, &fwd, IOSFREEZE_FOCUS_MAX);
-    float wall = iosPhotoCam_ClearDist(eyeSector, &eye, &far, NULL);
+    rdVector3 farPoint = eye;
+    rdVector_ScaleAdd3Acc(&farPoint, &fwd, IOSFREEZE_FOCUS_MAX);
+    float wall = iosPhotoCam_ClearDist(eyeSector, &eye, &farPoint, NULL);
     float d = iosFreeze_ThingAhead(&eye, &fwd, wall - IOSFREEZE_WALL_GAP);
     if (d <= 0.0f) d = IOSFREEZE_FOCUS_AHEAD;
     if (d > wall - IOSFREEZE_WALL_GAP) d = wall - IOSFREEZE_WALL_GAP;
