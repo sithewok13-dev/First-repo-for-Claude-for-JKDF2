@@ -944,7 +944,13 @@ void stdComm_ENet_GetLocalAddresses(char* pOut, int outLen)
         // (not the phone's mobile data, nor iOS's own links; a VPN only if it
         // is Tailscale's, 100.64.0.0/10, which friends elsewhere can reach)
         if (!strncmp(nm, "pdp_ip", 6) || !strncmp(nm, "awdl", 4) || !strncmp(nm, "llw", 3) || !strncmp(nm, "ipsec", 5)) continue;
-        if (!strncmp(nm, "rmnet", 5) || !strncmp(nm, "ccmni", 5)) continue; // (Android's mobile data)
+#ifdef TARGET_ANDROID
+        // (Android names its mobile data links many ways -- rmnet, v4-rmnet for 464XLAT,
+        // ccmni, seth... -- so only what a friend nearby can reach: Wi-Fi, ethernet, the
+        // device's own hotspot, and a VPN only if it is Tailscale's, as above)
+        if (!(!strncmp(nm, "wlan", 4) || !strncmp(nm, "eth", 3) || !strncmp(nm, "ap", 2) || !strncmp(nm, "swlan", 5)
+              || (!strncmp(nm, "tun", 3) && (h & 0xFFC00000u) == 0x64400000u))) continue;
+#endif
         if (!strncmp(nm, "utun", 4) && (h & 0xFFC00000u) != 0x64400000u) continue;
         if ((h & 0xFFFF0000u) == 0xA9FE0000u) continue; // (169.254: no network yet)
         char ip[64];
