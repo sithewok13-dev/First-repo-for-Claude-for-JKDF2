@@ -28,6 +28,7 @@
 #include "Platform/wuRegistry.h"
 #include "Platform/Networking/ENet/stdComm_ENet.h"
 #include "Platform/Networking/ENet/stdComm_ENetDiscover.h"
+#include "Platform/Networking/stdCommTransport.h"
 
 extern char16_t jkGuiMultiplayer_ipText[256];
 
@@ -306,7 +307,8 @@ static int jkGuiMultiLobby_numAsk = 0;
 static char jkGuiMultiLobby_joinAddress[64];
 static int jkGuiMultiLobby_joinAsk = 0;     // (counts up each time a game is picked)
 static int jkGuiMultiLobby_joinAnswered = 0; // (the last one answered: its count)
-static int jkGuiMultiLobby_joinResult = 0;   // (stdComm_ENet_ProbeAddress's, or _CheckPassword's)
+static int jkGuiMultiLobby_joinResult = 0;   // (stdCommTransport_ProbeAddress's, or _CheckPassword's)
+static int jkGuiMultiLobby_joinKind = STDCOMM_TRANSPORT_ENET; // (the transport the game picked answered on)
 static int jkGuiMultiLobby_bJoinIsPassword = 0; // (the asking: the password typed checked, not the game asked about)
 static char16_t jkGuiMultiLobby_joinPassword[33];
 static jkMultiEntry jkGuiMultiLobby_joinEntry;
@@ -333,6 +335,7 @@ static int jkGuiMultiLobby_AskThread(void* pArg)
         const int ask = jkGuiMultiLobby_joinAsk;
         const int bPending = ask != jkGuiMultiLobby_joinAnswered;
         const int bPassword = jkGuiMultiLobby_bJoinIsPassword;
+        const int passwordKind = jkGuiMultiLobby_joinKind;
         char address[64];
         char16_t password[33];
         snprintf(address, sizeof(address), "%s", jkGuiMultiLobby_joinAddress);
@@ -341,12 +344,17 @@ static int jkGuiMultiLobby_AskThread(void* pArg)
         if (bPending) {
             jkMultiEntry entry;
             memset(&entry, 0, sizeof(entry));
-            const int r = bPassword ? stdComm_ENet_CheckPassword(address, password, LOBBY_JOIN_ASK_MS + 2000, &pSelf->bRun)
-                                    : stdComm_ENet_ProbeAddress(address, &entry, LOBBY_JOIN_ASK_MS, &pSelf->bRun);
+            // (a game asked about over every transport at once; its password over the one it answered on)
+            int kind = passwordKind;
+            const int r = bPassword ? stdCommTransport_CheckPassword(passwordKind, address, password, LOBBY_JOIN_ASK_MS + 2000, &pSelf->bRun)
+                                    : stdCommTransport_ProbeAddress(address, &entry, LOBBY_JOIN_ASK_MS, &pSelf->bRun, &kind);
             memset(password, 0, sizeof(password));
             SDL_LockMutex(jkGuiMultiLobby_mutex);
             if (pSelf->bRun && jkGuiMultiLobby_joinAsk == ask) {
-                jkGuiMultiLobby_joinEntry = entry;
+                if (!bPassword) {
+                    jkGuiMultiLobby_joinEntry = entry;
+                    jkGuiMultiLobby_joinKind = kind;
+                }
                 jkGuiMultiLobby_joinResult = r;
                 jkGuiMultiLobby_joinAnswered = ask;
             }
@@ -369,7 +377,7 @@ static int jkGuiMultiLobby_AskThread(void* pArg)
             if (!bMore) break;
             jkMultiEntry entry;
             memset(&entry, 0, sizeof(entry));
-            const int r = stdComm_ENet_ProbeAddress(address, &entry, LOBBY_RECENT_ASK_MS, &pSelf->bRun);
+            const int r = stdCommTransport_ProbeAddress(address, &entry, LOBBY_RECENT_ASK_MS, &pSelf->bRun, NULL);
             SDL_LockMutex(jkGuiMultiLobby_mutex);
             if (pSelf->bRun && i < jkGuiMultiLobby_numAsk && !strcmp(jkGuiMultiLobby_aAsk[i].address, address)) {
                 jkGuiMultiLobby_aAsk[i].state = r > 0 ? LOBBY_ASK_HERE : r < 0 ? LOBBY_ASK_BADADDRESS : LOBBY_ASK_GONE;
@@ -668,6 +676,7 @@ static int jkGuiMultiLobby_Answered(jkGuiMenu* pMenu)
     SDL_LockMutex(jkGuiMultiLobby_mutex);
     const int result = jkGuiMultiLobby_joinResult;
     const jkMultiEntry entry = jkGuiMultiLobby_joinEntry;
+    const int kind = jkGuiMultiLobby_joinKind;
     SDL_UnlockMutex(jkGuiMultiLobby_mutex);
 
     char16_t msg[256];
@@ -689,6 +698,13 @@ static int jkGuiMultiLobby_Answered(jkGuiMenu* pMenu)
         jkGuiDialog_ErrorDialog(jkStrings_GetUniStringWithFallback("GUINET_JOINERROR"), (char16_t*)jkGuiMultiLobby_Str("GUIEXT_MP_ERR_FULL"));
         return 0;
     }
+    // (a classic host's game this port can't play: co-op)
+    const char* whyKey = NULL;
+    if (!stdCommTransport_CanJoin(kind, &entry, &whyKey)) {
+        jkGuiDialog_ErrorDialog(jkStrings_GetUniStringWithFallback("GUINET_JOINERROR"), (char16_t*)jkGuiMultiLobby_Str(whyKey));
+        return 0;
+    }
+    stdCommTransport_SetJoinKind(kind);
 
     // (found: as the old Join screen leaves it)
     jkGuiMultiplayer_aEntries[0] = entry;

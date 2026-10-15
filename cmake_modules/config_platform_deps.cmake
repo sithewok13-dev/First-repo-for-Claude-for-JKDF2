@@ -85,7 +85,30 @@ if(TARGET_USE_PHYSFS)
     add_compile_definitions(PLATFORM_PHYSFS)
 endif()
 
-if(TARGET_USE_GAMENETWORKINGSOCKETS)
+if(TARGET_USE_GAMENETWORKINGSOCKETS AND OPENJKDF2_GNS_PREBUILT)
+    # Added: GNS built by packaging/ios/build_gns_deps.sh, linked into the program (static)
+    message(STATUS "GameNetworkingSockets: linked in, from ${OPENJKDF2_GNS_PREBUILT}")
+    foreach(lib GameNetworkingSockets_s protobuf crypto)
+        if(NOT EXISTS ${OPENJKDF2_GNS_PREBUILT}/lib/lib${lib}.a)
+            message(FATAL_ERROR "OPENJKDF2_GNS_PREBUILT: no ${OPENJKDF2_GNS_PREBUILT}/lib/lib${lib}.a (run packaging/ios/build_gns_deps.sh)")
+        endif()
+    endforeach()
+    add_library(openjkdf2_gns_static INTERFACE)
+    target_include_directories(openjkdf2_gns_static INTERFACE ${OPENJKDF2_GNS_PREBUILT}/include/GameNetworkingSockets)
+    target_link_libraries(openjkdf2_gns_static INTERFACE
+        ${OPENJKDF2_GNS_PREBUILT}/lib/libGameNetworkingSockets_s.a
+        ${OPENJKDF2_GNS_PREBUILT}/lib/libprotobuf.a
+        ${OPENJKDF2_GNS_PREBUILT}/lib/libcrypto.a)
+    if(NOT APPLE AND NOT WIN32)
+        find_package(Threads REQUIRED)
+        target_link_libraries(openjkdf2_gns_static INTERFACE Threads::Threads ${CMAKE_DL_LIBS})
+    endif()
+    file(GLOB TARGET_GNS_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/GNS/*.cpp)
+    list(APPEND ENGINE_SOURCE_FILES ${TARGET_GNS_SRCS})
+    add_compile_definitions(PLATFORM_GNS)
+    set_source_files_properties(${TARGET_GNS_SRCS} PROPERTIES COMPILE_DEFINITIONS
+        "STDCOMM_GNS_STATIC;STEAMNETWORKINGSOCKETS_STATIC_LINK")
+elseif(TARGET_USE_GAMENETWORKINGSOCKETS)
     set(PROTOBUF_DEPENDS ZLIB_${CMAKE_SYSTEM_NAME}_${CMAKE_SYSTEM_PROCESSOR})
     set(PROTOBUF_BUILD_PROTOC_BINARIES TRUE)
     if(CMAKE_CROSSCOMPILING)
@@ -120,6 +143,11 @@ if(TARGET_USE_GAMENETWORKINGSOCKETS)
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_GNS_SRCS})
 
     add_compile_definitions(PLATFORM_GNS)
+endif()
+
+# Added: the game's one connection passed to the transport in use (ENet, GNS)
+if(TARGET_USE_ENET OR TARGET_USE_GAMENETWORKINGSOCKETS)
+    list(APPEND ENGINE_SOURCE_FILES ${PROJECT_SOURCE_DIR}/src/Platform/Networking/stdCommTransport.c)
 endif()
 
 # Added: multiplayer over ENet (lib/enet, a few plain C files built in here):
@@ -354,7 +382,7 @@ endif()
 # Really, really ugly hack, protoc needs some LD_LIBRARY_PATH junk probably but idk
 # WHYYY???? Does protoc not just take relative libz paths???
 # Also why did this break in the first place I didn't change anything??
-if(TARGET_USE_GAMENETWORKINGSOCKETS)
+if(TARGET_USE_GAMENETWORKINGSOCKETS AND NOT OPENJKDF2_GNS_PREBUILT)
     if(PLAT_MSVC)
         if(ZLIB_USE_STATIC_LIBS)
             set(HACK_ZLIB_SRC ${ZLIB_STATIC_LIBRARY_PATH})

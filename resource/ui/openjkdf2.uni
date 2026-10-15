@@ -1,4 +1,4 @@
-MSGS 153          # <--- DON'T FORGET TO UPDATE THIS COUNT
+MSGS 154          # <--- DON'T FORGET TO UPDATE THIS COUNT
 
 #  "<key>"     <unused number>   "<string>"
 
@@ -117,6 +117,7 @@ MSGS 153          # <--- DON'T FORGET TO UPDATE THIS COUNT
    "GUIEXT_MP_ERR_ADDRESS"          0 "That address isn't right. An address looks like 192.168.1.20."
    "GUIEXT_MP_ERR_NOGAME"           0 "No game answered at %s. Check that your friend is hosting, and that you're both on the same Wi-Fi (or both on Tailscale)."
    "GUIEXT_MP_ERR_FULL"             0 "That game is full."
+   "GUIEXT_MP_ERR_CLASSIC_COOP"     0 "That is a co-op game on standard OpenJKDF2. Co-op only works with a host on this app (deathmatch works with both)."
    "GUIEXT_MP_PASSWORD_PROMPT"      0 "This game has a password. Type it to join:"
    "GUIEXT_MP_COOP_RESTART"         0 "This episode has a saved co-op campaign. Start it over? (The save is kept as a backup.)"
 

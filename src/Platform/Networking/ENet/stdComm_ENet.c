@@ -17,6 +17,7 @@
 #include "stdComm_ENet.h"
 #include "stdComm_ENetCrypto.h"
 #include "stdComm_ENetDiscover.h"
+#include "Platform/Networking/stdCommTransport.h"
 
 #ifdef PLATFORM_ENET
 
@@ -64,7 +65,7 @@ extern int Main_bVerboseNetworking;
 extern char16_t jkGuiMultiplayer_ipText[256];
 extern int jkGuiNetHost_portNum;
 
-void Hack_ResetClients();
+static void stdComm_ENet_ResetClients(void);
 
 // What a player who connects is told first: their id and the session
 #pragma pack(push, 4)
@@ -137,8 +138,6 @@ static stdCommENetEvent* stdComm_ENet_pQueueHead = NULL;
 static stdCommENetEvent* stdComm_ENet_pQueueTail = NULL;
 
 static jkMultiEntry stdComm_ENet_storedEntry;      // the host's session
-static jkMultiEntry stdComm_ENet_storedEntryEnum;  // the session found at an address
-static int stdComm_ENet_numEnumd = 0;
 
 static uint8_t stdComm_ENet_sendBuffer[STDCOMM_ENET_MAX_MSG];
 static uint8_t stdComm_ENet_sealBuffer[STDCOMM_ENET_MAX_MSG + STDCOMM_ENETCRYPTO_OVERHEAD];
@@ -578,11 +577,8 @@ static void stdComm_ENet_ClientEvent(ENetEvent* ev)
                     break;
                 }
                 stdComm_ENet_myId = (uint32_t)info.id;
-                stdComm_ENet_storedEntryEnum = info.entry;
-                stdComm_ENet_storedEntryEnum.field_E0 = 10;
                 sithMulti_multiModeFlags = info.entry.multiModeFlags;
                 sithNet_MultiModeFlags = info.entry.multiModeFlags;
-                stdComm_ENet_numEnumd = 1;
                 stdComm_ENet_verbosePrintf("ENet: we are id %x\n", stdComm_ENet_myId);
             }
             else if (stdComm_ENet_myId != 0xFFFFFFFF && len >= 8 && len <= STDCOMM_ENET_MAX_MSG) {
@@ -670,25 +666,14 @@ static void stdComm_ENet_CloseHost(void)
     SDL_UnlockMutex(stdComm_ENet_mutex);
 }
 
-// An address as typed (a name or IPv4, maybe :port)
+// An address as typed (a name or IPv4, maybe :port: stdCommTransport_SplitAddress)
 static int stdComm_ENet_ParseAddressText(const char* pText, ENetAddress* pAddr)
 {
-    char text[256];
-    snprintf(text, sizeof(text), "%s", pText ? pText : "");
-    // (trimmed)
-    char* s = text;
-    while (*s == ' ') s++;
-    char* end = s + strlen(s);
-    while (end > s && (end[-1] == ' ' || end[-1] == '\n' || end[-1] == '\r')) *--end = 0;
-    pAddr->port = STDCOMM_ENET_DEFAULT_PORT;
-    char* colon = strrchr(s, ':');
-    if (colon) {
-        *colon = 0;
-        int port = atoi(colon + 1);
-        if (port > 0 && port < 65536) pAddr->port = (enet_uint16)port;
-    }
-    if (!*s) return 0;
-    return enet_address_set_host(pAddr, s) == 0;
+    char host[256];
+    int port = STDCOMM_ENET_DEFAULT_PORT;
+    if (!stdCommTransport_SplitAddress(pText, host, sizeof(host), &port, STDCOMM_ENET_DEFAULT_PORT)) return 0;
+    pAddr->port = (enet_uint16)port;
+    return enet_address_set_host(pAddr, host) == 0;
 }
 
 // The address typed (jkGuiMultiplayer_ipText)
@@ -702,11 +687,8 @@ static int stdComm_ENet_ParseAddress(ENetAddress* pAddr)
 
 // ------------------------------------------------------------------ finding a game at an address
 
-static int stdComm_EnumThread_bForce = 0;
-static volatile int stdComm_EnumThread_bInit = 0;
-static SDL_Thread* stdComm_EnumThread_thread = NULL;
-static SDL_Mutex* stdComm_EnumThread_mutex = NULL;
-static char stdComm_ENet_lastAddr[256];
+// (the asking below, on other threads: let in and waited for by Startup / Shutdown)
+static stdCommProbeGate stdComm_ENet_probeGate;
 
 // A short connection to the address: its session read (into pOut), then closed; 1 if it answered.
 // pbKeepGoing: while that is 1 (or no flag)
@@ -720,7 +702,7 @@ static int stdComm_ENet_QueryServer(const ENetAddress* pAddr, jkMultiEntry* pOut
         enet_peer_timeout(p, 32, timeoutMs, timeoutMs);
         ENetEvent ev;
         uint32_t start = stdPlatform_GetTimeMsec();
-        while (!bFound && stdPlatform_GetTimeMsec() - start < (uint32_t)timeoutMs && (!pbKeepGoing || *pbKeepGoing)) {
+        while (!bFound && stdPlatform_GetTimeMsec() - start < (uint32_t)timeoutMs && (!pbKeepGoing || *pbKeepGoing) && !stdComm_ENet_probeGate.bClosing) {
             if (enet_host_service(h, &ev, 50) <= 0) continue;
             if (ev.type == ENET_EVENT_TYPE_RECEIVE) {
                 if (ev.packet->dataLength == sizeof(stdCommENetInfo)) {
@@ -745,13 +727,27 @@ static int stdComm_ENet_QueryServer(const ENetAddress* pAddr, jkMultiEntry* pOut
 
 int stdComm_ENet_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing)
 {
+    if (!stdCommTransport_GateEnter(&stdComm_ENet_probeGate)) return 0;
     ENetAddress addr;
-    if (!stdComm_ENet_bInitted) return 0;
-    if (!stdComm_ENet_ParseAddressText(pAddress, &addr)) return -1;
-    return stdComm_ENet_QueryServer(&addr, pOut, timeoutMs, pbKeepGoing);
+    int r;
+    if (!stdComm_ENet_bInitted) r = 0;
+    else if (!stdComm_ENet_ParseAddressText(pAddress, &addr)) r = -1;
+    else r = stdComm_ENet_QueryServer(&addr, pOut, timeoutMs, pbKeepGoing);
+    stdCommTransport_GateLeave(&stdComm_ENet_probeGate);
+    return r;
 }
 
+static int stdComm_ENet_CheckPasswordNow(const char* pAddress, const char16_t* pwPassword, int timeoutMs, volatile int* pbKeepGoing);
+
 int stdComm_ENet_CheckPassword(const char* pAddress, const char16_t* pwPassword, int timeoutMs, volatile int* pbKeepGoing)
+{
+    if (!stdCommTransport_GateEnter(&stdComm_ENet_probeGate)) return -1;
+    const int r = stdComm_ENet_CheckPasswordNow(pAddress, pwPassword, timeoutMs, pbKeepGoing);
+    stdCommTransport_GateLeave(&stdComm_ENet_probeGate);
+    return r;
+}
+
+static int stdComm_ENet_CheckPasswordNow(const char* pAddress, const char16_t* pwPassword, int timeoutMs, volatile int* pbKeepGoing)
 {
     ENetAddress addr;
     if (!stdComm_ENet_bInitted) return -1;
@@ -769,7 +765,7 @@ int stdComm_ENet_CheckPassword(const char* pAddress, const char16_t* pwPassword,
     if (p) {
         enet_peer_timeout(p, 32, timeoutMs, timeoutMs);
         const uint32_t start = stdPlatform_GetTimeMsec();
-        while (!bDone && stdPlatform_GetTimeMsec() - start < (uint32_t)timeoutMs && (!pbKeepGoing || *pbKeepGoing)) {
+        while (!bDone && stdPlatform_GetTimeMsec() - start < (uint32_t)timeoutMs && (!pbKeepGoing || *pbKeepGoing) && !stdComm_ENet_probeGate.bClosing) {
             ENetEvent ev;
             if (enet_host_service(h, &ev, 50) <= 0) continue;
             if (ev.type == ENET_EVENT_TYPE_RECEIVE) {
@@ -812,53 +808,6 @@ int stdComm_ENet_CheckPassword(const char* pAddress, const char16_t* pwPassword,
     stdComm_ENetCrypto_EndSession(&session);
     memset(password, 0, sizeof(password));
     return result;
-}
-
-// The game at the address typed, read for the Join screen
-static void stdComm_ENet_GetServerInfo(const ENetAddress* pAddr)
-{
-    jkMultiEntry entry;
-    const int bFound = stdComm_ENet_QueryServer(pAddr, &entry, 1500, &stdComm_EnumThread_bInit);
-    if (bFound) {
-        SDL_LockMutex(stdComm_EnumThread_mutex);
-        stdComm_ENet_storedEntryEnum = entry;
-        sithMulti_multiModeFlags = entry.multiModeFlags;
-        sithNet_MultiModeFlags = entry.multiModeFlags;
-        stdComm_ENet_numEnumd = 1;
-        SDL_UnlockMutex(stdComm_EnumThread_mutex);
-    }
-    if (!bFound) {
-        SDL_LockMutex(stdComm_EnumThread_mutex);
-        stdComm_ENet_numEnumd = 0;
-        SDL_UnlockMutex(stdComm_EnumThread_mutex);
-    }
-    // (the Join screen redrawn)
-    jkGuiMultiplayer_dword_5564E8 -= 10000;
-}
-
-static int stdComm_ENet_EnumThread(void* unused)
-{
-    (void)unused;
-    while (stdComm_EnumThread_bInit)
-    {
-        char text[256];
-        stdString_WcharToChar(text, jkGuiMultiplayer_ipText, 255);
-        text[255] = 0;
-        int bAgain = stdComm_EnumThread_bForce || strncmp(text, stdComm_ENet_lastAddr, sizeof(text));
-        if (bAgain) {
-            ENetAddress addr;
-            if (stdComm_ENet_ParseAddress(&addr)) stdComm_ENet_GetServerInfo(&addr);
-            else {
-                SDL_LockMutex(stdComm_EnumThread_mutex);
-                stdComm_ENet_numEnumd = 0;
-                SDL_UnlockMutex(stdComm_EnumThread_mutex);
-            }
-            strncpy(stdComm_ENet_lastAddr, text, sizeof(stdComm_ENet_lastAddr));
-            stdComm_EnumThread_bForce = 0;
-        }
-        SDL_Delay(100);
-    }
-    return 0;
 }
 
 // ------------------------------------------------------------------ games nearby
@@ -929,7 +878,7 @@ static void stdComm_ENet_StopAdvertising(void)
 
 // ------------------------------------------------------------------ the game's side
 
-void Hack_ResetClients()
+static void stdComm_ENet_ResetClients(void)
 {
     DirectPlay_numPlayers = 32;
     for (int i = 0; i < 32; i++)
@@ -954,19 +903,21 @@ void stdComm_ENet_Startup()
         }
         stdComm_ENet_mutex = SDL_CreateMutex();
         stdComm_ENet_bInitted = 1;
+        stdCommTransport_GateOpen(&stdComm_ENet_probeGate);
     }
     jkGuiMultiplayer_numConnections = 1;
     jk_snwprintf(jkGuiMultiplayer_aConnections[0].name, 0x80, u"Local network / Internet (UDP)");
     stdComm_dword_8321E0 = 0;
     memset(jkGuiMultiplayer_aEntries, 0, sizeof(jkMultiEntry) * 32);
     dplay_dword_55D618 = 0;
-    Hack_ResetClients();
+    stdComm_ENet_ResetClients();
 }
 
 void stdComm_ENet_Shutdown()
 {
     if (!stdComm_ENet_bInitted) return;
     DirectPlay_EnumSessions2();
+    stdCommTransport_GateClose(&stdComm_ENet_probeGate, 5000); // (games being asked about: given up first)
     stdComm_ENet_StopThread();
     stdComm_ENet_StopAdvertising();
     stdComm_ENet_CloseHost();
@@ -1002,14 +953,14 @@ void stdComm_ENet_GetLocalAddresses(char* pOut, int outLen)
 #endif
 }
 
-int DirectPlay_Receive(int *pIdOut, int *pMsgIdOut, int *pLenOut)
+static int stdComm_ENet_Receive(int *pIdOut, int *pMsgIdOut, int *pLenOut)
 {
     int maxLen = *pLenOut;
     *pIdOut = 0;
     *pLenOut = 0;
     if (!stdComm_ENet_bInitted) return -1;
 
-    Hack_ResetClients();
+    stdComm_ENet_ResetClients();
 
     // (hosting: games nearby told the player count now and then)
     if (stdComm_ENet_bAdvertising && stdPlatform_GetTimeMsec() - stdComm_ENet_advertisedMs > 2000)
@@ -1044,11 +995,11 @@ int DirectPlay_Receive(int *pIdOut, int *pMsgIdOut, int *pLenOut)
     return ret;
 }
 
-BOOL DirectPlay_Send(DPID idFrom, DPID idTo, void *lpData, DWORD dwDataSize)
+static BOOL stdComm_ENet_Send(DPID idFrom, DPID idTo, void *lpData, DWORD dwDataSize)
 {
     if (!stdComm_ENet_bInitted) return 0;
 
-    Hack_ResetClients();
+    stdComm_ENet_ResetClients();
 
     if (dwDataSize > STDCOMM_ENET_MAX_MSG - 8) dwDataSize = STDCOMM_ENET_MAX_MSG - 8;
     int ret = 1;
@@ -1080,38 +1031,9 @@ BOOL DirectPlay_Send(DPID idFrom, DPID idTo, void *lpData, DWORD dwDataSize)
     return ret;
 }
 
-int stdComm_OpenConnection(void* a)
-{
-    stdComm_dword_8321DC = 1;
-    return 0;
-}
-
-void stdComm_CloseConnection()
-{
-    if (stdComm_dword_8321DC)
-    {
-        if (stdComm_dword_8321E0)
-        {
-            DirectPlay_Close();
-            stdComm_dword_8321E0 = 0;
-            stdComm_bIsServer = 0;
-            stdComm_dplayIdSelf = 0;
-        }
-        stdComm_dword_8321DC = 0;
-    }
-}
-
 // Joining the game found at the address typed
-int stdComm_Open(int idx, char16_t* pwPassword)
+static int stdComm_ENet_Join(char16_t* pwPassword)
 {
-    DirectPlay_EnumSessions2();
-
-    stdComm_dword_8321E8 = 0;
-    stdComm_dword_8321E0 = 1;
-    stdComm_dplayIdSelf = DirectPlay_CreatePlayer(jkPlayer_playerShortName, 0);
-    stdComm_bIsServer = 0;
-    jkGuiMultiplayer_checksumSeed = jkGuiMultiplayer_aEntries[idx].checksumSeed;
-
     if (!stdComm_ENet_bInitted) return 0;
 
     stdComm_ENet_CloseHost();
@@ -1144,11 +1066,11 @@ int stdComm_Open(int idx, char16_t* pwPassword)
         stdComm_ENet_CloseHost();
         return bWrongPassword ? 0x88770154 : 0x88770154 + 1; // (the Join screen: "wrong password", or can't connect)
     }
-    Hack_ResetClients();
+    stdComm_ENet_ResetClients();
     return 0;
 }
 
-void stdComm_Close()
+static void stdComm_ENet_Close(void)
 {
     if (!stdComm_ENet_bInitted) return;
     stdComm_ENet_StopAdvertising();
@@ -1157,44 +1079,14 @@ void stdComm_Close()
     stdComm_ENet_bHostCrypto = 0;
 }
 
-int DirectPlay_SendLobbyMessage(void* pPkt, uint32_t pktLen)
-{
-    return 1;
-}
-
-void DirectPlay_SetSessionDesc(const char* a1, DWORD maxPlayers)
+// The level now played, for the session told to players who join
+static void stdComm_ENet_SetSessionLevel(void)
 {
     _strncpy(stdComm_ENet_storedEntry.mapJklFname, jkMain_aLevelJklFname, 0x20);
 }
 
-BOOL DirectPlay_SetSessionFlagidk(int a1)
-{
-    return 1;
-}
-
-BOOL DirectPlay_Startup()
-{
-    jkGuiMultiplayer_numConnections = 0;
-    memset(&jkGuiMultiplayer_aConnections, 0, 0x1180u);
-    return 1;
-}
-
-int DirectPlay_EarlyInit(char16_t* pwIdk, char16_t* pwPlayerName)
-{
-    return 0;
-}
-
-DPID DirectPlay_CreatePlayer(char16_t* pwIdk, int idk2)
-{
-    return 1;
-}
-
-void DirectPlay_Close()
-{
-}
-
 // Hosting: listening for players
-int DirectPlay_OpenHost(jkMultiEntry* pEntry)
+static int stdComm_ENet_OpenHost(jkMultiEntry* pEntry)
 {
     stdComm_ENet_storedEntry = *pEntry;
     jkPlayer_maxPlayers = pEntry->maxPlayers;
@@ -1236,68 +1128,29 @@ int DirectPlay_OpenHost(jkMultiEntry* pEntry)
     stdComm_ENet_infoPrintf("ENet: hosting on port %d\n", addr.port);
     stdComm_ENet_StartThread();
     stdComm_ENet_Advertise();
-    Hack_ResetClients();
+    stdComm_ENet_ResetClients();
     return 0;
 }
 
-int DirectPlay_GetSession_passwordidk(jkMultiEntry* pEntry)
+// The session to host (before stdComm_ENet_OpenHost)
+static void stdComm_ENet_SetSession(jkMultiEntry* pEntry)
 {
     stdComm_ENet_storedEntry = *pEntry;
     jkPlayer_maxPlayers = pEntry->maxPlayers;
-    return 1;
 }
 
-int DirectPlay_EnumSessions2()
-{
-    if (!stdComm_EnumThread_bInit) return 0;
-    stdComm_EnumThread_bInit = 0;
-    int ret;
-    SDL_WaitThread(stdComm_EnumThread_thread, &ret);
-    stdComm_EnumThread_thread = NULL;
-    return 0;
-}
-
-int stdComm_EnumSessions(int a, void* b)
-{
-    if (!stdComm_ENet_bInitted) return 0;
-    if (!stdComm_EnumThread_mutex) stdComm_EnumThread_mutex = SDL_CreateMutex();
-
-    SDL_LockMutex(stdComm_EnumThread_mutex);
-    stdComm_EnumThread_bForce = 1;
-    jkGuiMultiplayer_aEntries[0] = stdComm_ENet_storedEntryEnum;
-    dplay_dword_55D618 = stdComm_ENet_numEnumd;
-    SDL_UnlockMutex(stdComm_EnumThread_mutex);
-
-    if (stdComm_EnumThread_bInit) return 0;
-
-    Hack_ResetClients();
-    dplay_dword_55D618 = 0;
-    stdComm_ENet_numEnumd = 0;
-    memset(&stdComm_ENet_storedEntryEnum, 0, sizeof(stdComm_ENet_storedEntryEnum));
-    memset(&jkGuiMultiplayer_aEntries[0], 0, sizeof(jkGuiMultiplayer_aEntries[0]));
-    memset(stdComm_ENet_lastAddr, 0, sizeof(stdComm_ENet_lastAddr));
-    stdComm_EnumThread_bInit = 1;
-    stdComm_EnumThread_thread = SDL_CreateThread(stdComm_ENet_EnumThread, "stdComm_ENet_Enum", NULL);
-    return 0;
-}
-
-void DirectPlay_EnumPlayers(int a)
-{
-    Hack_ResetClients();
-}
-
-int DirectPlay_StartSession(void* a, void* b)
-{
-    return 1;
-}
-
-void DirectPlay_Destroy()
-{
-}
-
-int DirectPlay_IdkSessionDesc(jkMultiEntry* pEntry)
-{
-    return 1;
-}
+const stdCommTransport stdComm_ENet_transport = {
+    "ENet",
+    stdComm_ENet_Receive,
+    stdComm_ENet_Send,
+    stdComm_ENet_Join,
+    stdComm_ENet_OpenHost,
+    stdComm_ENet_SetSession,
+    stdComm_ENet_SetSessionLevel,
+    stdComm_ENet_Close,
+    stdComm_ENet_ResetClients,
+    stdComm_ENet_ProbeAddress,
+    stdComm_ENet_CheckPassword,
+};
 
 #endif // PLATFORM_ENET
