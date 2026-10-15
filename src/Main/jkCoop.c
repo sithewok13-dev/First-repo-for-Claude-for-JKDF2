@@ -38,6 +38,7 @@ int jkCoop_HostKeepsProtagonist(void)
 // ------------------------------------------------------------------ gear between levels
 
 static char jkCoop_aHostLevel[32]; // (the host's level, below)
+static int jkCoop_ownDifficulty = -1; // (a guest's own, while it plays at the host's: below)
 static int jkCoop_pickedEntry = -1; // (the level the host picked, below)
 
 // (a kit older than this is from another game: a level, its cutscene and its
@@ -143,6 +144,10 @@ void jkCoop_LevelEnded(void)
 
 void jkCoop_SessionEnded(void)
 {
+    if (jkCoop_ownDifficulty >= 0) {
+        jkPlayer_setDiff = jkCoop_ownDifficulty; // (the guest's own back)
+        jkCoop_ownDifficulty = -1;
+    }
     jkCoopSave_Flush();
     jkCoop_pickedEntry = -1;
     jkCoop_bKitValid = 0;
@@ -218,6 +223,31 @@ void jkCoop_Tick(void)
     }
 }
 
+// ------------------------------------------------------------------ the host's difficulty
+
+#define JKCOOP_DIFF_SHIFT 18
+
+int jkCoop_HostGameFlags(int flags)
+{
+    flags &= ~MULTIMODEFLAG_COOPDIFF_MASK;
+    if ((flags & MULTIMODEFLAG_COOP) && jkPlayer_setDiff >= 0 && jkPlayer_setDiff <= 2)
+        flags |= ((jkPlayer_setDiff + 1) << JKCOOP_DIFF_SHIFT) & MULTIMODEFLAG_COOPDIFF_MASK;
+    return flags;
+}
+
+void jkCoop_UseHostDifficulty(void)
+{
+    if (stdComm_bIsServer || !(sithMulti_multiModeFlags & MULTIMODEFLAG_COOP))
+        return;
+    const int diff = ((sithMulti_multiModeFlags & MULTIMODEFLAG_COOPDIFF_MASK) >> JKCOOP_DIFF_SHIFT) - 1;
+    if (diff < 0 || diff > 2 || diff == jkPlayer_setDiff)
+        return;
+    if (jkCoop_ownDifficulty < 0)
+        jkCoop_ownDifficulty = jkPlayer_setDiff;
+    stdPlatform_Printf("OpenJKDF2: co-op, the host's difficulty (%d)\n", diff);
+    jkPlayer_setDiff = diff;
+}
+
 // ------------------------------------------------------------------ player starts
 
 int jkCoop_AddPlayerStarts(SithWorld* pWorld, int numStarts)
@@ -235,6 +265,7 @@ int jkCoop_AddPlayerStarts(SithWorld* pWorld, int numStarts)
         if (!pStart || pStart->type != SITH_THING_PLAYER)
             break;
         // (as sithPlayer_PlacePlayers makes one of the level's own)
+        pStart->guid = pStart->idx; // (as the level's own things: the same everywhere)
         SithPlayer* pInfo = &jkPlayer_playerInfos[numStarts];
         pInfo->pLocalPlayer = pStart;
         pStart->flags |= SITH_TF_INVULN;

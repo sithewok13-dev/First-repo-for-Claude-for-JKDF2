@@ -91,6 +91,13 @@ int jkCoop_TakePickedLevel(void);
 #define JKCOOP_MAX_PLAYERS 4
 int jkCoop_AddPlayerStarts(SithWorld* pWorld, int numStarts);
 
+// The game's flags as a co-op host sends them: its difficulty in them (MULTIMODEFLAG_COOPDIFF_MASK)
+int jkCoop_HostGameFlags(int flags);
+// A multiplayer level about to load: in co-op, a guest loads it at the host's difficulty (which
+// decides what the level has: everyone's must be the same things); its own is put back when the game
+// is left
+void jkCoop_UseHostDifficulty(void);
+
 // A menu about to be shown that, in co-op, goes on (as its OK) by itself after
 // msWait; its own idle function, if any, still runs. Call jkCoop_MenuDone
 // after it, which puts the menu back as it was.

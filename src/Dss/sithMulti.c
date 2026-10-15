@@ -90,6 +90,9 @@ HRESULT sithMulti_CreatePlayer(const char16_t *a1, const char16_t *a2, const cha
     jkMultiEntry multiEntry; // [esp+Ch] [ebp-F0h] BYREF
 
     _memset(&multiEntry, 0, sizeof(multiEntry));
+#ifdef QOL_IMPROVEMENTS
+    multiModeFlags = jkCoop_HostGameFlags(multiModeFlags); // Added: co-op, the host's difficulty for everyone
+#endif
     stdString_SafeWStrCopy(multiEntry.serverName, a1, 0x20);
     stdString_SafeStrCopy(multiEntry.episodeGobName, a3, 0x20);
     stdString_SafeStrCopy(multiEntry.mapJklFname, a4, 0x20);

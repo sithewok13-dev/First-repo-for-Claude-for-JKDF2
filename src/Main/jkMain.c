@@ -592,6 +592,9 @@ void jkMain_GameplayShow(int a1, int a2)
 #ifdef JKM_DSS
             jkPlayer_SetAmmoMaximums(jkPlayer_personality);
 #endif
+#ifdef QOL_IMPROVEMENTS
+            jkCoop_UseHostDifficulty(); // Added: co-op, the level loaded as the host's (the same things)
+#endif
             v3 = sithOpenMulti(jkMain_aLevelJklFname);
         }
 
