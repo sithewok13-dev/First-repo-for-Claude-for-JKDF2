@@ -253,8 +253,9 @@ jobs:
       # Added: a stable direct link to the newest .ipa (no zip, works from Safari),
       # and to the MotS one next to it. Branches only (pushed or run by hand): a
       # release tag gets its own release (next step) and leaves this one alone.
+      # (never from an experiment branch, exp/..., even run by hand: those keep run artifacts only)
       - name: Publish to "ios-latest" release
-        if: ${{ !startsWith(github.ref, 'refs/tags/') && env.RELEASE_TAG == '' }}
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/heads/exp/') && env.RELEASE_TAG == '' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ios-latest
@@ -278,7 +279,7 @@ jobs:
       # "Run workflow" with the tag selected) updates it. A tag with a '-' in
       # it is a test or beta build: a prerelease, never marked latest.
       - name: Publish release for the tag
-        if: env.RELEASE_TAG != ''
+        if: ${{ env.RELEASE_TAG != '' && !startsWith(github.ref, 'refs/heads/exp/') }}
         uses: softprops/action-gh-release@v2
         with:
           # A manual run creates the tag at the commit it built
