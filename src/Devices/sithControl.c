@@ -24,6 +24,7 @@
 #include "Main/Main.h"
 #include "Dw/dwCog.h"
 #include "jk.h"
+#include "Platform/iOS/iosPad.h" // Added: game controllers' bindings (iOS)
 
 // Added
 static int sithControl_followingPlayer = 0;
@@ -2365,7 +2366,9 @@ LABEL_17:
 
 // Added
 void sithControl_MapDefaultsJoystick() {
-#if !defined(TARGET_RETRO_HOMEBREW) && defined(QOL_IMPROVEMENTS)
+#ifdef IOSPAD_ENABLED
+    iosPadBinds_MapDefaults(); // Added: the iOS pad layout (iosPadBinds)
+#elif !defined(TARGET_RETRO_HOMEBREW) && defined(QOL_IMPROVEMENTS)
     stdControlKeyInfoEntry* mapped;
 
     mapped = sithControl_BindAxis(INPUT_FUNC_FORWARD, AXIS_JOY1_Y, 4u);

@@ -10,6 +10,7 @@
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosTouch.h" // Added
 #endif
+#include "Platform/iOS/iosPad.h" // Added: game controllers (iOS)
 
 #include "jk.h"
 
@@ -445,6 +446,17 @@ int stdControl_Startup()
     //v2 = 2;
 
     stdControl_InitSdlJoysticks();
+
+#ifdef IOSPAD_ENABLED
+    // Added: the first pad's axes exist even with no pad connected yet (a
+    // Bluetooth pad often connects after the game starts), so its stick
+    // bindings load with the player's settings and are saved back with them,
+    // rather than being dropped for an axis that isn't there
+    for (int j = 0; j < JK_JOYSTICK_AXIS_STRIDE; j++) {
+        if (!(stdControl_aAxes[AXIS_JOY1_X + j].flags & 1))
+            stdControl_RegisterAxis(AXIS_JOY1_X + j, -0x7FFF, 0x7FFF, 0.0);
+    }
+#endif
 
 #if 0
     v14 = joyGetNumDevs();
