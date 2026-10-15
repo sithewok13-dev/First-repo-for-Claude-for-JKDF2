@@ -98,8 +98,11 @@ jobs:
         run: |
           export OPENJKDF2_RELEASE_COMMIT=$(git log -1 --format="%H")
           export OPENJKDF2_RELEASE_COMMIT_SHORT=$(git rev-parse --short=8 HEAD)
+          # PLAT_ANDROID_ARM64 given here as well as by the toolchain file: on a
+          # fresh build folder CMakeLists.txt's own cache default (FALSE) hides the
+          # toolchain's value, which is why build_android.sh runs cmake twice
           if ! cmake -S . -B "$BUILD_DIR" --toolchain "$PWD/cmake_modules/toolchain_android_aarch64.cmake" \
-              -DCMAKE_BUILD_TYPE=Release > "$RUNNER_TEMP/cmake.log" 2>&1; then
+              -DPLAT_ANDROID_ARM64=TRUE -DCMAKE_BUILD_TYPE=Release > "$RUNNER_TEMP/cmake.log" 2>&1; then
             grep -n -i -E "error" "$RUNNER_TEMP/cmake.log" | head -40; tail -40 "$RUNNER_TEMP/cmake.log"
             # (also as annotations, which show on the run's summary page)
             grep -i -E -A3 "error" "$RUNNER_TEMP/cmake.log" | head -12 | sed 's/^/::error title=cmake::/'
