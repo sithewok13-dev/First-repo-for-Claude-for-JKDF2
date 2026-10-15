@@ -33,6 +33,7 @@ static void jkDev_Custom_HostAddressTick(void); // Added
 #include "Dss/sithMulti.h"
 #include "Main/jkCoop.h" // Added
 #include "Main/jkPlayerLook.h" // Added
+#include "Main/jkCoopSave.h" // Added
 #include "Dss/sithGamesave.h"
 #include "Dss/jkDSS.h"
 #include "../jk.h"
@@ -288,6 +289,7 @@ void jkDev_DrawLog()
 #ifdef QOL_IMPROVEMENTS
     jkCoop_Tick(); // Added: co-op, gear between levels and after dying
     jkPlayerLook_Tick(); // Added: (multiplayer) this player's saber, for the others
+    jkCoopSave_Tick(); // Added: co-op, the host's save written
 #endif
 
     // Added: Prevent crashes
@@ -1858,7 +1860,7 @@ int jkDev_Custom_SaberThrowCheck(SithThing *pThing, int typeId, SithInventoryIte
 {
     // (Saber Throw is Mysteries of the Sith's: Jedi Knight's scripts taking the saber and giving it back,
     // as level 17's start does, are grants as ever)
-    if ( !Main_bMotsCompat || sithNet_isMulti || !pThing || pThing != sithPlayer_g_pLocalPlayerThing || typeId != jkDev_Custom_SaberBin() )
+    if ( !Main_bMotsCompat || !jkDev_Custom_CheatsAllowed() || !pThing || pThing != sithPlayer_g_pLocalPlayerThing || typeId != jkDev_Custom_SaberBin() )
         return 1;
     if ( info->amount <= 0.0 )
     {

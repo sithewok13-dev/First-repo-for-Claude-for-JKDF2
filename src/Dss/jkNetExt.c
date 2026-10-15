@@ -13,15 +13,15 @@ static jkNetExtHandler_t jkNetExt_apfHandler[JKNETEXT_NUM_KINDS];
 
 static int jkNetExt_Process(SithMessage* pMsg)
 {
-    if (!pMsg || pMsg->netMsg.msg_size < 2)
+    if (!pMsg || pMsg->netMsg.msg_size < 3)
         return 1;
     const uint8_t* p = (const uint8_t*)&pMsg->pktData[0];
     const int kind = p[0];
-    const int len = p[1];
-    if (len > (int)pMsg->netMsg.msg_size - 2 || len > JKNETEXT_MAX_LEN)
+    const int len = p[1] | (p[2] << 8);
+    if (len > (int)pMsg->netMsg.msg_size - 3 || len > JKNETEXT_MAX_LEN)
         return 1;
     if (kind > 0 && kind < JKNETEXT_NUM_KINDS && jkNetExt_apfHandler[kind])
-        jkNetExt_apfHandler[kind](pMsg->netMsg.idx, p + 2, len);
+        jkNetExt_apfHandler[kind](pMsg->netMsg.idx, p + 3, len);
     return 1;
 }
 
@@ -42,12 +42,13 @@ void jkNetExt_Send(int kind, const void* pData, int len, int idTo)
         return;
     uint8_t* p = (uint8_t*)&sithComm_netMsgTmp.pktData[0];
     p[0] = (uint8_t)kind;
-    p[1] = (uint8_t)len;
+    p[1] = (uint8_t)(len & 0xFF);
+    p[2] = (uint8_t)(len >> 8);
     if (len)
-        memcpy(p + 2, pData, len);
+        memcpy(p + 3, pData, len);
     sithComm_netMsgTmp.netMsg.flag_maybe = 0;
     sithComm_netMsgTmp.netMsg.cogMsgId = DSS_JKNETEXT;
-    sithComm_netMsgTmp.netMsg.msg_size = 2 + len;
+    sithComm_netMsgTmp.netMsg.msg_size = 3 + len;
     sithComm_SendMsgToPlayer(&sithComm_netMsgTmp, idTo, 1, 1);
 }
 

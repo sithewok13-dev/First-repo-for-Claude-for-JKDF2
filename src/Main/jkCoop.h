@@ -37,6 +37,19 @@ extern "C" {
 // In a co-op game now
 int jkCoop_IsActive(void);
 
+// A player's gear, bin by bin (as carried between levels)
+typedef struct jkCoopKitBin
+{
+    flex_t amount;
+    int32_t state; // (SITHINVENTORY_ITEM_AVAILABLE, _FOUND)
+} jkCoopKitBin;
+
+// The kit this player carries (this level's start, or the last level's end), 0 if none
+int jkCoop_GetKit(jkCoopKitBin aOut[SITHBIN_NUMBINS]);
+// A kit from elsewhere (the co-op save, the host): carried as if from the last level, given at once if
+// already in the level
+void jkCoop_SetKit(const jkCoopKitBin aKit[SITHBIN_NUMBINS]);
+
 // The level has ended (its Force power given): the local player's gear kept
 void jkCoop_LevelEnded(void);
 // The multiplayer game left (sithMulti_Shutdown): nothing kept for another game

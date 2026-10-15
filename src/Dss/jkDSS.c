@@ -14,6 +14,7 @@
 #include "Dss/jkNetExt.h" // Added
 #include "Main/jkPlayerLook.h" // Added
 #include "Main/jkCoop.h" // Added
+#include "Main/jkCoopSave.h" // Added
 #include "Main/jkRes.h"
 #include "Main/jkStrings.h"
 #include "World/sithTemplate.h"
@@ -73,6 +74,7 @@ int jkDSS_Startup()
     // Added: this port's own messages (jkNetExt), and what they carry
     jkNetExt_Startup();
     jkPlayerLook_Startup();
+    jkCoopSave_Startup();
 #endif
     sithMessage_RegisterFunction(DSS_JKENABLESABER, jkDSS_ProcessJKEnableSaber);
     sithMessage_RegisterFunction(DSS_SABERINFO3, jkDSS_ProcessSetSaberInfo2);

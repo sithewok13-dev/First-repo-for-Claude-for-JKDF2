@@ -21,6 +21,7 @@
 #include "Main/jkHudCameraView.h"
 #include "Main/jkDev.h"
 #include "Main/jkCoop.h"
+#include "Main/jkCoopSave.h" // Added
 #include "Main/jkEpisode.h"
 #include "Main/jkRes.h"
 #include "Main/jkStrings.h"
@@ -1018,6 +1019,10 @@ int jkMain_loadFile2(char *pGobPath, char *pEpisodeName)
 {
     BOOL v2; // esi
     int result; // eax
+
+#ifdef QOL_IMPROVEMENTS
+    jkCoopSave_LevelLoading(pGobPath, &pEpisodeName); // Added: co-op, a host carries on from its save
+#endif
 
     _strncpy(jkMain_aLevelJklFname, pEpisodeName, 0x7Fu);
     jkMain_aLevelJklFname[127] = 0;

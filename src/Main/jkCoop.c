@@ -22,6 +22,8 @@
 #include "Win95/stdComm.h"
 #include "Main/jkDev.h"
 #include "Dss/jkDSS.h"
+#include "Main/jkCoopSave.h"
+#include <string.h>
 
 int jkCoop_IsActive(void)
 {
@@ -39,12 +41,6 @@ static int jkCoop_pickedEntry = -1; // (the level the host picked, below)
 // (in a new level, given once the player is in: a guest joins after loading)
 #define JKCOOP_KIT_DELAY_MS (2000)
 
-typedef struct jkCoopKitBin
-{
-    flex_t amount;
-    int32_t state;
-} jkCoopKitBin;
-
 static jkCoopKitBin jkCoop_aKit[SITHBIN_NUMBINS];
 static int jkCoop_bKitValid = 0;      // jkCoop_aKit holds a kit
 static uint32_t jkCoop_kitMs = 0;     // when it was taken
@@ -52,6 +48,7 @@ static int jkCoop_bKitToGive = 0;     // this level: still to be given
 static int jkCoop_bKitTaken = 0;      // this level: its starting kit taken
 static uint32_t jkCoop_levelOpenMs = 0;
 static int jkCoop_bWasDead = 0;
+static int jkCoop_bKitCameWith = 0;   // this level: began with a kit carried in (not the level's own start)
 
 static SithThing* jkCoop_LocalPlayer(void)
 {
@@ -71,6 +68,9 @@ static int jkCoop_BinCarried(int bin)
         return 0;
     // (what each level counts for itself)
     if (bin == SITHBIN_SECRETS || bin == SITHBIN_MAXSECRETS || bin == SITHBIN_PEDS_KILLED || bin == SITHBIN_PEDS_TOTAL)
+        return 0;
+    // (where the level's goals' text starts: the level's own)
+    if (bin == SITHBIN_STRINGOFFS)
         return 0;
     return 1;
 }
@@ -121,7 +121,8 @@ void jkCoop_LevelEnded(void)
         return;
     }
     // A level played with cheats: the kit it began with kept, with only the Force power the story
-    // gives at the level's end (the episode entry's, which jkMain_EndLevel has just given)
+    // gives at the level's end (the episode entry's, given by jkMain_EndLevel; not when the host
+    // picked the next level, which gives none, as in single player)
     if (!Main_bMotsCompat && jkEpisode_mLoad.paEntries && jkEpisode_mLoad.numSeq) {
         const jkEpisodeEntry* pEnt = jkEpisode_GetCurrentEpisodeEntry(&jkEpisode_mLoad);
         const int aPow[2] = { pEnt->lightpow, pEnt->darkpow };
@@ -150,6 +151,34 @@ void jkCoop_LevelOpened(void)
     if (!jkCoop_IsActive() || (jkCoop_bKitValid && jkCoop_levelOpenMs - jkCoop_kitMs > JKCOOP_KIT_MAX_AGE_MS))
         jkCoop_bKitValid = 0;
     jkCoop_bKitToGive = jkCoop_bKitValid;
+    jkCoop_bKitCameWith = jkCoop_bKitValid;
+    jkCoopSave_LevelOpened();
+}
+
+int jkCoop_GetKit(jkCoopKitBin aOut[SITHBIN_NUMBINS])
+{
+    if (!jkCoop_bKitValid)
+        return 0;
+    memcpy(aOut, jkCoop_aKit, sizeof(jkCoop_aKit));
+    return 1;
+}
+
+void jkCoop_SetKit(const jkCoopKitBin aKit[SITHBIN_NUMBINS])
+{
+    memcpy(jkCoop_aKit, aKit, sizeof(jkCoop_aKit));
+    jkCoop_bKitValid = 1;
+    jkCoop_kitMs = stdPlatform_GetTimeMsec();
+    SithThing* pMe = jkCoop_LocalPlayer();
+    if (jkCoop_bKitTaken && pMe && jkCoop_IsActive() && !(pMe->flags & SITH_TF_DEAD)) {
+        // (already in the level: given now, and this level's starting kit from it)
+        jkCoop_GiveKit(pMe, 1);
+        jkCoop_TakeKit(pMe->actorParams.pPlayer);
+        jkCoop_bKitToGive = 0;
+    }
+    else {
+        jkCoop_bKitToGive = 1;
+        jkCoop_bKitCameWith = 1;
+    }
 }
 
 void jkCoop_Tick(void)
@@ -170,9 +199,11 @@ void jkCoop_Tick(void)
         jkCoop_bKitToGive = 0;
     }
     if (!jkCoop_bKitTaken) {
-        // (this level's starting kit, for coming back after dying)
+        // (this level's starting kit, for coming back after dying; and for the co-op save)
         jkCoop_TakeKit(pMe->actorParams.pPlayer);
         jkCoop_bKitTaken = 1;
+        jkCoopSave_KitTaken(jkCoop_bKitCameWith);
+        jkCoop_bKitCameWith = 0;
     }
     if (jkCoop_bWasDead) {
         jkCoop_GiveKit(pMe, 0);

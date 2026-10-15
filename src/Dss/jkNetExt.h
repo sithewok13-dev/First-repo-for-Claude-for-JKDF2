@@ -1,10 +1,11 @@
 // Added: entire file. This port's own multiplayer messages, all carried by one
 // message type the game never sends (DSS_64), each with a kind of its own:
-// [kind: u8][length: u8][that many bytes]. A game that doesn't know the type,
+// [kind: u8][length: u16, low byte first][that many bytes]. A game that doesn't know the type,
 // or a kind, just passes it by, so older builds and other ports still play.
 //
 // Kinds (each the business of its own module):
 //   JKNETEXT_LOOK    -- a player's saber as they chose it (jkPlayerLook)
+//   JKNETEXT_COOPKIT -- a co-op player's gear, for the host's save (jkCoopSave)
 
 #ifndef _DSS_JKNETEXT_H
 #define _DSS_JKNETEXT_H
@@ -18,11 +19,12 @@ extern "C" {
 #ifdef QOL_IMPROVEMENTS
 
 #define DSS_JKNETEXT DSS_64
-#define JKNETEXT_MAX_LEN 200
+#define JKNETEXT_MAX_LEN 1800
 
 enum
 {
     JKNETEXT_LOOK = 1,
+    JKNETEXT_COOPKIT = 2,
     JKNETEXT_NUM_KINDS = 16
 };
 
