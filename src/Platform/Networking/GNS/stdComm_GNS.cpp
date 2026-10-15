@@ -814,49 +814,54 @@ public:
             return 2;
         }
 
-        ISteamNetworkingMessage *pIncomingMsg = nullptr;
-        int numMsgs = m_pInterface->ReceiveMessagesOnConnection( m_hConnection, &pIncomingMsg, 1 );
-        if ( numMsgs == 0 )
-            return -1;
-        if ( numMsgs < 0 ) {
-            sithDplayGNS_infoPrintf( "Error checking for messages (%d)\n", numMsgs);
-            Shutdown();
-            m_closed = 1;
-            *pIdOut = 1;
-            m_hackFallback = !m_hackFallback;
-            return m_hackFallback ? 2 : -1;
+        // Added: messages too short, or meant for another player, are let go (released) and the
+        // next one read, rather than kept (a leak) and the reading stopped there
+        for (;;)
+        {
+            ISteamNetworkingMessage *pIncomingMsg = nullptr;
+            int numMsgs = m_pInterface->ReceiveMessagesOnConnection( m_hConnection, &pIncomingMsg, 1 );
+            if ( numMsgs == 0 )
+                return -1;
+            if ( numMsgs < 0 ) {
+                sithDplayGNS_infoPrintf( "Error checking for messages (%d)\n", numMsgs);
+                Shutdown();
+                m_closed = 1;
+                *pIdOut = 1;
+                m_hackFallback = !m_hackFallback;
+                return m_hackFallback ? 2 : -1;
+            }
+
+            if (pIncomingMsg->m_cbSize < 8) {
+                sithDplayGNS_infoPrintf("Bad packet size %x\n", pIncomingMsg->m_cbSize);
+                pIncomingMsg->Release();
+                continue;
+            }
+
+            uint8_t* dataBuf = (uint8_t*)pIncomingMsg->m_pData;
+            uint32_t idFrom, idTo;
+            memcpy(&idFrom, &dataBuf[0], 4);
+            memcpy(&idTo, &dataBuf[4], 4);
+
+            // Not intended for us
+            if (idTo && idTo != id) {
+                pIncomingMsg->Release();
+                continue;
+            }
+            *pIdOut = (int)idFrom;
+
+            int outsize = maxLen;
+            if (outsize > pIncomingMsg->m_cbSize-8)
+                outsize = pIncomingMsg->m_cbSize-8;
+
+            memcpy(pMsg, &dataBuf[8], outsize);
+            *pLenInOut = outsize;
+
+            sithDplayGNS_verbosePrintf("Recv %x bytes from %x %x (%s, %x)\n", pIncomingMsg->m_cbSize, idFrom, idTo, sithDSS_IdToStr(*(uint32_t*)pMsg & 0xFF), *(uint32_t*)pMsg);
+
+            // We don't need this anymore.
+            pIncomingMsg->Release();
+            return 0;
         }
-
-        if (pIncomingMsg->m_cbSize < 8) {
-            sithDplayGNS_infoPrintf("Bad packet size %x\n", pIncomingMsg->m_cbSize);
-            Shutdown();
-            m_closed = 1;
-            return -1;
-        }
-
-        uint8_t* dataBuf = (uint8_t*)pIncomingMsg->m_pData;
-        int idFrom = *(uint32_t*)&dataBuf[0];//itClient->second.m_id;
-        int idTo = *(uint32_t*)&dataBuf[4];
-        *pIdOut = idFrom;
-
-        // Not intended for us
-        if (idTo && idTo != id) {
-            return -1;
-        }
-        
-        int outsize = maxLen;
-        if (outsize > pIncomingMsg->m_cbSize-8)
-            outsize = pIncomingMsg->m_cbSize-8;
-
-        memcpy(pMsg, &dataBuf[8], outsize);
-        *pLenInOut = outsize;
-
-        sithDplayGNS_verbosePrintf("Recv %x bytes from %x %x (%s, %x)\n", pIncomingMsg->m_cbSize, idFrom, idTo, sithDSS_IdToStr(*(uint32_t*)pMsg & 0xFF), *(uint32_t*)pMsg);
-
-        // We don't need this anymore.
-        pIncomingMsg->Release();
-
-        return 0;
     }
 
     int Send(uint32_t idFrom, uint32_t idTo, void *lpData, uint32_t dwDataSize)
