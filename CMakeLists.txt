@@ -191,8 +191,9 @@ endif()
 # file empty without JK_ENHANCED). Always on for iOS; on by default for the
 # desktops and Android; -DOPENJKDF2_ENHANCED=OFF builds the game as upstream has
 # it. Defines JK_ENHANCED; TARGET_IOS stays for what only the touch overlay
-# (UIKit) has.
-if(PLAT_LINUX_32 OR PLAT_LINUX_64 OR PLAT_MACOS OR PLAT_MACOS_X86_64 OR PLAT_MINGW_X86_64 OR PLAT_MINGW_X86_32 OR PLAT_MSVC OR PLAT_ANDROID_ARM64)
+# (UIKit) has. (Not by default for the 32-bit Windows XP build, whose old
+# OpenGL path it has not been tried on.)
+if(PLAT_LINUX_32 OR PLAT_LINUX_64 OR PLAT_MACOS OR PLAT_MACOS_X86_64 OR PLAT_MINGW_X86_64 OR PLAT_MSVC OR PLAT_ANDROID_ARM64)
     set(OPENJKDF2_ENHANCED_DEFAULT ON)
 else()
     set(OPENJKDF2_ENHANCED_DEFAULT OFF)
