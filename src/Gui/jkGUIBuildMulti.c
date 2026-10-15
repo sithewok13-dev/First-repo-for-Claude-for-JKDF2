@@ -1550,6 +1550,13 @@ LABEL_7:
     jkRes_LoadGob(pStrEpisode);
     stdStrTable_Load(&strtable, "misc\\cogStrings.uni");
     v9 = rank;
+#ifdef QOL_IMPROVEMENTS
+    // Added: a Mysteries of the Sith game (not the Jedi Knight "ranked Jedi" format): its characters
+    // (personalities) are all rank 8 (jkGuiBuildMulti_ShowNewCharacter), and the host's Jedi rank limit
+    // is for the ranked format only; otherwise none would ever count
+    if ( Main_bMotsCompat && !bGameFormatIsJK )
+        v9 = 8;
+#endif
     jkGuiBuildMulti_menuLoadCharacter_buttons[7].wstr = jkGuiTitle_quicksave_related_func1(&strtable, pJklFname);
     stdString_snprintf(tmp5, 32, "RANK_%d_L", rank);
     v21 = jkStrings_GetUniStringWithFallback(tmp5);
@@ -1642,6 +1649,10 @@ LABEL_18:
         if ( !v14 )
             break;
         v9 = rank;
+#ifdef QOL_IMPROVEMENTS
+        if ( Main_bMotsCompat && !bGameFormatIsJK )
+            v9 = 8; // Added: as above, every time round
+#endif
     }
     jkGuiRend_DarrayFree(&darr);
     stdStrTable_Free(&strtable); // Added: memleak
