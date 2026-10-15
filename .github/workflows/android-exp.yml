@@ -121,7 +121,7 @@ jobs:
             grep -i -E -A3 "error" "$RUNNER_TEMP/cmake.log" | head -12 | sed 's/^/::error title=cmake::/'
             exit 1
           fi
-          grep -E "Targeting|ENet|GameNetworking" "$RUNNER_TEMP/cmake.log" || true
+          grep -E "Targeting|ENet|GameNetworking|Touch controls" "$RUNNER_TEMP/cmake.log" || true
 
       - name: Build the engine (libopenjkdf2-armv8a.so)
         run: |
@@ -135,6 +135,8 @@ jobs:
           # Multiplayer over ENet is in (not the no-networking stubs upstream Android has)
           [ -n "$(find "$BUILD_DIR" -name 'stdComm_ENet.c.o')" ] || { echo "::error::ENet not built"; exit 1; }
           find "$BUILD_DIR" -path '*Networking/None*' -name '*.o' | grep . && { echo "no-networking stubs built"; exit 1; } || true
+          # The touch controls are in (src/Platform/Touch)
+          [ -n "$(find "$BUILD_DIR" -name 'touchUiRender_gl.c.o')" ] || { echo "::error::touch controls not built"; exit 1; }
 
       - name: Native libraries into the Gradle project
         run: |
