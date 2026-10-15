@@ -30,6 +30,12 @@ android {
     }
     compileSdkVersion 34
     defaultConfig {
+        // Added: an app id of its own, so this build installs next to upstream
+        // OpenJKDF2 (org.openjkdf2.app) rather than over it. The Java package
+        // (namespace above, and the JNI names in InstallHelper.c) stays
+        // org.openjkdf2.app. Jedi Knight and Mysteries of the Sith (MotsActivity,
+        // its own launcher icon) are both in this one app.
+        applicationId "org.openjkdf2.enhanced.jk"
         minSdkVersion 19
         targetSdkVersion 34
         versionCode gitCommitCount

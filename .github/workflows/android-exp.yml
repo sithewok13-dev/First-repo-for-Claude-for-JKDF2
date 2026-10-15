@@ -1,0 +1,180 @@
+# Experiment: the Android app (arm64-v8a), with multiplayer over ENet.
+#
+# Runs only for experiment branches (exp/...) and by hand. It publishes
+# nothing: no release, no tag, no ios-latest. The .apk is kept as this run's
+# artifact only (Actions > the run > Artifacts), for testing.
+#
+# What it builds: upstream OpenJKDF2's Android target (build_android.sh, done
+# step by step here): the engine as libmain.so plus SDL3, SDL3_mixer and OpenAL,
+# copied into packaging/android-project, then a debug .apk with Gradle.
+# App id org.openjkdf2.enhanced.jk, two launcher icons (Jedi Knight and
+# Mysteries of the Sith). No game data is bundled: players copy their own
+# files in (docs/android/README.md); a step below checks the .apk for game
+# files and stops if it finds any.
+#
+# Signing: the .apk is a debug build. Android only installs an update over the
+# app when both are signed with the same key, so the key is kept between runs:
+# from the ANDROID_DEBUG_KEYSTORE_B64 secret if the repository has one (a
+# base64 debug.keystore), otherwise from this workflow's cache (made on the
+# first run; GitHub drops a cache unused for 7 days, and then the next build
+# needs an uninstall first).
+
+name: Android APK experiment
+
+on:
+  push:
+    branches:
+      - 'exp/**'
+  workflow_dispatch:
+
+concurrency:
+  group: android-exp-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      BUILD_DIR: ${{ github.workspace }}/build_android_aarch64
+      NDK_VERSION: 27.2.12479018
+      APK_NAME: OpenJKDF2-Enhanced-android-arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          # Whole history: the app's versionCode is the commit count (build.gradle)
+          fetch-depth: 0
+
+      - name: Java 17 (Gradle plugin 8.1)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Host packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake make python3 python3-venv python3-pip
+
+      - name: Android NDK
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          if [ ! -d "$SDK/ndk/$NDK_VERSION" ]; then
+            yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" > /dev/null
+          fi
+          echo "ANDROID_NDK_HOME=$SDK/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+          echo "LLVM_BIN=$SDK/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_ENV"
+
+      - name: Signing key (restore)
+        id: keycache
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-exp-debug-keystore-v1
+
+      - name: Signing key (secret, or make one)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}
+        run: |
+          mkdir -p ~/.android
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+            echo "Signing key: from the repository secret"
+          elif [ -f ~/.android/debug.keystore ]; then
+            echo "Signing key: from the cache"
+          else
+            keytool -genkeypair -keystore ~/.android/debug.keystore -storepass android \
+              -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
+              -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            echo "Signing key: new (kept in the cache for the next runs)"
+          fi
+
+      - name: Configure (CMake, Android arm64)
+        run: |
+          export OPENJKDF2_RELEASE_COMMIT=$(git log -1 --format="%H")
+          export OPENJKDF2_RELEASE_COMMIT_SHORT=$(git rev-parse --short=8 HEAD)
+          if ! cmake -S . -B "$BUILD_DIR" --toolchain "$PWD/cmake_modules/toolchain_android_aarch64.cmake" \
+              -DCMAKE_BUILD_TYPE=Release > "$RUNNER_TEMP/cmake.log" 2>&1; then
+            grep -n -i -E "error" "$RUNNER_TEMP/cmake.log" | head -40; tail -40 "$RUNNER_TEMP/cmake.log"; exit 1
+          fi
+          grep -E "Targeting|ENet|GameNetworking" "$RUNNER_TEMP/cmake.log" || true
+
+      - name: Build the engine (libopenjkdf2-armv8a.so)
+        run: |
+          # Upstream builds this with -j1 (twice); try in parallel first
+          make -C "$BUILD_DIR" -j"$(nproc)" openjkdf2-armv8a > "$RUNNER_TEMP/make.log" 2>&1 \
+            || make -C "$BUILD_DIR" -j1 openjkdf2-armv8a > "$RUNNER_TEMP/make.log" 2>&1 \
+            || { grep -n -E "error|Error" "$RUNNER_TEMP/make.log" | head -60; tail -40 "$RUNNER_TEMP/make.log"; exit 1; }
+          grep -c "warning:" "$RUNNER_TEMP/make.log" | sed 's/^/compiler warnings: /'
+          # Multiplayer over ENet is in (not the no-networking stubs upstream Android has)
+          find "$BUILD_DIR" -name 'stdComm_ENet.c.o' | grep -q . || { echo "ENet not built"; exit 1; }
+          find "$BUILD_DIR" -path '*Networking/None*' -name '*.o' | grep . && { echo "no-networking stubs built"; exit 1; } || true
+
+      - name: Native libraries into the Gradle project
+        run: |
+          JNI=packaging/android-project/app/src/main/jniLibs/arm64-v8a
+          mkdir -p "$JNI"
+          pick() { f=$(find "$BUILD_DIR" -name "$1" -type f | grep -v CMakeFiles | head -1); [ -n "$f" ] || { echo "missing $1"; exit 1; }; echo "$f"; }
+          cp "$(pick libopenjkdf2-armv8a.so)" "$JNI/libmain.so"
+          cp "$(pick libSDL3.so)" "$JNI/libSDL3.so"
+          cp "$(pick libSDL3_mixer.so)" "$JNI/libSDL3_mixer.so"
+          OAL=$(find "$BUILD_DIR" -name 'libopenal.so' -type f | head -1)
+          [ -n "$OAL" ] && cp "$OAL" "$JNI/libopenal.so"
+          # Debug info out (the engine is built with -g); the .apk stays small
+          for f in "$JNI"/*.so; do "$LLVM_BIN/llvm-strip" --strip-debug "$f"; done
+          ls -l "$JNI"
+          # Every library the engine needs is either in the app or part of Android
+          SYSTEM="libc.so libm.so libdl.so liblog.so libandroid.so libEGL.so libGLESv1_CM.so libGLESv2.so libGLESv3.so libjnigraphics.so libnativewindow.so libOpenSLES.so libaaudio.so libc++_shared.so"
+          for f in "$JNI"/*.so; do
+            for need in $("$LLVM_BIN/llvm-readelf" -d "$f" | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p'); do
+              if [ ! -f "$JNI/$need" ] && ! echo " $SYSTEM " | grep -q " $need "; then
+                echo "$(basename "$f") needs $need, which is not in the app"; exit 1
+              fi
+            done
+          done
+          "$LLVM_BIN/llvm-nm" -D --defined-only "$JNI/libmain.so" | grep -q " SDL_main$" || { echo "libmain.so has no SDL_main"; exit 1; }
+
+      - name: Build the .apk (Gradle)
+        working-directory: packaging/android-project
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon -q assembleDebug
+          ls -l app/build/outputs/apk/debug/
+
+      - name: Check the .apk
+        run: |
+          APK=packaging/android-project/app/build/outputs/apk/debug/app-debug.apk
+          BT=$(ls -d "${ANDROID_SDK_ROOT:-$ANDROID_HOME}"/build-tools/* | sort -V | tail -1)
+          "$BT/aapt2" dump badging "$APK" | grep -E "^package:|launchable-activity|uses-permission:|native-code"
+          "$BT/aapt2" dump badging "$APK" | grep -q "^package: name='org.openjkdf2.enhanced.jk'" || { echo "wrong app id"; exit 1; }
+          "$BT/apksigner" verify --print-certs "$APK" | grep -E "Signer #1 certificate (DN|SHA-256)"
+          # No game data, ever: no .gob/.goo archives, no game folders or zips
+          if unzip -l "$APK" | grep -i -E '\.(gob|goo|gog|gor|zip|exe|cab|iso)$|[ /](jk1|mots|episode)/'; then
+            echo "game data in the .apk"; exit 1
+          fi
+          unzip -l "$APK" | grep -E "lib/arm64-v8a/"
+          mkdir -p out && cp "$APK" "out/$APK_NAME.apk"
+          ls -l out
+
+      - name: Upload the .apk (run artifact only)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_NAME }}
+          path: out/${{ env.APK_NAME }}.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-logs
+          path: |
+            ${{ runner.temp }}/cmake.log
+            ${{ runner.temp }}/make.log
+          if-no-files-found: ignore

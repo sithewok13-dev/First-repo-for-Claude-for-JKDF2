@@ -19,6 +19,8 @@ on:
   push:
     branches:
       - 'exp/**'
+      # The Android experiment has a workflow of its own (android-exp.yml)
+      - '!exp/android'
   workflow_dispatch:
 
 concurrency:
