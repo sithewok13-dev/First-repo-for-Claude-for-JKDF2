@@ -87,6 +87,12 @@
 	     devices on the Wi-Fi network: iOS asks once, the first time the game
 	     hosts or joins, and without this key it refuses. -->
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Multiplayer connects to the other players' devices on your Wi-Fi network.</string>
+	<string>Multiplayer finds and connects to the other players' devices on your Wi-Fi network.</string>
+	<!-- Join Game lists the games hosted on the same Wi-Fi (Bonjour, stdComm_ENetDiscover.c): iOS lets
+	     an app look for, and offer, only the Bonjour services named here. -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_openjkdf2._udp</string>
+	</array>
 </dict>
 </plist>

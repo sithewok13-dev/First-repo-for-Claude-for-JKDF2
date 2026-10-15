@@ -1136,6 +1136,26 @@ int jkGuiBuildMulti_Show2(Darray *pDarray, jkGuiElement *pElement, int minIdk, i
     return v5;
 }
 
+#ifdef QOL_IMPROVEMENTS
+// Added: 1 if this player has made any multiplayer character (player\<name>\*.mpc)
+static int jkGuiBuildMulti_HasAnyCharacter(void)
+{
+    char name[32], path[128];
+    stdString_WcharToChar(name, jkPlayer_playerShortName, 31);
+    name[31] = 0;
+    stdString_snprintf(path, 128, "player\\%s", name);
+    int bAny = 0;
+    stdFileSearch* pFind = stdFileUtil_NewFind(path, 3, "mpc");
+    if ( pFind )
+    {
+        stdFileSearchResult result;
+        bAny = stdFileUtil_FindNext(pFind, &result) != 0;
+        stdFileUtil_DisposeFind(pFind);
+    }
+    return bAny;
+}
+#endif
+
 // MOTS altered TODO
 int jkGuiBuildMulti_ShowNewCharacter(int rank, int bGameFormatIsJK, int bHasNoValidChars)
 {
@@ -1188,6 +1208,17 @@ int jkGuiBuildMulti_ShowNewCharacter(int rank, int bGameFormatIsJK, int bHasNoVa
     jkGuiBuildMulti_pNewCharacterElements[14].wstr = jkGuiBuildMulti_aWchar_5594C8; // 11
     memset(jkGuiBuildMulti_aWchar_5594C8, 0, 0x20u);
     jkGuiBuildMulti_pNewCharacterElements[14].selectedTextEntry = 16; // 11
+#ifdef QOL_IMPROVEMENTS
+    // Added: a player with no characters yet (the first time) is just asked to make one; the "none
+    // that meet the game's restrictions" message is for one whose characters don't
+    if ( !jkGuiBuildMulti_HasAnyCharacter() )
+    {
+        bHasNoValidChars = 0;
+        // (and the name given is the player's own, to change if they like)
+        _wcsncpy(jkGuiBuildMulti_aWchar_5594C8, jkPlayer_playerShortName, 15);
+        jkGuiBuildMulti_aWchar_5594C8[15] = 0;
+    }
+#endif
     if ( bHasNoValidChars )
     {
         jkGuiDialog_ErrorDialog(jkStrings_GetUniStringWithFallback("GUI_NOVALIDCHARTITLE"), jkStrings_GetUniStringWithFallback("GUI_NOVALIDCHARACTERS"));

@@ -16,6 +16,7 @@
 
 #include "stdComm_ENet.h"
 #include "stdComm_ENetCrypto.h"
+#include "stdComm_ENetDiscover.h"
 
 #ifdef PLATFORM_ENET
 
@@ -24,6 +25,8 @@
 #include "General/stdString.h"
 #include "stdPlatform.h"
 #include "jk.h"
+#include "Main/Main.h"
+#include "Main/jkCoopSave.h"
 
 #include "SDL2_helper.h"
 
@@ -241,16 +244,17 @@ static const uint8_t* stdComm_ENet_Received(ENetPeer* pPeer, ENetPacket* p, int 
     return p->data;
 }
 
-// The host: the players with an id
+// The host: the players in the game (as the game's own scores count them: flag 1), the host itself
+// counted while its level is still loading
 static int stdComm_ENet_RealConnectedPlayers(void)
 {
     int amt = 0;
     for (uint32_t i = 0; i < jkPlayer_maxPlayers; i++)
     {
         if (!i && jkGuiNetHost_bIsDedicated) continue;
-        if ((jkPlayer_playerInfos[i].flags & 2) != 0 && !jkPlayer_playerInfos[i].playerNetId) continue;
-        amt++;
+        if (jkPlayer_playerInfos[i].flags & 1) amt++;
     }
+    if (!amt && !jkGuiNetHost_bIsDedicated) amt = 1;
     return amt;
 }
 
@@ -654,12 +658,11 @@ static void stdComm_ENet_CloseHost(void)
     SDL_UnlockMutex(stdComm_ENet_mutex);
 }
 
-// The address typed (jkGuiMultiplayer_ipText: a name or IPv4, maybe :port)
-static int stdComm_ENet_ParseAddress(ENetAddress* pAddr)
+// An address as typed (a name or IPv4, maybe :port)
+static int stdComm_ENet_ParseAddressText(const char* pText, ENetAddress* pAddr)
 {
     char text[256];
-    stdString_WcharToChar(text, jkGuiMultiplayer_ipText, 255);
-    text[255] = 0;
+    snprintf(text, sizeof(text), "%s", pText ? pText : "");
     // (trimmed)
     char* s = text;
     while (*s == ' ') s++;
@@ -676,38 +679,43 @@ static int stdComm_ENet_ParseAddress(ENetAddress* pAddr)
     return enet_address_set_host(pAddr, s) == 0;
 }
 
+// The address typed (jkGuiMultiplayer_ipText)
+static int stdComm_ENet_ParseAddress(ENetAddress* pAddr)
+{
+    char text[256];
+    stdString_WcharToChar(text, jkGuiMultiplayer_ipText, 255);
+    text[255] = 0;
+    return stdComm_ENet_ParseAddressText(text, pAddr);
+}
+
 // ------------------------------------------------------------------ finding a game at an address
 
 static int stdComm_EnumThread_bForce = 0;
-static int stdComm_EnumThread_bInit = 0;
+static volatile int stdComm_EnumThread_bInit = 0;
 static SDL_Thread* stdComm_EnumThread_thread = NULL;
 static SDL_Mutex* stdComm_EnumThread_mutex = NULL;
 static char stdComm_ENet_lastAddr[256];
 
-// A short connection to the address: its session read, then closed
-static void stdComm_ENet_GetServerInfo(const ENetAddress* pAddr)
+// A short connection to the address: its session read (into pOut), then closed; 1 if it answered.
+// pbKeepGoing: while that is 1 (or no flag)
+static int stdComm_ENet_QueryServer(const ENetAddress* pAddr, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing)
 {
     ENetHost* h = enet_host_create(NULL, 1, STDCOMM_ENET_CHANNELS, 0, 0);
-    if (!h) return;
+    if (!h) return 0;
     ENetPeer* p = enet_host_connect(h, pAddr, STDCOMM_ENET_CHANNELS, 0);
     int bFound = 0;
     if (p) {
-        enet_peer_timeout(p, 32, 1500, 1500);
+        enet_peer_timeout(p, 32, timeoutMs, timeoutMs);
         ENetEvent ev;
         uint32_t start = stdPlatform_GetTimeMsec();
-        while (!bFound && stdPlatform_GetTimeMsec() - start < 1500 && stdComm_EnumThread_bInit) {
+        while (!bFound && stdPlatform_GetTimeMsec() - start < (uint32_t)timeoutMs && (!pbKeepGoing || *pbKeepGoing)) {
             if (enet_host_service(h, &ev, 50) <= 0) continue;
             if (ev.type == ENET_EVENT_TYPE_RECEIVE) {
                 if (ev.packet->dataLength == sizeof(stdCommENetInfo)) {
                     stdCommENetInfo info;
                     memcpy(&info, ev.packet->data, sizeof(info));
-                    SDL_LockMutex(stdComm_EnumThread_mutex);
-                    stdComm_ENet_storedEntryEnum = info.entry;
-                    stdComm_ENet_storedEntryEnum.field_E0 = 10;
-                    sithMulti_multiModeFlags = info.entry.multiModeFlags;
-                    sithNet_MultiModeFlags = info.entry.multiModeFlags;
-                    stdComm_ENet_numEnumd = 1;
-                    SDL_UnlockMutex(stdComm_EnumThread_mutex);
+                    *pOut = info.entry;
+                    pOut->field_E0 = 10;
                     bFound = 1;
                 }
                 enet_packet_destroy(ev.packet);
@@ -720,6 +728,30 @@ static void stdComm_ENet_GetServerInfo(const ENetAddress* pAddr)
         enet_host_flush(h);
     }
     enet_host_destroy(h);
+    return bFound;
+}
+
+int stdComm_ENet_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing)
+{
+    ENetAddress addr;
+    if (!stdComm_ENet_bInitted) return 0;
+    if (!stdComm_ENet_ParseAddressText(pAddress, &addr)) return -1;
+    return stdComm_ENet_QueryServer(&addr, pOut, timeoutMs, pbKeepGoing);
+}
+
+// The game at the address typed, read for the Join screen
+static void stdComm_ENet_GetServerInfo(const ENetAddress* pAddr)
+{
+    jkMultiEntry entry;
+    const int bFound = stdComm_ENet_QueryServer(pAddr, &entry, 1500, &stdComm_EnumThread_bInit);
+    if (bFound) {
+        SDL_LockMutex(stdComm_EnumThread_mutex);
+        stdComm_ENet_storedEntryEnum = entry;
+        sithMulti_multiModeFlags = entry.multiModeFlags;
+        sithNet_MultiModeFlags = entry.multiModeFlags;
+        stdComm_ENet_numEnumd = 1;
+        SDL_UnlockMutex(stdComm_EnumThread_mutex);
+    }
     if (!bFound) {
         SDL_LockMutex(stdComm_EnumThread_mutex);
         stdComm_ENet_numEnumd = 0;
@@ -752,6 +784,56 @@ static int stdComm_ENet_EnumThread(void* unused)
         SDL_Delay(100);
     }
     return 0;
+}
+
+// ------------------------------------------------------------------ games nearby
+
+static int stdComm_ENet_bAdvertising = 0;
+static uint32_t stdComm_ENet_advertisedMs = 0;
+
+// The host's game, as games nearby see it (stdComm_ENetDiscover): told now, and again when it changes
+static void stdComm_ENet_Advertise(void)
+{
+    if (!stdComm_ENet_bServer || !stdComm_ENet_pHost) return;
+    stdCommENetDiscoverGame g;
+    memset(&g, 0, sizeof(g));
+    // (plain text: a phone's curly apostrophe made straight, anything else not ASCII a '?')
+    for (int i = 0, n = 0; stdComm_ENet_storedEntry.serverName[i] && i < 32 && n < (int)sizeof(g.name) - 1; i++) {
+        const char16_t c = stdComm_ENet_storedEntry.serverName[i];
+        g.name[n++] = (c == 0x2018 || c == 0x2019) ? '\'' : (c >= 0x20 && c < 0x7F) ? (char)c : '?';
+    }
+    if (!g.name[0]) {
+        // (no name given: the host's)
+        char me[32];
+        int n = 0;
+        for (int i = 0; jkPlayer_playerShortName[i] && n < (int)sizeof(me) - 1; i++) {
+            const char16_t c = jkPlayer_playerShortName[i];
+            me[n++] = (c >= 0x20 && c < 0x7F) ? (char)c : '?';
+        }
+        me[n] = 0;
+        snprintf(g.name, sizeof(g.name), "%s's game", me[0] ? me : "OpenJKDF2");
+    }
+#ifdef QOL_IMPROVEMENTS
+    snprintf(g.hostId, sizeof(g.hostId), "%s", jkCoopSave_PlayerId());
+#endif
+    snprintf(g.game, sizeof(g.game), "%s", Main_bMotsCompat ? "mots" : "jk");
+    const int flags = sithMulti_multiModeFlags ? sithMulti_multiModeFlags : stdComm_ENet_storedEntry.multiModeFlags;
+    snprintf(g.mode, sizeof(g.mode), "%s", (flags & MULTIMODEFLAG_COOP) ? "coop" : (flags & MULTIMODEFLAG_TEAMS) ? "team" : "dm");
+    snprintf(g.level, sizeof(g.level), "%s", stdComm_ENet_storedEntry.mapJklFname);
+    g.numPlayers = stdComm_ENet_RealConnectedPlayers();
+    g.maxPlayers = (int)stdComm_ENet_storedEntry.maxPlayers;
+    if (jkGuiNetHost_bIsDedicated && g.maxPlayers > 1) g.maxPlayers--;
+    g.bPassword = stdComm_ENet_bHostCrypto;
+    stdComm_ENetDiscover_Advertise(&g, stdComm_ENet_pHost->address.port);
+    stdComm_ENet_bAdvertising = 1;
+    stdComm_ENet_advertisedMs = stdPlatform_GetTimeMsec();
+}
+
+static void stdComm_ENet_StopAdvertising(void)
+{
+    if (!stdComm_ENet_bAdvertising) return;
+    stdComm_ENetDiscover_StopAdvertising();
+    stdComm_ENet_bAdvertising = 0;
 }
 
 // ------------------------------------------------------------------ the game's side
@@ -795,7 +877,9 @@ void stdComm_ENet_Shutdown()
     if (!stdComm_ENet_bInitted) return;
     DirectPlay_EnumSessions2();
     stdComm_ENet_StopThread();
+    stdComm_ENet_StopAdvertising();
     stdComm_ENet_CloseHost();
+    stdComm_ENetDiscover_Shutdown();
     enet_deinitialize();
     stdComm_ENet_bInitted = 0;
 }
@@ -835,6 +919,10 @@ int DirectPlay_Receive(int *pIdOut, int *pMsgIdOut, int *pLenOut)
     if (!stdComm_ENet_bInitted) return -1;
 
     Hack_ResetClients();
+
+    // (hosting: games nearby told the player count now and then)
+    if (stdComm_ENet_bAdvertising && stdPlatform_GetTimeMsec() - stdComm_ENet_advertisedMs > 2000)
+        stdComm_ENet_Advertise();
 
     SDL_LockMutex(stdComm_ENet_mutex);
     stdCommENetEvent* e = stdComm_ENet_Pop();
@@ -972,6 +1060,7 @@ int stdComm_Open(int idx, char16_t* pwPassword)
 void stdComm_Close()
 {
     if (!stdComm_ENet_bInitted) return;
+    stdComm_ENet_StopAdvertising();
     stdComm_ENet_CloseHost();
     stdComm_ENet_bServer = 0;
     stdComm_ENet_bHostCrypto = 0;
@@ -1055,6 +1144,7 @@ int DirectPlay_OpenHost(jkMultiEntry* pEntry)
     }
     stdComm_ENet_infoPrintf("ENet: hosting on port %d\n", addr.port);
     stdComm_ENet_StartThread();
+    stdComm_ENet_Advertise();
     Hack_ResetClients();
     return 0;
 }

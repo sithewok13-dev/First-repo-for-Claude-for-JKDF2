@@ -767,40 +767,45 @@ cancels, and the game holds still while the wheel is open.
 four copies of the game on a computer. Please report what happens on your
 phones.
 
-Up to four players on the same Wi-Fi, by address. Every player needs the
-same app (Jedi Knight or OpenMoTS) and the same game files. The desktop
-builds of this port use the same networking, so a computer can join too.
+Up to four players on the same Wi-Fi. Every player needs the same app
+(Jedi Knight or OpenMoTS) and the same game files. The desktop builds of
+this port use the same networking, so a computer can join too.
 
 ### Hosting
 
-It's all in the game's own menus:
+1. Tap **Multiplayer**, then **Host Game**.
+2. Pick **Deathmatch** (fight each other) or **Co-op Campaign** (play the
+   story together).
+3. Pick an episode and a level, and tap **OK**. A password is optional.
+   **Advanced** has **Allow Cheats** (off unless you tick it): each player
+   may use cheats on themselves, the Sith button too.
+4. The first time, you make a multiplayer character (your name is filled
+   in; tap **OK**, pick a look, tap **Save**, then **OK**).
 
-1. Tap **Multiplayer** on the main menu.
-2. Pick **Local network / Internet (UDP)** (the only choice) and tap OK.
-3. Tap the host button (next to **Join Game**).
-4. Pick an episode and a level.
-   - A **multiplayer** episode (deathmatch, team or capture the flag)
-     plays the classic modes.
-   - A **story** episode plays **co-op**: the campaign, together.
-5. **Advanced** has the options:
-   - **Allow Cheats** (off unless you tick it): each player may use cheats
-     on themselves, the Sith button too.
-   - **Resume Co-op Save** (on): co-op carries on from its last save.
-6. Start. A line at the top says **Others can join at** and your address
-   (for example `192.168.1.20`). Tell the others.
+Players on the same Wi-Fi see your game by themselves. A line at the top
+also shows your address (for example `192.168.1.20`), for friends joining
+from elsewhere.
 
 The first time, iOS asks to let the app find devices on your network.
-Say **Allow**, or nobody can join. (If you said no: *Settings > Privacy &
-Security > Local Network*.)
+Say **Allow**, or nobody can find or join your game. (If you said no:
+*Settings > Privacy & Security > Local Network*.)
 
 ### Joining
 
-1. Tap **Multiplayer**, pick **Local network / Internet (UDP)** and tap OK.
-2. Tap **Join Game**.
-3. Type the host's address in the box, choose the game and tap OK. If it
-   has a password, type that too.
+1. Tap **Multiplayer**, then **Join Game**.
+2. Games on the same Wi-Fi are listed by themselves. Tap one to join.
+   - **Played before** lists hosts you joined before, and says if they
+     aren't answering. If a host's address has changed, it shows up as
+     found on the Wi-Fi instead.
+   - For a friend elsewhere, type their address in the **Address** box and
+     tap **Join**.
+3. If the game has a password, type it.
+4. Pick your character (the first time, you make one), and you're in.
 
-To choose who you play, tap **Multiplayer Characters** on the same
+If joining fails, the message says why: a mistyped address, no game at
+that address, a full game, or a wrong password.
+
+To change who you play, tap **Multiplayer Characters** on the Multiplayer
 screen (in co-op the host always plays Kyle, or Mara).
 
 ### Co-op
@@ -828,11 +833,11 @@ screen (in co-op the host always plays Kyle, or Mara).
   level and everyone's gear. Your single-player saves are never touched.
 - The save is in the **coop** folder next to your game files (one file
   per episode).
-- Host the same episode again to carry on. A player who drops out and
-  rejoins gets their gear back.
-- With **Resume Co-op Save** off, a new campaign starts. The old one is
-  kept, with the date and time added to its name. Put the date part back
-  as `.txt` to go back to it.
+- To carry on, tap **Multiplayer**, then **Resume Co-op**, and pick the
+  campaign. A player who drops out and rejoins gets their gear back.
+- Starting a new **Co-op Campaign** on an episode that has a save asks
+  first. The old save is kept, with the date and time added to its name.
+  Put the date part back as `.txt` to go back to it.
 
 ### Your lightsaber in multiplayer
 

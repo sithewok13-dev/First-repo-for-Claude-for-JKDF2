@@ -11,6 +11,11 @@
 #define jkGuiNetHost_sub_4119D0_ADDR (0x004119D0)
 #define jkGuiNetHost_sub_411AE0_ADDR (0x00411AE0)
 
+// Added: what the Multiplayer screen (jkGUIMultiLobby) picked for the host settings to show
+extern int jkGuiNetHost_lobbyMode;
+extern char jkGuiNetHost_lobbyEpisode[64];
+extern int jkGuiNetHost_bLobbyResume;
+
 void jkGuiNetHost_SaveSettings();
 void jkGuiNetHost_LoadSettings();
 

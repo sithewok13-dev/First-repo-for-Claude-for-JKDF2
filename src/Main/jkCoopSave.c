@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/stat.h>
 #include "jk.h"
 #include "stdPlatform.h"
 #include "Main/jkCoop.h"
@@ -59,6 +60,12 @@ static void jkCoopSave_MarkDirty(void)
 }
 
 // ------------------------------------------------------------------ the player id
+
+static const char* jkCoopSave_MyId(void);
+const char* jkCoopSave_PlayerId(void)
+{
+    return jkCoopSave_MyId();
+}
 
 static const char* jkCoopSave_MyId(void)
 {
@@ -214,6 +221,40 @@ static int jkCoopSave_ReadFile(const char* path, char* pLevel, int levelLen)
         return 0;
     }
     stdString_SafeStrCopy(pLevel, level, levelLen);
+    return 1;
+}
+
+// An episode's save, looked at (nothing read into the game): 1 if there is one whole, its level and
+// when it was written
+int jkCoopSave_Peek(const char* pEpisodeGob, char* pLevel, int levelLen, time_t* pWhen)
+{
+    char keep[64];
+    stdString_SafeStrCopy(keep, jkCoopSave_episode, sizeof(keep));
+    stdString_SafeStrCopy(jkCoopSave_episode, pEpisodeGob ? pEpisodeGob : "", sizeof(jkCoopSave_episode));
+    char path[160];
+    jkCoopSave_Path(path, sizeof(path), "");
+    stdString_SafeStrCopy(jkCoopSave_episode, keep, sizeof(jkCoopSave_episode));
+
+    int ok = 0;
+    char line[256], level[64] = "";
+    int version = 0, bEnd = 0;
+    FILE* f = fopen(path, "r");
+    if (f) {
+        while (fgets(line, sizeof(line), f)) {
+            char word[64] = "";
+            if (sscanf(line, "OPENJKDF2_COOP %d", &version) == 1) continue;
+            if (sscanf(line, "level %63s", level) == 1) continue;
+            if (sscanf(line, "%63s", word) == 1 && !strcmp(word, "end")) bEnd = 1;
+        }
+        fclose(f);
+        ok = version == JKCOOPSAVE_VERSION && bEnd && level[0];
+    }
+    if (!ok) return 0;
+    if (pLevel) stdString_SafeStrCopy(pLevel, level, levelLen);
+    if (pWhen) {
+        struct stat st;
+        *pWhen = stat(path, &st) == 0 ? st.st_mtime : 0;
+    }
     return 1;
 }
 

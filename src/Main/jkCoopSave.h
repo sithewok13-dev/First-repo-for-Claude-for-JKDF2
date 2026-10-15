@@ -13,6 +13,7 @@
 #define _MAIN_JKCOOPSAVE_H
 
 #include "types.h"
+#include <time.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,6 +39,12 @@ void jkCoopSave_Tick(void);
 void jkCoopSave_Flush(void);
 // The resumed level isn't in the episode (jkMain_loadFile2): not resumed
 void jkCoopSave_ResumeFailed(void);
+// This game's random player id (16 hex digits; made once, kept in its settings): co-op saves', and
+// how games nearby tell a host they joined before (stdComm_ENetDiscover)
+const char* jkCoopSave_PlayerId(void);
+// An episode's save looked at, for the Multiplayer screen's RESUME CO-OP (nothing read into the game):
+// 1 if it has one, its level (pLevel, if given) and when it was saved (pWhen, if given)
+int jkCoopSave_Peek(const char* pEpisodeGob, char* pLevel, int levelLen, time_t* pWhen);
 
 #endif // QOL_IMPROVEMENTS
 

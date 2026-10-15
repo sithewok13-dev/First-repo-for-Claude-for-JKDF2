@@ -20,6 +20,8 @@
 #include "Main/jkRes.h"
 #include "Main/jkEpisode.h"
 #include "Gui/jkGUISingleplayer.h"
+#include "Gui/jkGUIMultiLobby.h" // Added
+#include "Main/jkCoop.h" // Added
 
 enum jkGuiNetHostButton_t
 {
@@ -60,13 +62,13 @@ static jkGuiElement jkGuiNetHost_aElements[28] =
     { ELEMENT_TEXT,         0, 0, NULL, 3, { 0, 410, 640, 20 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_TEXT,         0, 6, "GUI_MULTIPLAYER", 3, { 20, 20, 600, 40 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_TEXT,         0, 0, "GUI_GAMENAME", 2, { 20, 80, 270, 40 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
-    { ELEMENT_TEXTBOX,      0, 0, NULL, 16, { 20, 125, 270, 20 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
+    { ELEMENT_TEXTBOX,      0, 0, NULL, 16, { 20, 120, 270, 28 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_TEXT,         0, 0, "GUI_MAXPLAYERS", 2, { 20, 155, 200, 40 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
-    { ELEMENT_TEXTBOX,      0, 0, NULL, 2, { 225, 160, 65, 20 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
+    { ELEMENT_TEXTBOX,      0, 0, NULL, 2, { 225, 156, 65, 28 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_CHECKBOX,     0, 0, "GUI_SCORELIMIT", 0, { 20, 190, 200, 40 }, 1, 0, "GUI_SCORELIMIT_HINT", NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
-    { ELEMENT_TEXTBOX,      0, 0, NULL, 3, { 225, 195, 65, 20 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
+    { ELEMENT_TEXTBOX,      0, 0, NULL, 3, { 225, 191, 65, 28 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_CHECKBOX,     0, 0, "GUI_TIMELIMIT", 0, { 20, 225, 200, 40 }, 1, 0, "GUI_TIMELIMIT_HINT", NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
-    { ELEMENT_TEXTBOX,      0, 0, NULL, 3, { 225, 230, 65, 20 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
+    { ELEMENT_TEXTBOX,      0, 0, NULL, 3, { 225, 226, 65, 28 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_CHECKBOX,     0, 0, "GUI_TEAMMODE", 0, { 20, 260, 200, 40 }, 1, 0, "GUI_TEAMMODE_HINT", NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_CHECKBOX,     0, 0, "GUI_SINGLELEVEL", 0, { 20, 295, 200, 40 }, 1, 0, "GUI_SINGLELEVEL_HINT", NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_TEXT,         0, 0, "GUI_MAXSTARS", 2, { 310, 80, 150, 40 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
@@ -74,7 +76,7 @@ static jkGuiElement jkGuiNetHost_aElements[28] =
     { ELEMENT_PICBUTTON,    1, 0, NULL, 33, { 310, 120, 30, 30 }, 1, 0, NULL, NULL, &jkGuiNetHost_sub_411AE0, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_PICBUTTON,    2, 0, NULL, 34, { 340, 120, 30, 30 }, 1, 0, NULL, NULL, &jkGuiNetHost_sub_411AE0, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_TEXT,         0, 0, "GUINET_PASSWORD", 2, { 20, 340, 270, 40 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
-    { ELEMENT_TEXTBOX,      0, 0, NULL, 16, { 20, 380, 270, 20 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
+    { ELEMENT_TEXTBOX,      0, 0, NULL, 16, { 20, 374, 270, 28 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_TEXT,         0, 0, "GUI_CHOOSEEPISODE", 2, { 310, 150, 240, 20 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_LISTBOX,      0, 0, NULL, 0, { 310, 175, 320, 80 }, 1, 0, NULL, NULL, NULL, jkGuiNetHost_aIdk, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     { ELEMENT_TEXT,         0, 0, "GUI_CHOOSELEVEL", 2, { 310, 265, 260, 20 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
@@ -84,7 +86,7 @@ static jkGuiElement jkGuiNetHost_aElements[28] =
     { ELEMENT_TEXTBUTTON,   GUI_CANCEL, 2, "GUI_CANCEL", 3, { 20, 430, 200, 40 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
 #ifdef QOL_IMPROVEMENTS
     { ELEMENT_TEXT, 0, 0, "GUIEXT_SERVER_PORT", 2, { 540, 80, 90, 40 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
-    { ELEMENT_TEXTBOX, 0, 0, NULL, 16, { 540, 125, 90, 20 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
+    { ELEMENT_TEXTBOX, 0, 0, NULL, 16, { 540, 120, 90, 28 }, 1, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 },
     
 #endif
     { ELEMENT_END, 0, 0, NULL, 0, { 0, 0, 0, 0 }, 0, 0, NULL, NULL, NULL, NULL, { 0, 0, 0, 0, 0, { 0, 0, 0, 0 } }, 0 }
@@ -129,6 +131,47 @@ int jkGuiNetHost_bIsDedicated = 0;
 int jkGuiNetHost_bIsCoop = 0;
 int jkGuiNetHost_bIsEpisodeCoop = 0;
 int jkGuiNetHost_bAllowCheats = 0; // Added: off unless the host turns it on
+// Added: the kind of game the Multiplayer screen picked (jkGUIMultiLobby: 0 every kind, as before), the
+// episode to start on (a co-op campaign carried on), and whether that is carried on
+int jkGuiNetHost_lobbyMode = 0;
+char jkGuiNetHost_lobbyEpisode[64];
+int jkGuiNetHost_bLobbyResume = 0;
+
+#ifdef JKGUI_MULTI_LOBBY
+// Added: the episodes the host may pick: the kind picked's, or (as before) every multiplayer kind and,
+// with Co-op ticked, the story's
+static jkEpisodeTypeFlags_t jkGuiNetHost_EpisodeMask(void)
+{
+    if (jkGuiNetHost_lobbyMode == JKGUIMULTILOBBY_MODE_COOP)
+        return JK_EPISODE_SINGLEPLAYER;
+    jkEpisodeTypeFlags_t mask = (JK_EPISODE_DEATHMATCH | JK_EPISODE_4_UNK | JK_EPISODE_SPECIAL_CTF);
+    if (jkGuiNetHost_lobbyMode == JKGUIMULTILOBBY_MODE_CLASSIC && jkGuiNetHost_bIsCoop)
+        mask |= JK_EPISODE_SINGLEPLAYER;
+    return mask;
+}
+
+// Added: the screen shaped for the kind picked: its name on top; co-op without the deathmatch
+// settings (score and time limits, teams, one level), nor Advanced's Co-op and resume ticks (which
+// the Multiplayer screen's choice decides)
+static char16_t jkGuiNetHost_wTitle[64];
+static void jkGuiNetHost_LobbyLayout(void)
+{
+    const int bLobby = jkGuiNetHost_lobbyMode != JKGUIMULTILOBBY_MODE_CLASSIC;
+    const int bCoop = jkGuiNetHost_lobbyMode == JKGUIMULTILOBBY_MODE_COOP;
+    if (bLobby) {
+        stdString_SafeWStrCopy(jkGuiNetHost_wTitle, jkStrings_GetUniStringWithFallback(bCoop ? "GUIEXT_MP_COOP" : "GUIEXT_MP_DEATHMATCH"), 64);
+        jkGuiNetHost_aElements[1].wstr = jkGuiNetHost_wTitle;
+    }
+    else {
+        jkGuiNetHost_aElements[1].wstr = jkStrings_GetUniStringWithFallback("GUI_MULTIPLAYER");
+    }
+    for (int i = NETHOST_SCORELIMIT_CHECKBOX; i <= NETHOST_SINGLELEVEL_CHECKBOX; i++)
+        jkGuiNetHost_aElements[i].bIsVisible = !bCoop;
+    jkGuiNetHost_aElements[NETHOST_MAXPLAYERS_TEXTBOX - 1].wstr = jkStrings_GetUniStringWithFallback(bCoop ? "GUIEXT_MP_MAXPLAYERS_COOP" : "GUI_MAXPLAYERS");
+    jkGuiNetHost_aSettingsElements[5].bIsVisible = !bLobby;
+    jkGuiNetHost_aSettingsElements[7].bIsVisible = !bLobby;
+}
+#endif
 
 int wstr_to_int_clamped(char16_t *pWstr, int minVal, int maxVal)
 {
@@ -371,6 +414,13 @@ int jkGuiNetHost_Show(jkMultiEntry3 *pMultiEntry)
     if (jkGuiNetHost_bIsCoop)
         loadMask |= JK_EPISODE_SINGLEPLAYER;
 #endif
+#ifdef JKGUI_MULTI_LOBBY
+    loadMask = jkGuiNetHost_EpisodeMask(); // Added
+    jkGuiNetHost_LobbyLayout(); // Added
+    // Added: co-op has room for JKCOOP_MAX_PLAYERS
+    if (jkGuiNetHost_lobbyMode == JKGUIMULTILOBBY_MODE_COOP && wstr_to_int_clamped(v25, 1, 32) > JKCOOP_MAX_PLAYERS)
+        jk_snwprintf(v25, 0x20u, u"%d", JKCOOP_MAX_PLAYERS);
+#endif
     jkGuiSingleplayer_EnumEpisodes(&jkGuiNetHost_dArray1, &jkGuiNetHost_aElements[NETHOST_EPISODE_LISTBOX], 0, loadMask);
     jkGuiRend_DarrayNewStr(&jkGuiNetHost_dArray2, 10, 1);
     jkGuiRend_DarrayReallocStr(&jkGuiNetHost_dArray2, 0, 0);
@@ -381,6 +431,14 @@ int jkGuiNetHost_Show(jkMultiEntry3 *pMultiEntry)
     jkGuiRend_MenuSetEscapeKeyShortcutElement(&jkGuiNetHost_menu, &jkGuiNetHost_aElements[24]);
     
     jkGuiNetHost_aElements[NETHOST_EPISODE_LISTBOX].selectedTextEntry = 0;
+#ifdef JKGUI_MULTI_LOBBY
+    // Added: the episode picked already (a campaign carried on) chosen
+    for (int i = 0; jkGuiNetHost_lobbyEpisode[0] && i < (int)jkGuiNetHost_dArray1.total; i++) {
+        jkGuiStringEntry* pEp = jkGuiRend_GetStringEntry(&jkGuiNetHost_dArray1, i);
+        if (pEp && pEp->c_str && !__strcmpi(pEp->c_str, jkGuiNetHost_lobbyEpisode))
+            jkGuiNetHost_aElements[NETHOST_EPISODE_LISTBOX].selectedTextEntry = i;
+    }
+#endif
     jkGuiNetHost_sub_4119D0(&jkGuiNetHost_aElements[NETHOST_EPISODE_LISTBOX], &jkGuiNetHost_menu, -1, -1, 0);
 
     do
@@ -467,6 +525,22 @@ int jkGuiNetHost_Show(jkMultiEntry3 *pMultiEntry)
                 jkGuiNetHost_gameFlags |= MULTIMODEFLAG_ALLOWCHEATS;
             else
                 jkGuiNetHost_gameFlags &= ~MULTIMODEFLAG_ALLOWCHEATS;
+#ifdef JKGUI_MULTI_LOBBY
+            if (jkGuiNetHost_lobbyMode == JKGUIMULTILOBBY_MODE_COOP) {
+                // Added: a co-op campaign: none of deathmatch's limits, room for JKCOOP_MAX_PLAYERS, and
+                // carried on from its save only when RESUME CO-OP picked it (a new one over a saved one
+                // asks first; the save is then kept as a backup)
+                jkGuiNetHost_gameFlags &= ~(MULTIMODEFLAG_SCORELIMIT | MULTIMODEFLAG_TIMELIMIT | MULTIMODEFLAG_SINGLE_LEVEL
+                                           | MULTIMODEFLAG_TEAMS | MULTIMODEFLAG_100 | MULTIMODEFLAG_2);
+                if (pMultiEntry->maxPlayers > JKCOOP_MAX_PLAYERS + (jkGuiNetHost_bIsDedicated ? 1 : 0)) {
+                    pMultiEntry->maxPlayers = JKCOOP_MAX_PLAYERS + (jkGuiNetHost_bIsDedicated ? 1 : 0);
+                    jkGuiNetHost_maxPlayers = pMultiEntry->maxPlayers;
+                }
+                wuRegistry_SaveBool("bCoopResume", jkGuiNetHost_bLobbyResume);
+                if (!jkGuiNetHost_bLobbyResume && !jkGuiMultiLobby_ConfirmNewCoop(pMultiEntry->episodeGobName))
+                    v4 = GUI_ADVANCED + 1; // (not started: the screen again)
+            }
+#endif
             pMultiEntry->multiModeFlags = jkGuiNetHost_gameFlags;
             pMultiEntry->sessionFlags = jkGuiNetHost_sessionFlags;
 #endif
@@ -501,11 +575,14 @@ int jkGuiNetHost_Show(jkMultiEntry3 *pMultiEntry)
             jkEpisodeTypeFlags_t loadMask = (JK_EPISODE_DEATHMATCH | JK_EPISODE_4_UNK | JK_EPISODE_SPECIAL_CTF);
             if (jkGuiNetHost_bIsCoop)
                 loadMask |= JK_EPISODE_SINGLEPLAYER;
+#ifdef JKGUI_MULTI_LOBBY
+            loadMask = jkGuiNetHost_EpisodeMask(); // Added
+#endif
             jkGuiSingleplayer_EnumEpisodes(&jkGuiNetHost_dArray1, &jkGuiNetHost_aElements[NETHOST_EPISODE_LISTBOX], 0, loadMask);
 #endif
         }
     }
-    while ( v4 == GUI_ADVANCED );
+    while ( v4 == GUI_ADVANCED || v4 == GUI_ADVANCED + 1 ); // Added: + 1, a co-op start not agreed to
 
     jkGuiNetHost_SaveSettings(); // Added: Make sure stuff actually gets into the registry
     jkGuiRend_DarrayFree(&jkGuiNetHost_dArray1);

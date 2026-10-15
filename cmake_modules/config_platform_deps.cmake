@@ -154,6 +154,19 @@ if(TARGET_USE_ENET)
     endif()
     set_source_files_properties(${ENET_CRYPTO_SRCS} PROPERTIES INCLUDE_DIRECTORIES ${MBEDTLS_DIR})
 
+    # Games on the same Wi-Fi found without an address (stdComm_ENetDiscover.c): Bonjour, Apple's own;
+    # elsewhere its library where one is installed (Linux: Avahi's libdns_sd), otherwise none
+    if(NOT APPLE AND NOT WIN32)
+        find_path(DNSSD_INCLUDE_DIR dns_sd.h PATH_SUFFIXES avahi-compat-libdns_sd)
+        find_library(DNSSD_LIBRARY dns_sd)
+        if(DNSSD_INCLUDE_DIR AND DNSSD_LIBRARY)
+            message(STATUS "ENet: games nearby found with ${DNSSD_LIBRARY}")
+            add_compile_definitions(STDCOMM_ENET_HAVE_DNSSD)
+            include_directories(${DNSSD_INCLUDE_DIR})
+            set(TARGET_ENET_DNSSD_LIB ${DNSSD_LIBRARY})
+        endif()
+    endif()
+
     add_compile_definitions(PLATFORM_ENET)
 endif()
 

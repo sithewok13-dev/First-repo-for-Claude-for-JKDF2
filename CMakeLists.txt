@@ -299,6 +299,10 @@ endif()
 # source -- many include it transitively, and a parallel build otherwise races the
 # generation and reads a half-written header. See precompile_globals.cmake.
 add_dependencies(sith_engine generate_globals)
+# Added: Bonjour's library, where it isn't the system's own (stdComm_ENetDiscover.c)
+if(TARGET_ENET_DNSSD_LIB)
+    target_link_libraries(sith_engine PRIVATE ${TARGET_ENET_DNSSD_LIB})
+endif()
 plat_specific_deps()
 
 if(TARGET_ANDROID)
