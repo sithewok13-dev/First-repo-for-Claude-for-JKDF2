@@ -92,7 +92,7 @@
 // clicks like before. If SDL's window is recreated the overlay follows it.
 // A mouse or trackpad's clicks in play are the mouse's buttons, not fingers
 // (passed on to SDL), but where the game lets go of the pointer
-// (iosTouch_WantsPointer).
+// (iosTouch_WantsPointer). A hardware keyboard and a mouse: iosKbMouse.h.
 
 #ifndef _PLATFORM_IOS_IOSTOUCH_H
 #define _PLATFORM_IOS_IOSTOUCH_H
@@ -153,10 +153,29 @@ int iosTouch_IsPhotoModeUp(void);
 int iosTouch_IsFpsShown(void);
 void iosTouch_SetFpsShown(int bShow);
 
+// A keyboard and mouse (iosKbMouse). The touch controls hidden while they
+// are played, as for a pad (either can hide them; a touch -- not a click --
+// brings them back for both).
+void iosTouch_SetKbmHud(int bHidden);
+// The wheels, opened from the keyboard, pointed at with the mouse: as
+// iosTouch_PadWheelOpen, and the iosTouch_PadWheel* calls above work this
+// one too (iosTouch_PadWheelIsOpen says only the pad's)
+int iosTouch_KbmWheelOpen(int kind, int bTapMode);
+int iosTouch_KbmWheelIsOpen(void);
+// Whether any wheel is open (a finger's too)
+int iosTouch_IsWheelOpen(void);
 // Whether the game is to let go of the pointer during play: a photo mode,
 // MENU's tray or a row of options under it (a click then works the touch
 // controls as a tap; else a click is the mouse's button, never a finger)
 int iosTouch_WantsPointer(void);
+// The camera from the keyboard (as CAMERA): a photo (in Action Freeze, its
+// photo), the selfie, Action Freeze on and off, Action Freeze ended. 1 if
+// it went.
+#define IOSTOUCH_CAM_PHOTO 0
+#define IOSTOUCH_CAM_SELFIE 1
+#define IOSTOUCH_CAM_FREEZE 2
+#define IOSTOUCH_CAM_FREEZE_END 3
+int iosTouch_KbmCamera(int action);
 
 #ifdef __cplusplus
 }

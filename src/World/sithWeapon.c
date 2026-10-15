@@ -24,6 +24,7 @@
 #include "Dss/sithDSSThing.h"
 #include "General/stdMath.h"
 #include "jk.h"
+#include "Platform/iOS/iosKbMouse.h" // Added: the mouse wheel's weapon steps (iOS)
 
 // MOTS added
 int sithWeapon_mots_5a3258 = -1;
@@ -1200,6 +1201,9 @@ int sithWeapon_ProcessWeaponControls(SithThing *pThing, flex_t secDeltaTime)
                 continue;
 
             sithControl_GetKey(INPUT_FUNC_NEXTWEAPON, &readInput);
+#ifdef IOSKBM_ENABLED
+            readInput += iosKbMouse_TakeWheelSteps(1); // Added: the mouse wheel turned down (iOS)
+#endif
             while (readInput--)
             {
                 if (sithThing_MotsTick(7,1,1.0)) {
@@ -1208,6 +1212,9 @@ int sithWeapon_ProcessWeaponControls(SithThing *pThing, flex_t secDeltaTime)
             }
 
             sithControl_GetKey(INPUT_FUNC_PREVWEAPON, &readInput);
+#ifdef IOSKBM_ENABLED
+            readInput += iosKbMouse_TakeWheelSteps(-1); // Added: ...and up
+#endif
             while (readInput--)
             {
                 if (sithThing_MotsTick(7,1,-1.0)) {

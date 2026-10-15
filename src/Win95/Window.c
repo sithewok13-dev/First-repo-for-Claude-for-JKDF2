@@ -42,6 +42,7 @@
 
 #include "SDL2_helper.h"
 #include "Platform/iOS/iosPad.h" // Added: game controllers (iOS)
+#include "Platform/iOS/iosKbMouse.h" // Added: keyboard and mouse (iOS)
 
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosAngle.h"
@@ -849,6 +850,9 @@ void Window_SdlUpdate()
 #ifdef IOSPAD_ENABLED
         iosPad_HandleEvent(&event); // Added
 #endif
+#ifdef IOSKBM_ENABLED
+        if (iosKbMouse_HandleEvent(&event)) continue; // Added: the keyboard's and mouse's own (a wheel's pointing...)
+#endif
 
         switch (event.type)
         {
@@ -1211,6 +1215,9 @@ void Window_SdlUpdate()
     // Escape for a Start tap is acted on just below)
     iosPad_Update();
 #endif
+#ifdef IOSKBM_ENABLED
+    iosKbMouse_Update(); // Added: the keyboard and mouse, likewise (Cmd-.'s Escape)
+#endif
 #ifdef TARGET_IOS
     // Added: gyro aiming, now that this frame's touches are in
     iosTouch_UpdateGyro();
@@ -1329,7 +1336,11 @@ void Window_SdlUpdate()
             SDL_SetWindowRelativeMouseMode(displayWindow, false);
         }
 
-        if (!jkQuakeConsole_bOpen && SDL_GetWindowFlags(displayWindow) & SDL_WINDOW_MOUSE_FOCUS) {
+        if (!jkQuakeConsole_bOpen && SDL_GetWindowFlags(displayWindow) & SDL_WINDOW_MOUSE_FOCUS
+#ifdef IOSKBM_ENABLED
+            && !iosKbMouse_IsPointerFree() // Added: the pointer let go for a photo mode or a panel (iOS)
+#endif
+            ) {
             SDL_SetWindowRelativeMouseMode(displayWindow, true);
             //SDL_WarpMouseInWindow(displayWindow, 100, 100);
         }

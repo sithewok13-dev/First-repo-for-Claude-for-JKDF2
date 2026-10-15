@@ -11,6 +11,7 @@
 #include "Platform/iOS/iosTouch.h" // Added
 #endif
 #include "Platform/iOS/iosPad.h" // Added: game controllers (iOS)
+#include "Platform/iOS/iosKbMouse.h" // Added: keyboard and mouse (iOS)
 
 #include "jk.h"
 
@@ -874,6 +875,9 @@ void stdControl_ReadControls()
         for (int i = 0; i < 256; i++)
         {
             int s = !!state[i];
+#ifdef IOSKBM_ENABLED
+            s = iosKbMouse_FilterKey(i, s); // Added: a key the keyboard's gestures keep (a wheel's), or one held from before
+#endif
 #ifdef TARGET_IOS
             s |= iosTouch_IsScancodeDown(i); // Added: on-screen touch buttons
 #endif
@@ -1084,11 +1088,18 @@ void stdControl_ReadMouse()
     float x,y;
     uint32_t buttons = SDL_GetMouseState(&x, &y);
 
-    stdControl_UpdateKeyState(KEY_MOUSE_B1, Window_bMouseLeft, stdControl_curReadTime);
-    stdControl_UpdateKeyState(KEY_MOUSE_B2, Window_bMouseRight, stdControl_curReadTime);
-    stdControl_UpdateKeyState(KEY_MOUSE_B3, !!(buttons & SDL_BUTTON_MMASK), stdControl_curReadTime);
-    stdControl_UpdateKeyState(KEY_MOUSE_B4, !!(buttons & SDL_BUTTON_X1MASK), stdControl_curReadTime);
-    stdControl_UpdateKeyState(KEY_MOUSE_B5, !!(buttons & SDL_BUTTON_X2MASK), stdControl_curReadTime);
+#ifdef IOSKBM_ENABLED
+    // Added: buttons held from before a wheel or a photo mode, or clicked on a wheel, aren't the game's
+#define stdControl_MouseButton(i, b) iosKbMouse_FilterMouseButton((i), (b))
+#else
+#define stdControl_MouseButton(i, b) (b)
+#endif
+    stdControl_UpdateKeyState(KEY_MOUSE_B1, stdControl_MouseButton(0, Window_bMouseLeft), stdControl_curReadTime);
+    stdControl_UpdateKeyState(KEY_MOUSE_B2, stdControl_MouseButton(1, Window_bMouseRight), stdControl_curReadTime);
+    stdControl_UpdateKeyState(KEY_MOUSE_B3, stdControl_MouseButton(2, !!(buttons & SDL_BUTTON_MMASK)), stdControl_curReadTime);
+    stdControl_UpdateKeyState(KEY_MOUSE_B4, stdControl_MouseButton(3, !!(buttons & SDL_BUTTON_X1MASK)), stdControl_curReadTime);
+    stdControl_UpdateKeyState(KEY_MOUSE_B5, stdControl_MouseButton(4, !!(buttons & SDL_BUTTON_X2MASK)), stdControl_curReadTime);
+#undef stdControl_MouseButton
 }
 
 void stdControl_ShowSystemKeyboard() {
