@@ -144,7 +144,8 @@ float iosPad_GetLookSensY(void) { return iosPad_aSens[iosPad_set.sensY]; }
 enum { IOSPAD_WS_NONE = 0, IOSPAD_WS_PENDING, IOSPAD_WS_HELD, IOSPAD_WS_TAP };
 
 static struct {
-    SDL_Gamepad* pGamepad;    // pad 0, as stdControl has it open (NULL: none)
+    SDL_Gamepad* pGamepad;    // pad 0, as stdControl has it open (NULL: none)...
+    SDL_JoystickID padId;     // ...and its SDL id (0: none)
     int bRumbleCap;           // it can rumble
     double now, last;         // this frame's time and the last's (seconds)
     int aDown[PB_NUM];        // held this frame
@@ -185,9 +186,9 @@ static int iosPad_IsGameplay(void)
            && sithWorld_g_pCurrentWorld && sithPlayer_g_pLocalPlayerThing;
 }
 
-int iosPad_OwnsSystemButtons(void)
+int iosPad_OwnsSystemButtons(int sdlJoystickId)
 {
-    return iosPad_s.pGamepad && iosPad_s.bGame;
+    return iosPad_s.pGamepad && iosPad_s.bGame && (SDL_JoystickID)sdlJoystickId == iosPad_s.padId;
 }
 
 int iosPad_IsHudHidden(void)
@@ -787,12 +788,12 @@ static void iosPad_Feedback(void)
 void iosPad_HandleEvent(const void* pSdlEvent)
 {
     const SDL_Event* e = (const SDL_Event*)pSdlEvent;
-    if (e->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN && iosPad_s.pGamepad && SDL_GetGamepadID(iosPad_s.pGamepad) == e->gbutton.which) {
+    if (e->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN && iosPad_s.pGamepad && iosPad_s.padId == e->gbutton.which) {
         for (int i = 0; i < PB_NUM; i++) {
             if (iosPad_aSdlButton[i] == e->gbutton.button) iosPad_s.aEventDown[i] = 1;
         }
     }
-    if (e->type == SDL_EVENT_GAMEPAD_REMOVED && iosPad_s.pGamepad && SDL_GetGamepadID(iosPad_s.pGamepad) == e->gdevice.which) {
+    if (e->type == SDL_EVENT_GAMEPAD_REMOVED && iosPad_s.pGamepad && iosPad_s.padId == e->gdevice.which) {
         // (stdControl lets go of it next; the touch controls come back now)
         iosPad_SetHudHidden(0);
     }
@@ -822,11 +823,13 @@ void iosPad_Update(void)
     }
 
     SDL_Gamepad* g = stdControl_GetSdlGamepad(0);
-    if (g != iosPad_s.pGamepad) {
+    const SDL_JoystickID padId = g ? SDL_GetGamepadID(g) : 0;
+    iosPad_s.pGamepad = g; // (the same pad can be opened again elsewhere: the id says whether it changed)
+    if (padId != iosPad_s.padId) {
         // a pad came, went or changed: start over
         if (iosPad_s.bGame) iosPad_LeaveGame();
         iosPad_s.bGame = 0;
-        iosPad_s.pGamepad = g;
+        iosPad_s.padId = padId;
         iosPad_s.bRumbleCap = g ? SDL_GetBooleanProperty(SDL_GetGamepadProperties(g), SDL_PROP_GAMEPAD_CAP_RUMBLE_BOOLEAN, false) : 0;
         memset(iosPad_s.aPrev, 0, sizeof(iosPad_s.aPrev));
         for (int i = 0; i < PB_NUM; i++) iosPad_s.aStale[i] = 1; // (whatever is held as it comes)
@@ -999,7 +1002,7 @@ int iosPad_ReadGamepad(int idx, void* pSdlGamepad)
     SDL_Gamepad* g = (SDL_Gamepad*)pSdlGamepad;
     if (!g) return 0;
     const int a0 = JK_JOYSTICK_AXIS_STRIDE * idx;
-    const int bMine = idx == 0 && g == iosPad_s.pGamepad && iosPad_s.bGame;
+    const int bMine = idx == 0 && iosPad_s.padId && SDL_GetGamepadID(g) == iosPad_s.padId && iosPad_s.bGame;
     const int bSuppress = bMine && (iosPad_s.bPanel || iosPad_s.wheelState >= IOSPAD_WS_HELD);
 
     // (as stdControl has always done: a pad's axes are read whether bound or not)

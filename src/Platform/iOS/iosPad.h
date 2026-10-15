@@ -91,9 +91,10 @@ void iosPad_Update(void);
 // SDL events, as they are polled: hot-plugging
 void iosPad_HandleEvent(const void* pSdlEvent);
 
-// Whether Start and Back are the pad's own right now (gameplay), so the
-// window shouldn't turn them into Escape itself
-int iosPad_OwnsSystemButtons(void);
+// Whether Start and Back of the pad with this SDL id are the pad's own right
+// now (gameplay, the first pad), so the window shouldn't turn them into
+// Escape itself
+int iosPad_OwnsSystemButtons(int sdlJoystickId);
 
 // stdControl, as the game reads its controls: pad idx's buttons and axes as
 // the game is to see them. Returns 0 if stdControl should read it itself.

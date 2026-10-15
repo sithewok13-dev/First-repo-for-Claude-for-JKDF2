@@ -1164,7 +1164,7 @@ void Window_SdlUpdate()
                         // Added: in gameplay Start and Back are the pad's own
                         // (iosPad: the menu on a tap, quick save...); a press
                         // let go there still lets go of a menu's Escape
-                        if (!(event.gbutton.down && iosPad_OwnsSystemButtons()))
+                        if (!(event.gbutton.down && iosPad_OwnsSystemButtons((int)event.gbutton.which)))
 #endif
                         stdControl_bControllerEscapeKey = event.gbutton.down;
                     }
