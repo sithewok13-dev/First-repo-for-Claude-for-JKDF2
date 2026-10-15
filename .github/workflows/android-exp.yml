@@ -120,7 +120,7 @@ jobs:
                  grep -E "error:" "$RUNNER_TEMP/make.log" | sort -u | head -20 | sed 's/^/::error title=make::/'; exit 1; }
           grep -c "warning:" "$RUNNER_TEMP/make.log" | sed 's/^/compiler warnings: /'
           # Multiplayer over ENet is in (not the no-networking stubs upstream Android has)
-          find "$BUILD_DIR" -name 'stdComm_ENet.c.o' | grep -q . || { echo "ENet not built"; exit 1; }
+          [ -n "$(find "$BUILD_DIR" -name 'stdComm_ENet.c.o')" ] || { echo "::error::ENet not built"; exit 1; }
           find "$BUILD_DIR" -path '*Networking/None*' -name '*.o' | grep . && { echo "no-networking stubs built"; exit 1; } || true
 
       - name: Native libraries into the Gradle project
@@ -141,11 +141,12 @@ jobs:
           for f in "$JNI"/*.so; do
             for need in $("$LLVM_BIN/llvm-readelf" -d "$f" | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p'); do
               if [ ! -f "$JNI/$need" ] && ! echo " $SYSTEM " | grep -q " $need "; then
-                echo "$(basename "$f") needs $need, which is not in the app"; exit 1
+                echo "::error::$(basename "$f") needs $need, which is not in the app"; exit 1
               fi
             done
           done
-          "$LLVM_BIN/llvm-nm" -D --defined-only "$JNI/libmain.so" | grep -q " SDL_main$" || { echo "libmain.so has no SDL_main"; exit 1; }
+          "$LLVM_BIN/llvm-nm" -D --defined-only "$JNI/libmain.so" > "$RUNNER_TEMP/nm.txt"
+          grep -q " SDL_main$" "$RUNNER_TEMP/nm.txt" || { echo "::error::libmain.so has no SDL_main"; exit 1; }
 
       - name: Build the .apk (Gradle)
         working-directory: packaging/android-project
@@ -156,18 +157,23 @@ jobs:
 
       - name: Check the .apk
         run: |
+          # (outputs go to files first: with pipefail, grep -q stopping early would fail the step)
+          fail() { echo "::error title=apk check::$1"; exit 1; }
           APK=packaging/android-project/app/build/outputs/apk/debug/app-debug.apk
           BT=$(ls -d "${ANDROID_SDK_ROOT:-$ANDROID_HOME}"/build-tools/* | sort -V | tail -1)
-          "$BT/aapt2" dump badging "$APK" | grep -E "^package:|launchable-activity|uses-permission:|native-code"
-          "$BT/aapt2" dump badging "$APK" | grep -q "^package: name='org.openjkdf2.enhanced.jk'" || { echo "wrong app id"; exit 1; }
-          "$BT/apksigner" verify --print-certs "$APK" | grep -E "Signer #1 certificate (DN|SHA-256)"
+          "$BT/aapt2" dump badging "$APK" > badging.txt 2>&1 || true
+          grep -E "^package:|launchable-activity|uses-permission:|native-code" badging.txt || true
+          grep -q "^package: name='org.openjkdf2.enhanced.jk'" badging.txt || fail "app id is not org.openjkdf2.enhanced.jk"
+          "$BT/apksigner" verify --print-certs "$APK" > signer.txt 2>&1 || { cat signer.txt; fail "apksigner verify failed"; }
+          grep -E "Signer #1 certificate (DN|SHA-256)" signer.txt || true
           # No game data, ever: no .gob/.goo archives, no game folders or zips
-          if unzip -l "$APK" | grep -i -E '\.(gob|goo|gog|gor|zip|exe|cab|iso)$|[ /](jk1|mots|episode)/'; then
-            echo "game data in the .apk"; exit 1
+          unzip -l "$APK" > contents.txt
+          if grep -i -E '\.(gob|goo|gog|gor|zip|exe|cab|iso)$|[ /](jk1|mots|episode)/' contents.txt; then
+            fail "game data in the .apk"
           fi
-          unzip -l "$APK" | grep -E "lib/arm64-v8a/"
+          grep -E "lib/arm64-v8a/" contents.txt || fail "no arm64-v8a libraries in the .apk"
           mkdir -p out && cp "$APK" "out/$APK_NAME.apk"
-          ls -l out
+          echo "::notice title=apk::$APK_NAME.apk, $(stat -c %s "out/$APK_NAME.apk") bytes; $(grep -c 'lib/arm64-v8a/' contents.txt) native libraries"
 
       - name: Upload the .apk (run artifact only)
         uses: actions/upload-artifact@v4
