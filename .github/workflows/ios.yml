@@ -33,8 +33,13 @@ on:
     # Every branch, as before. (Listing tags alone would stop the workflow
     # running for branch pushes at all, so branches are listed too; '**' is
     # GitHub's default of matching every branch name, slashes included.)
+    # Except experiment branches (exp/...): the later '!' pattern takes them
+    # out again, so pushing one never touches ios-latest. They have a workflow
+    # of their own that only keeps its results as run artifacts
+    # (ios-gns-exp.yml).
     branches:
       - '**'
+      - '!exp/**'
     # Release tags. GitHub doesn't evaluate path filters for tag pushes, so a
     # tag always builds, even one on a commit that only changed docs. Other
     # tags (such as ios-latest) don't start a run.
