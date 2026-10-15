@@ -14,7 +14,7 @@
 #include "General/stdString.h"
 #include "Main/jkDev.h"
 #ifdef JK_ENHANCED
-#include "Platform/iOS/iosSaberThrow.h" // Added
+#include "Enhanced/iosSaberThrow.h" // Added
 #endif
 
 // MOTS added

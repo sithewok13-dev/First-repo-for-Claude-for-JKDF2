@@ -8,8 +8,8 @@
 #include "stdPlatform.h"
 #include "jk.h"
 #ifdef JK_ENHANCED
-#include "Platform/iOS/iosSelfie.h" // Added
-#include "Platform/iOS/iosSaber.h" // Added
+#include "Enhanced/iosSelfie.h" // Added
+#include "Enhanced/iosSaber.h" // Added
 #endif
 
 // Un-inlined: Clear track node flags with bounds check (added in Grim Fandango).

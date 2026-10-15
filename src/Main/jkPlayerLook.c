@@ -12,7 +12,7 @@
 #include "Gameplay/sithPlayer.h"
 #include "Win95/stdComm.h"
 #ifdef TARGET_IOS
-#include "Platform/iOS/iosSaber.h"
+#include "Enhanced/iosSaber.h"
 #endif
 
 #define JKPLAYERLOOK_VERSION 1

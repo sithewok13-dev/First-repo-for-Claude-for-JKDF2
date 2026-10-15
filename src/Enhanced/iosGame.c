@@ -1,6 +1,6 @@
 // Added: entire file. See iosGame.h.
 
-#include "Platform/iOS/iosGame.h"
+#include "Enhanced/iosGame.h"
 
 #ifdef JK_ENHANCED
 

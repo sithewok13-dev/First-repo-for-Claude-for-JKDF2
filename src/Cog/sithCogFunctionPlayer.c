@@ -7,7 +7,7 @@
 #include "World/sithActor.h"
 #include "Gameplay/sithInventory.h"
 #ifdef JK_ENHANCED
-#include "Platform/iOS/iosGame.h" // Added
+#include "Enhanced/iosGame.h" // Added
 #endif
 
 void sithCogFunctionPlayer_SetInvActivated(sithCog *pCog)

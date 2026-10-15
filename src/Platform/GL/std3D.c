@@ -22,7 +22,7 @@
 
 #include "SDL2_helper.h"
 #ifdef JK_ENHANCED
-#include "Platform/iOS/iosCapture.h" // Added
+#include "Enhanced/iosCapture.h" // Added
 #endif
 
 #ifdef WIN32

@@ -53,7 +53,7 @@
 #include "World/jkPlayer.h"
 #include "Dss/jkDSS.h"
 #ifdef JK_ENHANCED
-#include "Platform/iOS/iosGame.h"
+#include "Enhanced/iosGame.h"
 #endif
 #include "stdPlatform.h"
 

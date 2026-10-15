@@ -40,13 +40,13 @@
 #include "Platform/std3D.h"
 #include "Main/sithCvar.h"
 #ifdef JK_ENHANCED
-#include "Platform/iOS/iosGame.h"
+#include "Enhanced/iosGame.h"
 #endif
 #ifdef JK_ENHANCED
-#include "Platform/iOS/iosSelfie.h" // Added
-#include "Platform/iOS/iosPhotoCam.h" // Added
-#include "Platform/iOS/iosSaber.h" // Added
-#include "Platform/iOS/iosStance.h" // Added
+#include "Enhanced/iosSelfie.h" // Added
+#include "Enhanced/iosPhotoCam.h" // Added
+#include "Enhanced/iosSaber.h" // Added
+#include "Enhanced/iosStance.h" // Added
 // Added: a blade drawn in the colour the player chose for it (iosSaber)
 #define JKPLAYER_DRAW_BLADE(pThing, pLine, pMat, blade) \
     do { iosSaber_BeginBlade((pThing), (pLine), (blade)); rdThing_Draw((pLine), (pMat)); iosSaber_EndBlade(pLine); } while (0)

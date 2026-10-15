@@ -2,7 +2,7 @@
 
 #ifdef JK_ENHANCED
 
-#include "Platform/iOS/iosStance.h"
+#include "Enhanced/iosStance.h"
 
 #include <math.h>
 #include <string.h>

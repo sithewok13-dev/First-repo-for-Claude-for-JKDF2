@@ -5,8 +5,10 @@ touch controls. The owner plays it on an iPhone, isn't a programmer, and reads
 everything on a phone.
 
 - **Build branch:** `claude/openjkdf2-ios-build-2gcr9s` (the default branch).
-- **iOS code:** `src/Platform/iOS/` (`iosTouch.m` overlay, `iosGame.c` engine
-  helpers, `iosSafeArea.c` HUD margins). Cheats are in `src/Main/jkDev.c`.
+- **iOS code:** `src/Platform/iOS/` (`iosTouch.m` overlay, `iosSafeArea.c` HUD
+  margins). The enhanced gameplay shared by every platform (`JK_ENHANCED`:
+  sabers, stances, photo modes, `iosGame.c` engine helpers) is in `src/Enhanced/`.
+  Cheats are in `src/Main/jkDev.c`.
 - **Docs:** `docs/ios/README.md` (setup guide), `docs/ios/RELEASE_NOTES.md` (the
   release text). **CI:** `.github/workflows/ios.yml`.
 - **Mysteries of the Sith** is a separate app, **OpenMoTS**

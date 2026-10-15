@@ -25,8 +25,8 @@ static void jkDev_Custom_HostAddressTick(void); // Added
 #include "Main/jkStrings.h"
 #include "Main/jkQuakeConsole.h"
 #ifdef JK_ENHANCED
-#include "Platform/iOS/iosSaberThrow.h" // Added
-#include "Platform/iOS/iosGame.h" // Added
+#include "Enhanced/iosSaberThrow.h" // Added
+#include "Enhanced/iosGame.h" // Added
 #endif
 #include "stdPlatform.h"
 #include "wprintf.h"

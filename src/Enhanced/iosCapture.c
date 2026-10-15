@@ -1,4 +1,4 @@
-#include "Platform/iOS/iosCapture.h"
+#include "Enhanced/iosCapture.h"
 
 #ifdef JK_ENHANCED
 
@@ -9,7 +9,7 @@
 #include "SDL2_helper.h"
 #include "Win95/Window.h"
 #include "World/sithWorld.h"
-#include "Platform/iOS/iosGame.h"
+#include "Enhanced/iosGame.h"
 
 extern GLint std3D_windowFbo;
 

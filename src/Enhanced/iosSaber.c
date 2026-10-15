@@ -1,8 +1,8 @@
 // Added: entire file. The player's lightsaber as they choose it (see iosSaber.h).
 
-#include "Platform/iOS/iosSaber.h"
-#include "Platform/iOS/iosStance.h"
-#include "Platform/iOS/iosSaberThrow.h"
+#include "Enhanced/iosSaber.h"
+#include "Enhanced/iosStance.h"
+#include "Enhanced/iosSaberThrow.h"
 #include "Primitives/rdModel3.h"
 
 #ifdef JK_ENHANCED
@@ -16,7 +16,7 @@
 #include "World/sithThing.h"
 #include "World/jkPlayer.h"
 #include "Gameplay/sithTime.h"
-#include "Platform/iOS/iosSelfie.h"
+#include "Enhanced/iosSelfie.h"
 #include "Primitives/rdMatrix.h"
 #include "Gameplay/sithPlayer.h"
 #include "Dss/sithMulti.h"

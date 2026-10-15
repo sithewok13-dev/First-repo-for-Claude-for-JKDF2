@@ -4,7 +4,7 @@
 
 #if defined(JK_ENHANCED) && !defined(TARGET_IOS)
 
-#include "Platform/iOS/iosCapture.h"
+#include "Enhanced/iosCapture.h"
 #include "Platform/iOS/iosPhotos.h"
 #include "SDL2_helper.h"
 

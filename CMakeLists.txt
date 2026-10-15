@@ -187,10 +187,11 @@ endif()
 
 # Added: the enhanced gameplay first made for the iOS apps (two sabers and their
 # stances, Saber Throw with two, Action Freeze, selfies, the cinematic burst, the
-# photo camera...), shared by every platform (src/Platform/iOS for now). Always on
-# for iOS; on by default for the desktops and Android; -DOPENJKDF2_ENHANCED=OFF
-# builds the game as upstream has it. Defines JK_ENHANCED; TARGET_IOS stays for
-# what only the touch overlay (UIKit) has.
+# photo camera...), shared by every platform: src/Enhanced (built everywhere, each
+# file empty without JK_ENHANCED). Always on for iOS; on by default for the
+# desktops and Android; -DOPENJKDF2_ENHANCED=OFF builds the game as upstream has
+# it. Defines JK_ENHANCED; TARGET_IOS stays for what only the touch overlay
+# (UIKit) has.
 if(PLAT_LINUX_32 OR PLAT_LINUX_64 OR PLAT_MACOS OR PLAT_MACOS_X86_64 OR PLAT_MINGW_X86_64 OR PLAT_MINGW_X86_32 OR PLAT_MSVC OR PLAT_ANDROID_ARM64)
     set(OPENJKDF2_ENHANCED_DEFAULT ON)
 else()

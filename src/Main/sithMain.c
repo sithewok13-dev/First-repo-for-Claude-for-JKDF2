@@ -41,7 +41,7 @@
 #include "stdPlatform.h"
 #include "jk.h"
 #ifdef JK_ENHANCED
-#include "Platform/iOS/iosPhotoCam.h" // Added
+#include "Enhanced/iosPhotoCam.h" // Added
 #endif
 
 #ifdef FIXED_TIMESTEP_PHYS

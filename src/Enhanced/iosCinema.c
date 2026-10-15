@@ -1,14 +1,14 @@
-#include "Platform/iOS/iosCinema.h"
+#include "Enhanced/iosCinema.h"
 
 #ifdef JK_ENHANCED
 
 #include <stdio.h>
 
-#include "Platform/iOS/iosFreeze.h"
-#include "Platform/iOS/iosCapture.h"
+#include "Enhanced/iosFreeze.h"
+#include "Enhanced/iosCapture.h"
 #include "Platform/iOS/iosPhotos.h"
-#include "Platform/iOS/iosGame.h"
-#include "Platform/iOS/iosPhotoCam.h"
+#include "Enhanced/iosGame.h"
+#include "Enhanced/iosPhotoCam.h"
 #include "World/sithThing.h"
 #include "World/sithWorld.h"
 #include "Gameplay/sithPlayer.h"

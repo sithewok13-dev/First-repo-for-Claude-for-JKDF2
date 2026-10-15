@@ -34,10 +34,10 @@
 #include "Primitives/rdMath.h"
 #include "stdPlatform.h"
 #ifdef JK_ENHANCED
-#include "Platform/iOS/iosSelfie.h" // Added
-#include "Platform/iOS/iosPhotoCam.h" // Added
-#include "Platform/iOS/iosFreeze.h" // Added
-#include "Platform/iOS/iosSaber.h" // Added
+#include "Enhanced/iosSelfie.h" // Added
+#include "Enhanced/iosPhotoCam.h" // Added
+#include "Enhanced/iosFreeze.h" // Added
+#include "Enhanced/iosSaber.h" // Added
 // Added: the photo camera (the selfie, Action Freeze) only looks: what it sees
 // isn't sighted, seen on the map, marked as on screen, or flashed (iosPhotoCam)
 #define SITHRENDER_PHOTO_LOOKING() iosPhotoCam_IsActive()

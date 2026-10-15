@@ -1,12 +1,12 @@
-#include "Platform/iOS/iosFreeze.h"
+#include "Enhanced/iosFreeze.h"
 
 #ifdef JK_ENHANCED
 
 #include <math.h>
 #include <string.h>
 
-#include "Platform/iOS/iosGame.h"
-#include "Platform/iOS/iosPhotoCam.h"
+#include "Enhanced/iosGame.h"
+#include "Enhanced/iosPhotoCam.h"
 #include "World/sithThing.h"
 #include "Gameplay/sithPlayer.h"
 #include "World/sithWorld.h"

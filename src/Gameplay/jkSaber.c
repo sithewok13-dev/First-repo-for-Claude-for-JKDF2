@@ -10,7 +10,7 @@
 #include "Engine/sithPuppet.h"
 #include "Dss/sithMulti.h"
 #ifdef JK_ENHANCED
-#include "Platform/iOS/iosSaber.h" // Added
+#include "Enhanced/iosSaber.h" // Added
 #endif
 #include "World/sithWeapon.h" // Added
 #include "Gameplay/sithInventory.h" // Added

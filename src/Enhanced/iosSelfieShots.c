@@ -1,11 +1,11 @@
-#include "Platform/iOS/iosSelfieShots.h"
+#include "Enhanced/iosSelfieShots.h"
 
 #ifdef JK_ENHANCED
 
-#include "Platform/iOS/iosSelfie.h"
-#include "Platform/iOS/iosCapture.h"
+#include "Enhanced/iosSelfie.h"
+#include "Enhanced/iosCapture.h"
 #include "Platform/iOS/iosPhotos.h"
-#include "Platform/iOS/iosGame.h"
+#include "Enhanced/iosGame.h"
 
 #include <stdio.h>
 

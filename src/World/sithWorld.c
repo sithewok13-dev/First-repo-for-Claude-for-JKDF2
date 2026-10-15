@@ -31,7 +31,7 @@
 #include "Dw/dwLaser.h"
 #include "jk.h"
 #ifdef JK_ENHANCED
-#include "Platform/iOS/iosSaber.h" // Added
+#include "Enhanced/iosSaber.h" // Added
 #endif
 
 #ifdef TARGET_TWL

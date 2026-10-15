@@ -2,8 +2,8 @@
 
 #ifdef JK_ENHANCED
 
-#include "Platform/iOS/iosSaberThrow.h"
-#include "Platform/iOS/iosSaber.h"
+#include "Enhanced/iosSaberThrow.h"
+#include "Enhanced/iosSaber.h"
 
 #include "Cog/sithCog.h"
 #include "Cog/sithCogParse.h"

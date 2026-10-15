@@ -1,4 +1,4 @@
-#include "Platform/iOS/iosPhotoCam.h"
+#include "Enhanced/iosPhotoCam.h"
 
 #ifdef JK_ENHANCED
 
@@ -6,7 +6,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "Platform/iOS/iosGame.h"
+#include "Enhanced/iosGame.h"
 #include "World/sithWorld.h"
 #include "World/sithSector.h"
 #include "Engine/sithCamera.h"

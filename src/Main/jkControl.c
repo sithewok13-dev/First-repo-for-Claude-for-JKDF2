@@ -20,7 +20,7 @@
 #include "Dss/sithMulti.h"
 #include "../jk.h"
 #ifdef JK_ENHANCED
-#include "Platform/iOS/iosGame.h" // Added
+#include "Enhanced/iosGame.h" // Added
 #endif
 
 static int jkControl_bInit;
