@@ -28,6 +28,7 @@
 #include "Main/Main.h"
 #include "Main/jkCoopSave.h"
 #include "Gui/jkGUITitle.h"
+#include "Gui/jkGUINetHost.h"
 
 #include "SDL2_helper.h"
 
@@ -892,7 +893,11 @@ static void stdComm_ENet_Advertise(void)
 #endif
     snprintf(g.game, sizeof(g.game), "%s", Main_bMotsCompat ? "mots" : "jk");
     const int flags = sithMulti_multiModeFlags ? sithMulti_multiModeFlags : stdComm_ENet_storedEntry.multiModeFlags;
+#ifdef QOL_IMPROVEMENTS
+    snprintf(g.mode, sizeof(g.mode), "%s", jkGuiNetHost_ModeName(stdComm_ENet_storedEntry.episodeGobName, flags));
+#else
     snprintf(g.mode, sizeof(g.mode), "%s", (flags & MULTIMODEFLAG_COOP) ? "coop" : (flags & MULTIMODEFLAG_TEAMS) ? "team" : "dm");
+#endif
     snprintf(g.level, sizeof(g.level), "%s", stdComm_ENet_storedEntry.mapJklFname);
 #ifdef QOL_IMPROVEMENTS
     // (and its title, as the loading screen shows it, plain text)

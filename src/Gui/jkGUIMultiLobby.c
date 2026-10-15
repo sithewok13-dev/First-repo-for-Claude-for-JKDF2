@@ -435,23 +435,28 @@ static int jkGuiMultiLobby_bConnecting = 0;
 static uint32_t jkGuiMultiLobby_connectingMs = 0;
 static jkGuiMultiLobbyTarget jkGuiMultiLobby_picked; // (the game being joined)
 
-static void jkGuiMultiLobby_ModeText(char16_t* pOut, int outLen, const char* mode, int flags)
+static void jkGuiMultiLobby_ModeText(char16_t* pOut, int outLen, const char* mode, const char* episodeGob, int flags)
 {
+    // (heard: the host's word for it; asked: worked out from its episode and flags)
+    if (!mode) mode = jkGuiNetHost_ModeName(episodeGob, flags);
     const char* key = "GUIEXT_MP_MODE_DM";
-    if ((mode && !strcmp(mode, "coop")) || (!mode && (flags & MULTIMODEFLAG_COOP))) key = "GUIEXT_MP_MODE_COOP";
-    else if ((mode && !strcmp(mode, "team")) || (!mode && (flags & MULTIMODEFLAG_TEAMS))) key = "GUIEXT_MP_MODE_TEAM";
+    if (!strcmp(mode, "coop")) key = "GUIEXT_MP_MODE_COOP";
+    else if (!strcmp(mode, "team")) key = "GUIEXT_MP_MODE_TEAM";
+    else if (!strcmp(mode, "ctf")) key = "GUIEXT_MP_MODE_CTF";
+    else if (!strcmp(mode, "kfy")) key = "GUIEXT_MP_MODE_KFY";
+    else if (!strcmp(mode, "saber")) key = "GUIEXT_MP_MODE_SABER";
     stdString_SafeWStrCopy(pOut, jkGuiMultiLobby_Str(key), outLen);
 }
 
 // A game's row: "name - Mode: level  n/max  (password)", the level by its title when known (without its
 // "1 - " number, and shortened to fit the row)
 #define LOBBY_ROW_FIT 60
-static void jkGuiMultiLobby_GameRow(char16_t* pOut, int outLen, const char* name, const char* mode, int flags, const char* level,
+static void jkGuiMultiLobby_GameRow(char16_t* pOut, int outLen, const char* name, const char* mode, const char* episodeGob, int flags, const char* level,
                                     const char* title, int numPlayers, int maxPlayers, int bPassword)
 {
     char16_t wMode[32];
     char lvl[64];
-    jkGuiMultiLobby_ModeText(wMode, 32, mode, flags);
+    jkGuiMultiLobby_ModeText(wMode, 32, mode, episodeGob, flags);
     if (title && title[0]) {
         const char* t = title;
         const char* dash = strstr(t, " - ");
@@ -518,7 +523,7 @@ static void jkGuiMultiLobby_UpdateRows(jkGuiMenu* pMenu, int bRedraw)
         jkGuiElement* e = &jkGuiMultiLobby_aJoin[LOBBY_JOIN_NEARBY0 + i];
         if (i < numGames) {
             const stdCommENetDiscoverGame* g = &aGame[i];
-            jkGuiMultiLobby_GameRow(row, LOBBY_ROW_LEN, g->name, g->mode, 0, g->level, g->title, g->numPlayers, g->maxPlayers, g->bPassword);
+            jkGuiMultiLobby_GameRow(row, LOBBY_ROW_LEN, g->name, g->mode, NULL, 0, g->level, g->title, g->numPlayers, g->maxPlayers, g->bPassword);
             jkGuiMultiLobbyTarget* t = &jkGuiMultiLobby_aNearbyTarget[i];
             snprintf(t->address, sizeof(t->address), "%s", g->address);
             snprintf(t->hostId, sizeof(t->hostId), "%s", g->hostId);
@@ -556,7 +561,7 @@ static void jkGuiMultiLobby_UpdateRows(jkGuiMenu* pMenu, int bRedraw)
             name[sizeof(name) - 1] = 0;
             int maxPlayers = (int)pEntry->maxPlayers;
             if ((pEntry->sessionFlags & SESSIONFLAG_ISDEDICATED) && maxPlayers > 1) maxPlayers--;
-            jkGuiMultiLobby_GameRow(row, LOBBY_ROW_LEN, name[0] ? name : r->name, NULL, pEntry->multiModeFlags, pEntry->mapJklFname,
+            jkGuiMultiLobby_GameRow(row, LOBBY_ROW_LEN, name[0] ? name : r->name, NULL, pEntry->episodeGobName, pEntry->multiModeFlags, pEntry->mapJklFname,
                                     NULL, pEntry->numPlayers, maxPlayers, (pEntry->sessionFlags & SESSIONFLAG_PASSWORD) != 0);
         }
         else {

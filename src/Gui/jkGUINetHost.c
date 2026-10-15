@@ -137,6 +137,30 @@ int jkGuiNetHost_lobbyMode = 0;
 char jkGuiNetHost_lobbyEpisode[64];
 int jkGuiNetHost_bLobbyResume = 0;
 
+// Added: see jkGUINetHost.h. (The original games tell their kinds apart by episode type alone: Jedi
+// Knight's type 8 is Capture the Flag, Mysteries of the Sith's is Kill the Fool with the Ysalamiri.)
+const char* jkGuiNetHost_ModeName(const char* pEpisodeGob, int multiModeFlags)
+{
+    if (multiModeFlags & MULTIMODEFLAG_COOP) return "coop";
+    const int type = (pEpisodeGob && pEpisodeGob[0]) ? jkGuiSingleplayer_FUN_0041d590(pEpisodeGob) : 0;
+    if (Main_bMotsCompat && ((type & JK_EPISODE_SABERS_ONLY) || (multiModeFlags & MULTIMODEFLAG_SABERS_ONLY))) return "saber";
+    if (type & JK_EPISODE_SPECIAL_CTF) return Main_bMotsCompat ? "kfy" : "ctf";
+    if (multiModeFlags & MULTIMODEFLAG_TEAMS) return "team";
+    return "dm";
+}
+
+// Added: see jkGUINetHost.h. As JKM.EXE does at the host's OK (its 0x4142a3): both bits cleared, then
+// set for an episode of type 16. (JKM.EXE's other case, 0x1000 alone with its "Jedi only" box ticked, has
+// no box here: other episodes play with MotS's own characters.)
+int jkGuiNetHost_EpisodeModeFlags(const char* pEpisodeGob, int multiModeFlags)
+{
+    if (!Main_bMotsCompat) return multiModeFlags;
+    multiModeFlags &= ~(MULTIMODEFLAG_1000 | MULTIMODEFLAG_SABERS_ONLY);
+    if (pEpisodeGob && pEpisodeGob[0] && (jkGuiSingleplayer_FUN_0041d590(pEpisodeGob) & JK_EPISODE_SABERS_ONLY))
+        multiModeFlags |= (MULTIMODEFLAG_1000 | MULTIMODEFLAG_SABERS_ONLY);
+    return multiModeFlags;
+}
+
 #ifdef JKGUI_MULTI_LOBBY
 // Added: the episodes the host may pick: the kind picked's, or (as before) every multiplayer kind and,
 // with Co-op ticked, the story's
@@ -145,6 +169,9 @@ static jkEpisodeTypeFlags_t jkGuiNetHost_EpisodeMask(void)
     if (jkGuiNetHost_lobbyMode == JKGUIMULTILOBBY_MODE_COOP)
         return JK_EPISODE_SINGLEPLAYER;
     jkEpisodeTypeFlags_t mask = (JK_EPISODE_DEATHMATCH | JK_EPISODE_4_UNK | JK_EPISODE_SPECIAL_CTF);
+    // (and Mysteries of the Sith's Lightsaber Training, as JKM.EXE lists it)
+    if (Main_bMotsCompat)
+        mask |= JK_EPISODE_SABERS_ONLY;
     if (jkGuiNetHost_lobbyMode == JKGUIMULTILOBBY_MODE_CLASSIC && jkGuiNetHost_bIsCoop)
         mask |= JK_EPISODE_SINGLEPLAYER;
     return mask;
@@ -413,6 +440,8 @@ int jkGuiNetHost_Show(jkMultiEntry3 *pMultiEntry)
 #ifdef QOL_IMPROVEMENTS
     if (jkGuiNetHost_bIsCoop)
         loadMask |= JK_EPISODE_SINGLEPLAYER;
+    if (Main_bMotsCompat)
+        loadMask |= JK_EPISODE_SABERS_ONLY; // Added: MotS's Lightsaber Training (JKM.EXE lists it)
 #endif
 #ifdef JKGUI_MULTI_LOBBY
     loadMask = jkGuiNetHost_EpisodeMask(); // Added
@@ -520,6 +549,10 @@ int jkGuiNetHost_Show(jkMultiEntry3 *pMultiEntry)
             else {
                 jkGuiNetHost_gameFlags &= ~MULTIMODEFLAG_COOP;
             }
+            // Added: Mysteries of the Sith's Sith Lightsaber Training (episode type 16), as JKM.EXE hosts
+            // it: saber-only (kyle_m.cog then takes every weapon but fists and saber at each spawn) with
+            // Jedi Knight-style ranked characters; and neither for any other episode
+            jkGuiNetHost_gameFlags = jkGuiNetHost_EpisodeModeFlags(pMultiEntry->episodeGobName, jkGuiNetHost_gameFlags);
             // Added: cheats only if the host allows them
             if (jkGuiNetHost_bAllowCheats)
                 jkGuiNetHost_gameFlags |= MULTIMODEFLAG_ALLOWCHEATS;
@@ -575,6 +608,8 @@ int jkGuiNetHost_Show(jkMultiEntry3 *pMultiEntry)
             jkEpisodeTypeFlags_t loadMask = (JK_EPISODE_DEATHMATCH | JK_EPISODE_4_UNK | JK_EPISODE_SPECIAL_CTF);
             if (jkGuiNetHost_bIsCoop)
                 loadMask |= JK_EPISODE_SINGLEPLAYER;
+            if (Main_bMotsCompat)
+                loadMask |= JK_EPISODE_SABERS_ONLY; // Added: MotS's Lightsaber Training (JKM.EXE lists it)
 #ifdef JKGUI_MULTI_LOBBY
             loadMask = jkGuiNetHost_EpisodeMask(); // Added
 #endif

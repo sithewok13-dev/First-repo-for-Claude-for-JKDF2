@@ -271,6 +271,13 @@ int Main_StartupDedicated(int bFullyDedicated)
 
     jkGuiNetHost_sessionFlags |= SESSIONFLAG_ISDEDICATED;
 
+#ifdef QOL_IMPROVEMENTS
+    // Added: the mode flags made right for this episode (as the host screen's OK makes them: the saved
+    // ones may be another episode's), with the episodes listed to look it up
+    jkEpisode_LoadVerify();
+    jkGuiNetHost_gameFlags = jkGuiNetHost_EpisodeModeFlags(v34.episodeGobName, jkGuiNetHost_gameFlags);
+#endif
+
     v34.tickRateMs = jkGuiNetHost_tickRate;
     v34.maxPlayers = jkGuiNetHost_maxPlayers;
     v34.sessionFlags = jkGuiNetHost_sessionFlags;

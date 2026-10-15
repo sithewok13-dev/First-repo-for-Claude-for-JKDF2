@@ -1,4 +1,4 @@
-MSGS 150          # <--- DON'T FORGET TO UPDATE THIS COUNT
+MSGS 153          # <--- DON'T FORGET TO UPDATE THIS COUNT
 
 #  "<key>"     <unused number>   "<string>"
 
@@ -109,6 +109,9 @@ MSGS 150          # <--- DON'T FORGET TO UPDATE THIS COUNT
    "GUIEXT_MP_MODE_COOP"            0 "Co-op"
    "GUIEXT_MP_MODE_DM"              0 "Deathmatch"
    "GUIEXT_MP_MODE_TEAM"            0 "Teams"
+   "GUIEXT_MP_MODE_CTF"             0 "Capture the Flag"
+   "GUIEXT_MP_MODE_KFY"             0 "Kill the Fool"
+   "GUIEXT_MP_MODE_SABER"           0 "Lightsaber Training"
    "GUIEXT_MP_FULL"                 0 "full"
    "GUIEXT_MP_HAS_PASSWORD"         0 "password"
    "GUIEXT_MP_ERR_ADDRESS"          0 "That address isn't right. An address looks like 192.168.1.20."

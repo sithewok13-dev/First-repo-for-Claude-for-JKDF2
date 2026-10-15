@@ -16,6 +16,13 @@ extern int jkGuiNetHost_lobbyMode;
 extern char jkGuiNetHost_lobbyEpisode[64];
 extern int jkGuiNetHost_bLobbyResume;
 
+// Added: the original kind of game an episode and its flags make, as a short name: "coop", "saber"
+// (Sith Lightsaber Training), "kfy" (Kill the Fool with the Ysalamiri), "ctf" (Jedi Capture the Flag),
+// "team" or "dm". The episode is looked up among those listed (0 if not: then the flags alone tell).
+const char* jkGuiNetHost_ModeName(const char* pEpisodeGob, int multiModeFlags);
+// Added: a game's mode flags made right for its episode: Mysteries of the Sith's Sith Lightsaber Training
+// (episode type 16) saber-only, with Jedi Knight-style ranked characters; any other episode neither
+
 void jkGuiNetHost_SaveSettings();
 void jkGuiNetHost_LoadSettings();
 
