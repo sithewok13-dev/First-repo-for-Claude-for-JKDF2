@@ -889,6 +889,7 @@ public:
     bool IsOpen() const { return !m_closed && m_hConnection != k_HSteamNetConnection_Invalid; }
 
     uint32_t id = 0xFFFFFFFF;
+    jkMultiEntry hostEntry; // Added: the session in the host's first message (with our id)
 private:
 
     HSteamNetConnection m_hConnection = k_HSteamNetConnection_Invalid;
@@ -917,6 +918,7 @@ private:
         if (id == 0xFFFFFFFF && pIncomingMsg->m_cbSize == sizeof(GNSInfoPacket)) {
             GNSInfoPacket* pPkt = (GNSInfoPacket*)pIncomingMsg->m_pData;
             id = pPkt->id;
+            memcpy(&hostEntry, &pPkt->entry, sizeof(hostEntry)); // Added: (the game joined, as its host tells it)
             sithDplayGNS_verbosePrintf("We are ID %x\n", id);
 
 
@@ -1260,7 +1262,7 @@ static int stdComm_GNS_CheckPassword(const char* pAddress, const char16_t* pwPas
 // 5 s) before the game sends anything, as over ENet, and a host not answering is told
 static int stdComm_GNS_Join(char16_t* pwPassword)
 {
-    (void)pwPassword; // (checked by the player before joining: a classic host never asks)
+    // (a classic host never asks for the password: the player checks it, below)
     stdComm_dplayIdSelf = 2; // HACK
 
     if (stdComm_GNS_bForceStubs)
@@ -1272,6 +1274,7 @@ static int stdComm_GNS_Join(char16_t* pwPassword)
     SteamNetworkingIPAddr addr;
     if (!stdComm_GNS_ParseAddress(text, &addr)) return 0x88770154 + 1;
 
+    memset(&client.hostEntry, 0, sizeof(client.hostEntry));
     client.Init(addr);
     for (int i = 0; i < 500 && client.id == 0xFFFFFFFF && client.IsOpen(); i++) {
         client.RunStep();
@@ -1280,6 +1283,29 @@ static int stdComm_GNS_Join(char16_t* pwPassword)
     if (client.id == 0xFFFFFFFF) {
         client.Shutdown();
         return 0x88770154 + 1;
+    }
+    // (checked against the game joined, not only the one asked about before: -join and the old Join
+    // screen ask nothing first)
+#ifdef PLATFORM_ENET
+    if (client.hostEntry.multiModeFlags & MULTIMODEFLAG_COOP) {
+        stdPlatform_Printf("GNS: a classic host's co-op game: not joined\n");
+        client.Shutdown();
+        return 0x88770154 + 1;
+    }
+#endif
+    if (client.hostEntry.wPassword[0]) {
+        int bSame = 1;
+        for (int i = 0; i < 32; i++) {
+            const char16_t a = pwPassword ? pwPassword[i] : 0;
+            if (a != client.hostEntry.wPassword[i]) { bSame = 0; break; }
+            if (!a) break;
+        }
+        memset(client.hostEntry.wPassword, 0, sizeof(client.hostEntry.wPassword));
+        if (!bSame) {
+            stdPlatform_Printf("GNS: wrong password for this game\n");
+            client.Shutdown();
+            return 0x88770154;
+        }
     }
     stdComm_GNS_ResetClients();
     return 0;
