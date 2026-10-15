@@ -7,7 +7,7 @@
 #ifndef _PLATFORM_IOS_IOSGAME_H
 #define _PLATFORM_IOS_IOSGAME_H
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #ifdef __cplusplus
 extern "C" {
@@ -205,6 +205,6 @@ void iosGame_GetMouseLookDegrees(float* pTurn, float* pPitch);
 }
 #endif
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED
 
 #endif // _PLATFORM_IOS_IOSGAME_H

@@ -1,6 +1,6 @@
 #include "Platform/iOS/iosFreeze.h"
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include <math.h>
 #include <string.h>
@@ -444,4 +444,4 @@ void iosFreeze_GetState(float* pDist, float* pFov)
     if (pFov) *pFov = iosPhotoCam_GetFov();
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED

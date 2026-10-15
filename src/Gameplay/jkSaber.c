@@ -9,7 +9,7 @@
 #include "World/sithSurface.h"
 #include "Engine/sithPuppet.h"
 #include "Dss/sithMulti.h"
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 #include "Platform/iOS/iosSaber.h" // Added
 #endif
 #include "World/sithWeapon.h" // Added
@@ -99,18 +99,18 @@ void jkSaber_Draw(rdMatrix34 *posRotMat)
         }
 
         jkSaber_PolylineRand(&playerThings[playerThingIdx].polylineThing);
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
         iosSaber_BeginBlade(playerThings[playerThingIdx].actorThing, &playerThings[playerThingIdx].polylineThing, 0); // Added: in the player's colour
 #endif
         rdThing_Draw(&playerThings[playerThingIdx].polylineThing, &playerThings[playerThingIdx].povModel.paJointMatrices[5]); // aaaaa hardcoded K_Rhand
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
         iosSaber_EndBlade(&playerThings[playerThingIdx].polylineThing);
 #endif
         
         // Added: Dual sabers
         if (jkSaber_IsDual(playerThings[playerThingIdx].actorThing))
         {
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
             iosSaber_BeginBlade(playerThings[playerThingIdx].actorThing, &playerThings[playerThingIdx].polylineThing, 1); // Added
 #endif
             // Added: the first person model's left hand, by name (k_lhand, 2 in
@@ -128,7 +128,7 @@ void jkSaber_Draw(rdMatrix34 *posRotMat)
                 rdThing_Draw(&playerThings[playerThingIdx].polylineThing, &mirrorHand);
             else if (lhand >= 0 && lhand < pPov->numHNodes)
                 rdThing_Draw(&playerThings[playerThingIdx].polylineThing, &playerThings[playerThingIdx].povModel.paJointMatrices[lhand]); // K_Lhand
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
             iosSaber_EndBlade(&playerThings[playerThingIdx].polylineThing);
 #endif
         }
@@ -141,7 +141,7 @@ int jkSaber_IsDual(SithThing *pThing)
 {
     if (!pThing) return 0;
     if (pThing->jkFlags & JKFLAG_DUALSABERS) return 1;
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     if (iosSaber_HasSecondBlade(pThing)) return 1;
 #endif
     return 0;

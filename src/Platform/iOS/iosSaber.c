@@ -5,7 +5,7 @@
 #include "Platform/iOS/iosSaberThrow.h"
 #include "Primitives/rdModel3.h"
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include <stdlib.h>
 #include <string.h>
@@ -611,4 +611,4 @@ void iosSaber_PoseArms(rdThing* pRdThing)
     rdMatrix_PreRotate34(&pRdThing->paJointMatrices[a->aArmL[0]], &spread);
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED

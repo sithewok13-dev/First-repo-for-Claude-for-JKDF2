@@ -6,7 +6,7 @@
 // one with the HUD (everything the game draws), and that one again with the
 // touch overlay's buttons on top (added by iosPhotos, which saves them all).
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,6 +82,6 @@ void iosPhotos_SaveCapture(unsigned char* pClean, unsigned char* pHud, int w, in
 }
 #endif
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED
 
 #endif // _PLATFORM_IOS_IOSCAPTURE_H

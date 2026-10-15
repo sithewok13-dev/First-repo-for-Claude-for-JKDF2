@@ -21,7 +21,7 @@
 #ifndef _PLATFORM_IOS_IOSSABER_H
 #define _PLATFORM_IOS_IOSSABER_H
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #ifdef __cplusplus
 extern "C" {
@@ -92,6 +92,6 @@ void iosSaber_EndThrown(struct SithThing* pThing);
 }
 #endif
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED
 
 #endif // _PLATFORM_IOS_IOSSABER_H

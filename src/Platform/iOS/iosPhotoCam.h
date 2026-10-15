@@ -15,7 +15,7 @@
 // current; the hold stops the world update and the game clock, so nothing in
 // the level moves while the camera is up.
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 // (No engine headers: the touch overlay, UIKit code, includes this too)
 struct rdCamera;
@@ -72,6 +72,6 @@ float iosPhotoCam_ClearDist(struct SithSector* from, const struct rdVector3* a, 
 }
 #endif
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED
 
 #endif // _PLATFORM_IOS_IOSPHOTOCAM_H

@@ -10,7 +10,7 @@
 // game goes on. The touch overlay starts it, ticks it once per frame drawn
 // and hides its buttons while it runs; the Linux rig drives the same code.
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,6 +50,6 @@ int iosSelfieShots_NumTaken(void);
 }
 #endif
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED
 
 #endif // _PLATFORM_IOS_IOSSELFIESHOTS_H

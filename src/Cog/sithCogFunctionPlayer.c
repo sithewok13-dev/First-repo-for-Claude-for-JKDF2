@@ -6,7 +6,7 @@
 #include "World/sithWeapon.h"
 #include "World/sithActor.h"
 #include "Gameplay/sithInventory.h"
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 #include "Platform/iOS/iosGame.h" // Added
 #endif
 
@@ -519,7 +519,7 @@ void sithCogFunctionPlayer_DeactivateBin(sithCog *pCog)
         && player->actorParams.pPlayer)
     {
         cog_flex_t ret = sithInventory_DeactivateBin(player, pCog, binIdx);
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
         // Added: Force Jump's hold in the style chosen on the touch overlay (iosGame_ForceJumpHeld)
         if (binIdx == SITHBIN_F_JUMP && player == sithPlayer_g_pLocalPlayerThing && !sithNet_isMulti && ret >= 0.0)
             ret = iosGame_ForceJumpHeld((float)ret);

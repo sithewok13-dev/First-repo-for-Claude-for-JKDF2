@@ -1,7 +1,7 @@
 #ifndef _PLATFORM_IOS_IOSPHOTOS_H
 #define _PLATFORM_IOS_IOSPHOTOS_H
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,6 +20,6 @@ void iosPhotos_SetBatch(int bOn);
 }
 #endif
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED
 
 #endif // _PLATFORM_IOS_IOSPHOTOS_H

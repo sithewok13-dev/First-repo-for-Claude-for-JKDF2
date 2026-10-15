@@ -33,7 +33,7 @@
 #include "Platform/std3D.h"
 #include "Primitives/rdMath.h"
 #include "stdPlatform.h"
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 #include "Platform/iOS/iosSelfie.h" // Added
 #include "Platform/iOS/iosPhotoCam.h" // Added
 #include "Platform/iOS/iosFreeze.h" // Added
@@ -405,7 +405,7 @@ void sithRender_Draw()
         sithRender_bResetCameraAspect = 0;
     }
 #endif
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     // Added: the photo camera keeps its own lens (under water too)
     iosPhotoCam_SetLens(&sithCamera_g_pCurCamera->rdCamera);
 #endif
@@ -3004,7 +3004,7 @@ int sithRender_RenderThing(SithThing *pThing)
 {
     int ret;
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     // Added: a shot or blast frozen in front of a face in a selfie, or the
     // player's own body round the camera at the start of Action Freeze: left out
     if (SITHRENDER_PHOTO_LOOKING() && (iosSelfie_HidesThing(pThing) || iosFreeze_HidesThing(pThing))) // (0 unless one is up)
@@ -3053,11 +3053,11 @@ int sithRender_RenderThing(SithThing *pThing)
     }
 #endif
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     iosSaber_BeginThrown(pThing); // Added: a thrown saber in its colour
 #endif
     ret = rdThing_Draw(&pThing->renderData, &pThing->orient);
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     iosSaber_EndThrown(pThing);
 #endif
     rdVector_Zero3(&pThing->orient.scale);

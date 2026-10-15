@@ -19,7 +19,7 @@
 #include "Gui/jkGUITitle.h"
 #include "Dss/sithMulti.h"
 #include "../jk.h"
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 #include "Platform/iOS/iosGame.h" // Added
 #endif
 
@@ -91,7 +91,7 @@ int jkControl_HandleHudKeys(SithThing *player, flex_t b)
             if ( (player->flags & (SITH_TF_DEAD|SITH_TF_DESTROYED)) == 0 && sithThing_MotsTick(0xe,0,0.0)) // MOTS altered
             {
                 sithCamera_CycleCamera();
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
                 iosGame_ViewKeyCycled(); // Added: the camera key's pick kept (iosGame_ViewTick), and shown on VIEW
 #endif
                 //DAT_005b9254 = 2; // MOTS TODO

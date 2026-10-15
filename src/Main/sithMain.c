@@ -40,7 +40,7 @@
 #include "Devices/sithComm.h"
 #include "stdPlatform.h"
 #include "jk.h"
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 #include "Platform/iOS/iosPhotoCam.h" // Added
 #endif
 
@@ -472,7 +472,7 @@ void sithDrawScene()
 #if defined(TARGET_TWL)
             //}
 #endif
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
             // Added: the photo camera (iosPhotoCam) has a lens of its own
             iosPhotoCam_SetLens(&sithCamera_g_pCurCamera->rdCamera);
 #endif

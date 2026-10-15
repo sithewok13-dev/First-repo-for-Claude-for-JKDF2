@@ -39,10 +39,10 @@
 #include "General/stdJSON.h"
 #include "Platform/std3D.h"
 #include "Main/sithCvar.h"
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 #include "Platform/iOS/iosGame.h"
 #endif
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 #include "Platform/iOS/iosSelfie.h" // Added
 #include "Platform/iOS/iosPhotoCam.h" // Added
 #include "Platform/iOS/iosSaber.h" // Added
@@ -936,7 +936,7 @@ static rdModel3* jkPlayer_pPovEchoModel = NULL;
 static rdMatrix34 jkPlayer_povMirrorHand;
 static int jkPlayer_bPovMirrorHand = 0;
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 // Added: the two-saber style's resting stances (iosStance): where the right hand was last frame, in the
 // arm model's own space (what its stance turns it round), and whether there is one yet
 static rdVector3 jkPlayer_povStancePivot;
@@ -966,7 +966,7 @@ static int jkPlayer_PovStance(const rdMatrix34* pOrient, rdMatrix34* pOut)
 static void jkPlayer_DrawPovMirrored(rdMatrix34* pOrient, const rdMatrix34* pOrientR)
 {
     jkPlayer_bPovMirrorHand = 0;
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     SithThing* pActor = playerThings[playerThingIdx].actorThing;
     rdThing* pPov = &playerThings[playerThingIdx].povModel;
     if (!pActor || !(pActor->jkFlags & JKFLAG_SABERON) || !iosSaber_HasSecondBlade(pActor) || !pPov->model3 || !pPov->paJointMatrices)
@@ -1062,7 +1062,7 @@ void jkPlayer_DrawPov()
     if (!playerThings[playerThingIdx].povModel.model3)
         return;
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     // Added: while the touch overlay's force wheel holds the game, the weapon
     // in view doesn't animate or sway either
     int bHeld = iosGame_IsHolding();
@@ -1167,7 +1167,7 @@ void jkPlayer_DrawPov()
         
         //printf("pov in\n");
         //jkPlayer_checkPov = 1;
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
         // Added: two sabers: each arm in its resting stance (iosStance)
         rdMatrix34 orientR;
         jkPlayer_PovStance(&orient, &orientR);
@@ -1235,7 +1235,7 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
 
     rdMatrix34* primaryMat = &thing->renderData.paJointMatrices[primary_mesh];
     rdMatrix34* secondaryMat = bDual ? &thing->renderData.paJointMatrices[secondary_mesh] : primaryMat;
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     // Added: the player's second saber (iosSaber) has a hilt of its own
     const int bSecondHilt = bDual && iosSaber_HasSecondBlade(thing);
 #else

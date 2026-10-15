@@ -18,7 +18,7 @@
 // Not confirmed: an explosion's own fireball sprite (it was out of sight in
 // those tests), and anything on an iPhone.
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #ifdef __cplusplus
 extern "C" {
@@ -94,6 +94,6 @@ int iosFreeze_HidesThing(struct SithThing* pThing);
 }
 #endif
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED
 
 #endif // _PLATFORM_IOS_IOSFREEZE_H

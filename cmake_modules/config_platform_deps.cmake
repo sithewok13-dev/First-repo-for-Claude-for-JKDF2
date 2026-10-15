@@ -314,6 +314,15 @@ if(TARGET_IOS)
     # there -- assets are dropped into the app's Documents dir instead.
 endif()
 
+# Added: the enhanced gameplay (OPENJKDF2_ENHANCED) elsewhere than iOS (which
+# builds all of src/Platform/iOS): its portable part. (Its photos are saved as
+# PNG files by src/Platform/SDL2/enhPhotos_sdl.c.)
+if(OPENJKDF2_ENHANCED AND NOT TARGET_IOS)
+    foreach(ENH_NAME Capture Cinema Freeze Game PhotoCam Saber SaberThrow Selfie SelfieShots Stance)
+        list(APPEND ENGINE_SOURCE_FILES ${PROJECT_SOURCE_DIR}/src/Platform/iOS/ios${ENH_NAME}.c)
+    endforeach()
+endif()
+
 if(TARGET_MACOS)
     list(APPEND ENGINE_SOURCE_FILES ${PROJECT_SOURCE_DIR}/src/external/nativefiledialog-extended/nfd_cocoa.m)
     file(GLOB TARGET_MACOS_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/macOS/*.c)

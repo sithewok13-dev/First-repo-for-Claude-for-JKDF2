@@ -1,6 +1,6 @@
 #include "Platform/iOS/iosCinema.h"
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include <stdio.h>
 
@@ -527,4 +527,4 @@ void iosCinema_GetPlan(float* pRise, int* pSubject, float* pDist0, float* pDist1
     if (pbZoomOnly) *pbZoomOnly = iosCinema_bZoomOnly;
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED

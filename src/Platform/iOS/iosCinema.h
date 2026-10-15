@@ -10,7 +10,7 @@
 // between the photos (iosGame's hold), and they are only started if there
 // is room in the capture budget for all five.
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,6 +55,6 @@ void iosCinema_GetPlan(float* pRise, int* pSubject, float* pDist0, float* pDist1
 }
 #endif
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED
 
 #endif // _PLATFORM_IOS_IOSCINEMA_H

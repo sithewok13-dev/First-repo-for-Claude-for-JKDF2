@@ -1,6 +1,6 @@
 #include "Platform/iOS/iosSelfie.h"
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include <stdlib.h>
 #include <string.h>
@@ -1853,4 +1853,4 @@ int iosSelfie_IsActive(void)
     return iosSelfie_bActive;
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED

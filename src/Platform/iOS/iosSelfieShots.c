@@ -1,6 +1,6 @@
 #include "Platform/iOS/iosSelfieShots.h"
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include "Platform/iOS/iosSelfie.h"
 #include "Platform/iOS/iosCapture.h"
@@ -111,4 +111,4 @@ int iosSelfieShots_NumTaken(void)
     return iosSelfieShots_taken;
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED

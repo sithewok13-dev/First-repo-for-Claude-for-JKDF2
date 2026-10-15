@@ -24,7 +24,7 @@ static void jkDev_Custom_HostAddressTick(void); // Added
 #include "Main/jkMain.h"
 #include "Main/jkStrings.h"
 #include "Main/jkQuakeConsole.h"
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 #include "Platform/iOS/iosSaberThrow.h" // Added
 #include "Platform/iOS/iosGame.h" // Added
 #endif
@@ -279,7 +279,7 @@ void jkDev_DrawLog()
     // Added: sithewok's endless Force, after the tick and before the HUD draws the meter
     jkDev_Custom_KeepForceFull();
 #endif
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     iosSaberThrow_Tick(); // Added: two sabers' Saber Throw, once a frame
     iosGame_ViewTick(); // Added: the view the player picked (VIEW), kept
 #endif
@@ -1845,7 +1845,7 @@ static int jkDev_Custom_Within(flex_d_t since)
 
 static int jkDev_Custom_SaberOut()
 {
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     if ( iosSaberThrow_AnyOut() )
         return 1;
 #endif
@@ -1877,7 +1877,7 @@ int jkDev_Custom_SaberThrowCheck(SithThing *pThing, int typeId, SithInventoryIte
         return 1;
     if ( origAmt <= 0.0 )
         jkDev_saberAwaySecs = -1.0; // (back)
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     iosSaberThrow_SaberGiven();
 #endif
     return 0;
@@ -1888,7 +1888,7 @@ static void jkDev_Custom_SaberThrowForget()
 {
     jkDev_saberAwaySecs = -1.0;
     jkDev_saberRevokedSecs = -1.0;
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     iosSaberThrow_Reset();
 #endif
 }
@@ -1904,7 +1904,7 @@ static void jkDev_Custom_TakeCheatSaber(SithThing *pPlayer)
     // (thrown: when it comes back, it isn't given; and nothing of it out any more)
     if ( jkDev_Custom_SaberOut() )
         jkDev_saberRevokedSecs = sithTime_g_secGameTime;
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     iosSaberThrow_Reset();
 #endif
     jkDev_bTakingCheatSaber = 1;

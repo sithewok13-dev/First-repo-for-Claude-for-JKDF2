@@ -1,6 +1,6 @@
 // Added: entire file. See iosStance.h.
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include "Platform/iOS/iosStance.h"
 
@@ -705,4 +705,4 @@ flex_t iosStance_BladeWidth(int blade)
     return 1.0f + k;
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED

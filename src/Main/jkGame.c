@@ -25,7 +25,7 @@
 
 #include "stdPlatform.h"
 #include "jk.h"
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 #include "Platform/iOS/iosPhotoCam.h" // Added
 #endif
 
@@ -358,7 +358,7 @@ int jkGame_Update()
     stdDisplay_VBufferUnlock(pOverlayBuffer);
 #endif
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     // Added: nothing of the HUD (meters, crosshair, messages, items) over the
     // photo camera's view (the selfie, Action Freeze: iosPhotoCam)
     if (!iosPhotoCam_IsActive())

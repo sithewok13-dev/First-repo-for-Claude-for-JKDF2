@@ -1,6 +1,6 @@
 #include "Platform/iOS/iosCapture.h"
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include <stdlib.h>
 #include <string.h>
@@ -187,4 +187,4 @@ void iosCapture_AfterHud(void)
     iosCapture_Hand(pHud);
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED

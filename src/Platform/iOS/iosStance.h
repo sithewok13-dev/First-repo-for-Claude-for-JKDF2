@@ -14,7 +14,7 @@
 #ifndef _PLATFORM_IOS_IOSSTANCE_H
 #define _PLATFORM_IOS_IOSSTANCE_H
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include "types.h"
 
@@ -46,6 +46,6 @@ void iosStance_Reset(void);
 }
 #endif
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED
 
 #endif // _PLATFORM_IOS_IOSSTANCE_H

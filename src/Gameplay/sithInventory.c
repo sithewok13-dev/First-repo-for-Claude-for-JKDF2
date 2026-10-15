@@ -13,7 +13,7 @@
 #include "Main/Main.h"
 #include "General/stdString.h"
 #include "Main/jkDev.h"
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 #include "Platform/iOS/iosSaberThrow.h" // Added
 #endif
 
@@ -1275,7 +1275,7 @@ int sithInventory_HandleInvSkillKeys(SithThing *player, flex_t deltaSecs)
                     v15 = v1->actorParams.pPlayer;
                     v16 = player->actorParams.pPlayer->curPower;
                     sithInventory_bUnkPower = 1;
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
                     // Added: Saber Throw with two sabers, a saber a press (iosSaberThrow)
                     if ( Main_bMotsCompat && v16 == 37 && iosSaberThrow_Activate(v1) )
                         ;

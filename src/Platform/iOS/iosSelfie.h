@@ -9,7 +9,7 @@
 // it only changes what is drawn (facing, the frame of each animation, joint
 // bends), and only while it lasts.
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 // (No engine headers: the touch overlay, UIKit code, includes this too)
 struct rdThing;
@@ -84,6 +84,6 @@ void iosSelfie_SetPosePart(int pose, int part, float right, float forward, float
 }
 #endif
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED
 
 #endif // _PLATFORM_IOS_IOSSELFIE_H
