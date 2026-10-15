@@ -8,6 +8,7 @@
 #include "Enhanced/iosCinema.h"
 #include "Enhanced/iosFreeze.h"
 #include "Platform/platServices.h"
+#include "Enhanced/enhSettings.h"
 #include "SDL2_helper.h"
 
 double enh_Now(void)
@@ -32,6 +33,9 @@ void enh_Tick(void)
         iosFreeze_Frame();
     }
     platServices_Tick();
+#ifndef TARGET_IOS
+    enhSettings_Sync(); // (the choices kept as cvars; on iOS, by the touch overlay)
+#endif
 }
 
 #endif // JK_ENHANCED

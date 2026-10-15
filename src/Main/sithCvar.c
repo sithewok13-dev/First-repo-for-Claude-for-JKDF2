@@ -12,6 +12,7 @@
 #include <assert.h>
 #if !defined(_MSC_VER)
 #include <unistd.h>
+#include "Enhanced/enhSettings.h" // Added
 #endif
 
 static int sithCvar_numRegistered = 0;
@@ -33,6 +34,9 @@ int sithCvar_Startup()
 
     jkPlayer_StartupVars();
     stdUpdater_StartupCvars();
+#if defined(JK_ENHANCED) && !defined(TARGET_IOS)
+    enhSettings_StartupCvars(); // Added: the enhanced gameplay's choices (on iOS: the touch overlay's)
+#endif
 
     sithCvar_LoadGlobals();
 

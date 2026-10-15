@@ -19,7 +19,8 @@ double enh_Now(void);
 // Once a frame (Window_SdlUpdate, just after the touch overlay's update): the
 // several-photo selfie (iosSelfieShots), else the cinematic burst
 // (iosCinema), else Action Freeze's camera (iosFreeze_Frame), whichever is
-// going; then the platform's own (platServices_Tick)
+// going; then the platform's own (platServices_Tick); away from iOS, the
+// choices kept as cvars (enhSettings_Sync)
 void enh_Tick(void);
 
 #ifdef __cplusplus

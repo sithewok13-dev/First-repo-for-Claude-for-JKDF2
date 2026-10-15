@@ -51,6 +51,11 @@ void iosGame_SetForceJumpStyle(int style)
     if (style >= 0 && style < IOSGAME_JUMP_NUM_STYLES) iosGame_forceJumpStyle = style;
 }
 
+int iosGame_GetForceJumpStyle(void)
+{
+    return iosGame_forceJumpStyle;
+}
+
 int iosGame_GetForceJumpRank(void)
 {
     SithThing* pPlayer = iosGame_GetPlayer();

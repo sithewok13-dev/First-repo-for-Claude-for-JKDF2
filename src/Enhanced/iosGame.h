@@ -55,6 +55,7 @@ void iosGame_SelectPower(int bin);
 enum { IOSGAME_JUMP_SMOOTH = 0, IOSGAME_JUMP_STEPS, IOSGAME_JUMP_CLASSIC, IOSGAME_JUMP_NUM_STYLES };
 #define IOSGAME_JUMP_STEP_SECS 0.35f // (a star's hold, as the game's script has it)
 void iosGame_SetForceJumpStyle(int style);
+int iosGame_GetForceJumpStyle(void);
 // The local player's Force Jump stars (its bin's amount; 0: not learned)
 int iosGame_GetForceJumpRank(void);
 // For the game's script, as it ends a Force Jump (sithCogFunctionPlayer's
