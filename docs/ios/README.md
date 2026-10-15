@@ -25,6 +25,7 @@ Contents: [What this is](#what-this-is) ·
 [3. Copy the game files to your iPhone](#3-copy-the-game-files-to-your-iphone) ·
 [4. Play](#4-play) ·
 [Touch controls](#touch-controls) ·
+[Game controllers](#game-controllers) ·
 [The camera](#the-camera) ·
 [Tilt aiming](#tilt-aiming) ·
 [The Force wheel](#the-force-wheel) ·
@@ -405,6 +406,57 @@ tray closes after you pick FPS, CAMERA, CHEAT, VIEW or the keyboard, or when you
 touch anywhere else. That touch still counts: touching FIRE closes the tray
 and fires. Touching MENU again just closes it. If you slide off MENU while
 holding it, nothing happens.
+
+## Game controllers
+
+Xbox, PlayStation, Backbone-style and other controllers that work with iOS
+(pair them in the iPhone's Bluetooth settings, or clip the phone into a
+Backbone) play the whole game, menus included. As soon as you use one, the
+touch buttons disappear; touch the screen (that touch does nothing else) or
+switch the controller off and they come back.
+
+| Button | What it does |
+| --- | --- |
+| Left stick | Move |
+| Right stick | Look |
+| RT / R2 | Fire |
+| LT / L2 | Alt fire |
+| A / Cross | Jump |
+| B / Circle | Duck |
+| X / Square | Use (doors, switches) |
+| Y / Triangle | Use the Force power |
+| LB / L1 | Tap: next Force power. Hold: the Force wheel |
+| RB / R1 | Tap: next weapon. Hold: the weapon wheel |
+| D-pad left | The saber wheel (once you have the saber) |
+| D-pad up / right / down | Use item / next item / previous item |
+| L3 (press the left stick) | Run (press again, or stop moving, to walk) |
+| R3 (press the right stick) | First or third person |
+| Start / Options / Menu | Tap: the game menu. Hold: controller options |
+| Back / View / Share | Tap: the map. Hold: quick save |
+| Back + D-pad down, held | Quick load |
+
+- **The wheels:** hold LB or RB (or push the right stick while you press it)
+  and the wheel opens, as on the touch screen, and the game holds still. Point
+  the right stick at a power or weapon and let go of the button to pick it.
+  Point at the gap at the bottom, or press B, to cancel. If you open it without
+  pointing anywhere, it stays open: point and press A, or step round with the
+  D-pad. On the saber wheel, A sets the colour, X picks one saber or two, Y
+  which blade a colour goes to, and R3 takes the saber in hand.
+- **Quick save and quick load** need a short hold (a ring fills at the top of
+  the screen), so a stray press never saves or loads.
+- **Controller options** (hold Start): look speed across and up and down,
+  the stick's response (SMOOTH by default; LINEAR feels more direct, PRECISE
+  slower near the middle), invert look, turn acceleration (off by default),
+  vibration, the FPS readout, and the keyboard for cheats. Use the D-pad and A,
+  or tap them. They are remembered.
+- **Your own buttons:** Setup > Controls > Joystick changes any of them, with
+  the controller's own button names. Whatever you put on next/previous power
+  or weapon gets the wheel when held. D-pad left only opens the saber wheel
+  while nothing else is on it.
+- **Menus:** the D-pad or left stick moves, A picks, B goes back. On a text box
+  (a name, an address) A brings up the keyboard.
+- **Updating from an older version:** if you never changed the controller
+  buttons, you get this layout. If you did, yours are kept.
 
 ## The camera
 
