@@ -11,6 +11,7 @@
 #include "World/sithWorld.h"
 #include "Enhanced/iosGame.h"
 #include "Platform/platServices.h"
+#include "Enhanced/enhTick.h"
 
 extern GLint std3D_windowFbo;
 
@@ -22,11 +23,10 @@ static unsigned char* iosCapture_pClean = NULL;
 static int iosCapture_w = 0, iosCapture_h = 0;
 static iosCaptureStats iosCapture_stats;
 
+// (seconds, steady: only differences are used -- enh_Now, which MSVC has too)
 static double iosCapture_Now(void)
 {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+    return enh_Now();
 }
 
 // One full-screen image now (the window's size)

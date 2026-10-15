@@ -12,8 +12,8 @@
 #include <assert.h>
 #if !defined(_MSC_VER)
 #include <unistd.h>
-#include "Enhanced/enhSettings.h" // Added
 #endif
+#include "Enhanced/enhSettings.h" // Added
 
 static int sithCvar_numRegistered = 0;
 static tHashTable* sithCvar_pHashTable = NULL;
