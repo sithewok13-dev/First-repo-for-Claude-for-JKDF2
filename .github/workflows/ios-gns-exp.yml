@@ -131,11 +131,15 @@ jobs:
           cp -R OpenJKDF2-iOS.app Payload/
           zip -qry OpenJKDF2-iOS-GNS-unsigned.ipa Payload
           ls -la OpenJKDF2-iOS-GNS-unsigned.ipa
+          # (no game data in it)
+          unzip -l OpenJKDF2-iOS-GNS-unsigned.ipa > ipa-files.txt
+          if grep -i -E '\.(gob|goo|jkl|cog)$|/episode/' ipa-files.txt; then echo "::error::game data in the IPA"; exit 1; fi
           plutil -p Payload/OpenJKDF2-iOS.app/Info.plist | grep -E 'CFBundleIdentifier|CFBundleExecutable|MinimumOSVersion'
           {
             echo "### With GNS"
             echo '```'
             echo "binary: $(stat -f %z OpenJKDF2-iOS.app/openjkdf2-ios) bytes"
+            echo "GNS symbols in the binary: $(grep -c -E 'SteamNetworkingSockets_LibV12|GameNetworkingSockets_Init|stdComm_GNS_transport' syms.txt)"
             echo "ipa:    $(stat -f %z OpenJKDF2-iOS-GNS-unsigned.ipa) bytes"
             size -m OpenJKDF2-iOS.app/openjkdf2-ios | grep -E '^Segment __(TEXT|DATA|DATA_CONST)' || true
             ls -l gns-prebuilt/lib/*.a
@@ -208,3 +212,22 @@ jobs:
         with:
           name: size-baseline
           path: size-baseline.md
+
+  # The two size reports side by side, in a short log of their own
+  report:
+    needs: [gns, baseline]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the size reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: size-*
+          merge-multiple: true
+      - name: Size report
+        run: |
+          cat size-gns.md size-baseline.md
+          G=$(sed -n 's/^binary: \([0-9]*\) bytes/\1/p' size-gns.md)
+          B=$(sed -n 's/^binary: \([0-9]*\) bytes/\1/p' size-baseline.md)
+          GI=$(sed -n 's/^ipa: *\([0-9]*\) bytes/\1/p' size-gns.md)
+          BI=$(sed -n 's/^ipa: *\([0-9]*\) bytes/\1/p' size-baseline.md)
+          echo "GNS adds: binary $((G - B)) bytes, ipa $((GI - BI)) bytes" | tee -a "$GITHUB_STEP_SUMMARY"
