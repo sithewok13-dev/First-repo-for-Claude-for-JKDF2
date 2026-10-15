@@ -15,9 +15,10 @@
 # Signing: the .apk is a debug build. Android only installs an update over the
 # app when both are signed with the same key, so the key is kept between runs:
 # from the ANDROID_DEBUG_KEYSTORE_B64 secret if the repository has one (a
-# base64 debug.keystore), otherwise from this workflow's cache (made on the
-# first run; GitHub drops a cache unused for 7 days, and then the next build
-# needs an uninstall first).
+# base64 debug.keystore; how to make one: docs/android/README.md), otherwise
+# from this workflow's cache (made on the first run; GitHub drops a cache
+# unused for 7 days, and then the next build has a new key). The secret's key
+# never goes into the cache.
 
 name: Android APK experiment
 
@@ -42,6 +43,7 @@ jobs:
       BUILD_DIR: ${{ github.workspace }}/build_android_aarch64
       NDK_VERSION: 27.2.12479018
       APK_NAME: OpenJKDF2-Enhanced-android-arm64
+      HAS_KEY_SECRET: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -70,14 +72,16 @@ jobs:
           echo "ANDROID_NDK_HOME=$SDK/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
           echo "LLVM_BIN=$SDK/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_ENV"
 
-      - name: Signing key (restore)
-        id: keycache
-        uses: actions/cache@v4
+      # The cache only ever holds a key made here, never the secret's: with the
+      # secret set, the cache is neither read nor written.
+      - name: Signing key (restore from the cache)
+        if: env.HAS_KEY_SECRET != 'true'
+        uses: actions/cache/restore@v4
         with:
           path: ~/.android/debug.keystore
           key: android-exp-debug-keystore-v1
 
-      - name: Signing key (secret, or make one)
+      - name: Signing key (secret, cache, or make one)
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}
         run: |
@@ -91,8 +95,17 @@ jobs:
             keytool -genkeypair -keystore ~/.android/debug.keystore -storepass android \
               -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
               -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-            echo "Signing key: new (kept in the cache for the next runs)"
+            echo "::warning title=signing key::A new signing key was made: this build won't install over an older one (see docs/android/README.md)"
           fi
+
+      - name: Signing key (save to the cache)
+        if: env.HAS_KEY_SECRET != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-exp-debug-keystore-v1
+        # (a key already cached under this name is kept as it is)
+        continue-on-error: true
 
       - name: Configure (CMake, Android arm64)
         run: |
