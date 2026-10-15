@@ -112,11 +112,12 @@ jobs:
 
       - name: Build the engine (libopenjkdf2-armv8a.so)
         run: |
-          # Upstream builds this with -j1 (twice); try in parallel first
+          # Upstream builds this with -j1 (twice). In parallel here; a second go
+          # with -k, so a failure lists every file that doesn't compile
           make -C "$BUILD_DIR" -j"$(nproc)" openjkdf2-armv8a > "$RUNNER_TEMP/make.log" 2>&1 \
-            || make -C "$BUILD_DIR" -j1 openjkdf2-armv8a > "$RUNNER_TEMP/make.log" 2>&1 \
+            || make -C "$BUILD_DIR" -k -j"$(nproc)" openjkdf2-armv8a > "$RUNNER_TEMP/make.log" 2>&1 \
             || { grep -n -E "error|Error" "$RUNNER_TEMP/make.log" | head -60; tail -40 "$RUNNER_TEMP/make.log"
-                 grep -E "error:|Error " "$RUNNER_TEMP/make.log" | head -12 | sed 's/^/::error title=make::/'; exit 1; }
+                 grep -E "error:" "$RUNNER_TEMP/make.log" | sort -u | head -20 | sed 's/^/::error title=make::/'; exit 1; }
           grep -c "warning:" "$RUNNER_TEMP/make.log" | sed 's/^/compiler warnings: /'
           # Multiplayer over ENet is in (not the no-networking stubs upstream Android has)
           find "$BUILD_DIR" -name 'stdComm_ENet.c.o' | grep -q . || { echo "ENet not built"; exit 1; }
