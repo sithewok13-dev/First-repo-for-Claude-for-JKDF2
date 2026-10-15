@@ -29,12 +29,12 @@ extern "C" {
 #define IOSSELFIESHOTS_SHOWING 2   // the last photo, on screen a moment
 
 // Starts a selfie of numShots photos (clamped to 1..IOSSELFIESHOTS_MAX), at
-// now (seconds, any steady clock). *pNumPeople: who is in it besides the
+// now (seconds: enh_Now, the clock enh_Tick runs it on). *pNumPeople: who is in it besides the
 // player.
 int iosSelfieShots_Start(int numShots, double now, int* pNumPeople);
 
-// Once per frame drawn, before it is drawn. Returns what it is doing; IDLE
-// once all is put back (or it gave up).
+// Once per frame drawn, before it is drawn (enh_Tick, with enh_Now). Returns
+// what it is doing; IDLE once all is put back (or it gave up).
 int iosSelfieShots_Tick(double now);
 
 // Ends it at once, everything put back (the app going to the background, a
@@ -42,6 +42,7 @@ int iosSelfieShots_Tick(double now);
 void iosSelfieShots_Stop(void);
 
 int iosSelfieShots_IsActive(void);
+int iosSelfieShots_GetState(void); // (IOSSELFIESHOTS_IDLE, _TAKING, _SHOWING)
 
 // Photos taken so far in this one (the overlay's counter)
 int iosSelfieShots_NumTaken(void);

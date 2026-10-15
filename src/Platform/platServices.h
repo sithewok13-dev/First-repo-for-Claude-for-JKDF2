@@ -41,6 +41,18 @@ int platServices_GetTopTextRect(int videoW, int videoH, int* pX, int* pY, int* p
 // Whether the game is played by touch (on-screen controls).
 int platServices_IsTouchDevice(void);
 
+// A photo mode that went on by itself (enh_Tick) has ended: the several-photo
+// selfie or the cinematic burst, all its photos taken (or given up on). What
+// started it puts back what it hid (iOS: the touch overlay's buttons).
+#define PLATSERVICES_MODE_SELFIE 1
+#define PLATSERVICES_MODE_CINEMA 2
+void platServices_PhotoModeEnded(int mode);
+
+// Once a frame (from enh_Tick): what the platform finishes on the game's
+// thread (the desktop's photos, written on a thread of their own, handed back
+// to the capture as saved).
+void platServices_Tick(void);
+
 #ifdef __cplusplus
 }
 #endif

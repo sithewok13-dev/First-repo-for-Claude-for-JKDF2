@@ -23,6 +23,8 @@
 #include "Platform/iOS/iosFreeze.h"
 #include "Platform/iOS/iosCinema.h"
 #include "Platform/iOS/iosSaber.h"
+#include "Enhanced/enhTick.h"
+#include "Platform/platServices.h"
 #include "Platform/iOS/iosPad.h"
 #include "Platform/iOS/iosPadPanel.h"
 
@@ -3024,7 +3026,7 @@ static int iosTouch_SaberBlade(void)
     // selfie up)
     [self endBurst];
     int numPeople = 0;
-    const int r = iosSelfieShots_Start(iosTouch_selfieShots, CACurrentMediaTime(), &numPeople);
+    const int r = iosSelfieShots_Start(iosTouch_selfieShots, enh_Now(), &numPeople);
     if (r != IOSSELFIESHOTS_STARTED) {
         iosGame_ShowMessage(r == IOSSELFIESHOTS_BUSY ? "Still saving the last photo" : "Can't take a selfie here");
         return;
@@ -3161,7 +3163,7 @@ static int iosTouch_SaberBlade(void)
     }
     if (a[IOSTOUCH_FZ_PANX] != 0 || a[IOSTOUCH_FZ_PANY] != 0) iosFreeze_Pan(a[IOSTOUCH_FZ_PANX], a[IOSTOUCH_FZ_PANY]);
     if (a[IOSTOUCH_FZ_ZOOM] != 0) iosFreeze_Zoom(expf(a[IOSTOUCH_FZ_ZOOM]));
-    iosFreeze_Frame();
+    // (then the engine's enh_Tick, this same frame: iosFreeze_Frame)
 }
 
 // The cinematic burst (CAMERA slid up, with FREEZE on): the action frozen,
@@ -3171,7 +3173,7 @@ static int iosTouch_SaberBlade(void)
 {
     if (iosTouch_bCinema || iosTouch_bFreezing || iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE) return;
     [self endBurst]; // (its waiting capture would hold it up)
-    const int r = iosCinema_Start(CACurrentMediaTime());
+    const int r = iosCinema_Start(enh_Now());
     if (r != IOSCINEMA_STARTED) {
         iosGame_ShowMessage(r == IOSCINEMA_BUSY ? "Still saving the last photo" : "Can't freeze here");
         return;
@@ -3204,8 +3206,9 @@ static int iosTouch_SaberBlade(void)
 - (void)tickSelfie:(CFTimeInterval)now
 {
     if (iosTouch_selfieStage == IOSTOUCH_SELFIE_NONE) return;
-    // (all put back by it once the last photo has been shown, or it gave up)
-    if (iosSelfieShots_Tick(now) == IOSSELFIESHOTS_IDLE) [self endSelfie];
+    // (the engine runs it, enh_Tick, just after this, and says when it is
+    // over: iosTouch_PhotoModeEnded; this only if that was missed)
+    if (!iosSelfieShots_IsActive()) [self endSelfie];
 }
 
 // Everything as it was; the game goes on
@@ -4451,7 +4454,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     }
     // ...or the cinematic burst...
     if (iosTouch_bCinema) {
-        if (iosCinema_Tick(now) == IOSCINEMA_IDLE) [self endCinema];
+        if (!iosCinema_IsActive()) [self endCinema]; // (run by enh_Tick, as a selfie)
         return;
     }
     // ...or Action Freeze (its camera moves with the touches themselves)
@@ -5039,6 +5042,16 @@ static void iosTouch_UpdateInPool(void)
         iosTouch_lookY -= (float)dy;
         Window_lastXRel += dx;
         Window_lastYRel += dy;
+    }
+}
+
+// platServices_PhotoModeEnded: a selfie or the cinematic burst, run by the
+// engine (enh_Tick, just after iosTouch_Update), is over: all put back
+void iosTouch_PhotoModeEnded(int mode)
+{
+    @autoreleasepool {
+        if (mode == PLATSERVICES_MODE_SELFIE) [iosTouch_pOverlay endSelfie];
+        else if (mode == PLATSERVICES_MODE_CINEMA) [iosTouch_pOverlay endCinema];
     }
 }
 

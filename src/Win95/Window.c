@@ -831,6 +831,11 @@ void Window_SdlUpdate()
     // Added: show/hide the touch overlay and pass on its look movement
     iosTouch_Update();
 #endif
+#ifdef JK_ENHANCED
+    // Added: the enhanced gameplay's photo modes go on (Enhanced/enhTick.h)
+    extern void enh_Tick(void);
+    enh_Tick();
+#endif
 
     while (SDL_PollEvent(&event))
     {

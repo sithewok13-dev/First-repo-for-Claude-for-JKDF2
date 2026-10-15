@@ -52,4 +52,17 @@ int platServices_IsTouchDevice(void)
     return 1;
 }
 
+// (iosTouch.m: the overlay ends its selfie or burst, putting its buttons back)
+void iosTouch_PhotoModeEnded(int mode);
+
+void platServices_PhotoModeEnded(int mode)
+{
+    iosTouch_PhotoModeEnded(mode);
+}
+
+void platServices_Tick(void)
+{
+    // (the photos are saved and reported by iosPhotos itself, on the main queue)
+}
+
 #endif // TARGET_IOS

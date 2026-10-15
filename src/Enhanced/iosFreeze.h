@@ -71,7 +71,8 @@ void iosFreeze_SetInsideMe(int bInside);
 
 // Moved by a finger (the touch overlay): the camera glides back out from a
 // wall rather than jumping (off by default: the cinematic burst's photos go
-// exactly where they are put). And once per frame drawn, to carry that on.
+// exactly where they are put). And once per frame drawn, to carry that on
+// (enh_Tick, after the frame's moves).
 void iosFreeze_SetSmooth(int bSmooth);
 void iosFreeze_Frame(void);
 

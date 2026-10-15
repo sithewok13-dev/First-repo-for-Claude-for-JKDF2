@@ -1,7 +1,9 @@
 // Added: entire file. The platform services (Platform/platServices.h) away
 // from iOS: the photos (the CAMERA button, selfies, the cinematic burst) as
 // PNG files in the user's Pictures folder, in OpenJKDF2/, named as the iOS
-// apps name them; no haptics; no HUD margins; the game's own message text.
+// apps name them, written on a thread of their own (one at a time, in order)
+// and handed back to the capture once a frame (platServices_Tick); no
+// haptics; no HUD margins; the game's own message text.
 
 #if defined(JK_ENHANCED) && !defined(TARGET_IOS)
 
@@ -94,11 +96,82 @@ static int platServices_WritePng(const char* name, const unsigned char* p, int w
 #endif
 }
 
-// What was saved, once a capture (or a whole batch) is
+// One capture to write: its images (malloc'd, freed once written) and names
+typedef struct platServicesJob
+{
+    unsigned char* aImg[2];
+    char aName[2][128];
+    int w, h;
+    int numFailed;   // (photos asked for and not taken: counted with the rest)
+    int numSaved;
+    long bytes;      // (held against the capture budget until handed back)
+    uint64_t t0;
+    struct platServicesJob* pNext;
+} platServicesJob;
+
+static SDL_Mutex* platServices_pLock = NULL;
+static SDL_Condition* platServices_pWake = NULL;
+static SDL_Thread* platServices_pThread = NULL;
+static platServicesJob* platServices_pTodo = NULL;  // (oldest first)
+static platServicesJob* platServices_pDone = NULL;  // (oldest first)
+static int platServices_numPending = 0;             // handed over, not handed back yet
+static int platServices_bWriting = 0;               // (the thread is writing one)
+
+static void platServices_Append(platServicesJob** ppList, platServicesJob* pJob)
+{
+    pJob->pNext = NULL;
+    while (*ppList) ppList = &(*ppList)->pNext;
+    *ppList = pJob;
+}
+
+static void platServices_Write(platServicesJob* pJob)
+{
+    for (int i = 0; i < 2; i++) {
+        if (!pJob->aName[i][0]) continue;
+        if (pJob->aImg[i] && platServices_WritePng(pJob->aName[i], pJob->aImg[i], pJob->w, pJob->h)) pJob->numSaved++;
+        else pJob->numFailed++;
+        free(pJob->aImg[i]);
+        pJob->aImg[i] = NULL;
+    }
+}
+
+static int SDLCALL platServices_Worker(void* unused)
+{
+    (void)unused;
+    for (;;) {
+        SDL_LockMutex(platServices_pLock);
+        while (!platServices_pTodo) SDL_WaitCondition(platServices_pWake, platServices_pLock);
+        platServicesJob* pJob = platServices_pTodo;
+        platServices_pTodo = pJob->pNext;
+        platServices_bWriting = 1;
+        SDL_UnlockMutex(platServices_pLock);
+        platServices_Write(pJob);
+        SDL_LockMutex(platServices_pLock);
+        platServices_Append(&platServices_pDone, pJob);
+        platServices_bWriting = 0;
+        SDL_UnlockMutex(platServices_pLock);
+    }
+    return 0;
+}
+
+// At exit: the photos already taken are written before the game goes (at
+// most some seconds)
+static void platServices_FinishWriting(void)
+{
+    for (int i = 0; i < 200; i++) {
+        SDL_LockMutex(platServices_pLock);
+        const int bBusy = platServices_pTodo || platServices_bWriting;
+        SDL_UnlockMutex(platServices_pLock);
+        if (!bBusy) return;
+        SDL_Delay(50);
+    }
+}
+
+// What was saved, once the last capture handed over is (with a batch: at its end)
 static void platServices_Report(void)
 {
     char msg[128];
-    if (platServices_bBatch || (!platServices_numSaved && !platServices_numFailed)) return;
+    if (platServices_bBatch || platServices_numPending > 0 || (!platServices_numSaved && !platServices_numFailed)) return;
     int n = 0;
     msg[0] = 0;
     if (platServices_numSaved)
@@ -110,6 +183,30 @@ static void platServices_Report(void)
     platServices_numSaved = platServices_numFailed = 0;
 }
 
+// A capture written: counted, and its images' memory given back to the capture
+static void platServices_Finish(platServicesJob* pJob)
+{
+    platServices_numSaved += pJob->numSaved;
+    platServices_numFailed += pJob->numFailed;
+    if (platServices_numPending > 0) platServices_numPending--;
+    iosCapture_Done(pJob->bytes, (double)(SDL_GetTicksNS() - pJob->t0) * 1e-9);
+    free(pJob);
+    platServices_Report();
+}
+
+void platServices_Tick(void)
+{
+    if (!platServices_pLock) return;
+    for (;;) {
+        SDL_LockMutex(platServices_pLock);
+        platServicesJob* pJob = platServices_pDone;
+        if (pJob) platServices_pDone = pJob->pNext;
+        SDL_UnlockMutex(platServices_pLock);
+        if (!pJob) break;
+        platServices_Finish(pJob);
+    }
+}
+
 void platServices_SetPhotoBatch(int bOn)
 {
     platServices_bBatch = bOn != 0;
@@ -119,31 +216,63 @@ void platServices_SetPhotoBatch(int bOn)
 
 void platServices_SavePhotos(unsigned char* pClean, unsigned char* pHud, int w, int h, int kinds, int mode)
 {
-    const long bytes = (long)w * h * 4 * ((pClean ? 1 : 0) + (pHud ? 1 : 0));
-    char base[96], name[128];
+    platServicesJob* pJob = (platServicesJob*)calloc(1, sizeof(platServicesJob));
+    if (!pJob) {
+        free(pClean);
+        free(pHud);
+        iosCapture_Done((long)w * h * 4 * ((pClean ? 1 : 0) + (pHud ? 1 : 0)), 0.0);
+        return;
+    }
+    pJob->bytes = (long)w * h * 4 * ((pClean ? 1 : 0) + (pHud ? 1 : 0));
+    pJob->w = w;
+    pJob->h = h;
+    pJob->t0 = SDL_GetTicksNS();
+    platServices_PhotoDir(); // (found here, on the game's thread)
+    char base[96];
     platServices_BaseName(base, sizeof(base));
     // (numbered: each shot of a burst, each of several selfies)
-    const int bNumbered = mode == IOSCAPTURE_MODE_BURST || (mode == IOSCAPTURE_MODE_SELFIE && platServices_bBatch);
-    if (mode == IOSCAPTURE_MODE_BURST)
-        snprintf(name, sizeof(name), "%s burst %02d", base, ++platServices_batchShot);
-    else if (bNumbered)
-        snprintf(name, sizeof(name), "%s selfie %d", base, ++platServices_batchShot);
     if (kinds & IOSCAPTURE_CLEAN) {
-        if (!bNumbered)
-            snprintf(name, sizeof(name), "%s %s", base, mode == IOSCAPTURE_MODE_SELFIE ? "selfie" : "clean");
-        if (pClean && platServices_WritePng(name, pClean, w, h)) platServices_numSaved++;
-        else platServices_numFailed++;
+        if (mode == IOSCAPTURE_MODE_BURST)
+            snprintf(pJob->aName[0], sizeof(pJob->aName[0]), "%s burst %02d", base, ++platServices_batchShot);
+        else if (mode == IOSCAPTURE_MODE_SELFIE && platServices_bBatch)
+            snprintf(pJob->aName[0], sizeof(pJob->aName[0]), "%s selfie %d", base, ++platServices_batchShot);
+        else
+            snprintf(pJob->aName[0], sizeof(pJob->aName[0]), "%s %s", base, mode == IOSCAPTURE_MODE_SELFIE ? "selfie" : "clean");
+        pJob->aImg[0] = pClean;
+        pClean = NULL;
     }
     // (no on-screen buttons here: the HUD photo stands for both)
     if (kinds & (IOSCAPTURE_HUD | IOSCAPTURE_HUDBTNS)) {
-        snprintf(name, sizeof(name), "%s hud", base);
-        if (pHud && platServices_WritePng(name, pHud, w, h)) platServices_numSaved++;
-        else platServices_numFailed++;
+        snprintf(pJob->aName[1], sizeof(pJob->aName[1]), "%s hud", base);
+        pJob->aImg[1] = pHud;
+        pHud = NULL;
     }
-    free(pClean);
+    free(pClean); // (taken but not asked for)
     free(pHud);
-    iosCapture_Done(bytes, 0.0);
-    platServices_Report();
+    platServices_numPending++;
+    if (!platServices_pLock) {
+        platServices_pLock = SDL_CreateMutex();
+        platServices_pWake = SDL_CreateCondition();
+        if (platServices_pLock && platServices_pWake)
+            platServices_pThread = SDL_CreateThread(platServices_Worker, "photos", NULL);
+        if (platServices_pThread)
+            atexit(platServices_FinishWriting);
+    }
+    if (!platServices_pThread) {
+        // (no thread: written here, now)
+        platServices_Write(pJob);
+        platServices_Finish(pJob);
+        return;
+    }
+    SDL_LockMutex(platServices_pLock);
+    platServices_Append(&platServices_pTodo, pJob);
+    SDL_SignalCondition(platServices_pWake);
+    SDL_UnlockMutex(platServices_pLock);
+}
+
+void platServices_PhotoModeEnded(int mode)
+{
+    (void)mode;
 }
 
 void platServices_Haptic(int kind)

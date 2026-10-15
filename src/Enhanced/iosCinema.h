@@ -30,13 +30,15 @@ extern "C" {
 
 int iosCinema_Start(double now);
 
-// Once per frame drawn, before it is drawn; IDLE once the game goes on.
+// Once per frame drawn, before it is drawn (enh_Tick, with enh_Now); IDLE
+// once the game goes on.
 int iosCinema_Tick(double now);
 
 // Ends it at once, the game going on. Safe to call when idle.
 void iosCinema_Stop(void);
 
 int iosCinema_IsActive(void);
+int iosCinema_GetState(void); // (IOSCINEMA_IDLE, _TAKING, _SHOWING)
 int iosCinema_NumTaken(void);
 
 // The arc chosen (degrees round, and which way: +1 or -1), for the rig

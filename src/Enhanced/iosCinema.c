@@ -507,6 +507,11 @@ int iosCinema_IsActive(void)
     return iosCinema_state != IOSCINEMA_IDLE;
 }
 
+int iosCinema_GetState(void)
+{
+    return iosCinema_state;
+}
+
 int iosCinema_NumTaken(void)
 {
     return iosCinema_taken;

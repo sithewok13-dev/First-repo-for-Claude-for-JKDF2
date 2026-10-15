@@ -106,6 +106,11 @@ int iosSelfieShots_IsActive(void)
     return iosSelfieShots_state != IOSSELFIESHOTS_IDLE;
 }
 
+int iosSelfieShots_GetState(void)
+{
+    return iosSelfieShots_state;
+}
+
 int iosSelfieShots_NumTaken(void)
 {
     return iosSelfieShots_taken;
