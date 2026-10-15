@@ -16,7 +16,7 @@
 // The cvars' own copies (linked)
 static char enhSettings_saberStyle[SITHCVAR_MAX_STRLEN];
 static char enhSettings_aColour[3][SITHCVAR_MAX_STRLEN]; // single; dual right, left
-static int32_t enhSettings_jumpStyle = IOSGAME_JUMP_STEPS;
+static int32_t enhSettings_jumpStyle = IOSGAME_JUMP_CLASSIC; // (the desktops' own jump, as before; iOS: STEPS)
 static int32_t enhSettings_bThirdPerson = 0;
 
 static const char* enhSettings_aColourName[3] = { "enh_saberColourSingle", "enh_saberColourDualRight", "enh_saberColourDualLeft" };
@@ -42,7 +42,7 @@ void enhSettings_StartupCvars(void)
     sithCvar_RegisterStr("enh_saberStyle", "SINGLE", enhSettings_saberStyle, CVARFLAG_GLOBAL);
     for (int i = 0; i < 3; i++)
         sithCvar_RegisterStr(enhSettings_aColourName[i], "game", enhSettings_aColour[i], CVARFLAG_GLOBAL);
-    sithCvar_RegisterInt("enh_forceJumpStyle", IOSGAME_JUMP_STEPS, &enhSettings_jumpStyle, CVARFLAG_GLOBAL);
+    sithCvar_RegisterInt("enh_forceJumpStyle", IOSGAME_JUMP_CLASSIC, &enhSettings_jumpStyle, CVARFLAG_GLOBAL);
     sithCvar_RegisterBool("enh_thirdPerson", 0, &enhSettings_bThirdPerson, CVARFLAG_GLOBAL);
 }
 
@@ -56,7 +56,7 @@ static void enhSettings_FromCvars(enhSettingsState* p)
         const int id = iosSaber_ColourByKey(enhSettings_aColour[i]);
         p->aColour[i] = id >= 0 ? id : IOSSABER_COLOUR_GAME;
     }
-    p->jumpStyle = (enhSettings_jumpStyle >= 0 && enhSettings_jumpStyle < IOSGAME_JUMP_NUM_STYLES) ? enhSettings_jumpStyle : IOSGAME_JUMP_STEPS;
+    p->jumpStyle = (enhSettings_jumpStyle >= 0 && enhSettings_jumpStyle < IOSGAME_JUMP_NUM_STYLES) ? enhSettings_jumpStyle : IOSGAME_JUMP_CLASSIC;
     p->bThirdPerson = enhSettings_bThirdPerson ? 1 : 0;
 }
 
