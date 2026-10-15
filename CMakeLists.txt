@@ -55,6 +55,13 @@ set(TARGET_USE_ENET FALSE)
 # GameNetworkingSockets, on every platform, so that desktop builds and the iOS
 # apps play together; -DOPENJKDF2_NET_ENET=OFF goes back to each platform's own
 option(OPENJKDF2_NET_ENET "Multiplayer over ENet (as on iOS)" ON)
+# Added: and GameNetworkingSockets too (OPENJKDF2_NET_GNS), for joining games hosted by upstream
+# OpenJKDF2 builds (src/Platform/Networking/stdCommTransport.h). Desktops build GNS from its Git
+# module and load it at run time, as upstream does; OPENJKDF2_GNS_PREBUILT=<prefix> links one built
+# by packaging/ios/build_gns_deps.sh into the program instead (the only way on iOS, where setting it
+# is what turns GNS on).
+option(OPENJKDF2_NET_GNS "Also join upstream OpenJKDF2 games (GameNetworkingSockets, next to ENet)" OFF)
+set(OPENJKDF2_GNS_PREBUILT "" CACHE PATH "GameNetworkingSockets built by packaging/ios/build_gns_deps.sh: linked in")
 set(TARGET_USE_LIBSMACKER FALSE)
 set(TARGET_USE_LIBSMUSHER FALSE)
 set(TARGET_USE_SDL2 FALSE)
@@ -171,8 +178,11 @@ plat_initialize()
 # (where the platform had networking already, GameNetworkingSockets, and on every desktop, whose
 # builds may leave that out: CI builds, MSVC; iOS sets ENet itself)
 if(OPENJKDF2_NET_ENET AND (TARGET_USE_GAMENETWORKINGSOCKETS OR PLAT_LINUX_32 OR PLAT_LINUX_64 OR PLAT_MACOS OR PLAT_MACOS_X86_64 OR PLAT_MINGW_X86_64 OR PLAT_MINGW_X86_32 OR PLAT_MSVC))
-    set(TARGET_USE_GAMENETWORKINGSOCKETS FALSE)
+    set(TARGET_USE_GAMENETWORKINGSOCKETS ${OPENJKDF2_NET_GNS})
     set(TARGET_USE_ENET TRUE)
+endif()
+if(TARGET_IOS AND OPENJKDF2_GNS_PREBUILT)
+    set(TARGET_USE_GAMENETWORKINGSOCKETS TRUE)
 endif()
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -302,6 +312,10 @@ add_dependencies(sith_engine generate_globals)
 # Added: Bonjour's library, where it isn't the system's own (stdComm_ENetDiscover.c)
 if(TARGET_ENET_DNSSD_LIB)
     target_link_libraries(sith_engine PRIVATE ${TARGET_ENET_DNSSD_LIB})
+endif()
+# Added: GameNetworkingSockets linked in (OPENJKDF2_GNS_PREBUILT)
+if(TARGET openjkdf2_gns_static)
+    target_link_libraries(sith_engine PRIVATE openjkdf2_gns_static)
 endif()
 plat_specific_deps()
 

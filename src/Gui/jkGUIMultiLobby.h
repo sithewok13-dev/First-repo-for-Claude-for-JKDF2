@@ -8,8 +8,9 @@
 // - Join Game: the games on this Wi-Fi, found by themselves (stdComm_ENetDiscover); the hosts
 //   played with before (each checked: found, or not answering); and an address to type. A tap
 //   joins. A host found nearby comes first: a saved address that has since changed is shown as
-//   the game found, not as a stale address. Joining asks first (stdComm_ENet_ProbeAddress), so a
-//   wrong address, no game there, a full game, and a password are each told apart.
+//   the game found, not as a stale address. Joining asks first (stdCommTransport_ProbeAddress: over
+//   ENet and, where built in, GNS, for upstream OpenJKDF2's hosts), so a wrong address, no game
+//   there, a full game, a password, and a game that can't be joined across builds are told apart.
 //
 // Everything else (picking a character, the game's own joining) is as it was (jkGUIMultiplayer.c).
 

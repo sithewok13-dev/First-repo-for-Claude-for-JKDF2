@@ -8,6 +8,7 @@
 #include "jk.h"
 #include "Dss/sithMulti.h"
 #include "Devices/sithComm.h"
+#include "Platform/Networking/stdCommTransport.h"
 
 static jkNetExtHandler_t jkNetExt_apfHandler[JKNETEXT_NUM_KINDS];
 
@@ -40,6 +41,11 @@ void jkNetExt_Send(int kind, const void* pData, int len, int idTo)
 {
     if (!sithNet_isMulti || kind <= 0 || kind >= JKNETEXT_NUM_KINDS || len < 0 || len > JKNETEXT_MAX_LEN)
         return;
+#ifdef STDCOMM_TRANSPORTS
+    // (a classic host's game, over GNS: its host and players are other builds, which know none of these)
+    if (stdCommTransport_IsClassic())
+        return;
+#endif
     uint8_t* p = (uint8_t*)&sithComm_netMsgTmp.pktData[0];
     p[0] = (uint8_t)kind;
     p[1] = (uint8_t)(len & 0xFF);

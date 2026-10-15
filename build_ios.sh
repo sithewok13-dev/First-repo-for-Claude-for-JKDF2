@@ -38,7 +38,9 @@ unset SDKROOT MACOSX_DEPLOYMENT_TARGET CPLUS_INCLUDE_PATH C_INCLUDE_PATH CC CXX
 
 mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR" || exit 1
 
-cmake .. --toolchain "$(pwd)/../cmake_modules/$TOOLCHAIN" || exit 1
+# GNS_PREBUILT=<prefix> (made by packaging/ios/build_gns_deps.sh): GameNetworkingSockets linked in,
+# so the app can also join games hosted by upstream OpenJKDF2 desktop builds
+cmake .. --toolchain "$(pwd)/../cmake_modules/$TOOLCHAIN" -DOPENJKDF2_GNS_PREBUILT="${GNS_PREBUILT:-}" || exit 1
 
 # ExternalProject sub-builds (SDL3, OpenAL, zlib, libpng) resolve during the
 # first pass; the second pass picks up their now-existing imported libraries.

@@ -1,4 +1,5 @@
 #include "stdComm_GNS.h"
+#include "Platform/Networking/stdCommTransport.h"
 
 #include "Win95/stdComm.h"
 #include "Dss/sithMulti.h"
@@ -58,7 +59,7 @@
 
 extern "C"
 {
-void Hack_ResetClients();
+static void stdComm_GNS_ResetClients(void);
 
 #pragma pack(push, 4)
 typedef struct GNSInfoPacket
@@ -68,11 +69,8 @@ typedef struct GNSInfoPacket
 } GNSInfoPacket;
 #pragma pack(pop)
 
-static jkMultiEntry sithDplayGNS_storedEntryEnum;
 static jkMultiEntry sithDplayGNS_storedEntry;
 extern char16_t jkGuiMultiplayer_ipText[256];
-char jkGuiMultiplayer_ipText_conv[256];
-static int sithDplayGNS_numEnumd = 0;
 extern int Main_bVerboseNetworking;
 
 typedef bool (*GameNetworkingSockets_Init_t)( const SteamNetworkingIdentity *pIdentity, SteamNetworkingErrMsg &errMsg );
@@ -171,7 +169,17 @@ static void stdComm_GNS_LoadSymbols()
 
     static const char pszExportFunc[] = "GameNetworkingSockets_Init";
 
-    #if defined( WIN32 )
+    #if defined(STDCOMM_GNS_STATIC)
+        // Added: linked into the program itself (iOS, where an app can't load a library of its
+        // own at run time)
+        static const char pszModule[] = "GameNetworkingSockets (built in)";
+        g_GameNetworkingSockets_Init = GameNetworkingSockets_Init;
+        g_SteamNetworkingUtils = SteamNetworkingUtils_LibV4;
+        g_GameNetworkingSockets_Kill = GameNetworkingSockets_Kill;
+        g_SteamNetworkingSockets = SteamNetworkingSockets_LibV12;
+        g_SteamNetworkingIPAddr_ToString = SteamNetworkingIPAddr_ToString;
+        g_SteamNetworkingIPAddr_ParseString = SteamNetworkingIPAddr_ParseString;
+    #elif defined( WIN32 )
         static const char pszModule[] = "libGameNetworkingSockets.dll";
         HMODULE h = ::LoadLibraryA( pszModule );
         if ( h == NULL )
@@ -214,7 +222,7 @@ static void stdComm_GNS_LoadSymbols()
         || !g_GameNetworkingSockets_Kill || !g_SteamNetworkingSockets 
         || !g_SteamNetworkingIPAddr_ToString || !g_SteamNetworkingIPAddr_ParseString)
     {
-        stdPlatform_Printf("Failed to load %s, reverting to stubs.\n");
+        stdPlatform_Printf("Failed to load %s, reverting to stubs.\n", pszModule);
         stdComm_GNS_bForceStubs = 1;
         return;
     }
@@ -231,8 +239,12 @@ static void InitSteamDatagramConnectionSockets()
 
     #ifdef STEAMNETWORKINGSOCKETS_OPENSOURCE
         SteamDatagramErrMsg errMsg;
-        if ( !g_GameNetworkingSockets_Init( nullptr, errMsg ) )
+        if ( !g_GameNetworkingSockets_Init( nullptr, errMsg ) ) {
             FatalError( "GameNetworkingSockets_Init failed.  %s", errMsg );
+            stdPlatform_Printf("GNS: failed to start (%s)\n", errMsg);
+            stdComm_GNS_bForceStubs = 1; // Added: no GNS rather than a crash later
+            return;
+        }
     #else
         SteamDatagram_SetAppID( 570 ); // Just set something, doesn't matter what
         SteamDatagram_SetUniverse( false, k_EUniverseDev );
@@ -762,7 +774,8 @@ public:
 
     void Shutdown()
     {
-        m_pInterface->CloseConnection( m_hConnection, 0, nullptr, false );
+        if ( m_pInterface ) // Added: (never connected: nothing to close)
+            m_pInterface->CloseConnection( m_hConnection, 0, nullptr, false );
         m_hConnection = k_HSteamNetConnection_Invalid;
         id = 0xFFFFFFFF;
         m_closed = 1;
@@ -867,39 +880,14 @@ public:
         return 1;
     }
 
-    void GetServerInfo( const SteamNetworkingIPAddr &serverAddr )
-    {
-        int attempts = 1;
-        int id_real = 0xFFFFFFFF;
-        id = 0xFFFFFFFF;
-        m_closed = 0;
-        
-        while (id == 0xFFFFFFFF && !m_closed && attempts) {
-            Init(serverAddr);
-            for (int i = 0; i < 100; i++)
-            {
-                RunStep();
-                sleep_ms(10);
-                if (id != 0xFFFFFFFF) break;
-            }
-            id_real = id;
-            Shutdown();
-            attempts--;
-        }
-        
-        if (id_real == 0xFFFFFFFF) {
-            sithDplayGNS_numEnumd = 0;
-        }
-
-        // Hack: Force the UI to update
-        jkGuiMultiplayer_dword_5564E8 -= 10000;
-    }
+    // Added: connecting or connected
+    bool IsOpen() const { return !m_closed && m_hConnection != k_HSteamNetConnection_Invalid; }
 
     uint32_t id = 0xFFFFFFFF;
 private:
 
-    HSteamNetConnection m_hConnection;
-    ISteamNetworkingSockets *m_pInterface;
+    HSteamNetConnection m_hConnection = k_HSteamNetConnection_Invalid;
+    ISteamNetworkingSockets *m_pInterface = nullptr;
     //ISteamNetworkingMessages *m_pBcastInterface;
     SteamNetworkingIdentity m_identity;
     uint8_t sendBuffer[4096];
@@ -926,13 +914,10 @@ private:
             id = pPkt->id;
             sithDplayGNS_verbosePrintf("We are ID %x\n", id);
 
-            sithDplayGNS_storedEntryEnum = pPkt->entry;
-            sithDplayGNS_storedEntryEnum.field_E0 = 10;
 
             // Hack?
-            sithMulti_multiModeFlags = sithDplayGNS_storedEntryEnum.multiModeFlags;
-            sithNet_MultiModeFlags = sithDplayGNS_storedEntryEnum.multiModeFlags;
-            sithDplayGNS_numEnumd = 1;
+            sithMulti_multiModeFlags = pPkt->entry.multiModeFlags;
+            sithNet_MultiModeFlags = pPkt->entry.multiModeFlags;
         }
 
         // We don't need this anymore.
@@ -1018,10 +1003,12 @@ private:
 
             case k_ESteamNetworkingConnectionState_Connected:
                 Printf( "Connected to server OK" );
-                while (id == 0xFFFFFFFF) {
+                // (the host's first message: our id. Added: waited for 3 s at most, not for ever)
+                for (int i = 0; i < 3000 && id == 0xFFFFFFFF; i++) {
                     PollIncomingMessages();
+                    if (id == 0xFFFFFFFF) sleep_ms(1);
                 }
-                Hack_ResetClients();
+                stdComm_GNS_ResetClients();
                 break;
 
             default:
@@ -1058,13 +1045,10 @@ extern "C"
 {
 
 extern int jkGuiNetHost_portNum;
-SteamNetworkingIPAddr addrServer;
-int addrServerPortLast = -1;
-char addrServerLast[256];
-GNSClient client;
-GNSServer server;
+static GNSClient client;
+static GNSServer server;
 
-void Hack_ResetClients()
+static void stdComm_GNS_ResetClients(void)
 {
     DirectPlay_numPlayers = 32;
     for (int i = 0; i < 32; i++)
@@ -1072,20 +1056,6 @@ void Hack_ResetClients()
         DirectPlay_aPlayers[i].dpId = i+1;
         jk_snwprintf(DirectPlay_aPlayers[i].waName, 32, u"asdf");
     }
-
-    int id_self = 1;
-    int id_other = 2;
-    if (!stdComm_bIsServer)
-    {
-        id_self = 2;
-        id_other = 1;
-    }
-    //jkPlayer_playerInfos[0].playerNetId = id_self;
-    //jkPlayer_playerInfos[1].playerNetId = id_other;
-    //jk_snwprintf(jkPlayer_playerInfos[0].player_name, 32, "asdf1");
-    //jk_snwprintf(jkPlayer_playerInfos[1].player_name, 32, "asdf2");
-
-    //jkPlayer_maxPlayers = 2;
 
     if (stdComm_bIsServer)
         stdComm_dplayIdSelf = server.id;
@@ -1114,16 +1084,8 @@ void stdComm_GNS_Startup()
 
     memset(jkGuiMultiplayer_aEntries, 0, sizeof(jkMultiEntry) * 32);
     dplay_dword_55D618 = 0;
-    /*jk_snwprintf(jkGuiMultiplayer_aEntries[0].serverName, 0x20, u"OpenJKDF2 Loopback");
-    stdString_snprintf(jkGuiMultiplayer_aEntries[0].episodeGobName, 0x20, "JK1MP");
-    stdString_snprintf(jkGuiMultiplayer_aEntries[0].mapJklFname, 0x20, "m2.jkl");
-    jkGuiMultiplayer_aEntries[0].field_E0 = 10;*/
 
-    Hack_ResetClients();
-
-    addrServer.Clear();
-    g_SteamNetworkingIPAddr_ParseString(&addrServer, "127.0.0.1");
-    addrServer.m_port = DEFAULT_SERVER_PORT;
+    stdComm_GNS_ResetClients();
 
     // Create client and server sockets
     InitSteamDatagramConnectionSockets();
@@ -1137,12 +1099,12 @@ void stdComm_GNS_Shutdown()
     ShutdownSteamDatagramConnectionSockets();
 }
 
-int DirectPlay_Receive(int *pIdOut, int *pMsgIdOut, int *pLenOut)
+static int stdComm_GNS_Receive(int *pIdOut, int *pMsgIdOut, int *pLenOut)
 {
     if (stdComm_GNS_bForceStubs)
         return -1;
 
-    Hack_ResetClients();
+    stdComm_GNS_ResetClients();
 
     if (stdComm_bIsServer)
     {
@@ -1158,12 +1120,12 @@ int DirectPlay_Receive(int *pIdOut, int *pMsgIdOut, int *pLenOut)
     return -1;
 }
 
-BOOL DirectPlay_Send(DPID idFrom, DPID idTo, void *lpData, DWORD dwDataSize)
+static BOOL stdComm_GNS_Send(DPID idFrom, DPID idTo, void *lpData, DWORD dwDataSize)
 {
     if (stdComm_GNS_bForceStubs)
         return 0;
 
-    Hack_ResetClients();
+    stdComm_GNS_ResetClients();
 
     if (stdComm_bIsServer)
     {
@@ -1179,48 +1141,144 @@ BOOL DirectPlay_Send(DPID idFrom, DPID idTo, void *lpData, DWORD dwDataSize)
     return 1;
 }
 
-int stdComm_OpenConnection(void* a)
+// Added: an address as typed (a name or IPv4, maybe :port; 27020 if none). 0 if it isn't one.
+static int stdComm_GNS_ParseAddress(const char* pText, SteamNetworkingIPAddr* pAddr)
 {
-    stdComm_dword_8321DC = 1;
-    return 0;
-}
-
-void stdComm_CloseConnection()
-{
-    if ( stdComm_dword_8321DC )
-    {
-        if ( stdComm_dword_8321E0 )
-        {
-            //DirectPlay_DestroyPlayer(stdComm_dplayIdSelf);
-            DirectPlay_Close();
-            stdComm_dword_8321E0 = 0;
-            stdComm_bIsServer = 0;
-            stdComm_dplayIdSelf = 0;
-        }
-        //DirectPlay_CloseConnection();
-        stdComm_dword_8321DC = 0;
+    char text[256];
+    snprintf(text, sizeof(text), "%s", pText ? pText : "");
+    char* s = text;
+    while (*s == ' ') s++;
+    char* end = s + strlen(s);
+    while (end > s && (end[-1] == ' ' || end[-1] == '\n' || end[-1] == '\r')) *--end = 0;
+    int port = DEFAULT_SERVER_PORT;
+    char* colon = strrchr(s, ':');
+    if (colon) {
+        *colon = 0;
+        const int p = atoi(colon + 1);
+        if (p > 0 && p < 65536) port = p;
     }
+    if (!*s) return 0;
+
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
+    struct addrinfo* pList = nullptr;
+    if (getaddrinfo(s, nullptr, &hints, &pList) != 0 || !pList)
+        return 0;
+    const struct sockaddr_in* sin = (const struct sockaddr_in*)pList->ai_addr;
+    pAddr->Clear();
+    pAddr->SetIPv4(ntohl(sin->sin_addr.s_addr), (uint16)port);
+    freeaddrinfo(pList);
+    return 1;
 }
 
-int stdComm_Open(int idx, char16_t* pwPassword)
+// Added: what a host told about its game, as a player sees it: its password not shown (a classic
+// host sends it as it is, and the player checks it: stdComm_GNS_CheckPassword), only that it has one
+static void stdComm_GNS_PublicEntry(jkMultiEntry* pEntry)
 {
-    DirectPlay_EnumSessions2();
+    pEntry->field_E0 = 10;
+    if (pEntry->wPassword[0]) pEntry->sessionFlags |= SESSIONFLAG_PASSWORD;
+    memset(pEntry->wPassword, 0, sizeof(pEntry->wPassword));
+}
 
-    stdComm_dword_8321E8 = 0;
-    stdComm_dword_8321E0 = 1;
-    stdComm_dplayIdSelf = DirectPlay_CreatePlayer(jkPlayer_playerShortName, 0);
-    stdComm_bIsServer = 0;
+// Added: a short connection to the address, as upstream's Join screen makes: the host's first
+// message (our id, and its session) read, then closed. 1 if it answered. Its own connection, with
+// no callbacks: safe from any thread, and alongside a game's.
+static int stdComm_GNS_Query(const char* pAddress, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing)
+{
+    if (!stdComm_GNS_bInitted || stdComm_GNS_bForceStubs) return 0;
+    SteamNetworkingIPAddr addr;
+    if (!stdComm_GNS_ParseAddress(pAddress, &addr)) return -1;
+    ISteamNetworkingSockets* pInterface = g_SteamNetworkingSockets();
+    HSteamNetConnection h = pInterface->ConnectByIPAddress(addr, 0, nullptr);
+    if (h == k_HSteamNetConnection_Invalid) return 0;
+
+    int bFound = 0;
+    const uint32_t start = stdPlatform_GetTimeMsec();
+    while (!bFound && stdPlatform_GetTimeMsec() - start < (uint32_t)timeoutMs && (!pbKeepGoing || *pbKeepGoing)) {
+        ISteamNetworkingMessage* pMsg = nullptr;
+        const int n = pInterface->ReceiveMessagesOnConnection(h, &pMsg, 1);
+        if (n > 0) {
+            if (pMsg->m_cbSize == (int)sizeof(GNSInfoPacket)) {
+                GNSInfoPacket info;
+                memcpy(&info, pMsg->m_pData, sizeof(info));
+                *pOut = info.entry;
+                bFound = 1;
+            }
+            pMsg->Release();
+            continue;
+        }
+        if (n < 0) break;
+        SteamNetConnectionInfo_t ci;
+        if (!pInterface->GetConnectionInfo(h, &ci)) break;
+        if (ci.m_eState == k_ESteamNetworkingConnectionState_ClosedByPeer
+            || ci.m_eState == k_ESteamNetworkingConnectionState_ProblemDetectedLocally)
+            break;
+        sleep_ms(10);
+    }
+    pInterface->CloseConnection(h, 0, nullptr, false);
+    return bFound;
+}
+
+static int stdComm_GNS_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing)
+{
+    jkMultiEntry entry;
+    memset(&entry, 0, sizeof(entry));
+    const int r = stdComm_GNS_Query(pAddress, &entry, timeoutMs, pbKeepGoing);
+    if (r > 0) {
+        stdComm_GNS_PublicEntry(&entry);
+        *pOut = entry;
+    }
+    return r;
+}
+
+static int stdComm_GNS_CheckPassword(const char* pAddress, const char16_t* pwPassword, int timeoutMs, volatile int* pbKeepGoing)
+{
+    jkMultiEntry entry;
+    memset(&entry, 0, sizeof(entry));
+    const int r = stdComm_GNS_Query(pAddress, &entry, timeoutMs, pbKeepGoing);
+    if (r <= 0) return -1;
+    int bSame = 1;
+    for (int i = 0; i < 32; i++) {
+        const char16_t a = pwPassword ? pwPassword[i] : 0;
+        if (a != entry.wPassword[i]) { bSame = 0; break; }
+        if (!a) break;
+    }
+    memset(&entry, 0, sizeof(entry));
+    return bSame;
+}
+
+// Joining the game at the address typed (jkGuiMultiplayer_ipText). Added: our id waited for (up to
+// 5 s) before the game sends anything, as over ENet, and a host not answering is told
+static int stdComm_GNS_Join(char16_t* pwPassword)
+{
+    (void)pwPassword; // (checked by the player before joining: a classic host never asks)
     stdComm_dplayIdSelf = 2; // HACK
-    jkGuiMultiplayer_checksumSeed = jkGuiMultiplayer_aEntries[idx].checksumSeed;
 
     if (stdComm_GNS_bForceStubs)
         return 0;
 
-    client.Init(addrServer);
+    char text[256];
+    stdString_WcharToChar(text, jkGuiMultiplayer_ipText, 255);
+    text[255] = 0;
+    SteamNetworkingIPAddr addr;
+    if (!stdComm_GNS_ParseAddress(text, &addr)) return 0x88770154 + 1;
+
+    client.Init(addr);
+    for (int i = 0; i < 500 && client.id == 0xFFFFFFFF && client.IsOpen(); i++) {
+        client.RunStep();
+        if (client.id == 0xFFFFFFFF) sleep_ms(10);
+    }
+    if (client.id == 0xFFFFFFFF) {
+        client.Shutdown();
+        return 0x88770154 + 1;
+    }
+    stdComm_GNS_ResetClients();
     return 0;
 }
 
-void stdComm_Close()
+static void stdComm_GNS_Close(void)
 {
     if (stdComm_GNS_bForceStubs)
         return;
@@ -1235,53 +1293,12 @@ void stdComm_Close()
     }
 }
 
-int DirectPlay_SendLobbyMessage(void* pPkt, uint32_t pktLen)
-{
-    return 1;
-}
-
-void DirectPlay_SetSessionDesc(const char* a1, DWORD maxPlayers)
+static void stdComm_GNS_SetSessionLevel(void)
 {
     _strncpy(sithDplayGNS_storedEntry.mapJklFname, jkMain_aLevelJklFname, 0x20);
 }
 
-BOOL DirectPlay_SetSessionFlagidk(int a1)
-{
-    return 1;
-}
-
-BOOL DirectPlay_Startup()
-{
-    //IDirectPlay3Vtbl *v0; // esi
-    //uint32_t *v1; // eax
-
-    //CoInitialize(0);
-    //CoCreateInstance(&rclsid, 0, 1u, &riid, (LPVOID *)&idirectplay);
-    jkGuiMultiplayer_numConnections = 0;
-    memset(&jkGuiMultiplayer_aConnections, 0, 0x1180u);
-    //v0 = idirectplay->lpVtbl;
-    //v1 = WinIdk_GetDplayGuid();
-    //return v0->EnumConnections(idirectplay, (LPCGUID)v1, (LPDPENUMCONNECTIONSCALLBACK)DirectPlay_EnumConnectionsCallback, 0, 0) >= 0;
-    return 1;
-}
-
-int DirectPlay_EarlyInit(char16_t* pwIdk, char16_t* pwPlayerName)
-{
-    // This can launch straight into a game? Gaming Zone stuff. 1 and 2 autolaunch an MP game.
-    return 0;
-}
-
-DPID DirectPlay_CreatePlayer(char16_t* pwIdk, int idk2)
-{
-    return 1;
-}
-
-void DirectPlay_Close()
-{
-    
-}
-
-int DirectPlay_OpenHost(jkMultiEntry* pEntry)
+static int stdComm_GNS_OpenHost(jkMultiEntry* pEntry)
 {
     sithDplayGNS_storedEntry = *pEntry;
 
@@ -1296,181 +1313,25 @@ int DirectPlay_OpenHost(jkMultiEntry* pEntry)
     return 0;
 }
 
-int DirectPlay_GetSession_passwordidk(jkMultiEntry* pEntry)
+static void stdComm_GNS_SetSession(jkMultiEntry* pEntry)
 {
     sithDplayGNS_storedEntry = *pEntry;
 
     jkPlayer_maxPlayers = pEntry->maxPlayers; // Hack?
-
-    return 1;
 }
 
-static int stdComm_EnumThread_bForce = 0;
-static int stdComm_EnumThread_bInit = 0;
-static SDL_Thread *stdComm_EnumThread_thread = NULL;
-static SDL_Mutex* stdComm_EnumThread_mutex = NULL;
-
-char *get_ip_str(const struct sockaddr *sa, char *s, size_t maxlen)
-{
-    switch(sa->sa_family) {
-        case AF_INET:
-            inet_ntop(AF_INET, &(((struct sockaddr_in *)sa)->sin_addr),
-                    s, maxlen);
-            break;
-
-        case AF_INET6:
-            inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)sa)->sin6_addr),
-                    s, maxlen);
-            break;
-
-        default:
-            strncpy(s, "Unknown AF", maxlen);
-            return NULL;
-    }
-
-    return s;
-}
-
-static int stdComm_EnumThread(void *ptr)
-{
-    while (stdComm_EnumThread_bInit)
-    {
-        SDL_LockMutex(stdComm_EnumThread_mutex);
-        stdString_WcharToChar(jkGuiMultiplayer_ipText_conv, jkGuiMultiplayer_ipText, 255);
-
-        std::string sAddress( jkGuiMultiplayer_ipText_conv );
-        std::string sService;
-        size_t colon = sAddress.find( ':' );
-        if ( colon == std::string::npos )
-        {
-            sService = ""; // Default port
-        }
-        else
-        {
-            sService = sAddress.substr( colon+1 );
-            sAddress.erase( colon );
-        }
-
-        // Resolve name synchronously
-        addrinfo *pAddrInfo = nullptr;
-        std::string finalStr = "";
-        int r = getaddrinfo( sAddress.c_str(), sService.c_str(), nullptr, &pAddrInfo );
-        if ( r != 0 || pAddrInfo == nullptr )
-        {
-            //snprintf( errMsg, sizeof(errMsg), "Invalid/unknown server address.  getaddrinfo returned %d", r );
-            //return nullptr;
-
-        }
-        else {
-            get_ip_str(pAddrInfo->ai_addr, jkGuiMultiplayer_ipText_conv, 255);
-            finalStr += std::string(jkGuiMultiplayer_ipText_conv);
-            if (sService != "") {
-                finalStr += ":";
-            finalStr += sService;
-            }
-        }
-
-        g_SteamNetworkingIPAddr_ParseString(&addrServer, finalStr.c_str());
-        if (!addrServer.m_port) {
-            addrServer.m_port = DEFAULT_SERVER_PORT;
-        }
-
-        if (stdComm_EnumThread_bForce || strncmp(jkGuiMultiplayer_ipText_conv, addrServerLast, 256) || addrServerPortLast != addrServer.m_port)
-            client.GetServerInfo(addrServer);
-        strncpy(addrServerLast, jkGuiMultiplayer_ipText_conv, 256);
-        addrServerPortLast = addrServer.m_port;
-        stdComm_EnumThread_bForce = 0;
-
-        SDL_UnlockMutex(stdComm_EnumThread_mutex);
-
-        SDL_Delay(100);
-    }
-
-    return 0;
-}
-
-int DirectPlay_EnumSessions2()
-{
-    if (stdComm_GNS_bForceStubs)
-        return 0;
-
-    if (!stdComm_EnumThread_bInit)
-        return 0;
-
-    stdComm_EnumThread_bInit = 0;
-
-    int threadReturnValue;
-    SDL_WaitThread(stdComm_EnumThread_thread, &threadReturnValue);
-    stdComm_EnumThread_thread = NULL;
-
-    sithDplayGNS_verbosePrintf("Enum thread done\n");
-
-    return 0;
-}
-
-int stdComm_EnumSessions(int a, void* b)
-{
-    if (stdComm_GNS_bForceStubs)
-        return 0;
-
-    if (!stdComm_EnumThread_mutex)
-        stdComm_EnumThread_mutex = SDL_CreateMutex();
-
-    SDL_LockMutex(stdComm_EnumThread_mutex);
-    stdComm_EnumThread_bForce = 1;
-    jkGuiMultiplayer_aEntries[0] = sithDplayGNS_storedEntryEnum;
-    dplay_dword_55D618 = sithDplayGNS_numEnumd;
-    SDL_UnlockMutex(stdComm_EnumThread_mutex);
-
-    if (stdComm_EnumThread_bInit)
-        return 0;
-
-    Hack_ResetClients();
-
-    dplay_dword_55D618 = 0;
-    sithDplayGNS_numEnumd = 0;
-    memset(&sithDplayGNS_storedEntryEnum, 0, sizeof(sithDplayGNS_storedEntryEnum));
-    memset(&jkGuiMultiplayer_aEntries[0], 0, sizeof(jkGuiMultiplayer_aEntries[0]));
-    memset(addrServerLast, 0, sizeof(addrServerLast));
-    addrServerPortLast = -1;
-
-    stdComm_EnumThread_bInit = 1;
-
-    stdComm_EnumThread_thread = SDL_CreateThread(stdComm_EnumThread, "stdComm_EnumThread", (void *)NULL);
-    sithDplayGNS_verbosePrintf("Enum thread start\n");
-
-    //DirectPlay_EnumSessions2();
-
-    //client.GetServerInfo(addrServer);
-
-    SDL_LockMutex(stdComm_EnumThread_mutex);
-    jkGuiMultiplayer_aEntries[0] = sithDplayGNS_storedEntryEnum;
-    dplay_dword_55D618 = sithDplayGNS_numEnumd;
-    SDL_UnlockMutex(stdComm_EnumThread_mutex);
-    
-
-    return 0;
-}
-
-void DirectPlay_EnumPlayers(int a)
-{
-    Hack_ResetClients();
-}
-
-int DirectPlay_StartSession(void* a, void* b)
-{
-    return 1;
-}
-
-void DirectPlay_Destroy()
-{
-    
-}
-
-int DirectPlay_IdkSessionDesc(jkMultiEntry* pEntry)
-{
-    //TODO
-    return 1;
-}
+const stdCommTransport stdComm_GNS_transport = {
+    "GNS",
+    stdComm_GNS_Receive,
+    stdComm_GNS_Send,
+    stdComm_GNS_Join,
+    stdComm_GNS_OpenHost,
+    stdComm_GNS_SetSession,
+    stdComm_GNS_SetSessionLevel,
+    stdComm_GNS_Close,
+    stdComm_GNS_ResetClients,
+    stdComm_GNS_ProbeAddress,
+    stdComm_GNS_CheckPassword,
+};
 
 }

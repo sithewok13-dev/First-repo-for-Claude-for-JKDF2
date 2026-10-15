@@ -115,6 +115,7 @@ char Main_strJoinPassword[64]; // Added: -password, for -join
 
 #if defined(QOL_IMPROVEMENTS)
 #include "Win95/stdComm.h"
+#include "Platform/Networking/stdCommTransport.h"
 extern char16_t jkGuiMultiplayer_ipText[256];
 // Added: joining the game at Main_strJoin (-join), once the player is set up:
 // the session looked for (up to 15 s), joined, its level loaded. 0: under way.
@@ -142,6 +143,13 @@ static int Main_StartupJoin(void)
         stdPlatform_Printf("Join: no game found at `%s`\n", Main_strJoin);
         return 1;
     }
+#ifdef STDCOMM_TRANSPORTS
+    const char* whyKey = NULL;
+    if (!stdCommTransport_CanJoin(stdCommTransport_GetJoinKind(), &jkGuiMultiplayer_aEntries[0], &whyKey)) {
+        stdPlatform_Printf("Join: can't join that game (%s)\n", whyKey ? whyKey : "");
+        return 1;
+    }
+#endif
     jkMultiEntry3 e;
     memset(&e, 0, sizeof(e));
     char16_t wPassword[32] = { 0 }; // (none, unless -password gave one)
