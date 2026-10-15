@@ -116,6 +116,61 @@ static void jkCoopSave_Path(char* pOut, int outLen, const char* suffix)
     snprintf(pOut, outLen, "%s/%s.txt%s", JKCOOPSAVE_DIR, ep, suffix);
 }
 
+// The earlier campaigns kept (<episode>.txt.<date-time>): the newest JKCOOPSAVE_KEEP_ARCHIVES of this
+// episode's, the older ones removed, so starting over again and again doesn't fill the folder
+#define JKCOOPSAVE_KEEP_ARCHIVES 5
+static void jkCoopSave_PruneArchives(void)
+{
+    char prefix[160];
+    jkCoopSave_Path(prefix, sizeof(prefix), ".");
+    const char* base = strrchr(prefix, '/');
+    base = base ? base + 1 : prefix;
+    const size_t baseLen = strlen(base);
+
+    // (the newest kept while looking through them, any older one removed as it is passed)
+    char aKeep[JKCOOPSAVE_KEEP_ARCHIVES][64];
+    int numKeep = 0;
+    stdFileSearch* pFind = stdFileUtil_NewFind(JKCOOPSAVE_DIR, 2, NULL);
+    if (!pFind) return;
+    stdFileSearchResult result;
+    while (stdFileUtil_FindNext(pFind, &result)) {
+        const char* name = result.fpath;
+        const char* slash = strrchr(name, '/');
+        if (slash) name = slash + 1;
+        slash = strrchr(name, '\\');
+        if (slash) name = slash + 1;
+        // ("<episode>.txt." and a date-time: 8 digits, '-', 6 digits)
+        if (strncmp(name, base, baseLen) || strlen(name) != baseLen + 15) continue;
+        const char* stamp = name + baseLen;
+        int bStamp = stamp[8] == '-';
+        for (int i = 0; i < 15 && bStamp; i++) bStamp = i == 8 || (stamp[i] >= '0' && stamp[i] <= '9');
+        if (!bStamp) continue;
+        char drop[64] = "";
+        if (numKeep < JKCOOPSAVE_KEEP_ARCHIVES) {
+            stdString_SafeStrCopy(aKeep[numKeep++], name, 64);
+        }
+        else {
+            // (the date-time sorts as text: the oldest kept, or this one, goes)
+            int oldest = 0;
+            for (int i = 1; i < numKeep; i++)
+                if (strcmp(aKeep[i], aKeep[oldest]) < 0) oldest = i;
+            if (strcmp(name, aKeep[oldest]) > 0) {
+                stdString_SafeStrCopy(drop, aKeep[oldest], 64);
+                stdString_SafeStrCopy(aKeep[oldest], name, 64);
+            }
+            else {
+                stdString_SafeStrCopy(drop, name, 64);
+            }
+        }
+        if (drop[0]) {
+            char path[200];
+            snprintf(path, sizeof(path), "%s/%s", JKCOOPSAVE_DIR, drop);
+            remove(path);
+        }
+    }
+    stdFileUtil_DisposeFind(pFind);
+}
+
 static int jkCoopSave_Write(void)
 {
     if (!jkCoopSave_episode[0] || !jkCoopSave_level[0])
@@ -164,6 +219,7 @@ static int jkCoopSave_Write(void)
             snprintf(old + strlen(old), sizeof(old) - strlen(old), ".%s", stamp);
             if (rename(path, old) != 0) { remove(tmp); return 0; }
             stdPlatform_Printf("OpenJKDF2: co-op, the earlier campaign kept as %s\n", old);
+            jkCoopSave_PruneArchives();
         }
     }
     // (then the new one put in its place in one step; Windows won't rename over a file)

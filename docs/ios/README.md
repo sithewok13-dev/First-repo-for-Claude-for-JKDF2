@@ -838,8 +838,9 @@ screen (in co-op the host always plays Kyle, or Mara).
 - To carry on, tap **Multiplayer**, then **Resume Co-op**, and pick the
   campaign. A player who drops out and rejoins gets their gear back.
 - Starting a new **Co-op Campaign** on an episode that has a save asks
-  first. The old save is kept, with the date and time added to its name.
-  Put the date part back as `.txt` to go back to it.
+  first. The old save is kept, with the date and time added to its name
+  (the five most recent for each episode). Put the date part back as
+  `.txt` to go back to it.
 
 ### Your lightsaber in multiplayer
 
