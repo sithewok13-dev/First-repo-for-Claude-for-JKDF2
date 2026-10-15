@@ -3943,10 +3943,47 @@ static int iosTouch_WheelSliceHasRow(int i)
     return hypot(p.x - b->x, p.y - b->y) <= b->radius + IOSTOUCH_TOUCH_SLOP;
 }
 
+// A mouse or trackpad's click (a pointer touch: iPadOS, or an iPhone with a
+// mouse through AssistiveTouch) in play is the mouse's button -- SDL has it
+// from the mouse itself (GCMouse) -- not a finger on the touch controls:
+// passed on to SDL's view, the overlay's next responder. Only while the game
+// lets go of the pointer (iosTouch_WantsPointer: a photo mode, MENU's tray)
+// does a click work the touch controls, as a tap.
+static int iosTouch_IsPointerTouch(UITouch* t)
+{
+    return t.type == UITouchTypeIndirectPointer;
+}
+
+// The clicks among these the overlay didn't take, if any
+static NSSet* iosTouch_PointerTouchesPassed(NSSet<UITouch*>* touches)
+{
+    NSMutableSet* pPass = nil;
+    for (UITouch* t in touches) {
+        if (!iosTouch_IsPointerTouch(t)) continue;
+        int bTaken = 0;
+        for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+            if (iosTouch_aSlots[i].touch == t) bTaken = 1;
+        }
+        if (bTaken) continue;
+        if (!pPass) pPass = [NSMutableSet set];
+        [pPass addObject:t];
+    }
+    return pPass;
+}
+
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
 {
     int bPadTouch = 0; // (the touch controls hidden for a game controller: back now)
+    int bFinger = 0;   // (a finger among them, not only clicks)
+    NSMutableSet* pPass = nil;
     for (UITouch* t in touches) {
+        const int bPointer = iosTouch_IsPointerTouch(t);
+        if (bPointer && !iosTouch_WantsPointer()) {
+            if (!pPass) pPass = [NSMutableSet set];
+            [pPass addObject:t];
+            continue;
+        }
+        if (!bPointer) bFinger = 1;
         int slot = -1;
         for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
             if (iosTouch_aSlots[i].touch == nil) { slot = i; break; }
@@ -3968,8 +4005,9 @@ static int iosTouch_WheelSliceHasRow(int i)
         if (iosTouch_bPadMasked) {
             // The touch controls were hidden for a game controller: they come
             // back, and this touch does nothing else (it couldn't see what it
-            // touched) -- but on a wheel the pad opened it works the wheel
-            bPadTouch = 1;
+            // touched) -- but on a wheel the pad opened it works the wheel.
+            // (A click doesn't bring them back.)
+            if (!bPointer) bPadTouch = 1;
             if (!iosTouch_bWheelOpen) {
                 s->role = ROLE_IGNORED;
                 continue;
@@ -4043,7 +4081,7 @@ static int iosTouch_WheelSliceHasRow(int i)
             s->role = ROLE_LOOK;
         }
     }
-    if (bPadTouch || iosTouch_bPadHud) {
+    if (bPadTouch || (iosTouch_bPadHud && bFinger)) {
         iosTouch_bPadHud = 0;
         iosPad_NoteTouch();
         [self applyPadMask];
@@ -4051,10 +4089,13 @@ static int iosTouch_WheelSliceHasRow(int i)
     iosTouch_RecomputeKeys();
     [self refreshButtonLooks];
     if (iosTouch_bWheelOpen) [self refreshWheelLooks];
+    if (pPass) [super touchesBegan:pPass withEvent:event];
 }
 
 - (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
 {
+    NSSet* pPass = iosTouch_PointerTouchesPassed(touches);
+    if (pPass) [super touchesMoved:pPass withEvent:event];
     int bLooksChanged = 0;
     for (UITouch* t in touches) {
         for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
@@ -4365,8 +4406,18 @@ static int iosTouch_WheelSliceHasRow(int i)
     if (iosTouch_bWheelOpen) [self refreshWheelLooks];
 }
 
-- (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event { [self endTouches:touches cancelled:0]; }
-- (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event { [self endTouches:touches cancelled:1]; }
+- (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
+{
+    NSSet* pPass = iosTouch_PointerTouchesPassed(touches);
+    if (pPass) [super touchesEnded:pPass withEvent:event];
+    [self endTouches:touches cancelled:0];
+}
+- (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
+{
+    NSSet* pPass = iosTouch_PointerTouchesPassed(touches);
+    if (pPass) [super touchesCancelled:pPass withEvent:event];
+    [self endTouches:touches cancelled:1];
+}
 
 // A full force meter glows, gently pulsing
 - (void)setForceRingGlow:(int)bGlow
@@ -5200,6 +5251,13 @@ void iosTouch_PadSaberChip(int chip)
 int iosTouch_IsPhotoModeUp(void)
 {
     return iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE || iosTouch_bFreezing || iosTouch_bCinema || iosTouch_bPhotosAsking;
+}
+
+// Whether the game is to let go of the pointer during play (iosTouch.h)
+int iosTouch_WantsPointer(void)
+{
+    if (!iosTouch_pOverlay || iosTouch_pOverlay.hidden) return 0;
+    return iosTouch_IsPhotoModeUp() || iosTouch_bTrayOpen || iosTouch_optRow != IOSTOUCH_ROW_NONE;
 }
 
 void iosTouch_SetFpsShown(int bShow)

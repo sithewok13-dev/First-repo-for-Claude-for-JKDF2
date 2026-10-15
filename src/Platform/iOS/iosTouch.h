@@ -90,6 +90,9 @@
 //     tap), or at a touch off it.
 // In menus and cutscenes the overlay hides, so touches reach SDL as mouse
 // clicks like before. If SDL's window is recreated the overlay follows it.
+// A mouse or trackpad's clicks in play are the mouse's buttons, not fingers
+// (passed on to SDL), but where the game lets go of the pointer
+// (iosTouch_WantsPointer).
 
 #ifndef _PLATFORM_IOS_IOSTOUCH_H
 #define _PLATFORM_IOS_IOSTOUCH_H
@@ -149,6 +152,11 @@ int iosTouch_IsPhotoModeUp(void);
 // The FPS readout (the tray's FPS), on or off
 int iosTouch_IsFpsShown(void);
 void iosTouch_SetFpsShown(int bShow);
+
+// Whether the game is to let go of the pointer during play: a photo mode,
+// MENU's tray or a row of options under it (a click then works the touch
+// controls as a tap; else a click is the mouse's button, never a finger)
+int iosTouch_WantsPointer(void);
 
 #ifdef __cplusplus
 }
