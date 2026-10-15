@@ -100,7 +100,10 @@ jobs:
           export OPENJKDF2_RELEASE_COMMIT_SHORT=$(git rev-parse --short=8 HEAD)
           if ! cmake -S . -B "$BUILD_DIR" --toolchain "$PWD/cmake_modules/toolchain_android_aarch64.cmake" \
               -DCMAKE_BUILD_TYPE=Release > "$RUNNER_TEMP/cmake.log" 2>&1; then
-            grep -n -i -E "error" "$RUNNER_TEMP/cmake.log" | head -40; tail -40 "$RUNNER_TEMP/cmake.log"; exit 1
+            grep -n -i -E "error" "$RUNNER_TEMP/cmake.log" | head -40; tail -40 "$RUNNER_TEMP/cmake.log"
+            # (also as annotations, which show on the run's summary page)
+            grep -i -E -A3 "error" "$RUNNER_TEMP/cmake.log" | head -12 | sed 's/^/::error title=cmake::/'
+            exit 1
           fi
           grep -E "Targeting|ENet|GameNetworking" "$RUNNER_TEMP/cmake.log" || true
 
@@ -109,7 +112,8 @@ jobs:
           # Upstream builds this with -j1 (twice); try in parallel first
           make -C "$BUILD_DIR" -j"$(nproc)" openjkdf2-armv8a > "$RUNNER_TEMP/make.log" 2>&1 \
             || make -C "$BUILD_DIR" -j1 openjkdf2-armv8a > "$RUNNER_TEMP/make.log" 2>&1 \
-            || { grep -n -E "error|Error" "$RUNNER_TEMP/make.log" | head -60; tail -40 "$RUNNER_TEMP/make.log"; exit 1; }
+            || { grep -n -E "error|Error" "$RUNNER_TEMP/make.log" | head -60; tail -40 "$RUNNER_TEMP/make.log"
+                 grep -E "error:|Error " "$RUNNER_TEMP/make.log" | head -12 | sed 's/^/::error title=make::/'; exit 1; }
           grep -c "warning:" "$RUNNER_TEMP/make.log" | sed 's/^/compiler warnings: /'
           # Multiplayer over ENet is in (not the no-networking stubs upstream Android has)
           find "$BUILD_DIR" -name 'stdComm_ENet.c.o' | grep -q . || { echo "ENet not built"; exit 1; }
