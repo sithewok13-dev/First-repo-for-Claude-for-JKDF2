@@ -782,8 +782,10 @@ static int iosTouch_IsWheelPress(const iosTouchSlot* s)
 static void iosTouch_RecomputeKeys(void)
 {
     memset(iosTouch_aKeyDown, 0, sizeof(iosTouch_aKeyDown));
-    // MENU's Escape comes and goes on its own (see iosTouch_Update)
-    stdControl_bControllerEscapeKey = iosTouch_menuPulse > 0;
+    // MENU's Escape comes and goes on its own (see iosTouch_Update). Only
+    // ever set here: a game controller's Start (Window_SdlUpdate, iosPad)
+    // sets it too, and a touch coming in between mustn't let go of that
+    if (iosTouch_menuPulse > 0) stdControl_bControllerEscapeKey = 1;
     if (iosTouch_bWheelOpen) return; // the wheel takes every touch
     for (int i = 0; i < IOSTOUCH_NUM_BUTTONS; i++) {
         if (!iosTouch_aButtonHeld[i]) continue;
