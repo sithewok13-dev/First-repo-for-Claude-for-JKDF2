@@ -218,6 +218,36 @@ void jkCoop_Tick(void)
     }
 }
 
+// ------------------------------------------------------------------ player starts
+
+int jkCoop_AddPlayerStarts(SithWorld* pWorld, int numStarts)
+{
+    // (a multiplayer load of a co-op game; sithNet_isMulti isn't set yet while the level loads)
+    if (!pWorld || jkSmack_gameMode != 2 || !(sithMulti_multiModeFlags & MULTIMODEFLAG_COOP) || numStarts < 1)
+        return numStarts;
+    SithThing* pFirst = jkPlayer_playerInfos[0].pLocalPlayer;
+    if (!pFirst || !pFirst->sector || !pFirst->pTemplate)
+        return numStarts;
+    while (numStarts < JKCOOP_MAX_PLAYERS && numStarts < JKPLAYER_NUM_INFOS) {
+        rdMatrix34 orient = pFirst->orient;
+        rdVector_Zero3(&orient.scale);
+        SithThing* pStart = sithThing_CreateThingAtPos(pFirst->pTemplate, &pFirst->position, &orient, pFirst->sector, NULL);
+        if (!pStart || pStart->type != SITH_THING_PLAYER)
+            break;
+        // (as sithPlayer_PlacePlayers makes one of the level's own)
+        SithPlayer* pInfo = &jkPlayer_playerInfos[numStarts];
+        pInfo->pLocalPlayer = pStart;
+        pStart->flags |= SITH_TF_INVULN;
+        pStart->actorParams.pPlayer = pInfo;
+        pInfo->flags |= 2;
+        rdMatrix_Copy34(&pInfo->orient, &pFirst->orient);
+        rdVector_Copy3(&pInfo->orient.scale, &pFirst->position);
+        pInfo->pInSector = pFirst->sector;
+        numStarts++;
+    }
+    return numStarts;
+}
+
 // ------------------------------------------------------------------ starting spots
 
 // (room between two players, beyond their sizes)

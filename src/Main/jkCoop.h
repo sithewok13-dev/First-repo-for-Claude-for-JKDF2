@@ -15,6 +15,8 @@
 //   and the Force power the story gives at its end.
 // - Characters: the host plays the story's own player (the level's: Kyle,
 //   Mara), the guests the multiplayer characters they picked.
+// - Player starts: a story level made for one player gets a start for each
+//   of four (as its own), so everyone can join.
 // - Starting spots: everyone starts (and comes back) where the one player
 //   would; one already standing there, the next is put beside them (on the
 //   floor, no wall between) rather than inside them.
@@ -82,6 +84,12 @@ int jkCoop_HostMayPickLevel(void);
 int jkCoop_HostPickLevel(int entryIdx);
 // At the level's end (jkMain_EndLevel): the entry the host picked, -1 if none (taken once)
 int jkCoop_TakePickedLevel(void);
+
+// A level loading (sithPlayer_PlacePlayers, its player starts found: numStarts): in a co-op game, a
+// level with fewer starts than JKCOOP_MAX_PLAYERS gets more, as its first (every game in the co-op
+// does the same as it loads, so the new players are the same things everywhere); the number now
+#define JKCOOP_MAX_PLAYERS 4
+int jkCoop_AddPlayerStarts(SithWorld* pWorld, int numStarts);
 
 // A menu about to be shown that, in co-op, goes on (as its OK) by itself after
 // msWait; its own idle function, if any, still runs. Call jkCoop_MenuDone

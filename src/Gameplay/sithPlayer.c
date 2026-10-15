@@ -103,6 +103,9 @@ void sithPlayer_PlacePlayers(SithWorld *pWorld)
             ++v1;
         }
     }
+#ifdef QOL_IMPROVEMENTS
+    v3 = jkCoop_AddPlayerStarts(pWorld, v3); // Added: co-op, a start for each player in a one-player level
+#endif
     jkPlayer_maxPlayers = v3;
     for (int i = jkPlayer_maxPlayers; i < JKPLAYER_NUM_INFOS; i++)
     {
