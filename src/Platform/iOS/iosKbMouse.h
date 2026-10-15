@@ -112,6 +112,20 @@ void iosKbMouseView_Tick(void);
 int iosKbMouseView_HasMouse(void);
 int iosKbMouseView_HasKeyboard(void);
 
+// ------------------------------------------------------------ bindings
+// The iOS mouse defaults (sithControl_RegisterMouseBindings: a new player,
+// Setup > Mouse's Restore Defaults): left button fire, right button alt
+// fire, middle button jump (the game's own had the right button jump and
+// the middle one alt fire), the wheel left free for weapons (the game's own
+// had it look up and down), as version 1.
+#define IOSKBMBINDS_VERSION 1
+#define IOSKBMBINDS_JSON_KEY "iosKbmBindsVersion" // (in the player's openjkdf2.json)
+void iosKbMouse_MapMouseDefaults(void);
+// After a player's controls are read: a player saved before version 1 with
+// the game's own mouse defaults gets these (only what is still as the game
+// made it changes). Returns 1 if the settings are to be saved again.
+int iosKbMouse_MigrateBinds(int savedVersion);
+
 #ifdef __cplusplus
 }
 #endif

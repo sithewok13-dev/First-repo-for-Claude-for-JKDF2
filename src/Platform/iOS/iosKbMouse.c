@@ -26,6 +26,7 @@
 extern SDL_Window* displayWindow;
 extern int stdControl_bControllerEscapeKey;
 extern const uint8_t stdControl_aSdlToDik[256];
+void sithControl_DefaultHelper(int funcIdx, int dxKeyNum, int flags);
 
 // A wheel's key held this long opens its wheel (as FORCE WHEEL and NEXT WPN
 // held: 0.3 s). (Not the mouse moved while it is down, as a slide or the
@@ -719,6 +720,78 @@ void iosKbMouse_DiagText(char* pBuf, int size)
     snprintf(pBuf, (size_t)size, "REL %u (%.0f)  ABS %u  CLICK %u  WHEEL %u (%.2f)  KEY %u  TOUCH %s",
              iosKbMouse_s.nRel, (double)iosKbMouse_s.relSum, iosKbMouse_s.nAbs, iosKbMouse_s.nClicks, iosKbMouse_s.nWheel,
              (double)iosKbMouse_s.lastWheel, iosKbMouse_s.nKeys, t);
+}
+
+// ------------------------------------------------------------ bindings
+
+void iosKbMouse_MapMouseDefaults(void)
+{
+    sithControl_DefaultHelper(INPUT_FUNC_FIRE1, KEY_MOUSE_B1, 2);
+    sithControl_DefaultHelper(INPUT_FUNC_FIRE2, KEY_MOUSE_B2, 2);
+    sithControl_DefaultHelper(INPUT_FUNC_JUMP, KEY_MOUSE_B3, 2);
+}
+
+// The functions a mouse button is bound to: how many, and the first
+static int iosKbMouse_ButtonBinds(int key, int* pFunc)
+{
+    int n = 0;
+    *pFunc = -1;
+    for (int f = 0; f < INPUT_FUNC_MAX; f++) {
+        const stdControlKeyInfo* k = &sithControl_aInputFuncToKeyinfo[f];
+        for (uint32_t j = 0; j < k->numEntries && j < 8; j++) {
+            const stdControlKeyInfoEntry* e = &k->aEntries[j];
+            if ((e->flags & INPUT_MAPPING_FLAG_AXIS) == 0 && e->dxKeyNum == key) {
+                if (n++ == 0) *pFunc = f;
+            }
+        }
+    }
+    return n;
+}
+
+static void iosKbMouse_RebindButton(int fromFunc, int toFunc, int key)
+{
+    stdControlKeyInfo* k = &sithControl_aInputFuncToKeyinfo[fromFunc];
+    uint32_t n = 0;
+    for (uint32_t j = 0; j < k->numEntries && j < 8; j++) {
+        const stdControlKeyInfoEntry* e = &k->aEntries[j];
+        if ((e->flags & INPUT_MAPPING_FLAG_AXIS) == 0 && e->dxKeyNum == key) continue;
+        k->aEntries[n++] = k->aEntries[j];
+    }
+    k->numEntries = n;
+    sithControl_DefaultHelper(toFunc, key, 2);
+}
+
+int iosKbMouse_MigrateBinds(int savedVersion)
+{
+    if (savedVersion >= IOSKBMBINDS_VERSION) return 0;
+
+    // the game's own wheel binding (looking up and down, as it made it): taken
+    // away, for the weapons
+    int numWheel = 0;
+    stdControlKeyInfo* k = &sithControl_aInputFuncToKeyinfo[INPUT_FUNC_PITCH];
+    uint32_t n = 0;
+    for (uint32_t j = 0; j < k->numEntries && j < 8; j++) {
+        const stdControlKeyInfoEntry* e = &k->aEntries[j];
+        if ((e->flags & INPUT_MAPPING_FLAG_AXIS) && e->dxKeyNum == AXIS_MOUSE_Z
+            && !(e->flags & (INPUT_MAPPING_FLAG_AXIS_REVERSED | INPUT_MAPPING_FLAG_RAW_AXIS)) && fabsf((float)e->binaryAxisVal - 4.0f) < 0.01f) {
+            numWheel++;
+            continue;
+        }
+        k->aEntries[n++] = k->aEntries[j];
+    }
+    k->numEntries = n;
+
+    // the right and middle buttons as the game made them (jump, alt fire): swapped
+    int f2, f3, bSwapped = 0;
+    if (iosKbMouse_ButtonBinds(KEY_MOUSE_B2, &f2) == 1 && f2 == INPUT_FUNC_JUMP
+        && iosKbMouse_ButtonBinds(KEY_MOUSE_B3, &f3) == 1 && f3 == INPUT_FUNC_FIRE2) {
+        iosKbMouse_RebindButton(INPUT_FUNC_JUMP, INPUT_FUNC_FIRE2, KEY_MOUSE_B2);
+        iosKbMouse_RebindButton(INPUT_FUNC_FIRE2, INPUT_FUNC_JUMP, KEY_MOUSE_B3);
+        bSwapped = 1;
+    }
+    stdPlatform_Printf("iosKbMouse: mouse bindings to version %d (wheel freed: %d, right and middle buttons swapped: %d)\n",
+                       IOSKBMBINDS_VERSION, numWheel, bSwapped);
+    return 1;
 }
 
 #endif // IOSKBM_ENABLED
