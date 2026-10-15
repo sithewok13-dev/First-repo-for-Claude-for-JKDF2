@@ -2889,6 +2889,7 @@ void jkGuiRend_UpdateController()
     if (!lastB1 && valB1 && jkGuiRend_activeMenu->focusedElement
         && jkGuiRend_activeMenu->focusedElement->type == ELEMENT_TEXTBOX) {
         jkGuiRend_pTappedTextbox = jkGuiRend_activeMenu->focusedElement;
+        jkGuiRend_B1Menu = NULL; // (its let go isn't a press in this menu: no Return then, e.g. saving at once)
     }
     else
 #endif
