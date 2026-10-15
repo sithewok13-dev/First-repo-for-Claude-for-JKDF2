@@ -25,6 +25,7 @@
 #include "Dw/dwCog.h"
 #include "jk.h"
 #include "Platform/iOS/iosPad.h" // Added: game controllers' bindings (iOS)
+#include "Platform/iOS/iosKbMouse.h" // Added: the mouse's bindings (iOS)
 
 // Added
 static int sithControl_followingPlayer = 0;
@@ -2129,6 +2130,9 @@ void sithControl_RegisterMouseBindings()
         v10->binaryAxisVal = 0.3;
 #endif
     
+#ifdef IOSKBM_ENABLED
+    iosKbMouse_MapMouseDefaults(); // Added: the iOS buttons, the wheel left for the weapons (iosKbMouse)
+#else
     v10 = sithControl_BindAxis(INPUT_FUNC_PITCH, AXIS_MOUSE_Z, 0);
     if ( v10 )
         v10->binaryAxisVal = 4.0;
@@ -2136,6 +2140,7 @@ void sithControl_RegisterMouseBindings()
     sithControl_DefaultHelper(INPUT_FUNC_FIRE1, KEY_MOUSE_B1, 2);
     sithControl_DefaultHelper(INPUT_FUNC_JUMP, KEY_MOUSE_B2, 2);
     sithControl_DefaultHelper(INPUT_FUNC_FIRE2, KEY_MOUSE_B3, 2);
+#endif
 }
 
 void sithControl_RebindMouse()
