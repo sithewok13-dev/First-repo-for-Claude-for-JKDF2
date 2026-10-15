@@ -14,6 +14,7 @@
 #include "Devices/sithConsole.h"
 #include "Platform/wuRegistry.h"
 #include "Main/jkQuakeConsole.h"
+#include "Enhanced/enhTick.h" // Added
 
 #include "Dw/dwMain.h"
 
@@ -832,8 +833,7 @@ void Window_SdlUpdate()
     iosTouch_Update();
 #endif
 #ifdef JK_ENHANCED
-    // Added: the enhanced gameplay's photo modes go on (Enhanced/enhTick.h)
-    extern void enh_Tick(void);
+    // Added: the enhanced gameplay's photo modes go on
     enh_Tick();
 #endif
 
