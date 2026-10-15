@@ -23,6 +23,7 @@
 #include "Platform/iOS/iosFreeze.h"
 #include "Platform/iOS/iosCinema.h"
 #include "Platform/iOS/iosSaber.h"
+#include "Platform/iOS/iosPad.h"
 
 extern SDL_Window* displayWindow;
 extern int stdControl_bControlsActive;
@@ -676,6 +677,19 @@ static int iosTouch_aWheelOwned[IOSTOUCH_WHEEL_MAX]; // weapons: the player has 
 static int iosTouch_aWheelAmmo[IOSTOUCH_WHEEL_MAX];  // ...and its ammo count (-1: none to show)
 static CGPoint iosTouch_wheelCentre;
 static CGFloat iosTouch_wheelR0 = 0.0, iosTouch_wheelR1 = 0.0;
+// A game controller (iosPad): the touch controls hidden while it is played
+// (wanted; not while a selfie, Action Freeze or the cinematic burst is up,
+// which are worked by touch), by masking the overlay down to the open wheel
+// and the FPS readout; the wheel opened from it, and the slice its stick
+// points at (a slice, IOSTOUCH_WHEEL_CANCEL, or -1: nothing) and which way
+typedef char iosTouch_assertPadWheels[(IOSPAD_WHEEL_FORCE == IOSTOUCH_WHEEL_FORCE && IOSPAD_WHEEL_WEAPONS == IOSTOUCH_WHEEL_WEAPONS
+                                       && IOSPAD_WHEEL_SABER == IOSTOUCH_WHEEL_SABER) ? 1 : -1];
+static int iosTouch_bPadHud = 0;
+static int iosTouch_bPadMasked = 0;
+static CAShapeLayer* iosTouch_pPadMask = nil;
+static int iosTouch_bPadWheel = 0;
+static int iosTouch_padSlot = -1;
+static CGFloat iosTouch_padAim = 0.0;
 // MENU's tray; Escape held down for a MENU tap (iosTouch_Update calls left);
 // the FPS readout
 static int iosTouch_bTrayOpen = 0;
@@ -1298,6 +1312,16 @@ typedef struct {
 - (void)startCinema;
 - (void)endCinema;
 - (void)refreshButtonLooks;
+- (void)applyPadMask;
+- (void)padHudChanged;
+- (void)openWheel:(int)kind button:(int)button tapMode:(int)bTapMode;
+- (void)closeWheelSelecting:(int)slice;
+- (void)refreshWheelLooks;
+- (void)layoutSaberChips;
+- (void)useSaberChip:(int)chip;
+- (void)endBurst;
+- (void)setShowFps:(int)bShow;
+- (void)setTrayOpen:(int)bOpen;
 @end
 
 // CHEAT's picture: the Sith emblem, as drawn from the owner's picture of it:
@@ -2284,6 +2308,7 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
     forceRing.position = CGPointMake(iosTouch_aButtons[BTN_FORCE].x, iosTouch_aButtons[BTN_FORCE].y);
     [CATransaction commit];
     if (iosTouch_bWheelOpen) [self layoutWheel];
+    if (iosTouch_bPadMasked) [self applyPadMask]; // (the wheel or the FPS readout moved)
 }
 
 // Closest button the touch is on (with a little forgiveness), so a touch in the
@@ -2564,6 +2589,7 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
     bFpsBase = 0;
     [[NSUserDefaults standardUserDefaults] setBool:(iosTouch_bShowFps ? YES : NO) forKey:IOSTOUCH_FPS_DEFAULTS_KEY];
     [self refreshButtonLooks];
+    if (iosTouch_bPadMasked) [self applyPadMask]; // (shown over the hidden touch controls)
 }
 
 static void iosTouch_PhotosAsked(void)
@@ -2801,6 +2827,7 @@ static int iosTouch_SaberBlade(void)
             l.textColor = [UIColor colorWithRed:(r * 0.7 + 255 * 0.3) / 255.0 green:(g * 0.7 + 255 * 0.3) / 255.0 blue:(b * 0.7 + 255 * 0.3) / 255.0 alpha:1.0];
         }
     }
+    if (iosTouch_bPadMasked) [self applyPadMask]; // (the choices shown over the hidden touch controls)
 }
 
 // The saber's picture in the colour picked (the game's own: as near as can
@@ -3585,6 +3612,12 @@ static int iosTouch_WheelSliceHasRow(int i)
         hot = pFinger->wheelSlot;
         bCancel = hot < 0;
     }
+    // (a game controller's stick, while no finger points)
+    const int bPadPoints = iosTouch_bPadWheel && !pSlide && !pFinger;
+    if (bPadPoints && iosTouch_padSlot != -1) {
+        hot = iosTouch_padSlot;
+        bCancel = hot < 0;
+    }
 
     const int bSaber = iosTouch_wheelKind == IOSTOUCH_WHEEL_SABER;
     int cur = bSaber ? iosSaber_GetColour(iosSaber_GetStyle(), iosTouch_SaberBlade()) : bWeapons ? iosGame_GetCurWeapon() : iosGame_GetCurPower();
@@ -3646,9 +3679,10 @@ static int iosTouch_WheelSliceHasRow(int i)
         aSliceRows[i].textColor = text; // (shown on the weapon wheel only)
     }
 
-    // A short needle at the edge of the middle, the way the sliding thumb points
-    if (pSlide && pSlide->bArmed && hot != -1) {
-        CGFloat a = pSlide->wheelAim * M_PI / 180.0;
+    // A short needle at the edge of the middle, the way the sliding thumb
+    // (or the pad's stick) points
+    if ((pSlide && pSlide->bArmed && hot != -1) || (bPadPoints && hot != -1)) {
+        CGFloat a = (bPadPoints ? iosTouch_padAim : pSlide->wheelAim) * M_PI / 180.0;
         UIBezierPath* p = [UIBezierPath bezierPath];
         [p moveToPoint:CGPointMake(c.x + (R0 - 14.0) * cos(a), c.y - (R0 - 14.0) * sin(a))];
         [p addLineToPoint:CGPointMake(c.x + (R0 - 3.0) * cos(a), c.y - (R0 - 3.0) * sin(a))];
@@ -3691,11 +3725,20 @@ static int iosTouch_WheelSliceHasRow(int i)
         else if (bWeapons) wheelHint.text = iosTouch_bWheelTapMode ? @"tap a weapon" : @"slide toward a weapon";
         else wheelHint.text = iosTouch_bWheelTapMode ? @"tap a power" : @"slide toward a power";
     }
+    if (bPadPoints) {
+        // what letting go of the pad's button (or A) does, in its words
+        // (why a slice can't be picked stays as it is)
+        const int bPickable = hot >= 0 && iosTouch_aWheelEarned[hot];
+        const char* h = (hot >= 0 && !bPickable) ? NULL : iosPad_WheelHint(bPickable, bCancel);
+        if (h) wheelHint.text = [NSString stringWithUTF8String:h];
+    }
     if (!bWheelTitleSet || name != wheelTitleName) [self setWheelTitle:name];
 
     // A light tick each time the thumb moves onto another slice (or the gap)
+    // -- and on a pad, a short rumble
     if (hot != wheelLastHot) {
         if (hot != -1) [wheelTick selectionChanged];
+        if (hot != -1 && bPadPoints) iosPad_OnWheelSlice();
         wheelLastHot = hot;
     }
 }
@@ -3813,6 +3856,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     iosTouch_RecomputeKeys();
     [self refreshButtonLooks];
     [self refreshWheelLooks];
+    [self applyPadMask];
 }
 
 // FORCE WHEEL or NEXT WPN (the press s, still waiting to see which gesture
@@ -3847,6 +3891,7 @@ static int iosTouch_WheelSliceHasRow(int i)
         // the ring or EQUIP closes it
         [self setSaberColour:m->aSlices[slice].bin];
         iosTouch_bWheelTapMode = 1;
+        iosTouch_padSlot = -1;
         for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
             iosTouchSlot* o = &iosTouch_aSlots[i];
             if (o->touch && o->role == ROLE_WHEEL) {
@@ -3871,11 +3916,14 @@ static int iosTouch_WheelSliceHasRow(int i)
     }
     iosTouch_bWheelOpen = 0;
     iosTouch_bWheelTapMode = 0;
+    iosTouch_bPadWheel = 0;
+    iosTouch_padSlot = -1;
     iosGame_SetHold(0);
     wheelView.hidden = YES;
     [self layoutSaberChips];
     iosTouch_RecomputeKeys();
     [self refreshButtonLooks];
+    [self applyPadMask];
 }
 
 // ------------------------------------------------------------ touches
@@ -3890,6 +3938,7 @@ static int iosTouch_WheelSliceHasRow(int i)
 
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
 {
+    int bPadTouch = 0; // (the touch controls hidden for a game controller: back now)
     for (UITouch* t in touches) {
         int slot = -1;
         for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
@@ -3909,6 +3958,16 @@ static int iosTouch_WheelSliceHasRow(int i)
         s->trayButton = -1;
         s->wheelSlot = -1;
 
+        if (iosTouch_bPadMasked) {
+            // The touch controls were hidden for a game controller: they come
+            // back, and this touch does nothing else (it couldn't see what it
+            // touched) -- but on a wheel the pad opened it works the wheel
+            bPadTouch = 1;
+            if (!iosTouch_bWheelOpen) {
+                s->role = ROLE_IGNORED;
+                continue;
+            }
+        }
         if (iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE || iosTouch_bCinema) {
             s->role = ROLE_IGNORED; // nothing during a selfie or the cinematic burst
             continue;
@@ -3976,6 +4035,11 @@ static int iosTouch_WheelSliceHasRow(int i)
         else {
             s->role = ROLE_LOOK;
         }
+    }
+    if (bPadTouch || iosTouch_bPadHud) {
+        iosTouch_bPadHud = 0;
+        iosPad_NoteTouch();
+        [self applyPadMask];
     }
     iosTouch_RecomputeKeys();
     [self refreshButtonLooks];
@@ -4334,6 +4398,10 @@ static int iosTouch_WheelSliceHasRow(int i)
     CFTimeInterval now = CACurrentMediaTime();
     CFTimeInterval known = lastTickTime;
     lastTickTime = now;
+    // The touch controls hidden for a game controller come back for a
+    // selfie, Action Freeze or the cinematic burst (worked by touch)
+    if ((iosTouch_bPadHud && iosTouch_selfieStage == IOSTOUCH_SELFIE_NONE && !iosTouch_bFreezing && !iosTouch_bCinema) != iosTouch_bPadMasked)
+        [self applyPadMask];
     // SABER's picture in the blade's colour (the game's own one can change:
     // a new level, a cutscene, Mysteries of the Sith's own)
     // SABER shown once the saber is had for real, or while sithewok is on
@@ -4779,6 +4847,8 @@ static int iosTouch_WheelSliceHasRow(int i)
         iosGame_SetHold(0);
         wheelView.hidden = YES;
     }
+    iosTouch_bPadWheel = 0;
+    iosTouch_padSlot = -1;
     [self endSelfie]; // (all put back: the overlay is going, a menu or the background)
     [self endFreeze];
     [self endCinema];
@@ -4813,6 +4883,54 @@ static int iosTouch_WheelSliceHasRow(int i)
     [self setRing:saberRing progress:0.0];
     iosTouch_RecomputeKeys();
     stdControl_bControllerEscapeKey = 0;
+    [self refreshButtonLooks];
+    [self applyPadMask];
+}
+
+// ------------------------------------------------------------ game controllers
+
+// The touch controls hidden for a game controller (iosTouch_bPadHud), as far
+// as they can be: not while a selfie, Action Freeze or the cinematic burst is
+// up. Hidden, the overlay is masked down to the open wheel (and the saber
+// wheel's choices) and the FPS readout; it still takes touches, the first
+// of which brings the rest back (touchesBegan).
+- (void)applyPadMask
+{
+    const int bMask = iosTouch_bPadHud && iosTouch_selfieStage == IOSTOUCH_SELFIE_NONE && !iosTouch_bFreezing && !iosTouch_bCinema;
+    iosTouch_bPadMasked = bMask;
+    if (!bMask) {
+        if (self.layer.mask) self.layer.mask = nil;
+        return;
+    }
+    if (!iosTouch_pPadMask) {
+        iosTouch_pPadMask = [[CAShapeLayer alloc] init];
+        iosTouch_pPadMask.fillColor = [UIColor blackColor].CGColor;
+    }
+    UIBezierPath* p = [UIBezierPath bezierPath];
+    if (iosTouch_bWheelOpen) {
+        [p appendPath:[UIBezierPath bezierPathWithArcCenter:iosTouch_wheelCentre radius:iosTouch_wheelR1 + IOSTOUCH_WHEEL_POP + 18.0
+                                                 startAngle:0.0 endAngle:2.0 * M_PI clockwise:YES]];
+        for (int i = 0; i < IOSTOUCH_NUM_CHIPS; i++) {
+            if (!aSaberChips[i].hidden) [p appendPath:[UIBezierPath bezierPathWithRect:CGRectInset(aSaberChips[i].frame, -4.0, -4.0)]];
+        }
+    }
+    if (!fpsLabel.hidden) [p appendPath:[UIBezierPath bezierPathWithRect:fpsLabel.frame]];
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    iosTouch_pPadMask.frame = self.bounds;
+    iosTouch_pPadMask.path = p.CGPath;
+    [CATransaction commit];
+    if (self.layer.mask != iosTouch_pPadMask) self.layer.mask = iosTouch_pPadMask;
+}
+
+- (void)padHudChanged
+{
+    if (iosTouch_bPadHud) {
+        // (nothing left open that can't be seen)
+        [self setOptRow:IOSTOUCH_ROW_NONE];
+        [self setTrayOpen:0];
+    }
+    [self applyPadMask];
     [self refreshButtonLooks];
 }
 
@@ -4924,7 +5042,7 @@ void iosTouch_UpdateGyro(void)
         // Not while the overlay is hidden -- nor if this frame's events just
         // left gameplay, which hides it next frame
         int bHadGyro = iosTouch_GyroAvailable();
-        iosTouch_GyroUpdate(!iosTouch_pOverlay.hidden && iosTouch_WantOverlay(), iosTouch_pOverlay);
+        iosTouch_GyroUpdate(!iosTouch_pOverlay.hidden && iosTouch_WantOverlay() && !iosTouch_bPadMasked, iosTouch_pOverlay);
         if (iosTouch_GyroAvailable() != bHadGyro) {
             // iOS refused the motion data: the tray's GYRO says NO GYRO
             [iosTouch_pOverlay refreshGyroLabels];
@@ -4956,6 +5074,115 @@ int iosTouch_GetTopTextRectPt(float* pTop, float* pLeft, float* pRight)
     *pLeft = iosTouch_aTopText[1];
     *pRight = iosTouch_aTopText[2];
     return 1;
+}
+
+// ---------------------------------------------------------------- game controllers (iosPad)
+
+void iosTouch_SetPadHud(int bHidden)
+{
+    if (iosTouch_bPadHud == (bHidden != 0)) return;
+    iosTouch_bPadHud = bHidden != 0;
+    if (iosTouch_pOverlay) [iosTouch_pOverlay padHudChanged];
+}
+
+int iosTouch_PadWheelOpen(int kind, int bTapMode)
+{
+    static const int aButton[IOSTOUCH_WHEEL_NUM_KINDS] = { BTN_WHEEL, BTN_NEXTWPN, BTN_SABER };
+    IOSTouchOverlay* o = iosTouch_pOverlay;
+    if (!o || o.hidden || kind < 0 || kind >= IOSTOUCH_WHEEL_NUM_KINDS) return 0;
+    if (iosTouch_bWheelOpen || iosTouch_bFreezing || iosTouch_bCinema || iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE) return 0;
+    if (kind == IOSTOUCH_WHEEL_SABER && !iosGame_IsSaberButtonShown()) return 0;
+    [o endBurst];
+    if (jkHud_bChatOpen) iosGame_ToggleChat(); // (its keyboard would cover the wheel)
+    iosTouch_bPadWheel = 1;
+    iosTouch_padSlot = -1;
+    [o openWheel:kind button:aButton[kind] tapMode:bTapMode];
+    return 1;
+}
+
+int iosTouch_PadWheelIsOpen(void)
+{
+    return iosTouch_bWheelOpen && iosTouch_bPadWheel;
+}
+
+void iosTouch_PadWheelSetTapMode(void)
+{
+    if (!iosTouch_PadWheelIsOpen()) return;
+    iosTouch_bWheelTapMode = 1;
+    [iosTouch_pOverlay refreshWheelLooks];
+}
+
+void iosTouch_PadWheelAim(int bAim, float deg)
+{
+    if (!iosTouch_PadWheelIsOpen()) return;
+    const int was = iosTouch_padSlot;
+    if (bAim) {
+        iosTouch_padAim = deg;
+        iosTouch_padSlot = iosTouch_WheelSliceForAngle(deg, iosTouch_padSlot);
+    }
+    else iosTouch_padSlot = -1;
+    if (iosTouch_padSlot != was || bAim) [iosTouch_pOverlay refreshWheelLooks];
+}
+
+void iosTouch_PadWheelStep(int dir)
+{
+    const iosTouchWheelMap* m = iosTouch_pWheelMap;
+    if (!iosTouch_PadWheelIsOpen() || !m || m->numSlices <= 0) return;
+    // (the slices go round clockwise in their order)
+    int i = iosTouch_padSlot >= 0 ? iosTouch_padSlot + (dir > 0 ? 1 : -1) : (dir > 0 ? 0 : m->numSlices - 1);
+    i = (i + m->numSlices) % m->numSlices;
+    iosTouch_padSlot = i;
+    iosTouch_padAim = m->aSlices[i].deg;
+    [iosTouch_pOverlay refreshWheelLooks];
+}
+
+int iosTouch_PadWheelHot(int* pbPickable)
+{
+    const iosTouchWheelMap* m = iosTouch_pWheelMap;
+    const int bHot = iosTouch_PadWheelIsOpen() && m && iosTouch_padSlot >= 0 && iosTouch_padSlot < m->numSlices;
+    if (pbPickable) *pbPickable = bHot && iosTouch_aWheelEarned[iosTouch_padSlot];
+    return bHot;
+}
+
+int iosTouch_PadWheelClose(int bSelect)
+{
+    if (!iosTouch_PadWheelIsOpen()) return 0;
+    const int slice = (bSelect && iosTouch_PadWheelHot(NULL)) ? iosTouch_padSlot : -1;
+    if (iosTouch_wheelKind == IOSTOUCH_WHEEL_SABER && slice < 0) {
+        // (the saber wheel closes without a colour)
+        [iosTouch_pOverlay closeWheelSelecting:-1];
+        return 0;
+    }
+    [iosTouch_pOverlay closeWheelSelecting:slice];
+    return iosTouch_PadWheelIsOpen();
+}
+
+void iosTouch_PadSaberChip(int chip)
+{
+    if (!iosTouch_PadWheelIsOpen() || iosTouch_wheelKind != IOSTOUCH_WHEEL_SABER) return;
+    if (chip == IOSPAD_CHIP_STYLE) {
+        const int bDual = iosSaber_GetStyle() == IOSSABER_STYLE_DUAL;
+        if (!iosSaber_StyleAvailable(bDual ? IOSSABER_STYLE_SINGLE : IOSSABER_STYLE_DUAL)) return;
+        [iosTouch_pOverlay useSaberChip:(bDual ? IOSTOUCH_CHIP_SINGLE : IOSTOUCH_CHIP_DUAL)];
+    }
+    else if (chip == IOSPAD_CHIP_TARGET) {
+        if (iosSaber_StyleNumBlades(iosSaber_GetStyle()) < 2) return;
+        // LEFT, BOTH, RIGHT, as they sit
+        const int next = iosTouch_saberTarget == IOSTOUCH_SABER_LEFT ? IOSTOUCH_CHIP_BOTH
+                       : iosTouch_saberTarget == IOSTOUCH_SABER_BOTH ? IOSTOUCH_CHIP_RIGHT : IOSTOUCH_CHIP_LEFT;
+        [iosTouch_pOverlay useSaberChip:next];
+    }
+    else if (chip == IOSPAD_CHIP_EQUIP) {
+        [iosTouch_pOverlay useSaberChip:IOSTOUCH_CHIP_EQUIP];
+    }
+    iosTouch_padSlot = -1;
+    if (iosTouch_bWheelOpen) [iosTouch_pOverlay refreshWheelLooks];
+}
+
+void iosTouch_SetFpsShown(int bShow)
+{
+    if (iosTouch_pOverlay) [iosTouch_pOverlay setShowFps:bShow];
+    else iosTouch_bShowFps = bShow != 0;
 }
 
 // Called once per scancode each time the game reads the keyboard. Held

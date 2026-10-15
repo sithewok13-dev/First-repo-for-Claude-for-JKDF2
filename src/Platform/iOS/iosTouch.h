@@ -117,6 +117,36 @@ int iosTouch_IsScancodeDown(int scancode);
 // top button row, clear of the buttons). 0 until the overlay is laid out.
 int iosTouch_GetTopTextRectPt(float* pTop, float* pLeft, float* pRight);
 
+// Game controllers (iosPad). The touch controls hidden while a pad is
+// played (bHidden), or shown again; the gyro stops while they are hidden.
+// A touch on the hidden controls brings them back and does nothing else.
+void iosTouch_SetPadHud(int bHidden);
+// The wheels, opened from a pad (kind: IOSPAD_WHEEL_*), the same wheels as
+// the touch buttons open, holding the game still the same way: to pick by
+// letting go of the pad's button, or (bTapMode) with A. 0 if one can't open
+// now (another wheel, Action Freeze, a selfie...).
+int iosTouch_PadWheelOpen(int kind, int bTapMode);
+// Whether the wheel the pad opened is still open (a touch can close it too)
+int iosTouch_PadWheelIsOpen(void);
+void iosTouch_PadWheelSetTapMode(void);
+// Where the right stick points (degrees counter-clockwise from pointing
+// right, as the slices are), or nowhere (bAim 0); the slice it points at
+// holds a little past its edges, as under a thumb
+void iosTouch_PadWheelAim(int bAim, float deg);
+// The D-pad: the next slice round (+1 clockwise, -1 the other way)
+void iosTouch_PadWheelStep(int dir);
+// Whether the stick points at a slice (*pbPickable: one that can be picked)
+int iosTouch_PadWheelHot(int* pbPickable);
+// Closes the wheel, picking what is pointed at (bSelect) or nothing. A
+// colour on the saber wheel is set and the wheel stays open: returns 1
+// while it is still open, else 0.
+int iosTouch_PadWheelClose(int bSelect);
+// The saber wheel's choices (IOSPAD_CHIP_*)
+void iosTouch_PadSaberChip(int chip);
+// The FPS readout (the tray's FPS), on or off
+int iosTouch_IsFpsShown(void);
+void iosTouch_SetFpsShown(int bShow);
+
 #ifdef __cplusplus
 }
 #endif
