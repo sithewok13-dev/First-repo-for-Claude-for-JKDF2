@@ -2883,6 +2883,15 @@ void jkGuiRend_UpdateController()
     extern jkGuiMenu jkGuiSaveLoad_menu;
     extern jkGuiMenu jkGuiDialog_OkCancel_menu;
 
+#ifdef TARGET_IOS
+    // Added: A on a text box opens the keyboard for it, as a tap on it does
+    // (on iOS the keyboard only comes up for a box tapped); nothing else
+    if (!lastB1 && valB1 && jkGuiRend_activeMenu->focusedElement
+        && jkGuiRend_activeMenu->focusedElement->type == ELEMENT_TEXTBOX) {
+        jkGuiRend_pTappedTextbox = jkGuiRend_activeMenu->focusedElement;
+    }
+    else
+#endif
     if (!lastB1 && valB1) {
         jkGuiRend_B1Menu = jkGuiRend_activeMenu;
         jkGuiMenu* pB1Menu = jkGuiRend_activeMenu;
@@ -2919,11 +2928,13 @@ void jkGuiRend_UpdateController()
     }
     lastB1 = valB1;
 
-    if (stdControl_ReadKey(KEY_JOY1_B2, &val) && val) {
+    // (each its own press count: val has added up the D-pad's and A's)
+    int pressesB2 = 0, pressesB3 = 0;
+    if (stdControl_ReadKey(KEY_JOY1_B2, &pressesB2) && pressesB2) {
         jkGuiRend_WindowHandler(0, WM_KEYFIRST, VK_ESCAPE, 0, 0);
         stdPlatform_Printf("b\n");
     }
-    if (stdControl_ReadKey(KEY_JOY1_B3, &val) && val) {
+    if (stdControl_ReadKey(KEY_JOY1_B3, &pressesB3) && pressesB3) {
         //jkGuiRend_WindowHandler(0, WM_KEYFIRST, VK_TAB, 0, 0);
         stdPlatform_Printf("x\n");
         if (jkGuiRend_activeMenu && jkGuiRend_activeMenu->pReturnKeyShortcutElement) {

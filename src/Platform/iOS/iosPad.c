@@ -339,11 +339,19 @@ static const char* iosPad_PbName(int pb, int bAscii)
     return iosPad_ButtonName(iosPad_aSdlButton[pb], bAscii);
 }
 
-const char* iosPad_KeyDisplayName(int dxKeyNum)
+const char* iosPad_KeyDisplayName(int dxKeyNum, int bAxis)
 {
     static char aBuf[4][32];
     static int next = 0;
     char* b = aBuf[next++ & 3];
+    if (bAxis) {
+        static const char* const aAxis[JK_JOYSTICK_AXIS_STRIDE] = { "left stick X", "left stick Y", "right stick X", "right stick Y", NULL, NULL };
+        if (dxKeyNum < AXIS_JOY1_X || dxKeyNum >= AXIS_JOY1_X + JK_JOYSTICK_AXIS_STRIDE * JK_NUM_JOYSTICKS) return NULL;
+        const int idx = (dxKeyNum - AXIS_JOY1_X) / JK_JOYSTICK_AXIS_STRIDE, a = (dxKeyNum - AXIS_JOY1_X) % JK_JOYSTICK_AXIS_STRIDE;
+        const char* n = aAxis[a] ? aAxis[a] : iosPad_PbName(a == 4 ? PB_LT : PB_RT, 1);
+        snprintf(b, sizeof(aBuf[0]), idx ? "Pad 2 %s" : "Pad %s", n);
+        return b;
+    }
     for (int idx = 0; idx < JK_NUM_JOYSTICKS; idx++) {
         for (int pb = 0; pb < PB_NUM; pb++) {
             if (iosPad_KeyFor(idx, pb) != dxKeyNum) continue;

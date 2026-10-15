@@ -118,9 +118,9 @@ const char* iosPad_WheelHint(int bHot, int bCancel);
 // for the triggers SDL_GAMEPAD_BUTTON_COUNT + 0 (left) / + 1 (right)
 const char* iosPad_ButtonName(int sdlButton, int bAscii);
 
-// The name the game's control screens give a pad key (KEY_JOY1_* or a pad
-// axis AXIS_JOY1_*), or NULL to keep its own
-const char* iosPad_KeyDisplayName(int dxKeyNum);
+// The name the game's control screens give a pad key (KEY_JOY1_*...) or a
+// pad axis (AXIS_JOY1_X...: bAxis), or NULL to keep its own
+const char* iosPad_KeyDisplayName(int dxKeyNum, int bAxis);
 
 // The controller options (iosPadPanel draws them)
 int iosPad_PanelIsOpen(void);
