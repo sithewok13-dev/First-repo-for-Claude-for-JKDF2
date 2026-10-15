@@ -34,6 +34,10 @@ void jkCoopSave_LevelOpened(void);
 void jkCoopSave_KitTaken(int bCarried);
 // Once a frame in a level
 void jkCoopSave_Tick(void);
+// Anything not yet written, written now (the level or the game ending)
+void jkCoopSave_Flush(void);
+// The resumed level isn't in the episode (jkMain_loadFile2): not resumed
+void jkCoopSave_ResumeFailed(void);
 
 #endif // QOL_IMPROVEMENTS
 

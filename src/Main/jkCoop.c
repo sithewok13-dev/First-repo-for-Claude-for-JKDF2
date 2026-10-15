@@ -114,6 +114,7 @@ void jkCoop_LevelEnded(void)
 {
     // (the player's record, not their thing: also after the level has closed, the
     // Force powers screen's choices made)
+    jkCoopSave_Flush();
     if (!jkCoop_IsActive() || !sithPlayer_g_pLocalPlayer)
         return;
     if (!jkDev_Custom_CheatedThisLevel() || !jkCoop_bKitValid) {
@@ -137,6 +138,7 @@ void jkCoop_LevelEnded(void)
 
 void jkCoop_SessionEnded(void)
 {
+    jkCoopSave_Flush();
     jkCoop_pickedEntry = -1;
     jkCoop_bKitValid = 0;
     jkCoop_bKitToGive = 0;

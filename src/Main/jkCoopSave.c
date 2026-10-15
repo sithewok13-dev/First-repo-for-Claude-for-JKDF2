@@ -27,6 +27,7 @@
 typedef struct jkCoopSavePlayer
 {
     char id[JKCOOPSAVE_ID_LEN]; // ("" free)
+    int netId;                  // (the host's: the game that first sent this id this session; 0 none yet)
     jkCoopKitBin aKit[SITHBIN_NUMBINS];
 } jkCoopSavePlayer;
 
@@ -37,6 +38,25 @@ static int jkCoopSave_bHostKitPending = 0;   // (resumed: the host's own saved k
 static jkCoopSavePlayer jkCoopSave_aPlayer[JKCOOPSAVE_PLAYERS]; // (the host's: everyone's)
 static int jkCoopSave_bDirty = 0;
 static uint32_t jkCoopSave_dirtyMs = 0;
+static char jkCoopSave_level[64];       // (the level a save is of: the one being played)
+static int jkCoopSave_bResumed = 0;      // (this session carried on from the save)
+static int jkCoopSave_bWrittenThisSession = 0;
+
+static int jkCoopSave_IdOk(const char* id)
+{
+    if (strlen(id) != JKCOOPSAVE_ID_LEN - 1) return 0;
+    for (const char* p = id; *p; p++)
+        if (!((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f'))) return 0;
+    return 1;
+}
+
+static void jkCoopSave_MarkDirty(void)
+{
+    jkCoopSave_bDirty = 1;
+    jkCoopSave_dirtyMs = stdPlatform_GetTimeMsec();
+    if (sithWorld_g_pCurrentWorld)
+        stdString_SafeStrCopy(jkCoopSave_level, sithWorld_g_pCurrentWorld->map_jkl_fname, sizeof(jkCoopSave_level));
+}
 
 // ------------------------------------------------------------------ the player id
 
@@ -46,7 +66,7 @@ static const char* jkCoopSave_MyId(void)
         return jkCoopSave_myId;
     char stored[64] = "";
     wuRegistry_GetStr("coopPlayerId", stored, sizeof(stored), "");
-    if (strlen(stored) == JKCOOPSAVE_ID_LEN - 1) {
+    if (jkCoopSave_IdOk(stored)) {
         stdString_SafeStrCopy(jkCoopSave_myId, stored, JKCOOPSAVE_ID_LEN);
         return jkCoopSave_myId;
     }
@@ -91,19 +111,21 @@ static void jkCoopSave_Path(char* pOut, int outLen, const char* suffix)
 
 static int jkCoopSave_Write(void)
 {
-    if (!jkCoopSave_episode[0] || !sithWorld_g_pCurrentWorld)
+    if (!jkCoopSave_episode[0] || !jkCoopSave_level[0])
         return 0;
     char path[160], tmp[160], bak[160];
     jkCoopSave_Path(path, sizeof(path), "");
     jkCoopSave_Path(tmp, sizeof(tmp), ".tmp");
     jkCoopSave_Path(bak, sizeof(bak), ".bak");
-    stdFileUtil_MkDir(JKCOOPSAVE_DIR);
+    char dir[16];
+    stdString_SafeStrCopy(dir, JKCOOPSAVE_DIR, sizeof(dir));
+    stdFileUtil_MkDir(dir);
 
     FILE* f = fopen(tmp, "w");
     if (!f)
         return 0;
     int ok = fprintf(f, "OPENJKDF2_COOP %d\nepisode %s\nlevel %s\n", JKCOOPSAVE_VERSION, jkCoopSave_episode,
-                     sithWorld_g_pCurrentWorld->map_jkl_fname) > 0;
+                     jkCoopSave_level) > 0;
     for (int i = 0; i < JKCOOPSAVE_PLAYERS && ok; i++) {
         const jkCoopSavePlayer* p = &jkCoopSave_aPlayer[i];
         if (!p->id[0]) continue;
@@ -118,24 +140,54 @@ static int jkCoopSave_Write(void)
         remove(tmp);
         return 0;
     }
-    // (the last one kept as .bak, then the new one put in its place)
-    if (util_FileExists(path)) {
-        remove(bak);
-        rename(path, bak);
+    // The first write of a session keeps what was there: a campaign carried on, as .bak; another one
+    // (this game started afresh), under its own dated name, never overwritten
+    if (!jkCoopSave_bWrittenThisSession && util_FileExists(path)) {
+        if (jkCoopSave_bResumed) {
+            remove(bak);
+            if (rename(path, bak) != 0) { remove(tmp); return 0; }
+        }
+        else {
+            char old[200];
+            const time_t now = time(NULL);
+            const struct tm* t = localtime(&now);
+            char stamp[32] = "old";
+            if (t) strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", t);
+            jkCoopSave_Path(old, sizeof(old), "");
+            snprintf(old + strlen(old), sizeof(old) - strlen(old), ".%s", stamp);
+            if (rename(path, old) != 0) { remove(tmp); return 0; }
+            stdPlatform_Printf("OpenJKDF2: co-op, the earlier campaign kept as %s\n", old);
+        }
     }
+    // (then the new one put in its place in one step; Windows won't rename over a file)
+#ifdef _WIN32
+    if (util_FileExists(path) && util_FileExists(tmp)) remove(path);
+#endif
     if (rename(tmp, path) != 0) {
-        rename(bak, path);
+        remove(tmp);
         return 0;
     }
-    stdPlatform_Printf("OpenJKDF2: co-op saved, %s at %s\n", jkCoopSave_episode, sithWorld_g_pCurrentWorld->map_jkl_fname);
+    jkCoopSave_bWrittenThisSession = 1;
+    stdPlatform_Printf("OpenJKDF2: co-op saved, %s at %s\n", jkCoopSave_episode, jkCoopSave_level);
     return 1;
 }
 
-// The save read into the players' table and the level; 0 if there is none (or it isn't whole)
+// The save (or, if that isn't there whole, its .bak) read into the players' table and the level; 0 if
+// there is none
+static int jkCoopSave_ReadFile(const char* path, char* pLevel, int levelLen);
 static int jkCoopSave_Read(char* pLevel, int levelLen)
 {
-    char path[160], line[256];
+    char path[160];
     jkCoopSave_Path(path, sizeof(path), "");
+    if (jkCoopSave_ReadFile(path, pLevel, levelLen))
+        return 1;
+    jkCoopSave_Path(path, sizeof(path), ".bak");
+    return jkCoopSave_ReadFile(path, pLevel, levelLen);
+}
+
+static int jkCoopSave_ReadFile(const char* path, char* pLevel, int levelLen)
+{
+    char line[256];
     FILE* f = fopen(path, "r");
     if (!f)
         return 0;
@@ -149,7 +201,7 @@ static int jkCoopSave_Read(char* pLevel, int levelLen)
         float amount = 0.0f;
         if (sscanf(line, "OPENJKDF2_COOP %d", &version) == 1) continue;
         if (sscanf(line, "level %63s", level) == 1) continue;
-        if (sscanf(line, "player %63s", arg) == 1 && strlen(arg) == JKCOOPSAVE_ID_LEN - 1) { pCur = jkCoopSave_Player(arg, 1); continue; }
+        if (sscanf(line, "player %63s", arg) == 1) { pCur = jkCoopSave_IdOk(arg) ? jkCoopSave_Player(arg, 1) : NULL; continue; }
         if (sscanf(line, "bin %d %f %d", &bin, &amount, &state) == 3) {
             if (pCur && bin >= 0 && bin < SITHBIN_NUMBINS) { pCur->aKit[bin].amount = amount; pCur->aKit[bin].state = state; }
             continue;
@@ -200,6 +252,8 @@ static void jkCoopSave_KitArrived(int idFrom, const uint8_t* pData, int len)
     char id[JKCOOPSAVE_ID_LEN];
     memcpy(id, pData + 2, JKCOOPSAVE_ID_LEN - 1);
     id[JKCOOPSAVE_ID_LEN - 1] = 0;
+    if (!jkCoopSave_IdOk(id))
+        return;
     int n = 2 + JKCOOPSAVE_ID_LEN - 1;
     const int count = pData[n] | (pData[n + 1] << 8);
     n += 2;
@@ -215,10 +269,14 @@ static void jkCoopSave_KitArrived(int idFrom, const uint8_t* pData, int len)
     }
 
     if (stdComm_bIsServer) {
-        // a guest's kit: kept for the save; one who came in with nothing given theirs back, if kept
-        jkCoopSavePlayer* p = jkCoopSave_Player(id, 1);
-        if (!p)
+        // a guest's kit: kept for the save; one who came in with nothing given theirs back, if kept.
+        // (Not the host's own id, nor one another game in this session sent first.)
+        if (!strcmp(id, jkCoopSave_MyId()))
             return;
+        jkCoopSavePlayer* p = jkCoopSave_Player(id, 1);
+        if (!p || (p->netId && p->netId != idFrom))
+            return;
+        p->netId = idFrom;
         int bKnown = 0;
         for (int b = 0; b < SITHBIN_NUMBINS && !bKnown; b++) bKnown = p->aKit[b].amount != 0.0 || p->aKit[b].state;
         if ((flags & JKCOOPSAVE_FRESH) && bKnown) {
@@ -227,10 +285,9 @@ static void jkCoopSave_KitArrived(int idFrom, const uint8_t* pData, int len)
             return;
         }
         memcpy(p->aKit, aKit, sizeof(aKit));
-        jkCoopSave_bDirty = 1;
-        jkCoopSave_dirtyMs = stdPlatform_GetTimeMsec();
+        jkCoopSave_MarkDirty();
     }
-    else if (!strcmp(id, jkCoopSave_MyId())) {
+    else if (idFrom == (int)sithNet_serverNetId && !strcmp(id, jkCoopSave_MyId())) {
         // ours, from the host
         stdPlatform_Printf("OpenJKDF2: co-op, gear given back by the host\n");
         jkCoop_SetKit(aKit);
@@ -250,12 +307,15 @@ void jkCoopSave_LevelLoading(const char* pEpisodeGob, char** ppLevel)
     jkCoopSave_bHostKitPending = 0;
     memset(jkCoopSave_aPlayer, 0, sizeof(jkCoopSave_aPlayer));
     jkCoopSave_bDirty = 0;
+    jkCoopSave_bResumed = 0;
+    jkCoopSave_bWrittenThisSession = 0;
     // (a co-op game being hosted, from its start: carried on from the save)
     if (!stdComm_bIsServer || !(sithMulti_multiModeFlags & MULTIMODEFLAG_COOP) || !wuRegistry_GetBool("bCoopResume", 1))
         return;
     if (!jkCoopSave_Read(jkCoopSave_resumeLevel, sizeof(jkCoopSave_resumeLevel)))
         return;
     stdPlatform_Printf("OpenJKDF2: co-op resumed, %s at %s\n", jkCoopSave_episode, jkCoopSave_resumeLevel);
+    jkCoopSave_bResumed = 1;
     if (ppLevel)
         *ppLevel = jkCoopSave_resumeLevel;
     jkCoopSave_bHostKitPending = jkCoopSave_Player(jkCoopSave_MyId(), 0) != NULL;
@@ -280,12 +340,27 @@ void jkCoopSave_KitTaken(int bCarried)
         jkCoopSavePlayer* p = jkCoopSave_Player(jkCoopSave_MyId(), 1);
         if (p)
             memcpy(p->aKit, aKit, sizeof(aKit));
-        jkCoopSave_bDirty = 1;
-        jkCoopSave_dirtyMs = stdPlatform_GetTimeMsec();
+        jkCoopSave_MarkDirty();
     }
     else {
         jkCoopSave_SendKit(jkCoopSave_MyId(), aKit, bCarried ? 0 : JKCOOPSAVE_FRESH, sithNet_serverNetId);
     }
+}
+
+void jkCoopSave_Flush(void)
+{
+    if (jkCoopSave_bDirty && stdComm_bIsServer) {
+        jkCoopSave_bDirty = 0;
+        jkCoopSave_Write();
+    }
+}
+
+void jkCoopSave_ResumeFailed(void)
+{
+    // (the saved level isn't in the episode: the game's own start, and the save left alone)
+    jkCoopSave_bResumed = 0;
+    jkCoopSave_bHostKitPending = 0;
+    memset(jkCoopSave_aPlayer, 0, sizeof(jkCoopSave_aPlayer));
 }
 
 void jkCoopSave_Tick(void)

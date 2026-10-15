@@ -1021,6 +1021,7 @@ int jkMain_loadFile2(char *pGobPath, char *pEpisodeName)
     int result; // eax
 
 #ifdef QOL_IMPROVEMENTS
+    char* pAsked = pEpisodeName;
     jkCoopSave_LevelLoading(pGobPath, &pEpisodeName); // Added: co-op, a host carries on from its save
 #endif
 
@@ -1038,7 +1039,18 @@ int jkMain_loadFile2(char *pGobPath, char *pEpisodeName)
         jkMain_pEpisodeEnt2 = NULL;
     }
     v2 = jkEpisode_Load(&jkEpisode_mLoad);
+#ifdef QOL_IMPROVEMENTS
+    // Added: a resumed co-op level that isn't in this episode: the level asked for, as ever
+    if (!jkEpisode_idk4(&jkEpisode_mLoad, pEpisodeName) && pEpisodeName != pAsked) {
+        jkCoopSave_ResumeFailed();
+        pEpisodeName = pAsked;
+        _strncpy(jkMain_aLevelJklFname, pEpisodeName, 0x7Fu);
+        jkMain_aLevelJklFname[127] = 0;
+        jkEpisode_idk4(&jkEpisode_mLoad, pEpisodeName);
+    }
+#else
     jkEpisode_idk4(&jkEpisode_mLoad, pEpisodeName);
+#endif
     if ( v2 )
     {
         result = 1;
