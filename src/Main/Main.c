@@ -110,6 +110,7 @@ int32_t Main_bEnhancedCogVerbs = 0;
 char Main_strEpisode[129];
 char Main_strMap[128+4];
 char Main_strJoin[256]; // Added: -join <address[:port]>: join that host's game at start (as the Join screen does)
+char Main_strJoinPassword[64]; // Added: -password, for -join
 #endif
 
 #if defined(QOL_IMPROVEMENTS)
@@ -143,7 +144,9 @@ static int Main_StartupJoin(void)
     }
     jkMultiEntry3 e;
     memset(&e, 0, sizeof(e));
-    char16_t wPassword[32] = { 0 }; // (none)
+    char16_t wPassword[32] = { 0 }; // (none, unless -password gave one)
+    stdString_CharToWchar(wPassword, Main_strJoinPassword, 31);
+    wPassword[31] = 0;
     int r = stdComm_Open(0, wPassword);
     if (r) {
         stdPlatform_Printf("Join: refused (%x)\n", r);
@@ -792,6 +795,12 @@ void Main_ParseCmdLine(char *cmdline)
             if (pArgNext) stdString_SafeStrCopy(Main_strJoin, pArgNext, sizeof(Main_strJoin));
             Main_bAutostart = 1;
             Main_bAutostartSp = 0;
+        }
+        else if (!__strcmpi(pArgTok, "-password") || !__strcmpi(pArgTok, "/password") )
+        {
+            // Added: -password <password>: the game's password, for -join
+            char* pArgNext = _strtok(0, " \t");
+            if (pArgNext) stdString_SafeStrCopy(Main_strJoinPassword, pArgNext, sizeof(Main_strJoinPassword));
         }
         else if (!__strcmpi(pArgTok, "-headless") || !__strcmpi(pArgTok, "/headless") )
         {

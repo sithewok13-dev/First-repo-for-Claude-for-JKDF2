@@ -91,6 +91,27 @@ static uint32_t stdComm_ENet_myId = 0xFFFFFFFF;
 static uint64_t stdComm_ENet_usedIds = 0x1;    // (the host: ids given out; bit 0, id 1, its own)
 static int stdComm_ENet_bHostLost = 0;
 
+// The game's password, checked by the host: a player's connection carries a hash of the one they typed
+// (ENet's connect data); one without the right one gets the game's description only (with no player
+// id), as finding games does, and is let go; nothing it sends is taken. The description sent out never
+// has the password in it. (A check at the door, not encryption: see the docs on playing over the
+// internet.)
+#define STDCOMM_ENET_REASON_PASSWORD 0x50415353u // ("PASS")
+static uint32_t stdComm_ENet_hostPasswordHash = 0; // (the host's; 0: no password)
+static uint64_t stdComm_ENet_limitedIds = 0;       // (the host's: connected without the password)
+static int stdComm_ENet_bWrongPassword = 0;        // (a player's: the host said so)
+
+static uint32_t stdComm_ENet_PasswordHash(const char16_t* pw)
+{
+    if (!pw || !pw[0]) return 0;
+    uint32_t h = 2166136261u; // (FNV-1a over the UTF-16 units)
+    for (int i = 0; i < 32 && pw[i]; i++) {
+        h ^= (uint32_t)(pw[i] & 0xFF); h *= 16777619u;
+        h ^= (uint32_t)(pw[i] >> 8); h *= 16777619u;
+    }
+    return h ? h : 1;
+}
+
 static stdCommENetEvent* stdComm_ENet_pQueueHead = NULL;
 static stdCommENetEvent* stdComm_ENet_pQueueTail = NULL;
 
@@ -197,12 +218,17 @@ static void stdComm_ENet_ServerEvent(ENetEvent* ev)
             stdComm_ENet_storedEntry.multiModeFlags = sithMulti_multiModeFlags;
             stdCommENetInfo info;
             memset(&info, 0, sizeof(info));
-            info.id = nextId;
+            // (without the game's password: the description only, no id, and let go)
+            const int bLimited = stdComm_ENet_hostPasswordHash && ev->data != stdComm_ENet_hostPasswordHash;
+            if (bLimited) stdComm_ENet_limitedIds |= (1ULL << (nextId - 1));
+            info.id = bLimited ? 0 : nextId;
             info.entry = stdComm_ENet_storedEntry;
             info.entry.numPlayers = stdComm_ENet_RealConnectedPlayers();
             info.entry.maxPlayers = stdComm_ENet_storedEntry.maxPlayers;
             jkPlayer_maxPlayers = stdComm_ENet_storedEntry.maxPlayers;
+            memset(info.entry.wPassword, 0, sizeof(info.entry.wPassword)); // (never sent)
             stdComm_ENet_SendRaw(ev->peer, &info, sizeof(info), 0);
+            if (bLimited) enet_peer_disconnect_later(ev->peer, STDCOMM_ENET_REASON_PASSWORD);
             break;
         }
         case ENET_EVENT_TYPE_DISCONNECT:
@@ -218,6 +244,7 @@ static void stdComm_ENet_ServerEvent(ENetEvent* ev)
                     }
                 }
                 stdComm_ENet_usedIds &= ~(1ULL << (id - 1));
+                stdComm_ENet_limitedIds &= ~(1ULL << (id - 1));
             }
             ev->peer->data = NULL;
             break;
@@ -225,6 +252,11 @@ static void stdComm_ENet_ServerEvent(ENetEvent* ev)
         case ENET_EVENT_TYPE_RECEIVE:
         {
             ENetPacket* p = ev->packet;
+            const int peerId = stdComm_ENet_PeerId(ev->peer);
+            if (peerId > 0 && (stdComm_ENet_limitedIds & (1ULL << (peerId - 1)))) {
+                enet_packet_destroy(p); // (connected without the password: nothing taken)
+                break;
+            }
             if (p->dataLength >= 8 && p->dataLength <= STDCOMM_ENET_MAX_MSG) {
                 uint32_t idFrom, idTo;
                 memcpy(&idFrom, p->data, 4);
@@ -270,6 +302,13 @@ static void stdComm_ENet_ClientEvent(ENetEvent* ev)
                 // the first: our id, and the session
                 stdCommENetInfo info;
                 memcpy(&info, p->data, sizeof(info));
+                if (!info.id) {
+                    // (no id: the host wants the game's password, and this wasn't it)
+                    stdComm_ENet_infoPrintf("ENet: wrong password for this game\n");
+                    stdComm_ENet_bWrongPassword = 1;
+                    enet_packet_destroy(p);
+                    break;
+                }
                 stdComm_ENet_myId = (uint32_t)info.id;
                 stdComm_ENet_storedEntryEnum = info.entry;
                 stdComm_ENet_storedEntryEnum.field_E0 = 10;
@@ -647,7 +686,8 @@ int stdComm_Open(int idx, char16_t* pwPassword)
     stdComm_ENet_bServer = 0;
     stdComm_ENet_myId = 0xFFFFFFFF;
     stdComm_ENet_pHost = enet_host_create(NULL, 1, STDCOMM_ENET_CHANNELS, 0, 0);
-    stdComm_ENet_pServer = stdComm_ENet_pHost ? enet_host_connect(stdComm_ENet_pHost, &addr, STDCOMM_ENET_CHANNELS, 0) : NULL;
+    stdComm_ENet_bWrongPassword = 0;
+    stdComm_ENet_pServer = stdComm_ENet_pHost ? enet_host_connect(stdComm_ENet_pHost, &addr, STDCOMM_ENET_CHANNELS, stdComm_ENet_PasswordHash(pwPassword)) : NULL;
     if (stdComm_ENet_pServer) enet_peer_timeout(stdComm_ENet_pServer, 32, STDCOMM_ENET_HOST_TIMEOUT_MS, STDCOMM_ENET_HOST_TIMEOUT_MS);
     SDL_UnlockMutex(stdComm_ENet_mutex);
     if (!stdComm_ENet_pServer) return 0x88770154 + 1;
@@ -656,7 +696,7 @@ int stdComm_Open(int idx, char16_t* pwPassword)
     // (our id from the host, before the game sends anything: up to 5 s)
     for (int i = 0; i < 500; i++) {
         SDL_LockMutex(stdComm_ENet_mutex);
-        int bDone = stdComm_ENet_myId != 0xFFFFFFFF || stdComm_ENet_bHostLost;
+        int bDone = stdComm_ENet_myId != 0xFFFFFFFF || stdComm_ENet_bHostLost || stdComm_ENet_bWrongPassword;
         SDL_UnlockMutex(stdComm_ENet_mutex);
         if (bDone) break;
         SDL_Delay(10);
@@ -716,6 +756,8 @@ void DirectPlay_Close()
 int DirectPlay_OpenHost(jkMultiEntry* pEntry)
 {
     stdComm_ENet_storedEntry = *pEntry;
+    stdComm_ENet_hostPasswordHash = stdComm_ENet_PasswordHash(pEntry->wPassword);
+    stdComm_ENet_limitedIds = 0;
     jkPlayer_maxPlayers = pEntry->maxPlayers;
     stdComm_bIsServer = 1;
 

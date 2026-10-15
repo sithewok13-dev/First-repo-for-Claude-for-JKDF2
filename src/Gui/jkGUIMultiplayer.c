@@ -345,7 +345,13 @@ LABEL_29:
             goto LABEL_28;
 #ifdef QOL_IMPROVEMENTS
         // HACK: Actually do passwords correctly
+#ifdef PLATFORM_ENET
+        // Added: over ENet the host checks the password (it never sends it): the one typed goes with
+        // the connection (stdComm_Open)
+        int check = 0;
+#else
         int check = __wcscmp((const char16_t*)jkGuiMultiplayer_aEntries[jkGuiMultiplayer_aElements3[3].selectedTextEntry].wPassword, (const char16_t*)jkGuiMultiplayer_stru_556168.field_300);
+#endif
         if (check) {
             v27 = jkStrings_GetUniStringWithFallback("GUINET_WRONGPASSWORD");
             v11 = jkStrings_GetUniStringWithFallback("GUINET_JOINERROR");
@@ -355,7 +361,11 @@ LABEL_29:
 
         wuRegistry_SetWString("lastConnectedHost", jkGuiMultiplayer_ipText);
 #endif
+#ifdef PLATFORM_ENET
+        v10 = stdComm_Open(v7, (char16_t*)jkGuiMultiplayer_stru_556168.field_300); // Added: the password typed
+#else
         v10 = stdComm_Open(v7, v35.sessionName);
+#endif
         if ( v10 )
         {
             if ( v10 == 0x8877014A )
