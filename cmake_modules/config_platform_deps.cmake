@@ -166,10 +166,11 @@ if(TARGET_USE_ENET)
     endif()
     include_directories(${ENET_DIR}/include)
     file(GLOB TARGET_ENET_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/ENet/*.c)
-    # Android's C library declares htonl and friends only with its BSD extras, which -std=c11
-    # leaves out unless asked for
+    # Android's C library defines htonl and friends in its <sys/endian.h>, which its socket headers
+    # reach through <endian.h> -- and libsmusher's own endian.h (src/external/libsmusher/src, on
+    # the include path of every file) is found first. So ENet's files include the real one first.
     if(TARGET_ANDROID)
-        set_property(SOURCE ${TARGET_ENET_LIB_SRCS} ${TARGET_ENET_SRCS} APPEND PROPERTY COMPILE_DEFINITIONS _BSD_SOURCE)
+        set_property(SOURCE ${TARGET_ENET_LIB_SRCS} ${TARGET_ENET_SRCS} APPEND PROPERTY COMPILE_OPTIONS "SHELL:-include sys/endian.h")
     endif()
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_ENET_SRCS} ${TARGET_ENET_LIB_SRCS})
 
