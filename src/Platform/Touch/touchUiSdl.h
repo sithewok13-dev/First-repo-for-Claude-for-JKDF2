@@ -15,13 +15,18 @@ extern "C" {
 
 union SDL_Event;
 
-// Window_SdlUpdate: before its events are polled; each event; after them
+// Window_SdlUpdate: before its events are polled; each event (1: the game
+// is to leave it alone -- a finger's mouse click while the controls are up);
+// after them
 void touchUiSdl_BeforeEvents(void);
-void touchUiSdl_HandleEvent(const union SDL_Event* pEvent);
+int touchUiSdl_HandleEvent(const union SDL_Event* pEvent);
 void touchUiSdl_AfterEvents(void);
 
 // Window_SdlVblank: the overlay drawn over the frame, before it is shown
 void touchUiSdl_Render(void);
+// Window_RecreateSDL2Window: the GL context is about to go (still current):
+// the overlay's GL objects go with it, and are made again in the next one
+void touchUiSdl_ContextLost(void);
 
 // stdControl_ReadKeyboard: whether the overlay holds this key down
 int touchUiSdl_IsScancodeDown(int scancode);

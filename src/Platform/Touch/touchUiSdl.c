@@ -17,6 +17,8 @@
 extern SDL_Window* displayWindow;
 extern int Window_lastXRel;
 extern int Window_lastYRel;
+extern int Window_bMouseLeft;
+extern int Window_bMouseRight;
 extern int stdControl_bControlsActive;
 extern int stdControl_bControllerEscapeKey;
 extern int jkCutscene_isRendering;
@@ -42,7 +44,6 @@ static struct {
     int bInit;
     double known;
     int bShown;
-    int bHintSet, bHintTouchMouse;
     int bEscWas;
     // the window, as last measured
     int pxW, pxH;
@@ -223,10 +224,20 @@ static int touchUiSdl_IsOwnKey(SDL_Scancode sc)
            || sc == SDL_SCANCODE_MEDIA_PLAY_PAUSE || sc == SDL_SCANCODE_POWER || sc == SDL_SCANCODE_UNKNOWN;
 }
 
-void touchUiSdl_HandleEvent(const union SDL_Event* pEvent)
+int touchUiSdl_HandleEvent(const union SDL_Event* pEvent)
 {
     const SDL_Event* e = (const SDL_Event*)pEvent;
     if (!ts.bInit) touchUiSdl_Init();
+    // SDL makes every finger a mouse too (its touch mouse, left on all the
+    // time, so a finger down in a menu and up in a level always ends): while
+    // the controls are up those clicks and moves aren't the game's -- the
+    // fingers are the controls'. In menus and cutscenes they are clicks.
+    if (ts.bShown) {
+        if ((e->type == SDL_EVENT_MOUSE_MOTION && e->motion.which == SDL_TOUCH_MOUSEID)
+            || ((e->type == SDL_EVENT_MOUSE_BUTTON_DOWN || e->type == SDL_EVENT_MOUSE_BUTTON_UP) && e->button.which == SDL_TOUCH_MOUSEID)
+            || (e->type == SDL_EVENT_MOUSE_WHEEL && e->wheel.which == SDL_TOUCH_MOUSEID))
+            return 1;
+    }
     switch (e->type) {
         case SDL_EVENT_FINGER_DOWN:
         case SDL_EVENT_FINGER_MOTION:
@@ -274,6 +285,7 @@ void touchUiSdl_HandleEvent(const union SDL_Event* pEvent)
         default:
             break;
     }
+    return 0;
 }
 
 void touchUiSdl_AfterEvents(void)
@@ -286,11 +298,12 @@ void touchUiSdl_AfterEvents(void)
     // objectives at a level's start wait for Ok with the controls on)
     const int bWant = stdControl_bControlsActive && !jkCutscene_isRendering && !jkGuiRend_IsMenuActive();
     touchUi_SetShown(bWant);
-    // Fingers are clicks only where there are no touch controls (menus)
-    if (!ts.bHintSet || ts.bHintTouchMouse != !bWant) {
-        ts.bHintSet = 1;
-        ts.bHintTouchMouse = !bWant;
-        SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, bWant ? "0" : "1");
+    // The controls appearing: a mouse button a finger pressed before (a menu's
+    // Ok, a loading screen) lets go now -- its lift, now the controls', won't
+    // reach the game, and a held left button would fire on and on
+    if (bWant && !ts.bShown) {
+        Window_bMouseLeft = 0;
+        Window_bMouseRight = 0;
     }
 
     float w, h, aInset[4];
@@ -335,6 +348,11 @@ void touchUiSdl_Render(void)
 {
     if (!ts.bShown || !touchUi_IsShown() || ts.pxW <= 0) return;
     touchUiRender_Draw(touchUi_Draw(touchUiSdl_Now()), (unsigned int)std3D_windowFbo, ts.pxW, ts.pxH, ts.pxPerPt);
+}
+
+void touchUiSdl_ContextLost(void)
+{
+    touchUiRender_ContextLost();
 }
 
 int touchUiSdl_IsScancodeDown(int scancode)

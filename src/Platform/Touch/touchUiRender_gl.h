@@ -16,6 +16,11 @@ extern "C" {
 // Draws the list into framebuffer fbo, pxW x pxH pixels, pxPerPt pixels a point
 void touchUiRender_Draw(const touchUiDrawList* pList, unsigned int fbo, int pxW, int pxH, float pxPerPt);
 
+// The GL context is about to be destroyed (and is still current): its
+// objects are deleted and forgotten, and made again in whatever context
+// comes next -- even one at the same address
+void touchUiRender_ContextLost(void);
+
 #ifdef __cplusplus
 }
 #endif

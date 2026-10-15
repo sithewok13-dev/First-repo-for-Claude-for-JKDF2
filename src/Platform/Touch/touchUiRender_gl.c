@@ -401,6 +401,20 @@ static int tr_Setup(void)
     return 1;
 }
 
+void touchUiRender_ContextLost(void)
+{
+    if (tr.ctx && tr.ctx == (void*)SDL_GL_GetCurrentContext()) {
+        if (tr.prog) glDeleteProgram(tr.prog);
+        if (tr.vao) glDeleteVertexArrays(1, &tr.vao);
+        if (tr.vbo) glDeleteBuffers(1, &tr.vbo);
+        if (tr.ibo) glDeleteBuffers(1, &tr.ibo);
+        if (tr.tex) glDeleteTextures(1, &tr.tex);
+    }
+    tr.prog = tr.vao = tr.vbo = tr.ibo = tr.tex = 0;
+    tr.ctx = NULL;
+    tr.bFailed = 0;
+}
+
 void touchUiRender_Draw(const touchUiDrawList* pList, unsigned int fbo, int pxW, int pxH, float pxPerPt)
 {
     if (!pList || pList->numItems <= 0 || pxW <= 0 || pxH <= 0) return;

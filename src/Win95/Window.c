@@ -856,7 +856,10 @@ void Window_SdlUpdate()
         iosPad_HandleEvent(&event); // Added
 #endif
 #ifdef TOUCHUI_ENABLED
-        touchUiSdl_HandleEvent(&event); // Added: fingers, the gyro, and other input in use
+        // Added: fingers, the gyro, and other input in use; a finger's mouse
+        // click is the touch controls' while they are up, not the game's
+        if (touchUiSdl_HandleEvent(&event))
+            continue;
 #endif
 
         switch (event.type)
@@ -1431,6 +1434,9 @@ void Window_RecreateSDL2Window()
     Window_needsRecreate = 0;
 
     if (displayWindow) {
+#ifdef TOUCHUI_ENABLED
+        touchUiSdl_ContextLost(); // Added: the touch controls' GL objects go with the context
+#endif
         std3D_FreeResources();
         SDL_GL_DestroyContext(glWindowContext);
         SDL_DestroyWindow(displayWindow);
