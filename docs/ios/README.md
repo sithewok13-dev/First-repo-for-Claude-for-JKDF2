@@ -773,16 +773,20 @@ builds of this port use the same networking, so a computer can join too.
 
 ### Hosting
 
-1. Tap **Multiplayer** on the main menu, then **Host**.
-2. Pick an episode and a level.
+It's all in the game's own menus:
+
+1. Tap **Multiplayer** on the main menu.
+2. Pick **Local network / Internet (UDP)** (the only choice) and tap OK.
+3. Tap the host button (next to **Join Game**).
+4. Pick an episode and a level.
    - A **multiplayer** episode (deathmatch, team or capture the flag)
      plays the classic modes.
    - A **story** episode plays **co-op**: the campaign, together.
-3. **Advanced** has the options:
+5. **Advanced** has the options:
    - **Allow Cheats** (off unless you tick it): each player may use cheats
      on themselves, the Sith button too.
    - **Resume Co-op Save** (on): co-op carries on from its last save.
-4. Start. A line at the top says **Others can join at** and your address
+6. Start. A line at the top says **Others can join at** and your address
    (for example `192.168.1.20`). Tell the others.
 
 The first time, iOS asks to let the app find devices on your network.
@@ -791,9 +795,13 @@ Security > Local Network*.)
 
 ### Joining
 
-1. Tap **Multiplayer**, then **Join**.
-2. Type the host's address and join.
-3. If the game has a password, type it when asked.
+1. Tap **Multiplayer**, pick **Local network / Internet (UDP)** and tap OK.
+2. Tap **Join Game**.
+3. Type the host's address in the box, choose the game and tap OK. If it
+   has a password, type that too.
+
+To choose who you play, tap **Multiplayer Characters** on the same
+screen (in co-op the host always plays Kyle, or Mara).
 
 ### Co-op
 
