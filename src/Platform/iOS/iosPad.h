@@ -53,6 +53,10 @@
 #ifndef _PLATFORM_IOS_IOSPAD_H
 #define _PLATFORM_IOS_IOSPAD_H
 
+// On in the iOS build. IOSPAD_RIG (the Linux test rig only) turns on just
+// the engine's hooks into it; the rig then builds iosPad.c and iosPadBinds.c
+// itself with TARGET_IOS defined, and stands in for the touch overlay and
+// iosPadPanel (iosPad.c needs TARGET_IOS: iosGame.h, iosTouch.h)
 #if defined(TARGET_IOS) || defined(IOSPAD_RIG)
 #define IOSPAD_ENABLED 1
 #endif
