@@ -19,7 +19,7 @@
 #include <time.h>
 
 #ifdef TARGET_CAN_JKGM
-void jkgm_write_png(const char *pFname, int width, int height, uint8_t* paFramebuffer);
+#include <png.h>
 #endif
 
 static int platServices_bBatch = 0;
@@ -70,26 +70,87 @@ static void platServices_BaseName(char* pOut, size_t outLen)
     }
 }
 
-// One image (RGBA, top row first) as <dir><name>.png; 1 if written
+#ifdef TARGET_CAN_JKGM
+// libpng's writes go to an SDL stream (UTF-8 paths everywhere, Windows too);
+// a short write is an error (a full disk...)
+static void platServices_PngWrite(png_structp png, png_bytep data, size_t len)
+{
+    SDL_IOStream* io = (SDL_IOStream*)png_get_io_ptr(png);
+    if (SDL_WriteIO(io, data, len) != len) png_error(png, "write failed");
+}
+
+static void platServices_PngFlush(png_structp png)
+{
+    (void)png;
+}
+
+// The image (RGBA, top row first) as a PNG at path; 1 if all of it was
+// written. Never aborts: on any error the file is closed and removed.
+static int platServices_PngToFile(const char* path, const unsigned char* p, int w, int h)
+{
+    SDL_IOStream* io = SDL_IOFromFile(path, "wb");
+    if (!io) return 0;
+    png_bytep row = (png_bytep)malloc((size_t)w * 3);
+    png_structp png = row ? png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL) : NULL;
+    png_infop info = png ? png_create_info_struct(png) : NULL;
+    if (!info) {
+        if (png) png_destroy_write_struct(&png, NULL);
+        free(row);
+        SDL_CloseIO(io);
+        SDL_RemovePath(path);
+        return 0;
+    }
+    if (setjmp(png_jmpbuf(png))) {
+        png_destroy_write_struct(&png, &info);
+        free(row);
+        SDL_CloseIO(io);
+        SDL_RemovePath(path);
+        return 0;
+    }
+    png_set_write_fn(png, io, platServices_PngWrite, platServices_PngFlush);
+    png_set_IHDR(png, info, (png_uint_32)w, (png_uint_32)h, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_write_info(png, info);
+    for (int y = 0; y < h; y++) {
+        const unsigned char* s = p + (size_t)y * w * 4;
+        for (int x = 0; x < w; x++) {
+            row[x * 3 + 0] = s[x * 4 + 0];
+            row[x * 3 + 1] = s[x * 4 + 1];
+            row[x * 3 + 2] = s[x * 4 + 2];
+        }
+        png_write_row(png, row);
+    }
+    png_write_end(png, NULL);
+    png_destroy_write_struct(&png, &info);
+    free(row);
+    // (the close flushes: a failure there is a photo not saved)
+    if (!SDL_CloseIO(io)) {
+        SDL_RemovePath(path);
+        return 0;
+    }
+    return 1;
+}
+#endif
+
+// One image (RGBA, top row first) as <dir><name>.png (or, if that is taken,
+// <name>-2.png, -3...: no photo is ever written over); 1 if written
 static int platServices_WritePng(const char* name, const unsigned char* p, int w, int h)
 {
 #ifdef TARGET_CAN_JKGM
-    // (jkgm_write_png takes RGB, bottom row first)
-    uint8_t* rgb = (uint8_t*)malloc((size_t)w * h * 3);
-    if (!rgb) return 0;
-    for (int y = 0; y < h; y++)
-        for (int x = 0; x < w; x++) {
-            const unsigned char* s = p + ((size_t)(h - 1 - y) * w + x) * 4;
-            uint8_t* d = rgb + ((size_t)y * w + x) * 3;
-            d[0] = s[0]; d[1] = s[1]; d[2] = s[2];
-        }
+    const char* dir = platServices_PhotoDir();
+    SDL_CreateDirectory(dir); // (again each time: it may have been removed meanwhile)
     char path[1400], part[1408];
-    snprintf(path, sizeof(path), "%s%s.png", platServices_PhotoDir(), name);
+    snprintf(path, sizeof(path), "%s%s.png", dir, name);
     // (written whole before it appears under its name)
     snprintf(part, sizeof(part), "%s.part", path);
-    jkgm_write_png(part, w, h, rgb);
-    free(rgb);
-    return SDL_RenamePath(part, path) ? 1 : 0;
+    if (!platServices_PngToFile(part, p, w, h)) return 0;
+    for (int k = 2; SDL_GetPathInfo(path, NULL) && k < 1000; k++)
+        snprintf(path, sizeof(path), "%s%s-%d.png", dir, name, k);
+    if (SDL_GetPathInfo(path, NULL) || !SDL_RenamePath(part, path)) {
+        SDL_RemovePath(part);
+        return 0;
+    }
+    return 1;
 #else
     (void)name; (void)p; (void)w; (void)h;
     return 0;
