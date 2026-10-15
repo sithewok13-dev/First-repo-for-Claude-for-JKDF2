@@ -71,6 +71,20 @@ extern const stdCommTransport stdComm_GNS_transport;
 // transports read addresses with this, so they agree on what is one.
 int stdCommTransport_SplitAddress(const char* pText, char* pHostOut, int hostLen, int* pPortOut, int defaultPort);
 
+// A transport's asking (ProbeAddress, CheckPassword) runs on other threads, maybe while the game
+// shuts the transport down: each asking goes through its gate, and shutting down closes the gate
+// and waits (up to timeoutMs) for those inside to leave. Asking with the gate closed: none.
+typedef struct stdCommProbeGate
+{
+    void* pMutex;           // (an SDL_Mutex)
+    volatile int numIn;     // (askings under way)
+    volatile int bClosing;  // (askings under way: give up now)
+} stdCommProbeGate;
+void stdCommTransport_GateOpen(stdCommProbeGate* pGate);   // (the transport's Startup)
+void stdCommTransport_GateClose(stdCommProbeGate* pGate, int timeoutMs); // (its Shutdown, first)
+int stdCommTransport_GateEnter(stdCommProbeGate* pGate);  // 0: closed, don't ask
+void stdCommTransport_GateLeave(stdCommProbeGate* pGate);
+
 // The address asked of every transport at once: as a transport's ProbeAddress, the one that answered
 // in *pKindOut (ENet's, if both did)
 int stdCommTransport_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing, int* pKindOut);

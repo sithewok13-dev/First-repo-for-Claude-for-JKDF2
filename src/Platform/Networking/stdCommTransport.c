@@ -96,6 +96,52 @@ int stdCommTransport_CanJoin(int kind, const jkMultiEntry* pEntry, const char** 
 
 // ------------------------------------------------------------------ asking an address
 
+void stdCommTransport_GateOpen(stdCommProbeGate* pGate)
+{
+    if (!pGate->pMutex) pGate->pMutex = SDL_CreateMutex();
+    if (!pGate->pMutex) return;
+    SDL_LockMutex((SDL_Mutex*)pGate->pMutex);
+    pGate->bClosing = 0;
+    SDL_UnlockMutex((SDL_Mutex*)pGate->pMutex);
+}
+
+void stdCommTransport_GateClose(stdCommProbeGate* pGate, int timeoutMs)
+{
+    if (!pGate->pMutex) return;
+    SDL_LockMutex((SDL_Mutex*)pGate->pMutex);
+    pGate->bClosing = 1;
+    SDL_UnlockMutex((SDL_Mutex*)pGate->pMutex);
+    const uint32_t start = stdPlatform_GetTimeMsec();
+    for (;;) {
+        SDL_LockMutex((SDL_Mutex*)pGate->pMutex);
+        const int numIn = pGate->numIn;
+        SDL_UnlockMutex((SDL_Mutex*)pGate->pMutex);
+        if (!numIn) break;
+        if (stdPlatform_GetTimeMsec() - start >= (uint32_t)timeoutMs) {
+            stdPlatform_Printf("Network: %d asking(s) still under way at shutdown\n", numIn);
+            break;
+        }
+        SDL_Delay(10);
+    }
+}
+
+int stdCommTransport_GateEnter(stdCommProbeGate* pGate)
+{
+    if (!pGate->pMutex) return 0;
+    SDL_LockMutex((SDL_Mutex*)pGate->pMutex);
+    const int bIn = !pGate->bClosing;
+    if (bIn) pGate->numIn++;
+    SDL_UnlockMutex((SDL_Mutex*)pGate->pMutex);
+    return bIn;
+}
+
+void stdCommTransport_GateLeave(stdCommProbeGate* pGate)
+{
+    SDL_LockMutex((SDL_Mutex*)pGate->pMutex);
+    pGate->numIn--;
+    SDL_UnlockMutex((SDL_Mutex*)pGate->pMutex);
+}
+
 int stdCommTransport_SplitAddress(const char* pText, char* pHostOut, int hostLen, int* pPortOut, int defaultPort)
 {
     char text[256];

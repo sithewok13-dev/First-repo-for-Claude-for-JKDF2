@@ -687,6 +687,9 @@ static int stdComm_ENet_ParseAddress(ENetAddress* pAddr)
 
 // ------------------------------------------------------------------ finding a game at an address
 
+// (the asking below, on other threads: let in and waited for by Startup / Shutdown)
+static stdCommProbeGate stdComm_ENet_probeGate;
+
 // A short connection to the address: its session read (into pOut), then closed; 1 if it answered.
 // pbKeepGoing: while that is 1 (or no flag)
 static int stdComm_ENet_QueryServer(const ENetAddress* pAddr, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing)
@@ -699,7 +702,7 @@ static int stdComm_ENet_QueryServer(const ENetAddress* pAddr, jkMultiEntry* pOut
         enet_peer_timeout(p, 32, timeoutMs, timeoutMs);
         ENetEvent ev;
         uint32_t start = stdPlatform_GetTimeMsec();
-        while (!bFound && stdPlatform_GetTimeMsec() - start < (uint32_t)timeoutMs && (!pbKeepGoing || *pbKeepGoing)) {
+        while (!bFound && stdPlatform_GetTimeMsec() - start < (uint32_t)timeoutMs && (!pbKeepGoing || *pbKeepGoing) && !stdComm_ENet_probeGate.bClosing) {
             if (enet_host_service(h, &ev, 50) <= 0) continue;
             if (ev.type == ENET_EVENT_TYPE_RECEIVE) {
                 if (ev.packet->dataLength == sizeof(stdCommENetInfo)) {
@@ -724,13 +727,27 @@ static int stdComm_ENet_QueryServer(const ENetAddress* pAddr, jkMultiEntry* pOut
 
 int stdComm_ENet_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing)
 {
+    if (!stdCommTransport_GateEnter(&stdComm_ENet_probeGate)) return 0;
     ENetAddress addr;
-    if (!stdComm_ENet_bInitted) return 0;
-    if (!stdComm_ENet_ParseAddressText(pAddress, &addr)) return -1;
-    return stdComm_ENet_QueryServer(&addr, pOut, timeoutMs, pbKeepGoing);
+    int r;
+    if (!stdComm_ENet_bInitted) r = 0;
+    else if (!stdComm_ENet_ParseAddressText(pAddress, &addr)) r = -1;
+    else r = stdComm_ENet_QueryServer(&addr, pOut, timeoutMs, pbKeepGoing);
+    stdCommTransport_GateLeave(&stdComm_ENet_probeGate);
+    return r;
 }
 
+static int stdComm_ENet_CheckPasswordNow(const char* pAddress, const char16_t* pwPassword, int timeoutMs, volatile int* pbKeepGoing);
+
 int stdComm_ENet_CheckPassword(const char* pAddress, const char16_t* pwPassword, int timeoutMs, volatile int* pbKeepGoing)
+{
+    if (!stdCommTransport_GateEnter(&stdComm_ENet_probeGate)) return -1;
+    const int r = stdComm_ENet_CheckPasswordNow(pAddress, pwPassword, timeoutMs, pbKeepGoing);
+    stdCommTransport_GateLeave(&stdComm_ENet_probeGate);
+    return r;
+}
+
+static int stdComm_ENet_CheckPasswordNow(const char* pAddress, const char16_t* pwPassword, int timeoutMs, volatile int* pbKeepGoing)
 {
     ENetAddress addr;
     if (!stdComm_ENet_bInitted) return -1;
@@ -748,7 +765,7 @@ int stdComm_ENet_CheckPassword(const char* pAddress, const char16_t* pwPassword,
     if (p) {
         enet_peer_timeout(p, 32, timeoutMs, timeoutMs);
         const uint32_t start = stdPlatform_GetTimeMsec();
-        while (!bDone && stdPlatform_GetTimeMsec() - start < (uint32_t)timeoutMs && (!pbKeepGoing || *pbKeepGoing)) {
+        while (!bDone && stdPlatform_GetTimeMsec() - start < (uint32_t)timeoutMs && (!pbKeepGoing || *pbKeepGoing) && !stdComm_ENet_probeGate.bClosing) {
             ENetEvent ev;
             if (enet_host_service(h, &ev, 50) <= 0) continue;
             if (ev.type == ENET_EVENT_TYPE_RECEIVE) {
@@ -886,6 +903,7 @@ void stdComm_ENet_Startup()
         }
         stdComm_ENet_mutex = SDL_CreateMutex();
         stdComm_ENet_bInitted = 1;
+        stdCommTransport_GateOpen(&stdComm_ENet_probeGate);
     }
     jkGuiMultiplayer_numConnections = 1;
     jk_snwprintf(jkGuiMultiplayer_aConnections[0].name, 0x80, u"Local network / Internet (UDP)");
@@ -899,6 +917,7 @@ void stdComm_ENet_Shutdown()
 {
     if (!stdComm_ENet_bInitted) return;
     DirectPlay_EnumSessions2();
+    stdCommTransport_GateClose(&stdComm_ENet_probeGate, 5000); // (games being asked about: given up first)
     stdComm_ENet_StopThread();
     stdComm_ENet_StopAdvertising();
     stdComm_ENet_CloseHost();

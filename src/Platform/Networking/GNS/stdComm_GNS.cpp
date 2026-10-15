@@ -162,6 +162,7 @@ static void Printf( const char *fmt, ... )
 static int stdComm_GNS_bInitted = 0;
 static int stdComm_GNS_bForceStubs = 0;
 static int stdComm_GNS_bSymbolsLoaded = 0;
+static stdCommProbeGate stdComm_GNS_probeGate; // Added: (games asked about: let in and waited for by Startup / Shutdown)
 
 static void stdComm_GNS_LoadSymbols()
 {
@@ -1096,6 +1097,7 @@ void stdComm_GNS_Startup()
 
     // Create client and server sockets
     InitSteamDatagramConnectionSockets();
+    stdCommTransport_GateOpen(&stdComm_GNS_probeGate); // Added
 }
 
 void stdComm_GNS_Shutdown()
@@ -1104,6 +1106,7 @@ void stdComm_GNS_Shutdown()
         return;
 
     DirectPlay_EnumSessions2(); // Added: (looking for a game, over GNS too: stopped first)
+    stdCommTransport_GateClose(&stdComm_GNS_probeGate, 5000); // Added: (games being asked about: given up first)
 
     ShutdownSteamDatagramConnectionSockets();
 }
@@ -1199,18 +1202,29 @@ static void stdComm_GNS_PublicEntry(jkMultiEntry* pEntry)
 // Added: a short connection to the address, as upstream's Join screen makes: the host's first
 // message (our id, and its session) read, then closed. 1 if it answered. Its own connection, with
 // no callbacks: safe from any thread, and alongside a game's.
+static int stdComm_GNS_QueryNow(const char* pAddress, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing);
+
 static int stdComm_GNS_Query(const char* pAddress, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing)
+{
+    if (!stdCommTransport_GateEnter(&stdComm_GNS_probeGate)) return 0;
+    const int r = stdComm_GNS_QueryNow(pAddress, pOut, timeoutMs, pbKeepGoing);
+    stdCommTransport_GateLeave(&stdComm_GNS_probeGate);
+    return r;
+}
+
+static int stdComm_GNS_QueryNow(const char* pAddress, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing)
 {
     if (!stdComm_GNS_bInitted || stdComm_GNS_bForceStubs) return 0;
     SteamNetworkingIPAddr addr;
     if (!stdComm_GNS_ParseAddress(pAddress, &addr)) return -1;
+    if (stdComm_GNS_probeGate.bClosing) return 0; // (the name looked up meanwhile: GNS is going)
     ISteamNetworkingSockets* pInterface = g_SteamNetworkingSockets();
     HSteamNetConnection h = pInterface->ConnectByIPAddress(addr, 0, nullptr);
     if (h == k_HSteamNetConnection_Invalid) return 0;
 
     int bFound = 0;
     const uint32_t start = stdPlatform_GetTimeMsec();
-    while (!bFound && stdPlatform_GetTimeMsec() - start < (uint32_t)timeoutMs && (!pbKeepGoing || *pbKeepGoing)) {
+    while (!bFound && stdPlatform_GetTimeMsec() - start < (uint32_t)timeoutMs && (!pbKeepGoing || *pbKeepGoing) && !stdComm_GNS_probeGate.bClosing) {
         ISteamNetworkingMessage* pMsg = nullptr;
         const int n = pInterface->ReceiveMessagesOnConnection(h, &pMsg, 1);
         if (n > 0) {
