@@ -420,6 +420,7 @@ static int iosPad_WheelKindFor(int pb)
 
 static void iosPad_WheelOpen(int bHeld)
 {
+    iosPad_s.wheelState = IOSPAD_WS_HELD; // (first: the wheel asks for its hint as it opens)
     if (!iosTouch_PadWheelOpen(iosPad_s.wheelKind, 0)) {
         // (it can't: the press is spent)
         iosPad_s.wheelState = IOSPAD_WS_NONE;
@@ -427,7 +428,6 @@ static void iosPad_WheelOpen(int bHeld)
         iosPad_s.wheelBtn = -1;
         return;
     }
-    iosPad_s.wheelState = IOSPAD_WS_HELD;
     iosPad_s.bWheelHeldOpen = bHeld;
     iosPad_s.bWheelAimed = 0;
     iosPad_s.bWheelAimOn = 0;
@@ -473,9 +473,9 @@ static void iosPad_WheelAimFromStick(void)
 
 static void iosPad_WheelCloseWith(int bSelect)
 {
+    iosPad_s.wheelState = IOSPAD_WS_TAP; // (as it would be if it stays open: its hint is asked for)
     if (iosTouch_PadWheelClose(bSelect)) {
         // the saber wheel, still open on its colour: on to pick more with A
-        iosPad_s.wheelState = IOSPAD_WS_TAP;
         iosPad_s.bWheelAimOn = 0;
         iosPad_SetWheelPrompt();
         return;
@@ -519,8 +519,8 @@ static void iosPad_WheelInput(void)
             // after a hold that never pointed, it stays open to pick with A
             if (bHot) iosPad_WheelCloseWith(1);
             else if (!iosPad_s.bWheelAimed && (iosPad_s.bWheelHeldOpen || bSaber)) {
-                iosTouch_PadWheelSetTapMode();
                 iosPad_s.wheelState = IOSPAD_WS_TAP;
+                iosTouch_PadWheelSetTapMode();
                 iosPad_SetWheelPrompt();
             }
             else iosPad_WheelCloseWith(0);
