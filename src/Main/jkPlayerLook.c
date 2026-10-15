@@ -11,8 +11,8 @@
 #include "Dss/sithMulti.h"
 #include "Gameplay/sithPlayer.h"
 #include "Win95/stdComm.h"
-#ifdef TARGET_IOS
-#include "Platform/iOS/iosSaber.h"
+#ifdef JK_ENHANCED
+#include "Enhanced/iosSaber.h"
 #endif
 
 #define JKPLAYERLOOK_VERSION 1
@@ -64,7 +64,7 @@ void jkPlayerLook_Startup(void)
 int jkPlayerLook_GetLocal(jkPlayerLook* pOut)
 {
     memset(pOut, 0, sizeof(*pOut));
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     pOut->style = iosSaber_GetStyle();
     for (int b = 0; b < JKPLAYERLOOK_MAX_BLADES && b < iosSaber_StyleNumBlades(pOut->style); b++) {
         const char* key = iosSaber_ColourKey(iosSaber_GetColour(pOut->style, b));

@@ -52,8 +52,8 @@
 #include "General/stdString.h"
 #include "World/jkPlayer.h"
 #include "Dss/jkDSS.h"
-#ifdef TARGET_IOS
-#include "Platform/iOS/iosGame.h"
+#ifdef JK_ENHANCED
+#include "Enhanced/iosGame.h"
 #endif
 #include "stdPlatform.h"
 
@@ -774,7 +774,7 @@ void jkMain_GameplayTick(int a2)
     if (v1 > jkMain_lastTickMs + TICKRATE_MS)
     {
         jkMain_lastTickMs = v1;
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
         // Added: the touch overlay's force wheel holds the world still while
         // it is open. The world is still drawn below, which also keeps the
         // overlay getting its events.

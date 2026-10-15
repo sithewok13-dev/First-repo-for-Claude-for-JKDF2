@@ -17,7 +17,7 @@
 #include "Main/jkQuakeConsole.h"
 #include "World/sithWorld.h"
 #include "World/sithThing.h"
-#include "Platform/iOS/iosGame.h"
+#include "Enhanced/iosGame.h"
 #include "Platform/iOS/iosTouch.h"
 #include "Platform/iOS/iosPadPanel.h"
 

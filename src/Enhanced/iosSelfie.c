@@ -1,14 +1,14 @@
-#include "Platform/iOS/iosSelfie.h"
+#include "Enhanced/iosSelfie.h"
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
 
-#include "Platform/iOS/iosGame.h"
-#include "Platform/iOS/iosPhotoCam.h"
+#include "Enhanced/iosGame.h"
+#include "Enhanced/iosPhotoCam.h"
 #include "World/sithThing.h"
 #include "World/sithWorld.h"
 #include "World/sithSector.h"
@@ -1853,4 +1853,4 @@ int iosSelfie_IsActive(void)
     return iosSelfie_bActive;
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED

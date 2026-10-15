@@ -14,6 +14,7 @@
 #include "Devices/sithConsole.h"
 #include "Platform/wuRegistry.h"
 #include "Main/jkQuakeConsole.h"
+#include "Enhanced/enhTick.h" // Added
 
 #include "Dw/dwMain.h"
 
@@ -831,6 +832,10 @@ void Window_SdlUpdate()
 #ifdef TARGET_IOS
     // Added: show/hide the touch overlay and pass on its look movement
     iosTouch_Update();
+#endif
+#ifdef JK_ENHANCED
+    // Added: the enhanced gameplay's photo modes go on
+    enh_Tick();
 #endif
 
     while (SDL_PollEvent(&event))

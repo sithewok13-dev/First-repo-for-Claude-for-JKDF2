@@ -24,9 +24,9 @@ static void jkDev_Custom_HostAddressTick(void); // Added
 #include "Main/jkMain.h"
 #include "Main/jkStrings.h"
 #include "Main/jkQuakeConsole.h"
-#ifdef TARGET_IOS
-#include "Platform/iOS/iosSaberThrow.h" // Added
-#include "Platform/iOS/iosGame.h" // Added
+#ifdef JK_ENHANCED
+#include "Enhanced/iosSaberThrow.h" // Added
+#include "Enhanced/iosGame.h" // Added
 #endif
 #include "stdPlatform.h"
 #include "wprintf.h"
@@ -37,10 +37,11 @@ static void jkDev_Custom_HostAddressTick(void); // Added
 #include "Dss/sithGamesave.h"
 #include "Dss/jkDSS.h"
 #include "../jk.h"
-#ifdef TARGET_IOS
-#include "Platform/iOS/iosSafeArea.h" // Added
+#ifdef JK_ENHANCED
+#include "Platform/platServices.h" // Added
 
-// Added: the top message text on iOS, relative to the HUD scale
+// Added: the top message text where the platform puts it (iOS: under the
+// touch overlay's top row), relative to the HUD scale
 #define JKDEV_IOS_TEXT_SCALE ((flex_t)1.33)
 #endif
 
@@ -279,7 +280,7 @@ void jkDev_DrawLog()
     // Added: sithewok's endless Force, after the tick and before the HUD draws the meter
     jkDev_Custom_KeepForceFull();
 #endif
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     iosSaberThrow_Tick(); // Added: two sabers' Saber Throw, once a frame
     iosGame_ViewTick(); // Added: the view the player picked (VIEW), kept
 #endif
@@ -405,12 +406,13 @@ void jkDev_BlitLogToScreenGPU()
 
     if (!jkDev_vbuf) return;
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     // Added: on iOS the lines go under the touch overlay's top button row, a
-    // third bigger than the rest of the HUD, wrapped between words
+    // third bigger than the rest of the HUD, wrapped between words (where the
+    // platform has a place of its own for them: platServices)
+    int textX, textY, textW;
+    if (platServices_GetTopTextRect(Video_format.width, Video_format.height, &textX, &textY, &textW))
     {
-        int textX, textY, textW;
-        iosSafeArea_GetTopTextRect(Video_format.width, Video_format.height, &textX, &textY, &textW);
         flex_t textScale = jkPlayer_hudScale * JKDEV_IOS_TEXT_SCALE;
         v1 = textY;
         v3 = &jkDev_aEntries[0];
@@ -1845,7 +1847,7 @@ static int jkDev_Custom_Within(flex_d_t since)
 
 static int jkDev_Custom_SaberOut()
 {
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     if ( iosSaberThrow_AnyOut() )
         return 1;
 #endif
@@ -1877,7 +1879,7 @@ int jkDev_Custom_SaberThrowCheck(SithThing *pThing, int typeId, SithInventoryIte
         return 1;
     if ( origAmt <= 0.0 )
         jkDev_saberAwaySecs = -1.0; // (back)
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     iosSaberThrow_SaberGiven();
 #endif
     return 0;
@@ -1888,7 +1890,7 @@ static void jkDev_Custom_SaberThrowForget()
 {
     jkDev_saberAwaySecs = -1.0;
     jkDev_saberRevokedSecs = -1.0;
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     iosSaberThrow_Reset();
 #endif
 }
@@ -1904,7 +1906,7 @@ static void jkDev_Custom_TakeCheatSaber(SithThing *pPlayer)
     // (thrown: when it comes back, it isn't given; and nothing of it out any more)
     if ( jkDev_Custom_SaberOut() )
         jkDev_saberRevokedSecs = sithTime_g_secGameTime;
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     iosSaberThrow_Reset();
 #endif
     jkDev_bTakingCheatSaber = 1;

@@ -1,12 +1,12 @@
-#include "Platform/iOS/iosPhotoCam.h"
+#include "Enhanced/iosPhotoCam.h"
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
-#include "Platform/iOS/iosGame.h"
+#include "Enhanced/iosGame.h"
 #include "World/sithWorld.h"
 #include "World/sithSector.h"
 #include "Engine/sithCamera.h"
@@ -237,4 +237,4 @@ float iosPhotoCam_ClearDist(SithSector* from, const rdVector3* a, const rdVector
     return clear;
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED
