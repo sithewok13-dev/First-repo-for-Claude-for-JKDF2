@@ -448,7 +448,8 @@ switch the controller off and they come back.
   the stick's response (SMOOTH by default; LINEAR feels more direct, PRECISE
   slower near the middle), invert look, turn acceleration (off by default),
   vibration, the FPS readout, and the keyboard for cheats. Use the D-pad and A,
-  or tap them. They are remembered.
+  or tap them. They are remembered. If holding Start only opens the game menu
+  (some controllers can't hold it on iOS), hold Back and press Start instead.
 - **Your own buttons:** Setup > Controls > Joystick changes any of them, with
   the controller's own button names. Whatever you put on next/previous power
   or weapon gets the wheel when held. D-pad left only opens the saber wheel

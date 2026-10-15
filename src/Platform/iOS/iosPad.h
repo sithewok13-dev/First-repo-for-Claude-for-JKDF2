@@ -31,6 +31,8 @@
 //       - Start (Menu, Options, +): a tap opens the game menu as MENU does;
 //         held 0.45 s, the controller options (iosPadPanel: LOOK X, LOOK Y,
 //         CURVE, INVERT, ACCEL, VIBRATION, FPS, TYPE), the game held still.
+//         Start pressed while Back is held opens them too (some pads only
+//         give iOS a short press of Start, which can't be held).
 //       - Back (View, Share, -): held 0.3 s quick saves -- a ring fills
 //         meanwhile, and letting go sooner does nothing, as QUICK SAVE; with
 //         D-pad down held too it quick loads instead. A quick tap is what it

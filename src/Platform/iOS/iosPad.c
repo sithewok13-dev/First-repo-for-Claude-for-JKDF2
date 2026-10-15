@@ -674,8 +674,19 @@ static void iosPad_MenuTap(void)
     }
 }
 
+static void iosPad_SetRing(int kind, float progress);
+
 static void iosPad_StartInput(void)
 {
+    if (iosPad_Pressed(PB_START) && iosPad_s.aDown[PB_BACK] && !iosPad_s.aStale[PB_BACK]) {
+        // Back + Start: the options too (for a pad whose Start can't be held:
+        // iOS gives some only a short press), Back's save or map dropped
+        iosPad_s.selState = 2;
+        iosPad_SetRing(IOSPAD_RING_NONE, 0.0f);
+        iosPad_s.aStale[PB_START] = 1;
+        iosPad_PanelOpen(1);
+        return;
+    }
     if (iosPad_Pressed(PB_START)) {
         iosPad_s.startState = 1;
         iosPad_s.tStart = iosPad_s.now;
