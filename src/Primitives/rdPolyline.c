@@ -199,7 +199,8 @@ void rdPolyline_FreeEntry(rdPolyline *pPolyline)
 }
 
 // Added: how much to scale a camera space point's x and z when it is set back
-// from depth to depth - epsilon, so that it stays in the same place on screen (a
+// further from the eye by |epsilon| (epsilon is negative: depth - epsilon), so
+// that it stays in the same place on screen (a
 // perspective camera; an orthographic one, or a point at or behind the eye,
 // keeps the original set back along the depth axis alone)
 static flex_t rdPolyline_SetBackScale(flex_t depth, flex_t epsilon)
@@ -316,6 +317,14 @@ int rdPolyline_Draw(rdThing *pLine, rdMatrix34 *pOrient)
         {
             dirX = (vertex_out.x / vertex_out.y) - (out.scale.x / out.scale.y);
             dirZ = (vertex_out.z / vertex_out.y) - (out.scale.z / out.scale.y);
+        }
+        // (scaled to its larger part first, so squaring can't overflow a
+        // fixed-point flex_t when an end is just in front of the eye)
+        flex_t dirMax = stdMath_Fabs(dirX) > stdMath_Fabs(dirZ) ? stdMath_Fabs(dirX) : stdMath_Fabs(dirZ);
+        if (dirMax > 0.0)
+        {
+            dirX = dirX / dirMax;
+            dirZ = dirZ / dirMax;
         }
         flex_t mag = stdMath_Sqrt(dirX * dirX + dirZ * dirZ);
 
