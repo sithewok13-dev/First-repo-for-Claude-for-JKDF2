@@ -107,6 +107,7 @@ void iosGame_SelectItem(int bin);
 #define IOSGAME_HOLD_PHOTOS 2 // the system is asking for Photos access
 #define IOSGAME_HOLD_SELFIE 4 // a selfie is being taken (iosSelfie)
 #define IOSGAME_HOLD_FREEZE 8 // the action frozen for photos (iosFreeze)
+#define IOSGAME_HOLD_PADMENU 16 // a game controller's options are open (iosPad)
 void iosGame_SetHoldReason(int reason, int bHold);
 
 // The wheels' reason (IOSGAME_HOLD_WHEEL).

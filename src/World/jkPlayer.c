@@ -35,6 +35,7 @@
 #include "Main/jkDev.h" // Added: sithewok (jkDev_Custom_KeepsForcePowers)
 #include "jk.h"
 #include "Win95/Window.h"
+#include "Platform/iOS/iosPad.h" // Added: game controllers' bindings (iOS)
 #include "General/stdJSON.h"
 #include "Platform/std3D.h"
 #include "Main/sithCvar.h"
@@ -631,6 +632,10 @@ void jkPlayer_WriteConf(char16_t *name)
 #ifdef FIXED_TIMESTEP_PHYS
         stdJSON_SaveBool(ext_fpath, "bJankyPhysics", jkPlayer_bJankyPhysics);
 #endif
+#ifdef IOSPAD_ENABLED
+        // Added: the controls just written are this version's (see iosPadBinds_Migrate)
+        stdJSON_SaveInt(ext_fpath, IOSPADBINDS_JSON_KEY, IOSPADBINDS_VERSION);
+#endif
 
 #ifdef QOL_IMPROVEMENTS
         Window_isHiDpi_tmp = Window_isHiDpi;
@@ -869,6 +874,12 @@ int jkPlayer_ReadConf(char16_t *name)
 #endif
         
         stdConffile_Close();
+#ifdef IOSPAD_ENABLED
+        // Added: a player's game controller bindings brought up to this
+        // version's once, and kept (see iosPadBinds_Migrate)
+        if (iosPadBinds_Migrate(stdJSON_GetInt(ext_fpath, IOSPADBINDS_JSON_KEY, 0)))
+            jkPlayer_WriteConf(name);
+#endif
         return 1;
     }
     else

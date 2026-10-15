@@ -18,6 +18,7 @@
 #include "World/jkPlayer.h"
 #include "Win95/Windows.h"
 #include "Gui/jkGUISetup.h"
+#include "Platform/iOS/iosPad.h" // Added: game controllers' button names (iOS)
 
 #define JKGUIJOYSTICK_NUM_ENTRIES (JK_JOYSTICK_AXIS_STRIDE + JK_JOYSTICK_AXIS_STRIDE + JK_JOYSTICK_BUTTON_STRIDE + JK_JOYSTICK_EXT_BUTTON_STRIDE + JK_JOYSTICK_BUTTON_STRIDE + JK_JOYSTICK_EXT_BUTTON_STRIDE)
 
@@ -215,6 +216,24 @@ static jkGuiElement jkGuiJoystick_aElements[33+3] = {
 static jkGuiMenu jkGuiJoystick_menu = {
   jkGuiJoystick_aElements, 0, 225, 255, 15, NULL, NULL, jkGui_stdBitmaps, jkGui_stdFonts, (intptr_t)jkGuiKeyboard_aIdk3, jkGuiJoystick_MenuTick, "thermloop01.wav", "thrmlpu2.wav", NULL, NULL, NULL, 0, NULL, NULL
 };  
+
+// Added: a pad key's or axis's name as the pad has it ("Pad A", "Pad LB"...),
+// or the game's own
+static char16_t* jkGuiJoystick_KeyName(const jkGuiJoystickEntry* pEntry)
+{
+#ifdef IOSPAD_ENABLED
+    static char16_t aNames[4][48];
+    static int next = 0;
+    const char* pName = iosPad_KeyDisplayName(pEntry->dikNum, (pEntry->keybits & 0x300) == 0); // (0x100 hats, 0x200 buttons; else an axis)
+    if (pName) {
+        char16_t* w = aNames[next++ & 3];
+        stdString_CharToWchar(w, pName, 47);
+        w[47] = 0;
+        return w;
+    }
+#endif
+    return jkStrings_GetUniStringWithFallback(pEntry->displayStrKey);
+}
 
 void jkGuiJoystick_nullsub_51()
 {
@@ -545,7 +564,7 @@ void jkGuiJoystick_sub_41B390()
         v2 = v1->keybits & 0xFF; // Added: 4bit -> 8bit
         v8 = v1->keybits & 0x300; // Added: 4bit -> 8bit
         v3 = v1->keybits & 0x800; // Added: 4bit -> 8bit
-        v4 = jkStrings_GetUniStringWithFallback(v1->displayStrKey);
+        v4 = jkGuiJoystick_KeyName(v1); // Added: was the game's own name only
         if ( v1->inputFunc == -1 )
         {
             v5 = u"--";
@@ -1043,7 +1062,7 @@ void jkGuiJoystick_MenuTick(jkGuiMenu *pMenu)
             if (idx < JOYSTICK_MAX_STRS)
             {
                 //printf("%x %x %f %s\n", v19, v9, v12, v8->displayStrKey);
-                v16 = jkStrings_GetUniStringWithFallback(v8->displayStrKey);
+                v16 = jkGuiJoystick_KeyName(v8); // Added: was the game's own name only
                 _wcscpy(v24->aStrings[idx++], v16);
             }
         }
