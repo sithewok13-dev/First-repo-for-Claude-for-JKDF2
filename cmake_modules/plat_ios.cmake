@@ -19,14 +19,17 @@ macro(plat_initialize)
 
     include(cmake_modules/plat_feat_full_sdl2.cmake)
 
-    # Same trims as Android: no auto-updater, no GameNetworkingSockets (protobuf
-    # + GNS do not cross-compile cleanly to iOS and multiplayer is not the point
-    # of this target), no PhysFS, and OpenAL is built from source rather than found.
+    # Same trims as Android: no auto-updater, no PhysFS, and OpenAL is built
+    # from source rather than found. Multiplayer goes over ENet (a few plain C
+    # files: TARGET_USE_ENET, src/Platform/Networking/ENet). GameNetworkingSockets
+    # (for joining upstream OpenJKDF2's games) only when built beforehand and
+    # given: OPENJKDF2_GNS_PREBUILT (build_ios.sh: GNS_PREBUILT), linked in.
     set(TARGET_USE_PHYSFS FALSE)
     set(TARGET_USE_CURL FALSE)
     set(TARGET_BUILD_TESTS FALSE)
     set(TARGET_FIND_OPENAL FALSE)
     set(TARGET_USE_GAMENETWORKINGSOCKETS FALSE)
+    set(TARGET_USE_ENET TRUE)
 
     set(TARGET_IOS TRUE)
 

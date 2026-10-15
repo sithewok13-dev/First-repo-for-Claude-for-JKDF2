@@ -22,6 +22,7 @@
 #include "AI/sithAI.h"
 #include "Devices/sithComm.h"
 #include "stdPlatform.h"
+#include "Main/jkCoop.h" // Added
 
 #define sithMulti_infoPrintf(fmt, ...) stdPlatform_Printf(fmt, ##__VA_ARGS__)
 #define sithMulti_verbosePrintf(fmt, ...) if (Main_bVerboseNetworking) \
@@ -89,6 +90,9 @@ HRESULT sithMulti_CreatePlayer(const char16_t *a1, const char16_t *a2, const cha
     jkMultiEntry multiEntry; // [esp+Ch] [ebp-F0h] BYREF
 
     _memset(&multiEntry, 0, sizeof(multiEntry));
+#ifdef QOL_IMPROVEMENTS
+    multiModeFlags = jkCoop_HostGameFlags(multiModeFlags); // Added: co-op, the host's difficulty for everyone
+#endif
     stdString_SafeWStrCopy(multiEntry.serverName, a1, 0x20);
     stdString_SafeStrCopy(multiEntry.episodeGobName, a3, 0x20);
     stdString_SafeStrCopy(multiEntry.mapJklFname, a4, 0x20);
@@ -169,6 +173,9 @@ int sithMulti_StartupClient()
     sithNet_teamScore[2] = 0;
     sithNet_teamScore[3] = 0;
     sithNet_teamScore[4] = 0;
+#ifdef QOL_IMPROVEMENTS
+    sithComm_ForgetSender(0); // Added: a game joined: what another game sent forgotten
+#endif
     stdComm_DoReceive();
     return 1;
 }
@@ -243,6 +250,9 @@ void sithMulti_RemoveStaticThing(int guid)
 
 void sithMulti_Shutdown()
 {
+#ifdef QOL_IMPROVEMENTS
+    jkCoop_SessionEnded(); // Added: co-op, no gear carried into another game
+#endif
     sithMessage_g_outputstream &= ~1u;
     sithNet_isMulti = 0;
     sithNet_isServer = 0;
@@ -992,6 +1002,9 @@ void sithMulti_ProcessPlayerLost(int idPlayer)
 LABEL_10:
         v3 = -1;
     }
+#ifdef QOL_IMPROVEMENTS
+    sithComm_ForgetSender(idPlayer); // Added: that player gone
+#endif
     if ( v3 >= 0 )
     {
         v4 = sithStrTable_GetUniStringWithFallback("%s_HAS_LEFT_THE_GAME");
@@ -1069,6 +1082,11 @@ int sithMulti_ProcessJoinRequest(SithMessage *pMsg)
             NETMSG_START;
             NETMSG_PUSHS32(6);
             NETMSG_PUSHS32(0);
+#ifdef QOL_IMPROVEMENTS
+            // Added: co-op, the level the host is on, for the player to follow
+            if (jkCoop_IsActive())
+                NETMSG_PUSHSTR(sithWorld_g_pCurrentWorld->map_jkl_fname, 32);
+#endif
             NETMSG_END(DSS_JOINING);
 
             sithComm_SendMsgToPlayer(&sithComm_netMsgTmp, v1, 1, 0);
@@ -1087,6 +1105,9 @@ int sithMulti_ProcessJoinRequest(SithMessage *pMsg)
             return 1;
         }
 
+#ifdef QOL_IMPROVEMENTS
+        sithComm_ForgetSender(v1); // Added: a new player under this id (one that left and came back)
+#endif
         stdComm_cogMsg_SendEnumPlayers(v1);
         if ( sithMulti_quitGameState )
         {

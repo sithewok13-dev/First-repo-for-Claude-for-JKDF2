@@ -11,6 +11,10 @@
 #include "Win95/std.h"
 #include "Main/jkDev.h"
 #include "Main/jkEpisode.h"
+#include "Dss/jkNetExt.h" // Added
+#include "Main/jkPlayerLook.h" // Added
+#include "Main/jkCoop.h" // Added
+#include "Main/jkCoopSave.h" // Added
 #include "Main/jkRes.h"
 #include "Main/jkStrings.h"
 #include "World/sithTemplate.h"
@@ -66,6 +70,12 @@ int jkDSS_Startup()
 {
     stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
     
+#ifdef QOL_IMPROVEMENTS
+    // Added: this port's own messages (jkNetExt), and what they carry
+    jkNetExt_Startup();
+    jkPlayerLook_Startup();
+    jkCoopSave_Startup();
+#endif
     sithMessage_RegisterFunction(DSS_JKENABLESABER, jkDSS_ProcessJKEnableSaber);
     sithMessage_RegisterFunction(DSS_SABERINFO3, jkDSS_ProcessSetSaberInfo2);
     sithMessage_RegisterFunction(DSS_JKSETWEAPONMESH, jkDSS_ProcessJKSetWeaponMesh);
@@ -101,6 +111,9 @@ int jkDSS_Startup()
 
 int jkDSS_JKM1(int32_t vecUnknown1, SithEventParams* unused2)
 {
+#ifdef QOL_IMPROVEMENTS
+    if (jkCoop_HostKeepsProtagonist()) return 1; // Added: co-op, the host is the story's own player
+#endif
     if (jkDSS_005aec8c != 0) {
         jkDSS_SendSaberInfo_alt_Mots(sithPlayer_g_pLocalPlayerThing,jkGuiMultiplayer_mpcInfo.model,jkGuiMultiplayer_mpcInfo.soundClass,jkGuiMultiplayer_mpcInfo.sideMat,jkGuiMultiplayer_mpcInfo.tipMat,jkGuiMultiplayer_mpcInfo.personality);
     }
@@ -231,6 +244,11 @@ void jkDSS_Load()
 
 int jkDSS_wrap_SendSaberInfo_alt()
 {
+#ifdef QOL_IMPROVEMENTS
+    // Added: co-op, the host plays the story's own player (Kyle, Mara: the level's), not the
+    // multiplayer character picked; the guests are the characters they picked
+    if (jkCoop_HostKeepsProtagonist()) return 1;
+#endif
 #ifdef JKM_PARAMS
     if (Main_bMotsCompat) {
         return jkDSS_SendSaberInfo_alt_Mots(
@@ -1100,6 +1118,13 @@ int jkDSS_ProcessEndLevel(SithMessage *msg)
     NETMSG_IN_START(msg);
     int arg0 = NETMSG_POPS32();
 
+#ifdef QOL_IMPROVEMENTS
+    // Added: already on that level, stay there: a campaign's cutscenes share
+    // their level's number, so looking it up would land on the cutscene before
+    // the level and the same level would be played again (co-op)
+    jkEpisodeEntry* pCurEnt = jkEpisode_mLoad.paEntries ? jkEpisode_GetCurrentEpisodeEntry(&jkEpisode_mLoad) : NULL;
+    if (!jkCoop_IsActive() || !pCurEnt || pCurEnt->level != arg0)
+#endif
     jkEpisode_EndLevel(&jkEpisode_mLoad, arg0);
     sithMulti_QuitGame(sithTime_g_msecGameTime + 10000, 1);
     return 1;

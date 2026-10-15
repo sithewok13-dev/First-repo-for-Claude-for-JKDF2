@@ -16,6 +16,7 @@
 #include "Main/jkStrings.h"
 #include "Win95/stdDisplay.h"
 #include "General/stdString.h"
+#include "Main/jkCoop.h"
 
 static jkGuiElement jkGuiSingleTally_buttons[8] = {
 {ELEMENT_TEXT, 0, 2, 0, 3, {0, 20, 640, 40}, 1, 0, 0, 0, 0, 0, {0}, 0},
@@ -56,6 +57,9 @@ int jkGuiSingleTally_Show()
     }
     jkGuiSingleTally_buttons[2].wstr = v14;
     jkGuiSingleTally_buttons[3].wstr = jkStrings_GetUniStringWithFallback("GUI_STARS_EARNED");
+#ifdef QOL_IMPROVEMENTS
+    jkCoop_MenuAutoContinue(&jkGuiSingleTally_menu, JKCOOP_TALLY_WAIT_MS); // Added: co-op, goes on by itself
+#endif
     do
     {
         v7 = 1;
@@ -72,6 +76,9 @@ int jkGuiSingleTally_Show()
         v7 = 0;
     }
     while ( v7 );
+#ifdef QOL_IMPROVEMENTS
+    jkCoop_MenuDone(&jkGuiSingleTally_menu);
+#endif
     jkGui_SetModeGame();
     return ret;
 }

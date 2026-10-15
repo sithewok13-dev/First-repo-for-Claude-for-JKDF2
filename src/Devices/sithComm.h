@@ -27,6 +27,9 @@ void sithMessage_StopProcessMessages();
 int sithMessage_Process(SithMessage *pMessage);
 void sithComm_SyncWithPlayers();
 void sithComm_ClearMsgTmpBuf();
+#ifdef QOL_IMPROVEMENTS
+void sithComm_ForgetSender(int idx); // Added
+#endif
 int sithComm_cogMsg_Reset(SithMessage *msg);
 
 #endif // _DEVICES_SITHCOMM_H

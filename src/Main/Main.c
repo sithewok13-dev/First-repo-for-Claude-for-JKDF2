@@ -109,9 +109,69 @@ int32_t Main_bDwCogVerbs = 0; // import DW COG verbs into JK/MOTS
 int32_t Main_bEnhancedCogVerbs = 0;
 char Main_strEpisode[129];
 char Main_strMap[128+4];
+char Main_strJoin[256]; // Added: -join <address[:port]>: join that host's game at start (as the Join screen does)
+char Main_strJoinPassword[64]; // Added: -password, for -join
 #endif
 
 #if defined(QOL_IMPROVEMENTS)
+#include "Win95/stdComm.h"
+#include "Platform/Networking/stdCommTransport.h"
+extern char16_t jkGuiMultiplayer_ipText[256];
+// Added: joining the game at Main_strJoin (-join), once the player is set up:
+// the session looked for (up to 15 s), joined, its level loaded. 0: under way.
+static int Main_StartupJoin(void)
+{
+    stdString_CharToWchar(jkGuiMultiplayer_ipText, Main_strJoin, 255);
+    jkGuiMultiplayer_ipText[255] = 0;
+    stdPlatform_Printf("Joining `%s`\n", Main_strJoin);
+    if (stdComm_OpenConnection(0)) {
+        stdPlatform_Printf("Join: no connection\n");
+        return 1;
+    }
+    int bFound = 0;
+    for (int i = 0; i < 150 && !bFound; i++) {
+        stdComm_EnumSessions(1, NULL);
+        bFound = dplay_dword_55D618 > 0 && jkGuiMultiplayer_aEntries[0].mapJklFname[0];
+        if (!bFound) {
+#if defined(SDL2_RENDER)
+            SDL_Delay(100);
+#endif
+        }
+    }
+    stdComm_EnumSessions2();
+    if (!bFound) {
+        stdPlatform_Printf("Join: no game found at `%s`\n", Main_strJoin);
+        return 1;
+    }
+#ifdef STDCOMM_TRANSPORTS
+    const char* whyKey = NULL;
+    if (!stdCommTransport_CanJoin(stdCommTransport_GetJoinKind(), &jkGuiMultiplayer_aEntries[0], &whyKey)) {
+        stdPlatform_Printf("Join: can't join that game (%s)\n", whyKey ? whyKey : "");
+        return 1;
+    }
+#endif
+    jkMultiEntry3 e;
+    memset(&e, 0, sizeof(e));
+    char16_t wPassword[32] = { 0 }; // (none, unless -password gave one)
+    stdString_CharToWchar(wPassword, Main_strJoinPassword, 31);
+    wPassword[31] = 0;
+    int r = stdComm_Open(0, wPassword);
+    if (r) {
+        stdPlatform_Printf("Join: refused (%x)\n", r);
+        return 1;
+    }
+    sithMulti_multiModeFlags = jkGuiMultiplayer_aEntries[0].multiModeFlags;
+    stdString_SafeStrCopy(e.mapJklFname, (const char *)jkGuiMultiplayer_aEntries[0].mapJklFname, 0x20);
+    stdString_SafeStrCopy(e.episodeGobName, (const char *)jkGuiMultiplayer_aEntries[0].episodeGobName, 0x20);
+    stdPlatform_Printf("Join: `%s` `%s`, tick %d\n", e.episodeGobName, e.mapJklFname, (int)jkGuiMultiplayer_aEntries[0].tickRateMs);
+    sithMulti_InitTick(jkGuiMultiplayer_aEntries[0].tickRateMs);
+    std3D_StartScene();
+    std3D_EndScene();
+    sithOpenStatic("static.jkl");
+    jkHudInv_InitItems();
+    return jkMain_loadFile2(e.episodeGobName, e.mapJklFname) ? 1 : 0;
+}
+
 int Main_StartupDedicated(int bFullyDedicated)
 {
     char* pRemoveExt;
@@ -177,6 +237,12 @@ int Main_StartupDedicated(int bFullyDedicated)
     stdString_SafeStrCopy(jkGuiMultiplayer_mpcInfo.tipMat, "sabergreen0.mat", 32);
     jkGuiMultiplayer_mpcInfo.jediRank = 0;
 
+    // Added: -join: find the game at that address and join it, as the Join
+    // screen would (no screens shown)
+    if (Main_strJoin[0]) {
+        return Main_StartupJoin();
+    }
+
     // Set up minimal render settings
     //jkPlayer_fov = 90;
     //jkPlayer_fovIsVertical = 1;
@@ -212,6 +278,13 @@ int Main_StartupDedicated(int bFullyDedicated)
     }
 
     jkGuiNetHost_sessionFlags |= SESSIONFLAG_ISDEDICATED;
+
+#ifdef QOL_IMPROVEMENTS
+    // Added: the mode flags made right for this episode (as the host screen's OK makes them: the saved
+    // ones may be another episode's), with the episodes listed to look it up
+    jkEpisode_LoadVerify();
+    jkGuiNetHost_gameFlags = jkGuiNetHost_EpisodeModeFlags(v34.episodeGobName, jkGuiNetHost_gameFlags);
+#endif
 
     v34.tickRateMs = jkGuiNetHost_tickRate;
     v34.maxPlayers = jkGuiNetHost_maxPlayers;
@@ -730,6 +803,19 @@ void Main_ParseCmdLine(char *cmdline)
         {
             char* pArgNext = _strtok(0, " \t");
             stdString_SafeStrCopy(Main_strMap, pArgNext, 0x80);
+        }
+        else if (!__strcmpi(pArgTok, "-join") || !__strcmpi(pArgTok, "/join") )
+        {
+            char* pArgNext = _strtok(0, " \t");
+            if (pArgNext) stdString_SafeStrCopy(Main_strJoin, pArgNext, sizeof(Main_strJoin));
+            Main_bAutostart = 1;
+            Main_bAutostartSp = 0;
+        }
+        else if (!__strcmpi(pArgTok, "-password") || !__strcmpi(pArgTok, "/password") )
+        {
+            // Added: -password <password>: the game's password, for -join
+            char* pArgNext = _strtok(0, " \t");
+            if (pArgNext) stdString_SafeStrCopy(Main_strJoinPassword, pArgNext, sizeof(Main_strJoinPassword));
         }
         else if (!__strcmpi(pArgTok, "-headless") || !__strcmpi(pArgTok, "/headless") )
         {

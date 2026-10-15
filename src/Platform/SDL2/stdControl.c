@@ -10,6 +10,8 @@
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosTouch.h" // Added
 #endif
+#include "Platform/iOS/iosPad.h" // Added: game controllers (iOS)
+#include "Platform/iOS/iosKbMouse.h" // Added: keyboard and mouse (iOS)
 
 #include "jk.h"
 
@@ -291,6 +293,12 @@ void stdControl_SetSDLKeydown(int keyNum, int bDown, uint32_t readTime)
     stdControl_UpdateKeyState(stdControl_aSdlToDik[keyNum], bDown, readTime);
 }
 
+// Added: the SDL gamepad stdControl has open as pad idx (NULL: none)
+SDL_Gamepad* stdControl_GetSdlGamepad(int idx)
+{
+    return (idx >= 0 && idx < JK_NUM_JOYSTICKS) ? pGamepads[idx] : NULL;
+}
+
 void stdControl_FreeSdlJoysticks()
 {
     stdPlatform_Printf("Free SDL joysticks...\n");
@@ -384,8 +392,12 @@ void stdControl_InitSdlJoysticks()
         stdControl_aJoystickEnabled[i] = 1;
         stdControl_aJoystickMaxButtons[i] = numButtons;
         stdControl_aJoystickNumAxes[i] = numAxes;
+        flex_t deadZone = 0.2;
+#ifdef IOSPAD_ENABLED
+        if (bIsController) deadZone = 0.0; // Added: iosPad gives a pad's sticks a round dead zone of its own
+#endif
         for (int j = 0; j < numAxes; j++) {
-            stdControl_RegisterAxis((JK_JOYSTICK_AXIS_STRIDE*i) + AXIS_JOY1_X + j, -0x7FFF, 0x7FFF, 0.2);
+            stdControl_RegisterAxis((JK_JOYSTICK_AXIS_STRIDE*i) + AXIS_JOY1_X + j, -0x7FFF, 0x7FFF, deadZone);
         }
     }
     SDL_free(aJoystickIds);
@@ -445,6 +457,17 @@ int stdControl_Startup()
     //v2 = 2;
 
     stdControl_InitSdlJoysticks();
+
+#ifdef IOSPAD_ENABLED
+    // Added: the first pad's axes exist even with no pad connected yet (a
+    // Bluetooth pad often connects after the game starts), so its stick
+    // bindings load with the player's settings and are saved back with them,
+    // rather than being dropped for an axis that isn't there
+    for (int j = 0; j < JK_JOYSTICK_AXIS_STRIDE; j++) {
+        if (!(stdControl_aAxes[AXIS_JOY1_X + j].flags & 1))
+            stdControl_RegisterAxis(AXIS_JOY1_X + j, -0x7FFF, 0x7FFF, 0.0);
+    }
+#endif
 
 #if 0
     v14 = joyGetNumDevs();
@@ -732,6 +755,9 @@ void stdControl_ToggleMouse()
 void stdControl_ReadGamepad(int idx) {
     SDL_Gamepad* pGamepad = pGamepads[idx];
     if (!pGamepad) return;
+#ifdef IOSPAD_ENABLED
+    if (iosPad_ReadGamepad(idx, pGamepad)) return; // Added: the pad as iosPad has it (dead zone, gestures)
+#endif
 
     // HACK
     stdControl_aAxisEnabled[idx] = 1;
@@ -849,8 +875,14 @@ void stdControl_ReadControls()
         for (int i = 0; i < 256; i++)
         {
             int s = !!state[i];
+#ifdef IOSKBM_ENABLED
+            s = iosKbMouse_FilterKey(i, s); // Added: a key the keyboard's gestures keep (a wheel's), or one held from before
+#endif
 #ifdef TARGET_IOS
             s |= iosTouch_IsScancodeDown(i); // Added: on-screen touch buttons
+#endif
+#ifdef IOSPAD_ENABLED
+            s |= iosPad_IsScancodeDown(i); // Added: a key a game controller presses (quick save)
 #endif
             if (s && stdControl_aDebounce[i]) {
                 continue;
@@ -1056,11 +1088,18 @@ void stdControl_ReadMouse()
     float x,y;
     uint32_t buttons = SDL_GetMouseState(&x, &y);
 
-    stdControl_UpdateKeyState(KEY_MOUSE_B1, Window_bMouseLeft, stdControl_curReadTime);
-    stdControl_UpdateKeyState(KEY_MOUSE_B2, Window_bMouseRight, stdControl_curReadTime);
-    stdControl_UpdateKeyState(KEY_MOUSE_B3, !!(buttons & SDL_BUTTON_MMASK), stdControl_curReadTime);
-    stdControl_UpdateKeyState(KEY_MOUSE_B4, !!(buttons & SDL_BUTTON_X1MASK), stdControl_curReadTime);
-    stdControl_UpdateKeyState(KEY_MOUSE_B5, !!(buttons & SDL_BUTTON_X2MASK), stdControl_curReadTime);
+#ifdef IOSKBM_ENABLED
+    // Added: buttons held from before a wheel or a photo mode, or clicked on a wheel, aren't the game's
+#define stdControl_MouseButton(i, b) iosKbMouse_FilterMouseButton((i), (b))
+#else
+#define stdControl_MouseButton(i, b) (b)
+#endif
+    stdControl_UpdateKeyState(KEY_MOUSE_B1, stdControl_MouseButton(0, Window_bMouseLeft), stdControl_curReadTime);
+    stdControl_UpdateKeyState(KEY_MOUSE_B2, stdControl_MouseButton(1, Window_bMouseRight), stdControl_curReadTime);
+    stdControl_UpdateKeyState(KEY_MOUSE_B3, stdControl_MouseButton(2, !!(buttons & SDL_BUTTON_MMASK)), stdControl_curReadTime);
+    stdControl_UpdateKeyState(KEY_MOUSE_B4, stdControl_MouseButton(3, !!(buttons & SDL_BUTTON_X1MASK)), stdControl_curReadTime);
+    stdControl_UpdateKeyState(KEY_MOUSE_B5, stdControl_MouseButton(4, !!(buttons & SDL_BUTTON_X2MASK)), stdControl_curReadTime);
+#undef stdControl_MouseButton
 }
 
 void stdControl_ShowSystemKeyboard() {

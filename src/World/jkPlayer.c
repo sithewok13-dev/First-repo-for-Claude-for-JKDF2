@@ -35,6 +35,8 @@
 #include "Main/jkDev.h" // Added: sithewok (jkDev_Custom_KeepsForcePowers)
 #include "jk.h"
 #include "Win95/Window.h"
+#include "Platform/iOS/iosPad.h" // Added: game controllers' bindings (iOS)
+#include "Platform/iOS/iosKbMouse.h" // Added: the mouse's bindings (iOS)
 #include "General/stdJSON.h"
 #include "Platform/std3D.h"
 #include "Main/sithCvar.h"
@@ -631,6 +633,13 @@ void jkPlayer_WriteConf(char16_t *name)
 #ifdef FIXED_TIMESTEP_PHYS
         stdJSON_SaveBool(ext_fpath, "bJankyPhysics", jkPlayer_bJankyPhysics);
 #endif
+#ifdef IOSPAD_ENABLED
+        // Added: the controls just written are this version's (see iosPadBinds_Migrate)
+        stdJSON_SaveInt(ext_fpath, IOSPADBINDS_JSON_KEY, IOSPADBINDS_VERSION);
+#endif
+#ifdef IOSKBM_ENABLED
+        stdJSON_SaveInt(ext_fpath, IOSKBMBINDS_JSON_KEY, IOSKBMBINDS_VERSION); // Added: likewise the mouse's (iosKbMouse_MigrateBinds)
+#endif
 
 #ifdef QOL_IMPROVEMENTS
         Window_isHiDpi_tmp = Window_isHiDpi;
@@ -869,6 +878,27 @@ int jkPlayer_ReadConf(char16_t *name)
 #endif
         
         stdConffile_Close();
+#if defined(IOSPAD_ENABLED) || defined(IOSKBM_ENABLED)
+        {
+            // Added: a player's game controller and mouse bindings brought up
+            // to this version's once, and kept (see iosPadBinds_Migrate,
+            // iosKbMouse_MigrateBinds; both versions read before either is
+            // written back)
+            int bWrite = 0;
+#ifdef IOSPAD_ENABLED
+            const int padVersion = stdJSON_GetInt(ext_fpath, IOSPADBINDS_JSON_KEY, 0);
+#endif
+#ifdef IOSKBM_ENABLED
+            const int kbmVersion = stdJSON_GetInt(ext_fpath, IOSKBMBINDS_JSON_KEY, 0);
+            bWrite |= iosKbMouse_MigrateBinds(kbmVersion);
+#endif
+#ifdef IOSPAD_ENABLED
+            bWrite |= iosPadBinds_Migrate(padVersion);
+#endif
+            if (bWrite)
+                jkPlayer_WriteConf(name);
+        }
+#endif
         return 1;
     }
     else

@@ -1,0 +1,233 @@
+# Experiment: the iOS app with GameNetworkingSockets (GNS) linked in next to
+# ENet, so it can also join games hosted by upstream OpenJKDF2 desktop builds.
+#
+# Runs only for experiment branches (exp/...) and by hand. It publishes
+# nothing: no release, no tag, no ios-latest. The .ipa and the size report are
+# kept as this run's artifacts only (Actions > the run > Artifacts), for
+# testing. ios.yml, which does publish, leaves exp/... branches alone.
+#
+# Two jobs side by side on the same commit:
+#   - gns:      GNS, protobuf and OpenSSL's libcrypto built for iOS
+#               (packaging/ios/build_gns_deps.sh, cached), then the app with them
+#   - baseline: the same app without GNS, only to measure what GNS adds
+# ANGLE comes from the cache the main iOS workflow fills (same key); this one
+# never builds it.
+
+name: iOS GNS experiment
+
+on:
+  push:
+    branches:
+      - 'exp/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ios-gns-exp-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Same values as ios.yml, so the same ANGLE cache entry is found
+  ANGLE_REV: 4b7308a36376199c095ccb0ab69b773daa8b9fbe
+  ANGLE_CACHE_VERSION: v1
+  IOS_DEPLOYMENT_TARGET: '18.0'
+
+jobs:
+  gns:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Select newest Xcode
+        run: |
+          set -e
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -iv beta | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Restore ANGLE from cache
+        id: angle-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: angle-prebuilt
+          key: angle-ios-arm64-${{ env.ANGLE_REV }}-ios${{ env.IOS_DEPLOYMENT_TARGET }}-${{ env.ANGLE_CACHE_VERSION }}
+
+      - name: ANGLE must come from the cache
+        if: steps.angle-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "::error::No cached ANGLE build. Run the main iOS workflow once to fill the cache."
+          exit 1
+
+      - name: Cache key for the GNS libraries
+        id: gns-key
+        run: |
+          set -e
+          SUBS=$(git submodule status lib/GameNetworkingSockets lib/protobuf | awk '{print $1}' | tr -d '+-' | tr '\n' '-')
+          FILES=$(cat packaging/ios/build_gns_deps.sh cmake_modules/GameNetworkingSockets_v1.4.1.patch | shasum -a 256 | cut -c1-16)
+          echo "key=gns-ios-arm64-${SUBS}${FILES}-ios${IOS_DEPLOYMENT_TARGET}-v1" >> "$GITHUB_OUTPUT"
+
+      - name: Restore GNS libraries from cache
+        id: gns-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: gns-prebuilt
+          key: ${{ steps.gns-key.outputs.key }}
+
+      - name: Build GNS, protobuf and libcrypto for iOS (cache miss only)
+        if: steps.gns-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          sh packaging/ios/build_gns_deps.sh "$GITHUB_WORKSPACE/gns-prebuilt"
+
+      - name: Save GNS libraries to cache
+        if: steps.gns-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: gns-prebuilt
+          key: ${{ steps.gns-key.outputs.key }}
+
+      - name: Show the GNS libraries
+        run: |
+          set -e
+          ls -la gns-prebuilt/lib
+          for f in gns-prebuilt/lib/*.a; do lipo -info "$f"; done
+          otool -l gns-prebuilt/lib/libGameNetworkingSockets_s.a | grep -A4 LC_BUILD_VERSION | grep -E 'platform|minos' | sort | uniq -c
+
+      - name: Build OpenJKDF2 for iOS with GNS
+        run: |
+          set -e
+          export ANGLE_ROOT="$GITHUB_WORKSPACE/angle-prebuilt"
+          export GNS_PREBUILT="$GITHUB_WORKSPACE/gns-prebuilt"
+          ./build_ios.sh
+          test -d OpenJKDF2-iOS.app
+
+      - name: Check GNS is in the app
+        run: |
+          set -e
+          BIN=OpenJKDF2-iOS.app/openjkdf2-ios
+          ls -la "$BIN"
+          nm "$BIN" > syms.txt
+          echo "GNS symbols:"
+          grep -E 'GameNetworkingSockets_Init|SteamNetworkingSockets_LibV12|stdComm_GNS_Startup' syms.txt
+          grep -q 'SteamNetworkingSockets_LibV12' syms.txt
+          echo "dlopen of GNS (must be none):"
+          strings "$BIN" > strs.txt
+          if grep -F 'libGameNetworkingSockets.' strs.txt; then exit 1; fi
+          otool -L "$BIN"
+
+      - name: Package unsigned IPA
+        run: |
+          set -e
+          rm -rf Payload OpenJKDF2-iOS-GNS-unsigned.ipa
+          mkdir Payload
+          cp -R OpenJKDF2-iOS.app Payload/
+          zip -qry OpenJKDF2-iOS-GNS-unsigned.ipa Payload
+          ls -la OpenJKDF2-iOS-GNS-unsigned.ipa
+          # (no game data in it)
+          unzip -l OpenJKDF2-iOS-GNS-unsigned.ipa > ipa-files.txt
+          if grep -i -E '\.(gob|goo|jkl|cog)$|/episode/' ipa-files.txt; then echo "::error::game data in the IPA"; exit 1; fi
+          plutil -p Payload/OpenJKDF2-iOS.app/Info.plist | grep -E 'CFBundleIdentifier|CFBundleExecutable|MinimumOSVersion'
+          {
+            echo "### With GNS"
+            echo '```'
+            echo "binary: $(stat -f %z OpenJKDF2-iOS.app/openjkdf2-ios) bytes"
+            echo "GNS symbols in the binary: $(grep -c -E 'SteamNetworkingSockets_LibV12|GameNetworkingSockets_Init|stdComm_GNS_transport' syms.txt)"
+            echo "ipa:    $(stat -f %z OpenJKDF2-iOS-GNS-unsigned.ipa) bytes"
+            size -m OpenJKDF2-iOS.app/openjkdf2-ios | grep -E '^Segment __(TEXT|DATA|DATA_CONST)' || true
+            ls -l gns-prebuilt/lib/*.a
+            echo '```'
+          } | tee size-gns.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload IPA (run artifact only)
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenJKDF2-iOS-GNS-unsigned-ipa
+          path: OpenJKDF2-iOS-GNS-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload size report
+        uses: actions/upload-artifact@v4
+        with:
+          name: size-gns
+          path: size-gns.md
+
+  baseline:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Select newest Xcode
+        run: |
+          set -e
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -iv beta | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+
+      - name: Restore ANGLE from cache
+        id: angle-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: angle-prebuilt
+          key: angle-ios-arm64-${{ env.ANGLE_REV }}-ios${{ env.IOS_DEPLOYMENT_TARGET }}-${{ env.ANGLE_CACHE_VERSION }}
+
+      - name: ANGLE must come from the cache
+        if: steps.angle-cache.outputs.cache-hit != 'true'
+        run: exit 1
+
+      - name: Build OpenJKDF2 for iOS without GNS
+        run: |
+          set -e
+          export ANGLE_ROOT="$GITHUB_WORKSPACE/angle-prebuilt"
+          unset GNS_PREBUILT
+          ./build_ios.sh
+          BIN=OpenJKDF2-iOS.app/openjkdf2-ios
+          nm "$BIN" > syms.txt
+          if grep -q 'SteamNetworkingSockets_LibV12' syms.txt; then exit 1; fi
+          rm -rf Payload && mkdir Payload && cp -R OpenJKDF2-iOS.app Payload/
+          zip -qry baseline.ipa Payload
+          {
+            echo "### Without GNS (baseline)"
+            echo '```'
+            echo "binary: $(stat -f %z "$BIN") bytes"
+            echo "ipa:    $(stat -f %z baseline.ipa) bytes"
+            size -m "$BIN" | grep -E '^Segment __(TEXT|DATA|DATA_CONST)' || true
+            echo '```'
+          } | tee size-baseline.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload size report
+        uses: actions/upload-artifact@v4
+        with:
+          name: size-baseline
+          path: size-baseline.md
+
+  # The two size reports side by side, in a short log of their own
+  report:
+    needs: [gns, baseline]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the size reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: size-*
+          merge-multiple: true
+      - name: Size report
+        run: |
+          cat size-gns.md size-baseline.md
+          G=$(sed -n 's/^binary: \([0-9]*\) bytes/\1/p' size-gns.md)
+          B=$(sed -n 's/^binary: \([0-9]*\) bytes/\1/p' size-baseline.md)
+          GI=$(sed -n 's/^ipa: *\([0-9]*\) bytes/\1/p' size-gns.md)
+          BI=$(sed -n 's/^ipa: *\([0-9]*\) bytes/\1/p' size-baseline.md)
+          echo "GNS adds: binary $((G - B)) bytes, ipa $((GI - BI)) bytes" | tee -a "$GITHUB_STEP_SUMMARY"

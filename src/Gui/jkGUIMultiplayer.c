@@ -17,6 +17,8 @@
 #include "Platform/wuRegistry.h"
 #include "General/stdString.h"
 #include "Devices/sithComm.h"
+#include "Main/jkCoop.h" // Added
+#include "Gui/jkGUIMultiLobby.h" // Added
 
 static int jkGuiMultiplayer_bInitted = 0;
 static int32_t jkGuiMultiplayer_aElements2_aIdk[2] = {0xd, 0xe};
@@ -93,6 +95,9 @@ void jkGuiMultiplayer_Startup()
     jkGuiMultiplayer_aElements3[11].wstr = jkGuiMultiplayer_ipText;
     jkGuiMultiplayer_aElements3[11].selectedTextEntry = 255;
 #endif
+#ifdef JKGUI_MULTI_LOBBY
+    jkGuiMultiLobby_Startup(); // Added
+#endif
 }
 
 void jkGuiMultiplayer_Shutdown()
@@ -100,6 +105,9 @@ void jkGuiMultiplayer_Shutdown()
     stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
 
     jkGuiMultiplayer_bInitted = 0;
+#ifdef JKGUI_MULTI_LOBBY
+    jkGuiMultiLobby_Shutdown(); // Added
+#endif
 }
 
 // MOTS altered?
@@ -145,8 +153,33 @@ LABEL_1:
     {
         while ( 2 )
         {
+#ifdef JKGUI_MULTI_LOBBY
+            // Added: the Multiplayer screen made simple (jkGUIMultiLobby): HOST GAME (deathmatch or
+            // co-op), JOIN GAME, RESUME CO-OP; then on as the old one went
+            switch (jkGuiMultiLobby_ShowMain())
+            {
+                case JKGUIMULTILOBBY_HOST:
+                    if (!jkGuiMultiLobby_ShowHostMode()) continue;
+                    result = 101;
+                    break;
+                case JKGUIMULTILOBBY_RESUME:
+                    if (!jkGuiMultiLobby_ShowResume()) continue;
+                    result = 101;
+                    break;
+                case JKGUIMULTILOBBY_JOIN:
+                    result = 100;
+                    break;
+                case JKGUIMULTILOBBY_CHARACTERS:
+                    result = 102;
+                    break;
+                default:
+                    result = -1;
+                    break;
+            }
+#else
             jkGuiRend_MenuSetEscapeKeyShortcutElement(&jkGuiMultiplayer_menu, &jkGuiMultiplayer_aElements[4]);
             result = jkGuiRend_DisplayAndReturnClicked(&jkGuiMultiplayer_menu);
+#endif
             switch ( result )
             {
                 case -1:
@@ -171,6 +204,12 @@ LABEL_1:
                     jkGuiMultiplayer_aElements2[3].selectedTextEntry = 0;
                     jkGuiRend_MenuSetReturnKeyShortcutElement(&jkGuiMultiplayer_menu2, &jkGuiMultiplayer_aElements2[4]);
                     jkGuiRend_MenuSetEscapeKeyShortcutElement(&jkGuiMultiplayer_menu2, &jkGuiMultiplayer_aElements2[5]);
+#ifdef QOL_IMPROVEMENTS
+                    // Added: one way to connect (ENet's): not asked
+                    if (jkGuiMultiplayer_numConnections == 1)
+                        v3 = 1;
+                    else
+#endif
                     v3 = jkGuiRend_DisplayAndReturnClicked(&jkGuiMultiplayer_menu2);
                     if ( v3 > 0 )
                     {
@@ -209,8 +248,15 @@ LABEL_1:
                     jkGuiRend_SetVisibleAndDraw(&jkGuiMultiplayer_aElements3[4], &jkGuiMultiplayer_menu3, 0);
                     jkGuiRend_MenuSetReturnKeyShortcutElement(&jkGuiMultiplayer_menu3, &jkGuiMultiplayer_aElements3[9]);
                     jkGuiRend_MenuSetEscapeKeyShortcutElement(&jkGuiMultiplayer_menu3, &jkGuiMultiplayer_aElements3[10]);
+#ifdef JKGUI_MULTI_LOBBY
+                    // Added: the Join screen made simple (games nearby, played before, an address)
+                    if ( !jkGuiMultiLobby_ShowJoin() )
+                        goto LABEL_29;
+                    jkGuiMultiplayer_aElements3[3].selectedTextEntry = 0;
+#else
                     if ( jkGuiRend_DisplayAndReturnClicked(&jkGuiMultiplayer_menu3) != 1 )
                         goto LABEL_29;
+#endif
                     break;
                 case 101:
                     _memset(&v34, 0, sizeof(v34));
@@ -233,6 +279,12 @@ LABEL_1:
                     jkGuiMultiplayer_aElements2[3].selectedTextEntry = 0;
                     jkGuiRend_MenuSetReturnKeyShortcutElement(&jkGuiMultiplayer_menu2, &jkGuiMultiplayer_aElements2[4]);
                     jkGuiRend_MenuSetEscapeKeyShortcutElement(&jkGuiMultiplayer_menu2, &jkGuiMultiplayer_aElements2[5]);
+#ifdef QOL_IMPROVEMENTS
+                    // Added: one way to connect (ENet's): not asked
+                    if (jkGuiMultiplayer_numConnections == 1)
+                        v16 = 1;
+                    else
+#endif
                     v16 = jkGuiRend_DisplayAndReturnClicked(&jkGuiMultiplayer_menu2);
                     if ( v16 > 0 )
                     {
@@ -326,7 +378,13 @@ LABEL_51:
 LABEL_28:
             jkGuiRend_MenuSetReturnKeyShortcutElement(&jkGuiMultiplayer_menu3, &jkGuiMultiplayer_aElements3[9]);
             jkGuiRend_MenuSetEscapeKeyShortcutElement(&jkGuiMultiplayer_menu3, &jkGuiMultiplayer_aElements3[10]);
+#ifdef JKGUI_MULTI_LOBBY
+            if ( jkGuiMultiLobby_ShowJoin() )
+                jkGuiMultiplayer_aElements3[3].selectedTextEntry = 0;
+            else
+#else
             if ( jkGuiRend_DisplayAndReturnClicked(&jkGuiMultiplayer_menu3) != 1 )
+#endif
             {
 LABEL_29:
                 stdComm_EnumSessions2();
@@ -344,7 +402,13 @@ LABEL_29:
             goto LABEL_28;
 #ifdef QOL_IMPROVEMENTS
         // HACK: Actually do passwords correctly
+#ifdef PLATFORM_ENET
+        // Added: over ENet the host checks the password (it never sends it): the one typed goes with
+        // the connection (stdComm_Open)
+        int check = 0;
+#else
         int check = __wcscmp((const char16_t*)jkGuiMultiplayer_aEntries[jkGuiMultiplayer_aElements3[3].selectedTextEntry].wPassword, (const char16_t*)jkGuiMultiplayer_stru_556168.field_300);
+#endif
         if (check) {
             v27 = jkStrings_GetUniStringWithFallback("GUINET_WRONGPASSWORD");
             v11 = jkStrings_GetUniStringWithFallback("GUINET_JOINERROR");
@@ -354,7 +418,11 @@ LABEL_29:
 
         wuRegistry_SetWString("lastConnectedHost", jkGuiMultiplayer_ipText);
 #endif
+#ifdef PLATFORM_ENET
+        v10 = stdComm_Open(v7, (char16_t*)jkGuiMultiplayer_stru_556168.field_300); // Added: the password typed
+#else
         v10 = stdComm_Open(v7, v35.sessionName);
+#endif
         if ( v10 )
         {
             if ( v10 == 0x8877014A )
@@ -375,6 +443,9 @@ LABEL_29:
             jkGuiDialog_ErrorDialog(v11, v27);
             goto LABEL_28;
         }
+#ifdef JKGUI_MULTI_LOBBY
+        jkGuiMultiLobby_Joined(); // Added: kept among the hosts played with before
+#endif
         v12 = v7;
 #ifdef QOL_IMPROVEMENTS
         sithMulti_multiModeFlags = jkGuiMultiplayer_aEntries[v12].multiModeFlags; // TODO: why?
@@ -441,6 +512,14 @@ int jkGuiMultiplayer_CogMsgHandleJoining(SithMessage *msg)
                 v2 = jkStrings_GetUniStringWithFallback("GUINET_JOINERROR");
                 goto LABEL_9;
             case 6:
+#ifdef QOL_IMPROVEMENTS
+                // Added: co-op, the host is on another level: go there instead
+                if (jkCoop_HostLevelFromJoining(msg)) {
+                    jkGuiMultiplayer_menu4.lastClicked = -2;
+                    sithMessage_StopProcessMessages();
+                    break;
+                }
+#endif
                 v3 = jkStrings_GetUniStringWithFallback("GUINET_WRONGLEVEL");
                 v2 = jkStrings_GetUniStringWithFallback("GUINET_JOINERROR");
 LABEL_9:

@@ -13,6 +13,9 @@
 #include "Main/Main.h"
 #include "General/stdString.h"
 #include "Main/jkDev.h"
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosSaberThrow.h" // Added
+#endif
 
 // MOTS added
 static int sithInventory_008d60f8;
@@ -563,6 +566,11 @@ flex_t sithInventory_SetInventory(SithThing *pThing, int typeId, flex_t amount)
         info->amount = sithInventory_g_aTypes[typeId].max;
     }
 
+#ifdef QOL_IMPROVEMENTS
+    // Added: the lightsaber through a throw (jkDev_Custom_SaberThrowCheck): it may hold the amount back,
+    // and says whether the cheat's mark may go
+    const int bMayClearMark = jkDev_Custom_SaberThrowCheck(pThing, typeId, info, origAmt);
+#endif
     if ( info->amount != origAmt )
     {
         if ( sithInventory_g_aTypes[typeId].cog )
@@ -570,8 +578,10 @@ flex_t sithInventory_SetInventory(SithThing *pThing, int typeId, flex_t amount)
         info->state |= SITHINVENTORY_ITEM_CHANGED;
     }
 #ifdef QOL_IMPROVEMENTS
-    // Added: had for real from now on (a cheat that gives it marks it again after)
-    if ( info->amount > 0.0 )
+    // Added: had for real from now on (a cheat that gives it marks it again after) -- but not a
+    // lightsaber back from a throw, which is had as it was; nor one a cheat gave that the cheat took
+    // back while it was thrown (jkDev_Custom_SaberThrowCheck)
+    if ( bMayClearMark && info->amount > 0.0 )
         info->state &= ~SITHINVENTORY_ITEM_CHEAT_GIVEN;
 #endif
     return info->amount;
@@ -1265,6 +1275,12 @@ int sithInventory_HandleInvSkillKeys(SithThing *player, flex_t deltaSecs)
                     v15 = v1->actorParams.pPlayer;
                     v16 = player->actorParams.pPlayer->curPower;
                     sithInventory_bUnkPower = 1;
+#ifdef TARGET_IOS
+                    // Added: Saber Throw with two sabers, a saber a press (iosSaberThrow)
+                    if ( Main_bMotsCompat && v16 == 37 && iosSaberThrow_Activate(v1) )
+                        ;
+                    else
+#endif
                     if ( sithTime_g_secGameTime >= (flex_d_t)v15->aItems[v16].binWait && v16 >= SENDERTYPE_0 )
                     {
                         if ( sithInventory_IsInventoryAvailable(v1, v16) )

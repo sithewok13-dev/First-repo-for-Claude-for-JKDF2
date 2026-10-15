@@ -71,7 +71,7 @@ if((NOT GLEW_FOUND OR CMAKE_CROSSCOMPILING) AND NOT PLAT_WASM AND NOT TARGET_USE
     include(build_glew)
 endif()
 
-if (NOT TARGET_USE_BASICSOCKETS AND NOT TARGET_USE_GAMENETWORKINGSOCKETS)
+if (NOT TARGET_USE_BASICSOCKETS AND NOT TARGET_USE_GAMENETWORKINGSOCKETS AND NOT TARGET_USE_ENET)
     set(TARGET_USE_NOSOCKETS TRUE)
 endif()
 
@@ -85,7 +85,30 @@ if(TARGET_USE_PHYSFS)
     add_compile_definitions(PLATFORM_PHYSFS)
 endif()
 
-if(TARGET_USE_GAMENETWORKINGSOCKETS)
+if(TARGET_USE_GAMENETWORKINGSOCKETS AND OPENJKDF2_GNS_PREBUILT)
+    # Added: GNS built by packaging/ios/build_gns_deps.sh, linked into the program (static)
+    message(STATUS "GameNetworkingSockets: linked in, from ${OPENJKDF2_GNS_PREBUILT}")
+    foreach(lib GameNetworkingSockets_s protobuf crypto)
+        if(NOT EXISTS ${OPENJKDF2_GNS_PREBUILT}/lib/lib${lib}.a)
+            message(FATAL_ERROR "OPENJKDF2_GNS_PREBUILT: no ${OPENJKDF2_GNS_PREBUILT}/lib/lib${lib}.a (run packaging/ios/build_gns_deps.sh)")
+        endif()
+    endforeach()
+    add_library(openjkdf2_gns_static INTERFACE)
+    target_include_directories(openjkdf2_gns_static INTERFACE ${OPENJKDF2_GNS_PREBUILT}/include/GameNetworkingSockets)
+    target_link_libraries(openjkdf2_gns_static INTERFACE
+        ${OPENJKDF2_GNS_PREBUILT}/lib/libGameNetworkingSockets_s.a
+        ${OPENJKDF2_GNS_PREBUILT}/lib/libprotobuf.a
+        ${OPENJKDF2_GNS_PREBUILT}/lib/libcrypto.a)
+    if(NOT APPLE AND NOT WIN32)
+        find_package(Threads REQUIRED)
+        target_link_libraries(openjkdf2_gns_static INTERFACE Threads::Threads ${CMAKE_DL_LIBS})
+    endif()
+    file(GLOB TARGET_GNS_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/GNS/*.cpp)
+    list(APPEND ENGINE_SOURCE_FILES ${TARGET_GNS_SRCS})
+    add_compile_definitions(PLATFORM_GNS)
+    set_source_files_properties(${TARGET_GNS_SRCS} PROPERTIES COMPILE_DEFINITIONS
+        "STDCOMM_GNS_STATIC;STEAMNETWORKINGSOCKETS_STATIC_LINK")
+elseif(TARGET_USE_GAMENETWORKINGSOCKETS)
     set(PROTOBUF_DEPENDS ZLIB_${CMAKE_SYSTEM_NAME}_${CMAKE_SYSTEM_PROCESSOR})
     set(PROTOBUF_BUILD_PROTOC_BINARIES TRUE)
     if(CMAKE_CROSSCOMPILING)
@@ -120,6 +143,59 @@ if(TARGET_USE_GAMENETWORKINGSOCKETS)
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_GNS_SRCS})
 
     add_compile_definitions(PLATFORM_GNS)
+endif()
+
+# Added: the game's one connection passed to the transport in use (ENet, GNS)
+if(TARGET_USE_ENET OR TARGET_USE_GAMENETWORKINGSOCKETS)
+    list(APPEND ENGINE_SOURCE_FILES ${PROJECT_SOURCE_DIR}/src/Platform/Networking/stdCommTransport.c)
+endif()
+
+# Added: multiplayer over ENet (lib/enet, a few plain C files built in here):
+# what the iOS apps use, and desktop builds that want to play with them
+if(TARGET_USE_ENET)
+    set(ENET_DIR ${PROJECT_SOURCE_DIR}/lib/enet)
+    set(TARGET_ENET_LIB_SRCS
+        ${ENET_DIR}/callbacks.c ${ENET_DIR}/compress.c ${ENET_DIR}/host.c ${ENET_DIR}/list.c
+        ${ENET_DIR}/packet.c ${ENET_DIR}/peer.c ${ENET_DIR}/protocol.c)
+    if(WIN32)
+        list(APPEND TARGET_ENET_LIB_SRCS ${ENET_DIR}/win32.c)
+    else()
+        list(APPEND TARGET_ENET_LIB_SRCS ${ENET_DIR}/unix.c)
+        set_source_files_properties(${TARGET_ENET_LIB_SRCS} PROPERTIES COMPILE_DEFINITIONS
+            "HAS_FCNTL=1;HAS_POLL=1;HAS_GETADDRINFO=1;HAS_GETNAMEINFO=1;HAS_INET_PTON=1;HAS_INET_NTOP=1;HAS_MSGHDR_FLAGS=1;HAS_SOCKLEN_T=1")
+    endif()
+    include_directories(${ENET_DIR}/include)
+    file(GLOB TARGET_ENET_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/ENet/*.c)
+    list(APPEND ENGINE_SOURCE_FILES ${TARGET_ENET_SRCS} ${TARGET_ENET_LIB_SRCS})
+
+    # Games with a password are encrypted (stdComm_ENetCrypto.c): ChaCha20-Poly1305 and SHA-256 from
+    # mbedtls (src/external/mbedtls), the few files they need, unless the update check (curl) already
+    # builds all of it. Its headers seen by those files only.
+    set(MBEDTLS_DIR ${PROJECT_SOURCE_DIR}/src/external/mbedtls)
+    set(ENET_CRYPTO_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/ENet/stdComm_ENetCrypto.c)
+    if(NOT (TARGET_USE_CURL AND NOT TARGET_LINUX))
+        set(ENET_MBEDTLS_SRCS
+            ${MBEDTLS_DIR}/chacha20.c ${MBEDTLS_DIR}/chachapoly.c ${MBEDTLS_DIR}/poly1305.c
+            ${MBEDTLS_DIR}/sha256.c ${MBEDTLS_DIR}/platform_util.c)
+        list(APPEND ENGINE_SOURCE_FILES ${ENET_MBEDTLS_SRCS})
+        list(APPEND ENET_CRYPTO_SRCS ${ENET_MBEDTLS_SRCS})
+    endif()
+    set_source_files_properties(${ENET_CRYPTO_SRCS} PROPERTIES INCLUDE_DIRECTORIES ${MBEDTLS_DIR})
+
+    # Games on the same Wi-Fi found without an address (stdComm_ENetDiscover.c): Bonjour, Apple's own;
+    # elsewhere its library where one is installed (Linux: Avahi's libdns_sd), otherwise none
+    if(NOT APPLE AND NOT WIN32)
+        find_path(DNSSD_INCLUDE_DIR dns_sd.h PATH_SUFFIXES avahi-compat-libdns_sd)
+        find_library(DNSSD_LIBRARY dns_sd)
+        if(DNSSD_INCLUDE_DIR AND DNSSD_LIBRARY)
+            message(STATUS "ENet: games nearby found with ${DNSSD_LIBRARY}")
+            add_compile_definitions(STDCOMM_ENET_HAVE_DNSSD)
+            include_directories(${DNSSD_INCLUDE_DIR})
+            set(TARGET_ENET_DNSSD_LIB ${DNSSD_LIBRARY})
+        endif()
+    endif()
+
+    add_compile_definitions(PLATFORM_ENET)
 endif()
 
 if(TARGET_USE_BASICSOCKETS)
@@ -306,7 +382,7 @@ endif()
 # Really, really ugly hack, protoc needs some LD_LIBRARY_PATH junk probably but idk
 # WHYYY???? Does protoc not just take relative libz paths???
 # Also why did this break in the first place I didn't change anything??
-if(TARGET_USE_GAMENETWORKINGSOCKETS)
+if(TARGET_USE_GAMENETWORKINGSOCKETS AND NOT OPENJKDF2_GNS_PREBUILT)
     if(PLAT_MSVC)
         if(ZLIB_USE_STATIC_LIBS)
             set(HACK_ZLIB_SRC ${ZLIB_STATIC_LIBRARY_PATH})

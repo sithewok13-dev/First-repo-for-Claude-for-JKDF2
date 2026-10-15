@@ -6,6 +6,7 @@
 
 #include "Platform/Networking/Basic/stdComm_basic.h"
 #include "Platform/Networking/GNS/stdComm_GNS.h"
+#include "Platform/Networking/ENet/stdComm_ENet.h"
 #include "Platform/Networking/None/stdComm_none.h"
 
 #ifdef __cplusplus

@@ -12,6 +12,10 @@
 #include "Primitives/rdDebug.h"
 #include <math.h>
 
+// Added: below this camera depth a point isn't projected to find where it is
+// on screen (rdPolyline_Draw)
+#define RDPOLYLINE_MIN_PROJECT_DEPTH (0.0001)
+
 static rdVector3 polylineVerts[32]; // idk the size on this
 static rdVector3 rdPolyline_FaceVerts[32];
 
@@ -194,6 +198,19 @@ void rdPolyline_FreeEntry(rdPolyline *pPolyline)
     }
 }
 
+// Added: how much to scale a camera space point's x and z when it is set back
+// further from the eye by |epsilon| (epsilon is negative: depth - epsilon), so
+// that it stays in the same place on screen (a
+// perspective camera; an orthographic one, or a point at or behind the eye,
+// keeps the original set back along the depth axis alone)
+static flex_t rdPolyline_SetBackScale(flex_t depth, flex_t epsilon)
+{
+    if (rdCamera_g_pCurCamera->projectType == rdCameraProjectType_Ortho
+        || depth <= (flex_t)RDPOLYLINE_MIN_PROJECT_DEPTH)
+        return 1.0;
+    return (depth - epsilon) / depth;
+}
+
 int rdPolyline_Draw(rdThing *pLine, rdMatrix34 *pOrient)
 {
     rdPolyline *polyline;
@@ -202,7 +219,6 @@ int rdPolyline_Draw(rdThing *pLine, rdMatrix34 *pOrient)
     flex_d_t tip_bottom;
     flex_d_t tip_right;
     flex_d_t tip_top;
-    flex_t ang;
     flex_t angSin;
     flex_t angCos;
     rdVector3 vertex_out;
@@ -223,12 +239,24 @@ int rdPolyline_Draw(rdThing *pLine, rdMatrix34 *pOrient)
     vertex.y = polyline->length;
     vertex.z = 0.0;
     rdMatrix_TransformPoint34(&vertex_out, &vertex, &out);
-    tip_left = vertex_out.x - polyline->tipRadius;
-    tip_bottom = vertex_out.z - polyline->tipRadius;
-    tip_right = vertex_out.x + polyline->tipRadius;
-    tip_top = vertex_out.z + polyline->tipRadius;
 
     flex_t epislon = -0.001;
+
+    // Added: the round tip and base faces are set back by epislon so that the
+    // blade is drawn over them. Set back straight along the camera's depth axis,
+    // as the original did, they also slid toward the middle of the screen, by
+    // epislon/depth of their distance from it: next to nothing at a distance,
+    // but in first person (the blade a tenth of a unit away, off to the side)
+    // nearly the tip's whole radius, so the round tip stuck out beside the
+    // blade's end as a small offset nub. Set back along the line of sight
+    // instead, they stay centred on the blade's ends at their original size.
+    flex_t tipScale = rdPolyline_SetBackScale(vertex_out.y, epislon);
+    flex_t baseScale = rdPolyline_SetBackScale(out.scale.y, epislon);
+
+    tip_left = (vertex_out.x - polyline->tipRadius) * tipScale;
+    tip_bottom = (vertex_out.z - polyline->tipRadius) * tipScale;
+    tip_right = (vertex_out.x + polyline->tipRadius) * tipScale;
+    tip_top = (vertex_out.z + polyline->tipRadius) * tipScale;
 
     // Tip
     {
@@ -250,18 +278,18 @@ int rdPolyline_Draw(rdThing *pLine, rdMatrix34 *pOrient)
 
     // Base
     {
-        polylineVerts[0].x = out.scale.x - polyline->baseRadius;
+        polylineVerts[0].x = (out.scale.x - polyline->baseRadius) * baseScale;
         polylineVerts[0].y = out.scale.y - epislon;
-        polylineVerts[0].z = out.scale.z - polyline->baseRadius;
-        polylineVerts[1].x = out.scale.x + polyline->baseRadius;
+        polylineVerts[0].z = (out.scale.z - polyline->baseRadius) * baseScale;
+        polylineVerts[1].x = (out.scale.x + polyline->baseRadius) * baseScale;
         polylineVerts[1].y = out.scale.y - epislon;
-        polylineVerts[1].z = out.scale.z - polyline->baseRadius;
-        polylineVerts[2].x = out.scale.x + polyline->baseRadius;
+        polylineVerts[1].z = (out.scale.z - polyline->baseRadius) * baseScale;
+        polylineVerts[2].x = (out.scale.x + polyline->baseRadius) * baseScale;
         polylineVerts[2].y = out.scale.y - epislon;
-        polylineVerts[2].z = out.scale.z + polyline->baseRadius;
-        polylineVerts[3].x = out.scale.x - polyline->baseRadius;
+        polylineVerts[2].z = (out.scale.z + polyline->baseRadius) * baseScale;
+        polylineVerts[3].x = (out.scale.x - polyline->baseRadius) * baseScale;
         polylineVerts[3].y = out.scale.y - epislon;
-        polylineVerts[3].z = out.scale.z + polyline->baseRadius;
+        polylineVerts[3].z = (out.scale.z + polyline->baseRadius) * baseScale;
         idxInfo.aTexVerticies = polyline->extraUVFaceMaybe;
         rdPolyline_DrawFace(pLine, &polyline->tipFace, polylineVerts, &idxInfo);
     }
@@ -269,40 +297,61 @@ int rdPolyline_Draw(rdThing *pLine, rdMatrix34 *pOrient)
 
     // Blade
     {
-        flex_t zdist = vertex_out.z - out.scale.z;
         flex_t xdist = vertex_out.x - out.scale.x;
-        flex_t mag = stdMath_Sqrt(xdist * xdist + zdist * zdist);
+        flex_t zdist = vertex_out.z - out.scale.z;
 
-        // Added: prevent div 0
-        if (mag == 0)
+        // Added: the blade's width is laid across the blade as it is seen on the
+        // screen, not as it lies in the camera's x/z plane. The two differ under
+        // perspective whenever the blade points toward or away from the camera
+        // (always so in first person), and then the blade's end was cut on a slant
+        // that the round tip face (square to the screen, centred on the tip) does
+        // not cover: a thin pointed sliver of blade stuck out past the tip. Laid
+        // across the projected direction, the end is a diameter of the tip face
+        // and the tip closes in a clean half circle. An orthographic camera (or a
+        // point at or behind the eye) keeps the original layout.
+        flex_t dirX = xdist;
+        flex_t dirZ = zdist;
+        if (rdCamera_g_pCurCamera->projectType != rdCameraProjectType_Ortho
+            && vertex_out.y > (flex_t)RDPOLYLINE_MIN_PROJECT_DEPTH
+            && out.scale.y > (flex_t)RDPOLYLINE_MIN_PROJECT_DEPTH)
         {
-            mag = 0.000001f;
+            dirX = (vertex_out.x / vertex_out.y) - (out.scale.x / out.scale.y);
+            dirZ = (vertex_out.z / vertex_out.y) - (out.scale.z / out.scale.y);
+        }
+        // (scaled to its larger part first, so squaring can't overflow a
+        // fixed-point flex_t when an end is just in front of the eye)
+        flex_t dirMax = stdMath_Fabs(dirX) > stdMath_Fabs(dirZ) ? stdMath_Fabs(dirX) : stdMath_Fabs(dirZ);
+        if (dirMax > 0.0)
+        {
+            dirX = dirX / dirMax;
+            dirZ = dirZ / dirMax;
+        }
+        flex_t mag = stdMath_Sqrt(dirX * dirX + dirZ * dirZ);
+
+        // across the blade, (cos, sin) of the original's angle
+        angCos = 1.0;
+        angSin = 0.0;
+        if (mag > 0.0) // Added: prevent div 0
+        {
+            angCos = dirZ / mag;
+            angSin = -dirX / mag;
         }
 
-        ang = stdMath_ArcSin3((-xdist) / mag);
-        if ( zdist < 0.0 )
-        {
-            if ( xdist <= 0.0 )
-                ang = -(ang - -180.0);
-            else
-                ang = 180.0 - ang;
-        }
-        stdMath_SinCos(ang, &angSin, &angCos);
-        polylineVerts[0].x = (polyline->tipRadius * angCos) - (mag * angSin) + out.scale.x;
+        polylineVerts[0].x = vertex_out.x + (polyline->tipRadius * angCos);
         polylineVerts[0].y = vertex_out.y;
-        polylineVerts[0].z = (polyline->tipRadius * angSin) + (mag * angCos) + out.scale.z;
-        
-        polylineVerts[1].x = (-polyline->tipRadius * angCos) - (mag * angSin) + out.scale.x;
+        polylineVerts[0].z = vertex_out.z + (polyline->tipRadius * angSin);
+
+        polylineVerts[1].x = vertex_out.x - (polyline->tipRadius * angCos);
         polylineVerts[1].y = vertex_out.y;
-        polylineVerts[1].z = (-polyline->tipRadius * angSin) + (mag * angCos) + out.scale.z;
-        
-        polylineVerts[2].x = (-polyline->baseRadius * angCos) - (flex_t)0.0 + out.scale.x;
+        polylineVerts[1].z = vertex_out.z - (polyline->tipRadius * angSin);
+
+        polylineVerts[2].x = out.scale.x - (polyline->baseRadius * angCos);
         polylineVerts[2].y = out.scale.y;
-        polylineVerts[2].z = (-polyline->baseRadius * angSin) + (flex_t)0.0 + out.scale.z;
-        
-        polylineVerts[3].x = (polyline->baseRadius * angCos) - (flex_t)0.0 + out.scale.x;
+        polylineVerts[2].z = out.scale.z - (polyline->baseRadius * angSin);
+
+        polylineVerts[3].x = out.scale.x + (polyline->baseRadius * angCos);
         polylineVerts[3].y = out.scale.y;
-        polylineVerts[3].z = (polyline->baseRadius * angSin) + (flex_t)0.0 + out.scale.z;
+        polylineVerts[3].z = out.scale.z + (polyline->baseRadius * angSin);
         idxInfo.aTexVerticies = polyline->extraUVTipMaybe;
         rdPolyline_DrawFace(pLine, &polyline->face, polylineVerts, &idxInfo);
     }

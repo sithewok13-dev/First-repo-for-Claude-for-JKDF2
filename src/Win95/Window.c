@@ -41,6 +41,8 @@
 //#include <stropts.h>
 
 #include "SDL2_helper.h"
+#include "Platform/iOS/iosPad.h" // Added: game controllers (iOS)
+#include "Platform/iOS/iosKbMouse.h" // Added: keyboard and mouse (iOS)
 
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosAngle.h"
@@ -845,6 +847,13 @@ void Window_SdlUpdate()
             bIsGamepad = 1;
         }
 
+#ifdef IOSPAD_ENABLED
+        iosPad_HandleEvent(&event); // Added
+#endif
+#ifdef IOSKBM_ENABLED
+        if (iosKbMouse_HandleEvent(&event)) continue; // Added: the keyboard's and mouse's own (a wheel's pointing...)
+#endif
+
         switch (event.type)
         {
             case SDL_EVENT_JOYSTICK_ADDED: {
@@ -1155,6 +1164,12 @@ void Window_SdlUpdate()
                 if (bIsGamepad) {
                     //stdPlatform_Printf("gpad button %d, %d\n", event.gbutton.button, event.gbutton.state);
                     if (event.gbutton.button == SDL_GAMEPAD_BUTTON_START || event.gbutton.button == SDL_GAMEPAD_BUTTON_BACK) {
+#ifdef IOSPAD_ENABLED
+                        // Added: in gameplay Start and Back are the pad's own
+                        // (iosPad: the menu on a tap, quick save...); a press
+                        // let go there still lets go of a menu's Escape
+                        if (!(event.gbutton.down && iosPad_OwnsSystemButtons((int)event.gbutton.which)))
+#endif
                         stdControl_bControllerEscapeKey = event.gbutton.down;
                     }
                     else if (jkCutscene_isRendering && event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN && event.gbutton.button == SDL_GAMEPAD_BUTTON_NORTH) { // y
@@ -1195,6 +1210,14 @@ void Window_SdlUpdate()
         }
     }
 
+#ifdef IOSPAD_ENABLED
+    // Added: the game controller, now that this frame's events are in (its
+    // Escape for a Start tap is acted on just below)
+    iosPad_Update();
+#endif
+#ifdef IOSKBM_ENABLED
+    iosKbMouse_Update(); // Added: the keyboard and mouse, likewise (Cmd-.'s Escape)
+#endif
 #ifdef TARGET_IOS
     // Added: gyro aiming, now that this frame's touches are in
     iosTouch_UpdateGyro();
@@ -1313,7 +1336,11 @@ void Window_SdlUpdate()
             SDL_SetWindowRelativeMouseMode(displayWindow, false);
         }
 
-        if (!jkQuakeConsole_bOpen && SDL_GetWindowFlags(displayWindow) & SDL_WINDOW_MOUSE_FOCUS) {
+        if (!jkQuakeConsole_bOpen && SDL_GetWindowFlags(displayWindow) & SDL_WINDOW_MOUSE_FOCUS
+#ifdef IOSKBM_ENABLED
+            && !iosKbMouse_IsPointerFree() // Added: the pointer let go for a photo mode or a panel (iOS)
+#endif
+            ) {
             SDL_SetWindowRelativeMouseMode(displayWindow, true);
             //SDL_WarpMouseInWindow(displayWindow, 100, 100);
         }

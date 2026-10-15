@@ -6,7 +6,7 @@ macro(plat_link_and_package)
         target_link_libraries(sith_engine PRIVATE PhysFS::PhysFS_s)
         target_link_libraries(${BIN_NAME} PRIVATE PhysFS::PhysFS_s)
     endif()
-    if(TARGET_USE_GAMENETWORKINGSOCKETS)
+    if(TARGET_USE_GAMENETWORKINGSOCKETS AND NOT OPENJKDF2_GNS_PREBUILT)
         target_link_libraries(sith_engine PRIVATE GameNetworkingSockets::GameNetworkingSockets)
     endif()
 
@@ -32,7 +32,7 @@ macro(plat_extra_deps)
         add_definitions(${LIBCURL_STATIC_CFLAGS_OTHER})
     endif()
 
-    if(TARGET_USE_GAMENETWORKINGSOCKETS)
+    if(TARGET_USE_GAMENETWORKINGSOCKETS AND NOT OPENJKDF2_GNS_PREBUILT)
         add_custom_command(
             TARGET ${BIN_NAME}
             POST_BUILD

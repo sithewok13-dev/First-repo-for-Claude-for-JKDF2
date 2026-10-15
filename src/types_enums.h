@@ -182,6 +182,7 @@ enum jkEpisodeLoadType
     JK_EPISODE_DEATHMATCH = 2,
     JK_EPISODE_4_UNK = 4,
     JK_EPISODE_SPECIAL_CTF = 8,
+    JK_EPISODE_SABERS_ONLY = 16, // Added: MotS's "Sith Lightsaber Training" (JKM.EXE hosts it, as saber-only)
     JK_EPISODE_ALL = 0xFFFF
 };
 
@@ -640,9 +641,12 @@ enum sithMultiModeFlags
     MULTIMODEFLAG_800 = 0x800,
     MULTIMODEFLAG_1000 = 0x1000, // MOTS uses
     MULTIMODEFLAG_2000 = 0x2000,
+    MULTIMODEFLAG_SABERS_ONLY = 0x2000, // Added name: MotS's saber-only rule (kyle_m.cog takes every weapon but fists and saber)
     MULTIMODEFLAG_4000 = 0x4000,
     MULTIMODEFLAG_8000 = 0x8000,
-    MULTIMODEFLAG_COOP = 0x10000
+    MULTIMODEFLAG_COOP = 0x10000,
+    MULTIMODEFLAG_ALLOWCHEATS = 0x20000, // Added: the host lets each player use cheats on themselves (jkDev)
+    MULTIMODEFLAG_COOPDIFF_MASK = 0xC0000 // Added: co-op, the host's difficulty + 1 (jkCoop), 0 not given
 };
 
 enum sithMultiSessionFlags

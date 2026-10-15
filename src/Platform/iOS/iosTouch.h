@@ -90,6 +90,9 @@
 //     tap), or at a touch off it.
 // In menus and cutscenes the overlay hides, so touches reach SDL as mouse
 // clicks like before. If SDL's window is recreated the overlay follows it.
+// A mouse or trackpad's clicks in play are the mouse's buttons, not fingers
+// (passed on to SDL), but where the game lets go of the pointer
+// (iosTouch_WantsPointer). A hardware keyboard and a mouse: iosKbMouse.h.
 
 #ifndef _PLATFORM_IOS_IOSTOUCH_H
 #define _PLATFORM_IOS_IOSTOUCH_H
@@ -116,6 +119,63 @@ int iosTouch_IsScancodeDown(int scancode);
 // first line and the left and right edges it is wrapped between (under the
 // top button row, clear of the buttons). 0 until the overlay is laid out.
 int iosTouch_GetTopTextRectPt(float* pTop, float* pLeft, float* pRight);
+
+// Game controllers (iosPad). The touch controls hidden while a pad is
+// played (bHidden), or shown again; the gyro stops while they are hidden.
+// A touch on the hidden controls brings them back and does nothing else.
+void iosTouch_SetPadHud(int bHidden);
+// The wheels, opened from a pad (kind: IOSPAD_WHEEL_*), the same wheels as
+// the touch buttons open, holding the game still the same way: to pick by
+// letting go of the pad's button, or (bTapMode) with A. 0 if one can't open
+// now (another wheel, Action Freeze, a selfie...).
+int iosTouch_PadWheelOpen(int kind, int bTapMode);
+// Whether the wheel the pad opened is still open (a touch can close it too)
+int iosTouch_PadWheelIsOpen(void);
+void iosTouch_PadWheelSetTapMode(void);
+// Where the right stick points (degrees counter-clockwise from pointing
+// right, as the slices are), or nowhere (bAim 0); the slice it points at
+// holds a little past its edges, as under a thumb
+void iosTouch_PadWheelAim(int bAim, float deg);
+// The D-pad: the next slice round (+1 clockwise, -1 the other way)
+void iosTouch_PadWheelStep(int dir);
+// Whether the stick points at a slice (*pbPickable: one that can be picked)
+int iosTouch_PadWheelHot(int* pbPickable);
+// Closes the wheel, picking what is pointed at (bSelect) or nothing. A
+// colour on the saber wheel is set and the wheel stays open: returns 1
+// while it is still open, else 0.
+int iosTouch_PadWheelClose(int bSelect);
+// The saber wheel's choices (IOSPAD_CHIP_*)
+void iosTouch_PadSaberChip(int chip);
+// Whether a photo mode is up: a selfie, Action Freeze, the cinematic burst,
+// or iOS asking for Photos access (the pad leaves the game alone then)
+int iosTouch_IsPhotoModeUp(void);
+// The FPS readout (the tray's FPS), on or off
+int iosTouch_IsFpsShown(void);
+void iosTouch_SetFpsShown(int bShow);
+
+// A keyboard and mouse (iosKbMouse). The touch controls hidden while they
+// are played, as for a pad (either can hide them; a touch -- not a click --
+// brings them back for both).
+void iosTouch_SetKbmHud(int bHidden);
+// The wheels, opened from the keyboard, pointed at with the mouse: as
+// iosTouch_PadWheelOpen, and the iosTouch_PadWheel* calls above work this
+// one too (iosTouch_PadWheelIsOpen says only the pad's)
+int iosTouch_KbmWheelOpen(int kind, int bTapMode);
+int iosTouch_KbmWheelIsOpen(void);
+// Whether any wheel is open (a finger's too)
+int iosTouch_IsWheelOpen(void);
+// Whether the game is to let go of the pointer during play: a photo mode,
+// MENU's tray or a row of options under it (a click then works the touch
+// controls as a tap; else a click is the mouse's button, never a finger)
+int iosTouch_WantsPointer(void);
+// The camera from the keyboard (as CAMERA): a photo (in Action Freeze, its
+// photo), the selfie, Action Freeze on and off, Action Freeze ended. 1 if
+// it went.
+#define IOSTOUCH_CAM_PHOTO 0
+#define IOSTOUCH_CAM_SELFIE 1
+#define IOSTOUCH_CAM_FREEZE 2
+#define IOSTOUCH_CAM_FREEZE_END 3
+int iosTouch_KbmCamera(int action);
 
 #ifdef __cplusplus
 }

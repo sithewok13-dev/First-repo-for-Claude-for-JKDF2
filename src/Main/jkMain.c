@@ -20,6 +20,8 @@
 #include "Main/jkHudScope.h"
 #include "Main/jkHudCameraView.h"
 #include "Main/jkDev.h"
+#include "Main/jkCoop.h"
+#include "Main/jkCoopSave.h" // Added
 #include "Main/jkEpisode.h"
 #include "Main/jkRes.h"
 #include "Main/jkStrings.h"
@@ -475,6 +477,9 @@ void jkMain_EndLevelScreenShow(int a1, int a2)
           && (sithPlayer_GetInvItemAmount(SITHBIN_NEW_STARS) <= 0.0 && sithPlayer_GetInvItemAmount(SITHBIN_SPEND_STARS) <= 0.0
            || jkGuiForce_Show(1, 0.0, jkMain_dword_552B98, 0, 0, 1) != -1) )
         {
+#ifdef QOL_IMPROVEMENTS
+            jkCoop_LevelEnded(); // Added: co-op, the stars just spent kept too
+#endif
             jkMain_StartNextLevelInEpisode(0, 1);
             return;
         }
@@ -490,6 +495,9 @@ void jkMain_EndLevelScreenShow(int a1, int a2)
 
             jkPlayer_idkEndLevel();
             if (jkGuiForce_Show(1, 0.0, jkMain_dword_552B98, 0, 0, 1) != -1) {
+#ifdef QOL_IMPROVEMENTS
+                jkCoop_LevelEnded(); // Added: co-op, the stars just spent kept too
+#endif
                 jkMain_StartNextLevelInEpisode(0, 1);
                 return;
             }
@@ -584,6 +592,9 @@ void jkMain_GameplayShow(int a1, int a2)
 #ifdef JKM_DSS
             jkPlayer_SetAmmoMaximums(jkPlayer_personality);
 #endif
+#ifdef QOL_IMPROVEMENTS
+            jkCoop_UseHostDifficulty(); // Added: co-op, the level loaded as the host's (the same things)
+#endif
             v3 = sithOpenMulti(jkMain_aLevelJklFname);
         }
 
@@ -654,6 +665,10 @@ LABEL_28:
                 if ( sithNet_isMulti )
                     jkDSS_wrap_SendSaberInfo_alt();
             }
+#ifdef QOL_IMPROVEMENTS
+            jkDev_Custom_LevelOpened(); // Added: (multiplayer) the host's address shown
+            jkCoop_LevelOpened(); // Added: co-op
+#endif
         }
         else {
             thing_six = 1;
@@ -667,6 +682,16 @@ LABEL_28:
             }
 #endif
             sithClose();
+#ifdef QOL_IMPROVEMENTS
+            // Added: co-op, the host is on another level (the campaign's path
+            // went another way for this player): that one loaded instead
+            if (jkCoop_FollowHostLevel()) {
+                thing_six = 0;
+                // (as a plain level load: a MotS cutscene's return would put its own level name back)
+                jkMain_GameplayShow(a1, JK_GAMEMODE_GAMEPLAY);
+                return;
+            }
+#endif
             sithMulti_Shutdown();
             if ( jkGuiRend_thing_five )
                 jkGuiRend_thing_four = 1;
@@ -998,6 +1023,11 @@ int jkMain_loadFile2(char *pGobPath, char *pEpisodeName)
     BOOL v2; // esi
     int result; // eax
 
+#ifdef QOL_IMPROVEMENTS
+    char* pAsked = pEpisodeName;
+    jkCoopSave_LevelLoading(pGobPath, &pEpisodeName); // Added: co-op, a host carries on from its save
+#endif
+
     _strncpy(jkMain_aLevelJklFname, pEpisodeName, 0x7Fu);
     jkMain_aLevelJklFname[127] = 0;
     jkSmack_gameMode = 2;
@@ -1012,7 +1042,18 @@ int jkMain_loadFile2(char *pGobPath, char *pEpisodeName)
         jkMain_pEpisodeEnt2 = NULL;
     }
     v2 = jkEpisode_Load(&jkEpisode_mLoad);
+#ifdef QOL_IMPROVEMENTS
+    // Added: a resumed co-op level that isn't in this episode: the level asked for, as ever
+    if (!jkEpisode_idk4(&jkEpisode_mLoad, pEpisodeName) && pEpisodeName != pAsked) {
+        jkCoopSave_ResumeFailed();
+        pEpisodeName = pAsked;
+        _strncpy(jkMain_aLevelJklFname, pEpisodeName, 0x7Fu);
+        jkMain_aLevelJklFname[127] = 0;
+        jkEpisode_idk4(&jkEpisode_mLoad, pEpisodeName);
+    }
+#else
     jkEpisode_idk4(&jkEpisode_mLoad, pEpisodeName);
+#endif
     if ( v2 )
     {
         result = 1;
@@ -1352,6 +1393,15 @@ int jkMain_MenuReturn()
 
 int jkMain_EndLevel(int bIsAPath)
 {
+#ifdef QOL_IMPROVEMENTS
+    // Added: co-op, a level the host picked (sithewok's level pick): that one, as it loads in single player
+    const int pickedEntry = jkCoop_TakePickedLevel();
+    if (pickedEntry >= 0) {
+        jkCoop_LevelEnded();
+        jkEpisode_mLoad.currentEpisodeEntryIdx = pickedEntry;
+        return jkMain_cd_swap_reverify(&jkEpisode_mLoad.paEntries[pickedEntry]);
+    }
+#endif
     if (!Main_bMotsCompat && jkEpisode_mLoad.numSeq )
     {
         jkEpisodeEntry* pEpisodeEnt = jkEpisode_GetCurrentEpisodeEntry(&jkEpisode_mLoad);
@@ -1374,6 +1424,9 @@ int jkMain_EndLevel(int bIsAPath)
         jkPlayer_idkEndLevel();
     }
 
+#ifdef QOL_IMPROVEMENTS
+    jkCoop_LevelEnded(); // Added: co-op, each player's gear kept for the next level
+#endif
     return jkMain_StartNextLevelInEpisode(0, bIsAPath);
 }
 

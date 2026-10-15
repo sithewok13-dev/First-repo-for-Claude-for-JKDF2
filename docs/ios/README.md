@@ -25,6 +25,8 @@ Contents: [What this is](#what-this-is) ·
 [3. Copy the game files to your iPhone](#3-copy-the-game-files-to-your-iphone) ·
 [4. Play](#4-play) ·
 [Touch controls](#touch-controls) ·
+[Game controllers](#game-controllers) ·
+[Keyboard and mouse](#keyboard-and-mouse) ·
 [The camera](#the-camera) ·
 [Tilt aiming](#tilt-aiming) ·
 [The Force wheel](#the-force-wheel) ·
@@ -273,9 +275,9 @@ The layout looks roughly like this. Exact positions shift a little to fit your
 screen, the camera cutout and the HUD.
 
 ```
- NEXT   FORCE   LIGHT  IR  BACTA  CAMERA  SABER  CHEAT  (FPS)  QUICK  QUICK  MENU
+ NEXT   FORCE   LIGHT  IR  BACTA  CAMERA  SABER  CHEAT  VIEW  (FPS)  QUICK  QUICK  MENU
  WPN    WHEEL   (only items you have)                         SAVE   LOAD
-                          [GYRO] [FPS] [CAMERA] [CHEAT] [JUMP] [keyboard]
+                          [GYRO] [FPS] [CAMERA] [CHEAT] [VIEW] [JUMP] [CONTROLS] [keyboard]
                           (MENU's tray, when held)
                              [MODE] [SENS]             (GYRO held in the tray)
                              [PHOTO] [SELFIES] [FREEZE] (CAMERA held in the tray)
@@ -333,6 +335,7 @@ never cover them, and long lines wrap between words.
 | **CAMERA** (the camera symbol) | top, in the middle | **Hold still:** a selfie. **Tap:** a photo. **Slide sideways:** a burst. **Slide down:** Action Freeze. **Slide up:** the cinematic burst. See [The camera](#the-camera). |
 | **SABER** (a lightsaber) | top, right of CAMERA (once you have the lightsaber) | Opens the saber wheel: blade colours, one saber or two. See [The lightsaber: SABER](#the-lightsaber-saber). |
 | **CHEAT** (the red Sith emblem) | top, right of SABER (cheat mode only) | **Hold** for half a second: `sithewok` off or on. Red while it's on. See [Cheats](#cheats). |
+| **VIEW** (1P or 3P) | top, right of CHEAT (once switched on in MENU's tray) | **Tap:** first person or third person, at once. |
 
 FIRE, ALT, DUCK, ACT, JUMP and FORCE act as soon as you touch them.
 LIGHT, IR, MENU, CAMERA and the tray buttons act when you **lift** your finger
@@ -345,12 +348,12 @@ however you touch it. While
 `sithewok` is on, JUMP, ACT and DUCK show a small red second line (FLY,
 NOCLIP, LVL SEL) for their cheat holds: see [Cheats](#cheats).
 
-### MENU's tray: tilt aiming, FPS, camera, cheat mode and keyboard
+### MENU's tray: tilt aiming, FPS, camera, cheat mode, view and keyboard
 
 **Tap MENU** for the game's menu. **Hold MENU** until its ring fills (about
-half a second), and a small tray opens just under it with six buttons, from
-left to right **GYRO**, **FPS**, **CAMERA**, **CHEAT**, **JUMP** and the
-**keyboard**.
+half a second), and a small tray opens just under it with eight buttons, from
+left to right **GYRO**, **FPS**, **CAMERA**, **CHEAT**, **VIEW**, **JUMP**,
+**CONTROLS** and the **keyboard**.
 Either keep your thumb down, slide it onto a tray button and lift, or lift
 first and then tap one. Anywhere on the tray's dark backing counts as the
 nearest button.
@@ -369,30 +372,168 @@ nearest button.
 - **CHEAT:** cheat mode on or off. On, the CHEAT button appears and
   `sithewok` goes on. Off, `sithewok` goes off and the button goes away.
   Yellow while cheat mode is on. See [Cheats](#cheats).
-- **JUMP:** how Force Jump works, **SMOOTH** (the default), **STEPS** or
+- **VIEW:** shows or hides the **VIEW** button on the top row, after CHEAT
+  (yellow while it's shown). **Tap VIEW** to switch between first person
+  (**1P**) and third person (**3P**) at once. The app remembers both, and
+  starts in first person; hiding the button keeps the view you picked. The
+  game's own idle camera still swings round to show you after 30 seconds
+  without a touch, and goes back to your view when you play on.
+- **JUMP:** how Force Jump works, **STEPS** (the default), **SMOOTH** or
   **CLASSIC**. Each tap goes on to the next, and the tray stays open. See
   [Force Jump](#force-jump).
+- **CONTROLS:** **NORMAL** (the default) has the move stick on the left and
+  FIRE and its buttons on the right. **SWAPPED** puts the move stick where
+  your right thumb lands and mirrors FIRE, ALT, DUCK, ACT, JUMP and FORCE to
+  the left, same sizes and spacing. It takes effect at once and the tray
+  stays open. The top row stays as it is.
 - **Keyboard** (the keyboard symbol, at the right end of the tray): opens the
   game's typing line with the iPhone keyboard, for [cheats](#cheats). Tap it
   again to close the line. While it's open, MENU and the keyboard button are
   lit yellow.
 
-GYRO and JUMP show their setting on the button (for example *GYRO OFF*,
-*JUMP SMOOTH*), and MODE and SENS show theirs. Each tap on JUMP, MODE or SENS
+GYRO, JUMP and CONTROLS show their setting on the button (for example *GYRO OFF*,
+*JUMP STEPS*), and MODE and SENS show theirs. Each tap on JUMP, CONTROLS, MODE or SENS
 goes on to the next setting, and the tray (or row) stays open so you can tap
 again.
 
-The app remembers GYRO, SENS, FPS, CAMERA and its options, CHEAT and JUMP
+The app remembers GYRO, SENS, FPS, CAMERA and its options, CHEAT, VIEW, JUMP and CONTROLS
 next time you open it. The `sithewok` cheat itself always starts off when you open
 the app: hold the CHEAT button to switch it on.
 
 The tray usually sits right under MENU. On smaller screens (with the camera
 cutout on the right, with Display Zoom, or at a large HUD Scale) it sits
 further left, so that it never covers FORCE or the buttons around FIRE. The
-tray closes after you pick FPS, CAMERA, CHEAT or the keyboard, or when you
+tray closes after you pick FPS, CAMERA, CHEAT, VIEW or the keyboard, or when you
 touch anywhere else. That touch still counts: touching FIRE closes the tray
 and fires. Touching MENU again just closes it. If you slide off MENU while
 holding it, nothing happens.
+
+## Game controllers
+
+Xbox, PlayStation, Backbone-style and other controllers that work with iOS
+(pair them in the iPhone's Bluetooth settings, or clip the phone into a
+Backbone) play the whole game, menus included. As soon as you use one, the
+touch buttons disappear; touch the screen (that touch does nothing else) or
+switch the controller off and they come back.
+
+| Button | What it does |
+| --- | --- |
+| Left stick | Move |
+| Right stick | Look |
+| RT / R2 | Fire |
+| LT / L2 | Alt fire |
+| A / Cross | Jump |
+| B / Circle | Duck |
+| X / Square | Use (doors, switches) |
+| Y / Triangle | Use the Force power |
+| LB / L1 | Tap: next Force power. Hold: the Force wheel |
+| RB / R1 | Tap: next weapon. Hold: the weapon wheel |
+| D-pad left | The saber wheel (once you have the saber) |
+| D-pad up / right / down | Use item / next item / previous item |
+| L3 (press the left stick) | Run (press again, or stop moving, to walk) |
+| R3 (press the right stick) | First or third person |
+| Start / Options / Menu | Tap: the game menu. Hold: controller options |
+| Back / View / Share | Tap: the map. Hold: quick save |
+| Back + D-pad down, held | Quick load |
+
+- **The wheels:** hold LB or RB (or push the right stick while you press it)
+  and the wheel opens, as on the touch screen, and the game holds still. Point
+  the right stick at a power or weapon and let go of the button to pick it.
+  Point at the gap at the bottom, or press B, to cancel. If you open it without
+  pointing anywhere, it stays open: point and press A, or step round with the
+  D-pad. On the saber wheel, A sets the colour, X picks one saber or two, Y
+  which blade a colour goes to, and R3 takes the saber in hand.
+- **Quick save and quick load** need a short hold (a ring fills at the top of
+  the screen), so a stray press never saves or loads.
+- **Controller options** (hold Start): look speed across and up and down,
+  the stick's response (SMOOTH by default; LINEAR feels more direct, PRECISE
+  slower near the middle), invert look, turn acceleration (off by default),
+  vibration, the FPS readout, and the keyboard for cheats. Use the D-pad and A,
+  or tap them. They are remembered. If holding Start only opens the game menu
+  (some controllers can't hold it on iOS), hold Back and press Start instead.
+- **Your own buttons:** Setup > Controls > Joystick changes any of them, with
+  the controller's own button names. Whatever you put on next/previous power
+  or weapon gets the wheel when held. D-pad left only opens the saber wheel
+  while nothing else is on it.
+- **Menus:** the D-pad or left stick moves, A picks, B goes back. On a text box
+  (a name, an address) A brings up the keyboard.
+- **Updating from an older version:** if you never changed the controller
+  buttons, you get this layout. If you did, yours are kept.
+
+## Keyboard and mouse
+
+A hardware keyboard and a mouse or trackpad (an iPad's Magic Keyboard, a
+Bluetooth or USB keyboard and mouse) play the whole game, menus included. As
+soon as you use them, the touch buttons disappear; touch the screen (that
+touch does nothing else) and they come back. A mouse click never counts as a
+touch.
+
+**iPad:** during play the game takes the pointer: it disappears and the mouse
+turns the view, round and round, as on a computer. In the menus, while the app
+is in the background, during a selfie, Action Freeze or the cinematic burst,
+and while MENU's tray is open, you get the pointer back (and a click works the
+touch buttons there).
+
+**iPhone:** iPhones use a mouse through AssistiveTouch (Settings >
+Accessibility > Touch > AssistiveTouch, then pair the mouse). Whether iOS lets
+the game take the pointer on an iPhone, and whether mouse look works there,
+**hasn't been tested yet**. The keyboard should work the same as on an iPad.
+Turn on FPS in MENU's tray to see what the app gets (below).
+
+| Key or button | What it does |
+| --- | --- |
+| W A S D | Move (arrows turn) |
+| Mouse | Look |
+| Left button / Ctrl | Fire |
+| Right button / Z | Alt fire |
+| Middle button / X | Jump |
+| C | Duck |
+| Space | Use (doors, switches) |
+| Shift | Run |
+| Scroll wheel | Next weapon (down) / previous weapon (up) |
+| 1 to 0 | Weapons |
+| E / Q | Tap: next / previous Force power. Hold: the Force wheel |
+| F | Use the Force power |
+| G | Tap: next weapon. Hold: the weapon wheel |
+| L | The saber wheel (once you have the saber) |
+| H | First or third person (F1 too) |
+| P | Tap: a photo. Hold: a selfie |
+| O | Action Freeze on and off (P takes its photos) |
+| Tab | Map |
+| T | Typing line (cheats, chat) |
+| Enter | Use item |
+| F9 | Quick save |
+| F10, held | Quick load (a ring fills at the top) |
+| Esc (or Cmd-.) | Game menu, back in menus |
+
+- **The wheels:** hold E, Q or G and the wheel opens and the game holds still.
+  Move the mouse toward a power or weapon and let go of the key to pick it.
+  If you let go without pointing anywhere, the wheel stays open: point with
+  the mouse or the scroll wheel and click. Right click or Esc cancels. On the
+  saber wheel, a click sets the colour, 1 picks one saber or two, 2 which
+  blade a colour goes to, and 3 takes the saber in hand.
+- **Your own keys and buttons:** Setup > Controls > Keyboard and Setup >
+  Controls > Mouse change any of them; the mouse sensitivity is there too.
+  Whatever key you put on next/previous power or weapon gets the wheel when
+  held. H, L, P, O and F10 only do the above while nothing else is put on
+  them. The scroll wheel switches weapons while nothing is put on it in
+  Setup > Mouse.
+- **Cmd:** while you hold Cmd, keys don't reach the game, so iPad shortcuts
+  like Cmd-Tab don't open the map. Cmd-. works as Esc, for keyboards without
+  an Esc key. You can also make Caps Lock an Esc key in the iPad's Settings >
+  General > Keyboard > Hardware Keyboard > Modifier Keys.
+- **Updating from an older version:** if you never changed the mouse buttons,
+  the right button becomes alt fire and the middle one jump (the original game
+  had them the other way round), and the scroll wheel switches weapons instead
+  of looking up and down. If you did change them, yours are kept.
+- **What the app sees:** with FPS on (MENU's tray) and a keyboard or mouse
+  connected, two small lines near the bottom of the screen show: MOUSE and
+  KEYS (connected or not), RELMODE (the game asking for mouse look), LOCK
+  (whether the game wants the pointer locked, and whether iOS locked it), then
+  how many mouse movements came in (REL: mouse look, and how far in all;
+  ABS: the pointer), clicks, wheel turns (and the size of the last one) and
+  key presses, and whether the last touch on the touch buttons was a click
+  (POINTER) or a finger (FINGER).
 
 ## The camera
 
@@ -582,12 +723,12 @@ each star raises the highest jump, and gives you a little longer to reach it
 (0.35 s a star, so 1.4 s at 4 stars). Choose how holding works with **JUMP**
 in MENU's tray:
 
-- **SMOOTH** (the default): a **tap** is the lowest Force Jump (a bit under
+- **SMOOTH:** a **tap** is the lowest Force Jump (a bit under
   half the full height). The longer you hold, the higher it goes, smoothly,
   up to the highest for your stars. A **gold ring** fills inside FORCE as you
   hold, with a light tick when it's full: lift whenever the ring shows the
   height you want.
-- **STEPS:** the same heights in clear steps, one a star. A tap is the lowest
+- **STEPS** (the default): the same heights in clear steps, one a star. A tap is the lowest
   step, and every 0.35 s you hold goes up a step, with a tick and a quarter
   more of the gold ring (at 4 stars), to the highest.
 - **CLASSIC:** exactly as the original game: a quick tap is the **highest**
@@ -698,8 +839,17 @@ cancels, and the game holds still while the wheel is open.
   Each style keeps its own colours.
 - **Two sabers fight for real:** the second blade strikes, deals damage and
   throws sparks like the first. In first person both arms move, and between
-  swings the two sabers settle into a few natural resting stances, with a
-  faint shimmer on each blade. Kyle has no new animations, so in his
+  swings he holds the two sabers casually, hands apart and a little low,
+  blades tipped out, the middle of the view clear; now and then he shifts
+  to a forward-and-back guard or lets his hands wander, and the sabers
+  cross only in a quick X now and then. They rise and fall with Kyle's
+  breathing, each hand drifts on its own and now and then makes a small
+  adjustment. The longer he stands still, the more restless he gets: he
+  leans in with one saber leading, flicks a wrist, feints, half raises a
+  block and lets it go, changes his guard, and very rarely rolls a saber
+  loosely in his hand. Never more than one of these every 8 to 10 seconds,
+  never the same as the last three, and any swing, block, weapon change,
+  run, jump or Saber Throw takes over at once. A faint shimmer plays on each blade. Kyle has no new animations, so in his
   two-handed swings the blades come from nearly the same place.
 - **Only the look changes,** and only in your own single-player game: the
   saber's damage, your saves and the levels are untouched. The colours show
@@ -707,6 +857,14 @@ cancels, and the game holds still while the wheel is open.
   remembers your colours and style.
 - A lightsaber that only `sithewok` gave you goes away again when the cheat
   goes off (see [Cheats](#cheats)). One the game gave you stays.
+- **Saber Throw** (Mysteries of the Sith): a thrown saber flies in its own
+  colour, any of the 17. **With two sabers, each tap of FORCE throws one:**
+  the right saber first, then the left (at least a quarter of a second
+  later, on a slightly different path). Mara fights on with the one still
+  in her hand, and each saber comes back to its own hand when she catches
+  it. Each throw costs the power's usual Force, and with both thrown she's
+  on her fists until one comes back, as in the original. With one saber,
+  Saber Throw is exactly the original.
 
 ## Saving and loading
 
@@ -731,6 +889,109 @@ cancels, and the game holds still while the wheel is open.
   OpenJKDF2 > jk1 > player* (or in the `player` folder next to your game
   files, if they're somewhere else in the OpenJKDF2 folder). Copy that folder
   somewhere safe now and then.
+
+## Multiplayer
+
+**New, and not yet tested on two iPhones.** It has been tested with two to
+four copies of the game on a computer. Please report what happens on your
+phones.
+
+Up to four players on the same Wi-Fi. Every player needs the same app
+(Jedi Knight or OpenMoTS) and the same game files. The desktop builds of
+this port use the same networking, so a computer can join too.
+
+### Hosting
+
+1. Tap **Multiplayer**, then **Host Game**.
+2. Pick **Deathmatch** (fight each other) or **Co-op Campaign** (play the
+   story together).
+3. Pick an episode and a level, and tap **OK**. A password is optional.
+   **Advanced** has **Allow Cheats** (off unless you tick it): each player
+   may use cheats on themselves, the Sith button too.
+4. The first time, you make a multiplayer character (your name is filled
+   in; tap **OK**, pick a look, tap **Save**, then **OK**).
+
+Players on the same Wi-Fi see your game by themselves. A line at the top
+also shows your address (for example `192.168.1.20`), for friends joining
+from elsewhere.
+
+The first time, iOS asks to let the app find devices on your network.
+Say **Allow**, or nobody can find or join your game. (If you said no:
+*Settings > Privacy & Security > Local Network*. Join Game also tells you
+when it isn't allowed to look.)
+
+### Joining
+
+1. Tap **Multiplayer**, then **Join Game**.
+2. Games on the same Wi-Fi are listed by themselves. Tap one to join.
+   - **Played before** lists hosts you joined before, and says if they
+     aren't answering. If a host's address has changed, it shows up as
+     found on the Wi-Fi instead.
+   - For a friend elsewhere, type their address in the **Address** box and
+     tap **Join**.
+3. If the game has a password, type it. If it's wrong, it says so and you
+   can type it again.
+4. Pick your character (the first time, you make one), and you're in.
+
+If joining fails, the message says why: a mistyped address, no game at
+that address, a full game, or a wrong password.
+
+To change who you play, tap **Multiplayer Characters** on the Multiplayer
+screen (in co-op the host always plays Kyle, or Mara).
+
+### Co-op
+
+- The host plays the story's own character (Kyle, or Mara in OpenMoTS).
+  Everyone else plays the multiplayer character they picked.
+- Objectives are shared. When the level ends, everyone goes to the next
+  level together.
+- After a level, the score screen and the Force powers screen go on by
+  themselves (30 s and 90 s). Stars you don't spend are kept.
+- Each player keeps their own weapons, ammo, items and Force powers from
+  level to level. Keys and objectives stay with the level, as in single
+  player.
+- If you die, you come back at the level's start with what you had when
+  the level began.
+- If your path differs from the host's (light or dark side), you follow
+  the host's level.
+- With cheats allowed, the host can pick a level for everyone (sithewok,
+  hold DUCK), and a level in which you used cheats adds nothing to the
+  gear you carry on.
+
+### Co-op saves
+
+- The host's game saves the campaign at the start of every level: the
+  level and everyone's gear. Your single-player saves are never touched.
+- The save is in the **coop** folder next to your game files (one file
+  per episode).
+- To carry on, tap **Multiplayer**, then **Resume Co-op**, and pick the
+  campaign. A player who drops out and rejoins gets their gear back.
+- Starting a new **Co-op Campaign** on an episode that has a save asks
+  first. The old save is kept, with the date and time added to its name
+  (the five most recent for each episode). Put the date part back as
+  `.txt` to go back to it.
+
+### Your lightsaber in multiplayer
+
+Other players see your saber as you set it on the SABER wheel: its colour,
+and two sabers if you chose them. In multiplayer the second saber is only
+for looks. It doesn't hit, to keep things fair for players on other
+devices.
+
+### Playing over the internet
+
+Use **Tailscale** (a free VPN app) on every device. Join with the host's
+Tailscale address, which the host's top line also shows (`100.x.x.x`).
+Tailscale encrypts the game, and needs no router setup.
+
+A game with a **password** is encrypted too. Only players who type the
+right password get in, and nobody else can read or change the game on the
+way. The password itself is never sent. Use a long one (four or more
+random words): someone who records a player joining could try to guess
+it.
+
+A game without a password isn't encrypted. If you open a port on your
+router instead of using Tailscale (UDP 27020), always set a password.
 
 ## Cheats
 
@@ -816,21 +1077,22 @@ it away).
 
 Hold **MENU** and tap **CHEAT** in the tray. A **CHEAT** button with the **red
 Sith emblem** appears on the top row, `sithewok` goes on, and the Emperor
-laughs. Then:
+greets you: his laugh, "the dark side", or "unlimited power", picked at
+random (never the same one twice in a row). Then:
 
 - **Hold CHEAT** for half a second (a ring fills) to switch `sithewok` off
   (the emblem goes grey) or on again (red). A tap does nothing, so you can't
   switch it by accident.
 - **Typing works too:** typing `sithewok` while it's off switches it on and
-  brings the CHEAT button back (with the laugh). Typing `sithewok` while it's
+  brings the CHEAT button back (with the Emperor). Typing `sithewok` while it's
   on switches it off and the button goes away. Holding the button instead
   leaves it on screen, grey.
 - **To leave cheat mode,** tap CHEAT in the tray again: `sithewok` goes off
   and the button goes away.
 - The app remembers cheat mode, but `sithewok` itself starts off each time
   you open the app: hold CHEAT to switch it on.
-- The laugh plays at the game's sound effects volume, so turn that down if
-  you'd rather not hear it.
+- The Emperor plays at the game's sound effects volume, so turn that down if
+  you'd rather not hear him.
 
 ### sithewok's catches in Jedi Knight
 
@@ -1071,7 +1333,12 @@ If something doesn't work in OpenMoTS, please say so in your bug report
 - **Finding the files outside `jk1` and `mots`** is new in v0.4, and has
   mostly been tested on a computer. If an app doesn't find your files, put
   them in `jk1` (or `mots`) as this guide shows.
-- **No multiplayer.** The iOS build has no networking.
+- **Multiplayer is new.** It is tested with copies of the game on a
+  computer, not yet on two iPhones. Over the internet, use Tailscale, or
+  give the game a password (that encrypts it).
+- **Multiplayer cutscenes:** each player watches the between-level
+  cutscenes on their own. Whoever finishes first waits to join the next
+  level.
 - **No in-app file picker.** Game files have to be copied into the app's
   folder (`jk1`, or `mots` for OpenMoTS) with the Files app (or Finder /
   Apple Devices).
@@ -1086,8 +1353,9 @@ If something doesn't work in OpenMoTS, please say so in your bug report
   [Settings worth knowing](#settings-worth-knowing)).
 - **No separate touch look-sensitivity setting** (the mouse sensitivity may
   work instead: see *Look speed* in [Settings worth knowing](#settings-worth-knowing)).
-- **Game controllers and hardware keyboards** haven't been tested with either
-  app.
+- **Game controllers, keyboards and mice** haven't been tested on a real
+  iPhone or iPad yet. On an iPhone, mouse look may or may not work (see
+  [Keyboard and mouse](#keyboard-and-mouse)).
 - **Free Apple ID signing expires every 7 days**, and deleting the app deletes
   your files and saves.
 

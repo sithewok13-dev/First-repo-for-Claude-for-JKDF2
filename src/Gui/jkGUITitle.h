@@ -18,6 +18,9 @@ void jkGuiTitle_Startup();
 void jkGuiTitle_Shutdown();
 char jkGuiTitle_sub_4189A0(char *a1);
 char16_t* jkGuiTitle_quicksave_related_func1(stdStrTable *strTable, char *jkl_fname);
+#ifdef QOL_IMPROVEMENTS
+int jkGuiTitle_LevelTitle(stdStrTable *strTable, const char *jkl_fname, char16_t *pOut, int outLen); // Added
+#endif
 void jkGuiTitle_UnkDraw(jkGuiElement *element, jkGuiMenu *menu, tVBuffer *vbuf, int a4);
 void jkGuiTitle_LoadBarDraw(jkGuiElement *element, jkGuiMenu *menu, tVBuffer *vbuf, int a4);
 MATH_FUNC void jkGuiTitle_WorldLoadCallback(flex_t percentage);

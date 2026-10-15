@@ -89,6 +89,24 @@ int jkHud_IosGetRightGaugeRectPt(float* pX0, float* pY0, float* pX1, float* pY1)
     return 1;
 }
 
+// Added: the left corner (health/shield) gauge's, likewise (for the touch
+// overlay's swapped controls, with FIRE and its buttons on the left)
+int jkHud_IosGetLeftGaugeRectPt(float* pX0, float* pY0, float* pX1, float* pY1)
+{
+    if (!jkHud_bOpened || !jkHud_pStatusLeftBm || Video_format.width <= 0 || Video_format.height <= 0
+        || Window_screenXSize <= 0 || Window_screenYSize <= 0)
+        return 0;
+
+    tVBuffer* pGauge = *jkHud_pStatusLeftBm->mipSurfaces;
+    float sx = (float)Window_screenXSize / (float)Video_format.width;
+    float sy = (float)Window_screenYSize / (float)Video_format.height;
+    *pX0 = (float)jkHud_leftBlitX * sx;
+    *pY0 = (float)jkHud_leftBlitY * sy;
+    *pX1 = (float)(jkHud_leftBlitX + HUD_SCALED(pGauge->format.width)) * sx;
+    *pY1 = (float)(jkHud_leftBlitY + HUD_SCALED(pGauge->format.height)) * sy;
+    return 1;
+}
+
 // jkHud_IosRingMatches / jkHud_IosCompleteRing work on plain 16-bit pixels
 // (pitches in pixels), so they can be checked on their own.
 // (jkHud ring completion: begin)

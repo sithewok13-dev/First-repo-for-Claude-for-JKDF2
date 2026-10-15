@@ -1,0 +1,49 @@
+// Added: entire file. In multiplayer, each player's saber as they chose it
+// (the iOS overlay's SABER wheel: one or two blades, each blade's colour), so
+// the others see it: each game sends its own player's every few seconds
+// (jkNetExt, JKNETEXT_LOOK), and keeps the others' as they come. Colours go
+// by their keys ("lightblue"), not their places in a list, so builds with
+// other lists still agree; one this game doesn't have is the game's own.
+//
+// A game with no wheel (a desktop build) sends nothing, and the others draw
+// its player's saber as the game does.
+
+#ifndef _MAIN_JKPLAYERLOOK_H
+#define _MAIN_JKPLAYERLOOK_H
+
+#include "types.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef QOL_IMPROVEMENTS
+
+#define JKPLAYERLOOK_KEY_LEN 16
+#define JKPLAYERLOOK_MAX_BLADES 2
+#define JKPLAYERLOOK_SEND_MS (3000)  // (each game's own, this often)
+#define JKPLAYERLOOK_KEEP_MS (10000) // (one not heard from this long: forgotten)
+
+typedef struct jkPlayerLook
+{
+    int style;                                                   // (the wheel's: 0 one blade, 1 two)
+    char aColourKey[JKPLAYERLOOK_MAX_BLADES][JKPLAYERLOOK_KEY_LEN]; // ("" the game's own)
+} jkPlayerLook;
+
+void jkPlayerLook_Startup(void);
+// Once a frame in a level
+void jkPlayerLook_Tick(void);
+// Another player's look (a player thing of someone else's game), NULL if none
+// known: drawn as the game does
+const jkPlayerLook* jkPlayerLook_ForThing(SithThing* pThing);
+
+// This game's own player's look, from whoever offers one (iosSaber); 0 if none
+int jkPlayerLook_GetLocal(jkPlayerLook* pOut);
+
+#endif // QOL_IMPROVEMENTS
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // _MAIN_JKPLAYERLOOK_H
