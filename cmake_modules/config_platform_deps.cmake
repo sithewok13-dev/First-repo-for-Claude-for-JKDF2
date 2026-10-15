@@ -170,7 +170,7 @@ if(TARGET_USE_ENET)
     # reach through <endian.h> -- and libsmusher's own endian.h (src/external/libsmusher/src, on
     # the include path of every file) is found first. So ENet's files include the real one first.
     if(TARGET_ANDROID)
-        set_property(SOURCE ${TARGET_ENET_LIB_SRCS} ${TARGET_ENET_SRCS} APPEND PROPERTY COMPILE_OPTIONS "SHELL:-include sys/endian.h")
+        set_property(SOURCE ${TARGET_ENET_LIB_SRCS} ${TARGET_ENET_SRCS} APPEND PROPERTY COMPILE_OPTIONS "-includesys/endian.h") # (clang: -include, joined)
     endif()
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_ENET_SRCS} ${TARGET_ENET_LIB_SRCS})
 
