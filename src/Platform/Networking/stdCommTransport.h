@@ -66,6 +66,11 @@ extern const stdCommTransport stdComm_ENet_transport;
 extern const stdCommTransport stdComm_GNS_transport;
 #endif
 
+// An address as typed, split: its host (a name, an IPv4, or an IPv6 bare or in [brackets]) and its
+// port (after a ':', digits only, 1-65535; defaultPort if none). 0 if it isn't an address. Both
+// transports read addresses with this, so they agree on what is one.
+int stdCommTransport_SplitAddress(const char* pText, char* pHostOut, int hostLen, int* pPortOut, int defaultPort);
+
 // The address asked of every transport at once: as a transport's ProbeAddress, the one that answered
 // in *pKindOut (ENet's, if both did)
 int stdCommTransport_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing, int* pKindOut);

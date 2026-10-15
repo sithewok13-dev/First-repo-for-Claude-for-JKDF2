@@ -666,25 +666,14 @@ static void stdComm_ENet_CloseHost(void)
     SDL_UnlockMutex(stdComm_ENet_mutex);
 }
 
-// An address as typed (a name or IPv4, maybe :port)
+// An address as typed (a name or IPv4, maybe :port: stdCommTransport_SplitAddress)
 static int stdComm_ENet_ParseAddressText(const char* pText, ENetAddress* pAddr)
 {
-    char text[256];
-    snprintf(text, sizeof(text), "%s", pText ? pText : "");
-    // (trimmed)
-    char* s = text;
-    while (*s == ' ') s++;
-    char* end = s + strlen(s);
-    while (end > s && (end[-1] == ' ' || end[-1] == '\n' || end[-1] == '\r')) *--end = 0;
-    pAddr->port = STDCOMM_ENET_DEFAULT_PORT;
-    char* colon = strrchr(s, ':');
-    if (colon) {
-        *colon = 0;
-        int port = atoi(colon + 1);
-        if (port > 0 && port < 65536) pAddr->port = (enet_uint16)port;
-    }
-    if (!*s) return 0;
-    return enet_address_set_host(pAddr, s) == 0;
+    char host[256];
+    int port = STDCOMM_ENET_DEFAULT_PORT;
+    if (!stdCommTransport_SplitAddress(pText, host, sizeof(host), &port, STDCOMM_ENET_DEFAULT_PORT)) return 0;
+    pAddr->port = (enet_uint16)port;
+    return enet_address_set_host(pAddr, host) == 0;
 }
 
 // The address typed (jkGuiMultiplayer_ipText)

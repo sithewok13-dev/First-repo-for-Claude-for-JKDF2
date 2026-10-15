@@ -96,6 +96,49 @@ int stdCommTransport_CanJoin(int kind, const jkMultiEntry* pEntry, const char** 
 
 // ------------------------------------------------------------------ asking an address
 
+int stdCommTransport_SplitAddress(const char* pText, char* pHostOut, int hostLen, int* pPortOut, int defaultPort)
+{
+    char text[256];
+    snprintf(text, sizeof(text), "%s", pText ? pText : "");
+    char* s = text;
+    while (*s == ' ' || *s == '\t') s++;
+    char* end = s + strlen(s);
+    while (end > s && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\n' || end[-1] == '\r')) *--end = 0;
+
+    const char* portText = NULL;
+    if (*s == '[') {
+        // ([IPv6] or [IPv6]:port)
+        char* close = strchr(s, ']');
+        if (!close) return 0;
+        *close = 0;
+        s++;
+        if (close[1] == ':') portText = close + 2;
+        else if (close[1]) return 0;
+    }
+    else {
+        char* colon = strchr(s, ':');
+        if (colon && !strchr(colon + 1, ':')) {
+            // (one ':': name or IPv4, then the port; more than one: a bare IPv6, no port)
+            *colon = 0;
+            portText = colon + 1;
+        }
+    }
+    int port = defaultPort;
+    if (portText) {
+        if (!*portText || strlen(portText) > 5) return 0;
+        port = 0;
+        for (const char* c = portText; *c; c++) {
+            if (*c < '0' || *c > '9') return 0;
+            port = port * 10 + (*c - '0');
+        }
+        if (port < 1 || port > 65535) return 0;
+    }
+    if (!*s || (int)strlen(s) >= hostLen) return 0;
+    snprintf(pHostOut, hostLen, "%s", s);
+    *pPortOut = port;
+    return 1;
+}
+
 // One transport asking, on a thread of its own
 typedef struct stdCommTransportAsk
 {

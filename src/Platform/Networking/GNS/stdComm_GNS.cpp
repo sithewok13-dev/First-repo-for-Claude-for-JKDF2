@@ -1150,36 +1150,41 @@ static BOOL stdComm_GNS_Send(DPID idFrom, DPID idTo, void *lpData, DWORD dwDataS
     return 1;
 }
 
-// Added: an address as typed (a name or IPv4, maybe :port; 27020 if none). 0 if it isn't one.
+// Added: an address as typed (a name, IPv4 or IPv6, maybe a port: stdCommTransport_SplitAddress;
+// 27020 if none), looked up. 0 if it isn't one, or the name is unknown.
 static int stdComm_GNS_ParseAddress(const char* pText, SteamNetworkingIPAddr* pAddr)
 {
-    char text[256];
-    snprintf(text, sizeof(text), "%s", pText ? pText : "");
-    char* s = text;
-    while (*s == ' ') s++;
-    char* end = s + strlen(s);
-    while (end > s && (end[-1] == ' ' || end[-1] == '\n' || end[-1] == '\r')) *--end = 0;
+    char host[256];
     int port = DEFAULT_SERVER_PORT;
-    char* colon = strrchr(s, ':');
-    if (colon) {
-        *colon = 0;
-        const int p = atoi(colon + 1);
-        if (p > 0 && p < 65536) port = p;
-    }
-    if (!*s) return 0;
+    if (!stdCommTransport_SplitAddress(pText, host, sizeof(host), &port, DEFAULT_SERVER_PORT)) return 0;
 
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
+    hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
     struct addrinfo* pList = nullptr;
-    if (getaddrinfo(s, nullptr, &hints, &pList) != 0 || !pList)
+    if (getaddrinfo(host, nullptr, &hints, &pList) != 0 || !pList)
         return 0;
-    const struct sockaddr_in* sin = (const struct sockaddr_in*)pList->ai_addr;
+    // (IPv4 first, if the name has both)
+    const struct addrinfo* pUse = nullptr;
+    for (const struct addrinfo* a = pList; a; a = a->ai_next) {
+        if (a->ai_family == AF_INET) { pUse = a; break; }
+        if (a->ai_family == AF_INET6 && !pUse) pUse = a;
+    }
+    int bOk = 0;
     pAddr->Clear();
-    pAddr->SetIPv4(ntohl(sin->sin_addr.s_addr), (uint16)port);
+    if (pUse && pUse->ai_family == AF_INET) {
+        const struct sockaddr_in* sin = (const struct sockaddr_in*)pUse->ai_addr;
+        pAddr->SetIPv4(ntohl(sin->sin_addr.s_addr), (uint16)port);
+        bOk = 1;
+    }
+    else if (pUse && pUse->ai_family == AF_INET6) {
+        const struct sockaddr_in6* sin6 = (const struct sockaddr_in6*)pUse->ai_addr;
+        pAddr->SetIPv6((const uint8*)&sin6->sin6_addr, (uint16)port);
+        bOk = 1;
+    }
     freeaddrinfo(pList);
-    return 1;
+    return bOk;
 }
 
 // Added: what a host told about its game, as a player sees it: its password not shown (a classic
