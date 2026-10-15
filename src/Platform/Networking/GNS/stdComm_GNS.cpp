@@ -1096,6 +1096,8 @@ void stdComm_GNS_Shutdown()
     if (stdComm_GNS_bForceStubs)
         return;
 
+    DirectPlay_EnumSessions2(); // Added: (looking for a game, over GNS too: stopped first)
+
     ShutdownSteamDatagramConnectionSockets();
 }
 
