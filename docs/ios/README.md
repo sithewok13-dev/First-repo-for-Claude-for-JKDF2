@@ -26,6 +26,7 @@ Contents: [What this is](#what-this-is) ·
 [4. Play](#4-play) ·
 [Touch controls](#touch-controls) ·
 [Game controllers](#game-controllers) ·
+[Keyboard and mouse](#keyboard-and-mouse) ·
 [The camera](#the-camera) ·
 [Tilt aiming](#tilt-aiming) ·
 [The Force wheel](#the-force-wheel) ·
@@ -458,6 +459,81 @@ switch the controller off and they come back.
   (a name, an address) A brings up the keyboard.
 - **Updating from an older version:** if you never changed the controller
   buttons, you get this layout. If you did, yours are kept.
+
+## Keyboard and mouse
+
+A hardware keyboard and a mouse or trackpad (an iPad's Magic Keyboard, a
+Bluetooth or USB keyboard and mouse) play the whole game, menus included. As
+soon as you use them, the touch buttons disappear; touch the screen (that
+touch does nothing else) and they come back. A mouse click never counts as a
+touch.
+
+**iPad:** during play the game takes the pointer: it disappears and the mouse
+turns the view, round and round, as on a computer. In the menus, while the app
+is in the background, during a selfie, Action Freeze or the cinematic burst,
+and while MENU's tray is open, you get the pointer back (and a click works the
+touch buttons there).
+
+**iPhone:** iPhones use a mouse through AssistiveTouch (Settings >
+Accessibility > Touch > AssistiveTouch, then pair the mouse). Whether iOS lets
+the game take the pointer on an iPhone, and whether mouse look works there,
+**hasn't been tested yet**. The keyboard should work the same as on an iPad.
+Turn on FPS in MENU's tray to see what the app gets (below).
+
+| Key or button | What it does |
+| --- | --- |
+| W A S D | Move (arrows turn) |
+| Mouse | Look |
+| Left button / Ctrl | Fire |
+| Right button / Z | Alt fire |
+| Middle button / X | Jump |
+| C | Duck |
+| Space | Use (doors, switches) |
+| Shift | Run |
+| Scroll wheel | Next weapon (down) / previous weapon (up) |
+| 1 to 0 | Weapons |
+| E / Q | Tap: next / previous Force power. Hold: the Force wheel |
+| F | Use the Force power |
+| G | Tap: next weapon. Hold: the weapon wheel |
+| L | The saber wheel (once you have the saber) |
+| H | First or third person (F1 too) |
+| P | Tap: a photo. Hold: a selfie |
+| O | Action Freeze on and off (P takes its photos) |
+| Tab | Map |
+| T | Typing line (cheats, chat) |
+| Enter | Use item |
+| F9 | Quick save |
+| F10, held | Quick load (a ring fills at the top) |
+| Esc (or Cmd-.) | Game menu, back in menus |
+
+- **The wheels:** hold E, Q or G and the wheel opens and the game holds still.
+  Move the mouse toward a power or weapon and let go of the key to pick it.
+  If you let go without pointing anywhere, the wheel stays open: point with
+  the mouse or the scroll wheel and click. Right click or Esc cancels. On the
+  saber wheel, a click sets the colour, 1 picks one saber or two, 2 which
+  blade a colour goes to, and 3 takes the saber in hand.
+- **Your own keys and buttons:** Setup > Controls > Keyboard and Setup >
+  Controls > Mouse change any of them; the mouse sensitivity is there too.
+  Whatever key you put on next/previous power or weapon gets the wheel when
+  held. H, L, P, O and F10 only do the above while nothing else is put on
+  them. The scroll wheel switches weapons while nothing is put on it in
+  Setup > Mouse.
+- **Cmd:** while you hold Cmd, keys don't reach the game, so iPad shortcuts
+  like Cmd-Tab don't open the map. Cmd-. works as Esc, for keyboards without
+  an Esc key. You can also make Caps Lock an Esc key in the iPad's Settings >
+  General > Keyboard > Hardware Keyboard > Modifier Keys.
+- **Updating from an older version:** if you never changed the mouse buttons,
+  the right button becomes alt fire and the middle one jump (the original game
+  had them the other way round), and the scroll wheel switches weapons instead
+  of looking up and down. If you did change them, yours are kept.
+- **What the app sees:** with FPS on (MENU's tray) and a keyboard or mouse
+  connected, two small lines near the bottom of the screen show: MOUSE and
+  KEYS (connected or not), RELMODE (the game asking for mouse look), LOCK
+  (whether the game wants the pointer locked, and whether iOS locked it), then
+  how many mouse movements came in (REL: mouse look, and how far in all;
+  ABS: the pointer), clicks, wheel turns (and the size of the last one) and
+  key presses, and whether the last touch on the touch buttons was a click
+  (POINTER) or a finger (FINGER).
 
 ## The camera
 
@@ -1277,8 +1353,9 @@ If something doesn't work in OpenMoTS, please say so in your bug report
   [Settings worth knowing](#settings-worth-knowing)).
 - **No separate touch look-sensitivity setting** (the mouse sensitivity may
   work instead: see *Look speed* in [Settings worth knowing](#settings-worth-knowing)).
-- **Game controllers and hardware keyboards** haven't been tested with either
-  app.
+- **Game controllers, keyboards and mice** haven't been tested on a real
+  iPhone or iPad yet. On an iPhone, mouse look may or may not work (see
+  [Keyboard and mouse](#keyboard-and-mouse)).
 - **Free Apple ID signing expires every 7 days**, and deleting the app deletes
   your files and saves.
 
