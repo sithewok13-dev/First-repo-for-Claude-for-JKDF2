@@ -15,6 +15,7 @@
 // load never drops a connection; the game reads the queue each frame.
 
 #include "stdComm_ENet.h"
+#include "stdComm_ENetCrypto.h"
 
 #ifdef PLATFORM_ENET
 
@@ -91,26 +92,41 @@ static uint32_t stdComm_ENet_myId = 0xFFFFFFFF;
 static uint64_t stdComm_ENet_usedIds = 0x1;    // (the host: ids given out; bit 0, id 1, its own)
 static int stdComm_ENet_bHostLost = 0;
 
-// The game's password, checked by the host: a player's connection carries a hash of the one they typed
-// (ENet's connect data); one without the right one gets the game's description only (with no player
-// id), as finding games does, and is let go; nothing it sends is taken. The description sent out never
-// has the password in it. (A check at the door, not encryption: see the docs on playing over the
-// internet.)
+// The game's password: a game with one is encrypted (stdComm_ENetCrypto.h), and only a player who
+// knows it gets in. A player who connects gets the game's description (with no player id: as finding
+// games does) and a challenge (the host's salt and a random number for this connection); the player
+// answers with a random number of its own and a message sealed with the key both make from the
+// password and those numbers. The right one: the player's id comes sealed, and everything from then
+// on, both ways, is sealed with that connection's key (the host opens what it passes on and seals it
+// again for the player it is for). The wrong one, or none within STDCOMM_ENET_CHALLENGE_MS: let go
+// (REASON_PASSWORD). The password is never sent; the description sent out never has it in it.
 #define STDCOMM_ENET_REASON_PASSWORD 0x50415353u // ("PASS")
-static uint32_t stdComm_ENet_hostPasswordHash = 0; // (the host's; 0: no password)
-static uint64_t stdComm_ENet_limitedIds = 0;       // (the host's: connected without the password)
-static int stdComm_ENet_bWrongPassword = 0;        // (a player's: the host said so)
+#define STDCOMM_ENET_MAGIC_CHALLENGE 0x434B4A4Fu // ("OJKC")
+#define STDCOMM_ENET_MAGIC_HELLO 0x484B4A4Fu     // ("OJKH")
+#define STDCOMM_ENET_PEERS_PER_ADDRESS 8
+#define STDCOMM_ENET_CHALLENGE_MS 6000 // (a little more than a player waits for its id)
+#define STDCOMM_ENET_HELLO_TEXT "OJK-HELLO"
+#define STDCOMM_ENET_HELLO_TEXT_LEN 9
+#define STDCOMM_ENET_CHALLENGE_LEN (4 + STDCOMM_ENETCRYPTO_SALT_LEN + STDCOMM_ENETCRYPTO_NONCE_LEN)
+#define STDCOMM_ENET_HELLO_LEN (4 + STDCOMM_ENETCRYPTO_NONCE_LEN + STDCOMM_ENET_HELLO_TEXT_LEN + STDCOMM_ENETCRYPTO_OVERHEAD)
 
-static uint32_t stdComm_ENet_PasswordHash(const char16_t* pw)
+// The host's: its password's key (and its salt), and each player's connection (by id - 1)
+typedef struct stdCommENetPeerCrypto
 {
-    if (!pw || !pw[0]) return 0;
-    uint32_t h = 2166136261u; // (FNV-1a over the UTF-16 units)
-    for (int i = 0; i < 32 && pw[i]; i++) {
-        h ^= (uint32_t)(pw[i] & 0xFF); h *= 16777619u;
-        h ^= (uint32_t)(pw[i] >> 8); h *= 16777619u;
-    }
-    return h ? h : 1;
-}
+    uint8_t hostNonce[STDCOMM_ENETCRYPTO_NONCE_LEN];
+    uint32_t sinceMs; // (when it connected: not yet answered, let go after STDCOMM_ENET_CHALLENGE_MS)
+    stdCommENetCryptoSession session;
+} stdCommENetPeerCrypto;
+static int stdComm_ENet_bHostCrypto = 0;
+static uint8_t stdComm_ENet_hostSalt[STDCOMM_ENETCRYPTO_SALT_LEN];
+static uint8_t stdComm_ENet_hostKey[STDCOMM_ENETCRYPTO_KEY_LEN];
+static stdCommENetPeerCrypto stdComm_ENet_aPeerCrypto[64];
+static uint64_t stdComm_ENet_limitedIds = 0;       // (the host's: connected, the password not yet shown)
+
+// A player's: the password typed, and its connection to the host
+static uint16_t stdComm_ENet_joinPassword[33];
+static stdCommENetCryptoSession stdComm_ENet_clientCrypto;
+static int stdComm_ENet_bWrongPassword = 0;        // (the host said so)
 
 static stdCommENetEvent* stdComm_ENet_pQueueHead = NULL;
 static stdCommENetEvent* stdComm_ENet_pQueueTail = NULL;
@@ -120,6 +136,8 @@ static jkMultiEntry stdComm_ENet_storedEntryEnum;  // the session found at an ad
 static int stdComm_ENet_numEnumd = 0;
 
 static uint8_t stdComm_ENet_sendBuffer[STDCOMM_ENET_MAX_MSG];
+static uint8_t stdComm_ENet_sealBuffer[STDCOMM_ENET_MAX_MSG + STDCOMM_ENETCRYPTO_OVERHEAD];
+static uint8_t stdComm_ENet_openBuffer[STDCOMM_ENET_MAX_MSG];
 
 // ------------------------------------------------------------------ queue
 
@@ -171,11 +189,56 @@ static int stdComm_ENet_ChannelFor(const void* pData, uint32_t len)
     return ((id & 0xFF) == DSS_THINGPOS && !(id >> 16)) ? 1 : 0;
 }
 
-static void stdComm_ENet_SendRaw(ENetPeer* pPeer, const void* pData, uint32_t len, int channel)
+// As it is (the description, the challenge, the answer)
+static void stdComm_ENet_SendPlain(ENetPeer* pPeer, const void* pData, uint32_t len, int channel)
 {
     ENetPacket* pkt = enet_packet_create(pData, len, channel == 0 ? ENET_PACKET_FLAG_RELIABLE : 0);
     if (!pkt) return;
     if (enet_peer_send(pPeer, (enet_uint8)channel, pkt) < 0) enet_packet_destroy(pkt);
+}
+
+// The connection's session, if it is encrypted (the host's with that player, or a player's with the
+// host)
+static stdCommENetCryptoSession* stdComm_ENet_SessionFor(ENetPeer* pPeer)
+{
+    if (!stdComm_ENet_bServer) return stdComm_ENet_clientCrypto.bOn ? &stdComm_ENet_clientCrypto : NULL;
+    const int id = stdComm_ENet_PeerId(pPeer);
+    if (!stdComm_ENet_bHostCrypto || id <= 0 || id > 64) return NULL;
+    stdCommENetCryptoSession* pSession = &stdComm_ENet_aPeerCrypto[id - 1].session;
+    return pSession->bOn ? pSession : NULL;
+}
+
+// A message to that connection: sealed if it is encrypted; never sent plain to one that should be
+static void stdComm_ENet_SendRaw(ENetPeer* pPeer, const void* pData, uint32_t len, int channel)
+{
+    if (stdComm_ENet_bServer ? stdComm_ENet_bHostCrypto : stdComm_ENet_clientCrypto.bOn) {
+        stdCommENetCryptoSession* pSession = stdComm_ENet_SessionFor(pPeer);
+        if (!pSession) return; // (a player who hasn't shown the password: nothing)
+        int n = stdComm_ENetCrypto_Seal(pSession, channel, pData, len, stdComm_ENet_sealBuffer, sizeof(stdComm_ENet_sealBuffer));
+        if (n < 0) return;
+        stdComm_ENet_SendPlain(pPeer, stdComm_ENet_sealBuffer, (uint32_t)n, channel);
+        return;
+    }
+    stdComm_ENet_SendPlain(pPeer, pData, len, channel);
+}
+
+// A message that came on that connection: opened if it is encrypted (into stdComm_ENet_openBuffer);
+// its data and length, or NULL if it isn't to be taken
+static const uint8_t* stdComm_ENet_Received(ENetPeer* pPeer, ENetPacket* p, int channel, uint32_t* pLenOut)
+{
+    if (stdComm_ENet_bServer ? stdComm_ENet_bHostCrypto : stdComm_ENet_clientCrypto.bOn) {
+        stdCommENetCryptoSession* pSession = stdComm_ENet_SessionFor(pPeer);
+        if (!pSession) return NULL;
+        int n = stdComm_ENetCrypto_Open(pSession, channel, p->data, p->dataLength, stdComm_ENet_openBuffer, sizeof(stdComm_ENet_openBuffer));
+        if (n < 0) {
+            stdComm_ENet_verbosePrintf("ENet: a message that wouldn't open, dropped\n");
+            return NULL;
+        }
+        *pLenOut = (uint32_t)n;
+        return stdComm_ENet_openBuffer;
+    }
+    *pLenOut = (uint32_t)p->dataLength;
+    return p->data;
 }
 
 // The host: the players with an id
@@ -192,6 +255,109 @@ static int stdComm_ENet_RealConnectedPlayers(void)
 }
 
 // ------------------------------------------------------------------ the host's events
+
+// The player's id (0: none yet) and the session, sent (sealed, in a game with a password, once the
+// player has shown it)
+static void stdComm_ENet_SendInfo(ENetPeer* pPeer, int id)
+{
+    stdComm_ENet_storedEntry.multiModeFlags = sithMulti_multiModeFlags;
+    stdCommENetInfo info;
+    memset(&info, 0, sizeof(info));
+    info.id = id;
+    info.entry = stdComm_ENet_storedEntry;
+    info.entry.numPlayers = stdComm_ENet_RealConnectedPlayers();
+    info.entry.maxPlayers = stdComm_ENet_storedEntry.maxPlayers;
+    jkPlayer_maxPlayers = stdComm_ENet_storedEntry.maxPlayers;
+    memset(info.entry.wPassword, 0, sizeof(info.entry.wPassword)); // (never sent)
+    if (id) stdComm_ENet_SendRaw(pPeer, &info, sizeof(info), 0);
+    else stdComm_ENet_SendPlain(pPeer, &info, sizeof(info), 0);
+}
+
+// A player who hasn't yet shown the password: its answer to the challenge checked (1: the right
+// password, the connection encrypted from now on)
+static int stdComm_ENet_CheckHello(int id, const ENetPacket* p)
+{
+    stdCommENetPeerCrypto* pc = &stdComm_ENet_aPeerCrypto[id - 1];
+    uint32_t magic = 0;
+    if (p->dataLength != STDCOMM_ENET_HELLO_LEN) return 0;
+    memcpy(&magic, p->data, 4);
+    if (magic != STDCOMM_ENET_MAGIC_HELLO) return 0;
+    stdComm_ENetCrypto_StartSession(&pc->session, stdComm_ENet_hostKey, pc->hostNonce, p->data + 4, STDCOMM_ENETCRYPTO_FROM_HOST);
+    uint8_t text[STDCOMM_ENET_HELLO_TEXT_LEN];
+    int n = stdComm_ENetCrypto_Open(&pc->session, 0, p->data + 4 + STDCOMM_ENETCRYPTO_NONCE_LEN,
+                                    STDCOMM_ENET_HELLO_TEXT_LEN + STDCOMM_ENETCRYPTO_OVERHEAD, text, sizeof(text));
+    if (n != STDCOMM_ENET_HELLO_TEXT_LEN || memcmp(text, STDCOMM_ENET_HELLO_TEXT, STDCOMM_ENET_HELLO_TEXT_LEN)) {
+        stdComm_ENetCrypto_EndSession(&pc->session);
+        return 0;
+    }
+    return 1;
+}
+
+// The host's: addresses that lately gave a wrong password. One guessing it over and over is slowed
+// down: after STDCOMM_ENET_FREE_TRIES wrong ones in a row, one try per STDCOMM_ENET_RETRY_MS (a typo,
+// or a friend's on the same home network, isn't held against the next player)
+#define STDCOMM_ENET_RETRY_MS 2000
+#define STDCOMM_ENET_FREE_TRIES 3
+#define STDCOMM_ENET_FORGET_MS 60000
+#define STDCOMM_ENET_NUM_WRONG 16
+static uint32_t stdComm_ENet_aWrongHost[STDCOMM_ENET_NUM_WRONG];
+static uint32_t stdComm_ENet_aWrongMs[STDCOMM_ENET_NUM_WRONG];
+static int stdComm_ENet_aWrongCount[STDCOMM_ENET_NUM_WRONG];
+
+static int stdComm_ENet_WrongSlot(uint32_t host)
+{
+    const uint32_t now = stdPlatform_GetTimeMsec();
+    for (int i = 0; i < STDCOMM_ENET_NUM_WRONG; i++) {
+        if (stdComm_ENet_aWrongMs[i] && stdComm_ENet_aWrongHost[i] == host && now - stdComm_ENet_aWrongMs[i] < STDCOMM_ENET_FORGET_MS)
+            return i;
+    }
+    return -1;
+}
+
+static void stdComm_ENet_NoteWrongPassword(uint32_t host)
+{
+    int slot = stdComm_ENet_WrongSlot(host);
+    if (slot < 0) {
+        slot = 0;
+        for (int i = 0; i < STDCOMM_ENET_NUM_WRONG; i++) {
+            if (stdComm_ENet_aWrongMs[i] < stdComm_ENet_aWrongMs[slot]) slot = i; // (the oldest)
+        }
+        stdComm_ENet_aWrongHost[slot] = host;
+        stdComm_ENet_aWrongCount[slot] = 0;
+    }
+    stdComm_ENet_aWrongCount[slot]++;
+    stdComm_ENet_aWrongMs[slot] = stdPlatform_GetTimeMsec() | 1;
+}
+
+// A right password: that address's wrong ones forgotten
+static void stdComm_ENet_ForgetWrongPasswords(uint32_t host)
+{
+    int slot = stdComm_ENet_WrongSlot(host);
+    if (slot >= 0) stdComm_ENet_aWrongMs[slot] = 0;
+}
+
+// Too many wrong ones from there, the last too lately: not even looked at
+static int stdComm_ENet_TriedLately(uint32_t host)
+{
+    int slot = stdComm_ENet_WrongSlot(host);
+    return slot >= 0 && stdComm_ENet_aWrongCount[slot] >= STDCOMM_ENET_FREE_TRIES
+        && stdPlatform_GetTimeMsec() - stdComm_ENet_aWrongMs[slot] < STDCOMM_ENET_RETRY_MS;
+}
+
+// The host, now and then: players that haven't answered the challenge in time let go
+static void stdComm_ENet_DropSlowAnswers(void)
+{
+    if (!stdComm_ENet_bServer || !stdComm_ENet_bHostCrypto || !stdComm_ENet_limitedIds || !stdComm_ENet_pHost) return;
+    const uint32_t now = stdPlatform_GetTimeMsec();
+    for (size_t k = 0; k < stdComm_ENet_pHost->peerCount; k++) {
+        ENetPeer* q = &stdComm_ENet_pHost->peers[k];
+        const int id = stdComm_ENet_PeerId(q);
+        if (q->state != ENET_PEER_STATE_CONNECTED || id <= 0 || id > 64) continue;
+        if (!(stdComm_ENet_limitedIds & (1ULL << (id - 1)))) continue;
+        if (now - stdComm_ENet_aPeerCrypto[id - 1].sinceMs > STDCOMM_ENET_CHALLENGE_MS)
+            enet_peer_disconnect_later(q, STDCOMM_ENET_REASON_PASSWORD);
+    }
+}
 
 static void stdComm_ENet_ServerEvent(ENetEvent* ev)
 {
@@ -215,20 +381,28 @@ static void stdComm_ENet_ServerEvent(ENetEvent* ev)
             enet_peer_timeout(ev->peer, 32, STDCOMM_ENET_TIMEOUT_MS, STDCOMM_ENET_TIMEOUT_MS);
             stdComm_ENet_verbosePrintf("ENet: connection from %x, id %x\n", ev->peer->address.host, nextId);
 
-            stdComm_ENet_storedEntry.multiModeFlags = sithMulti_multiModeFlags;
-            stdCommENetInfo info;
-            memset(&info, 0, sizeof(info));
-            // (without the game's password: the description only, no id, and let go)
-            const int bLimited = stdComm_ENet_hostPasswordHash && ev->data != stdComm_ENet_hostPasswordHash;
-            if (bLimited) stdComm_ENet_limitedIds |= (1ULL << (nextId - 1));
-            info.id = bLimited ? 0 : nextId;
-            info.entry = stdComm_ENet_storedEntry;
-            info.entry.numPlayers = stdComm_ENet_RealConnectedPlayers();
-            info.entry.maxPlayers = stdComm_ENet_storedEntry.maxPlayers;
-            jkPlayer_maxPlayers = stdComm_ENet_storedEntry.maxPlayers;
-            memset(info.entry.wPassword, 0, sizeof(info.entry.wPassword)); // (never sent)
-            stdComm_ENet_SendRaw(ev->peer, &info, sizeof(info), 0);
-            if (bLimited) enet_peer_disconnect_later(ev->peer, STDCOMM_ENET_REASON_PASSWORD);
+            if (!stdComm_ENet_bHostCrypto) {
+                stdComm_ENet_SendInfo(ev->peer, nextId);
+                break;
+            }
+            // (a game with a password: the description with no id, and the challenge)
+            stdCommENetPeerCrypto* pc = &stdComm_ENet_aPeerCrypto[nextId - 1];
+            stdComm_ENetCrypto_EndSession(&pc->session);
+            if (!stdComm_ENetCrypto_Random(pc->hostNonce, sizeof(pc->hostNonce))) {
+                enet_peer_disconnect_now(ev->peer, 0);
+                stdComm_ENet_usedIds &= ~(1ULL << (nextId - 1));
+                ev->peer->data = NULL;
+                break;
+            }
+            pc->sinceMs = stdPlatform_GetTimeMsec();
+            stdComm_ENet_limitedIds |= (1ULL << (nextId - 1));
+            stdComm_ENet_SendInfo(ev->peer, 0);
+            uint8_t challenge[STDCOMM_ENET_CHALLENGE_LEN];
+            const uint32_t magic = STDCOMM_ENET_MAGIC_CHALLENGE;
+            memcpy(challenge, &magic, 4);
+            memcpy(challenge + 4, stdComm_ENet_hostSalt, STDCOMM_ENETCRYPTO_SALT_LEN);
+            memcpy(challenge + 4 + STDCOMM_ENETCRYPTO_SALT_LEN, pc->hostNonce, STDCOMM_ENETCRYPTO_NONCE_LEN);
+            stdComm_ENet_SendPlain(ev->peer, challenge, sizeof(challenge), 0);
             break;
         }
         case ENET_EVENT_TYPE_DISCONNECT:
@@ -245,6 +419,7 @@ static void stdComm_ENet_ServerEvent(ENetEvent* ev)
                 }
                 stdComm_ENet_usedIds &= ~(1ULL << (id - 1));
                 stdComm_ENet_limitedIds &= ~(1ULL << (id - 1));
+                stdComm_ENetCrypto_EndSession(&stdComm_ENet_aPeerCrypto[id - 1].session);
             }
             ev->peer->data = NULL;
             break;
@@ -253,24 +428,54 @@ static void stdComm_ENet_ServerEvent(ENetEvent* ev)
         {
             ENetPacket* p = ev->packet;
             const int peerId = stdComm_ENet_PeerId(ev->peer);
-            if (peerId > 0 && (stdComm_ENet_limitedIds & (1ULL << (peerId - 1)))) {
-                enet_packet_destroy(p); // (connected without the password: nothing taken)
+            if (peerId <= 0 || peerId > 64) {
+                enet_packet_destroy(p);
                 break;
             }
-            if (p->dataLength >= 8 && p->dataLength <= STDCOMM_ENET_MAX_MSG) {
-                uint32_t idFrom, idTo;
-                memcpy(&idFrom, p->data, 4);
-                memcpy(&idTo, p->data + 4, 4);
-                if (idTo && idTo != stdComm_ENet_myId) {
-                    // for another player: passed on as it came
-                    for (size_t k = 0; k < stdComm_ENet_pHost->peerCount; k++) {
-                        ENetPeer* q = &stdComm_ENet_pHost->peers[k];
-                        if (q->state == ENET_PEER_STATE_CONNECTED && stdComm_ENet_PeerId(q) == (int)idTo)
-                            stdComm_ENet_SendRaw(q, p->data, (uint32_t)p->dataLength, ev->channelID);
-                    }
+            if (stdComm_ENet_limitedIds & (1ULL << (peerId - 1))) {
+                // (the password not yet shown: only its answer to the challenge taken, once)
+                if (ev->peer->state != ENET_PEER_STATE_CONNECTED) {
+                    enet_packet_destroy(p);
+                    break;
+                }
+                if (stdComm_ENet_TriedLately(ev->peer->address.host)) {
+                    enet_peer_disconnect_later(ev->peer, STDCOMM_ENET_REASON_PASSWORD);
+                }
+                else if (stdComm_ENet_CheckHello(peerId, p)) {
+                    stdComm_ENet_limitedIds &= ~(1ULL << (peerId - 1));
+                    stdComm_ENet_ForgetWrongPasswords(ev->peer->address.host);
+                    stdComm_ENet_verbosePrintf("ENet: id %x has the password\n", peerId);
+                    stdComm_ENet_SendInfo(ev->peer, peerId);
                 }
                 else {
-                    stdComm_ENet_Push(0, (int)idFrom, p->data + 8, (int)p->dataLength - 8);
+                    stdComm_ENet_infoPrintf("ENet: a player with the wrong password let go\n");
+                    stdComm_ENet_NoteWrongPassword(ev->peer->address.host);
+                    enet_peer_disconnect_later(ev->peer, STDCOMM_ENET_REASON_PASSWORD);
+                }
+                enet_packet_destroy(p);
+                break;
+            }
+            uint32_t len = 0;
+            const uint8_t* pData = stdComm_ENet_Received(ev->peer, p, ev->channelID, &len);
+            if (pData && len >= 8 && len <= STDCOMM_ENET_MAX_MSG) {
+                uint32_t idFrom, idTo;
+                memcpy(&idFrom, pData, 4);
+                memcpy(&idTo, pData + 4, 4);
+                if (idTo && idTo != stdComm_ENet_myId) {
+                    // for another player: passed on as it came (sealed again for that player)
+                    int bPassed = 0;
+                    for (size_t k = 0; k < stdComm_ENet_pHost->peerCount; k++) {
+                        ENetPeer* q = &stdComm_ENet_pHost->peers[k];
+                        if (q->state == ENET_PEER_STATE_CONNECTED && stdComm_ENet_PeerId(q) == (int)idTo) {
+                            stdComm_ENet_SendRaw(q, pData, len, ev->channelID);
+                            bPassed = 1;
+                        }
+                    }
+                    stdComm_ENet_verbosePrintf("Passed on %x bytes from %x to %x%s (%s, %x)\n", len, idFrom, idTo, bPassed ? "" : ": not here",
+                                               len >= 12 ? sithDSS_IdToStr(pData[8]) : "", len >= 12 ? *(const uint32_t*)(pData + 8) : 0);
+                }
+                else {
+                    stdComm_ENet_Push(0, (int)idFrom, pData + 8, (int)len - 8);
                 }
             }
             enet_packet_destroy(p);
@@ -283,6 +488,34 @@ static void stdComm_ENet_ServerEvent(ENetEvent* ev)
 
 // ------------------------------------------------------------------ a player's events
 
+// The host's challenge (a game with a password) answered: the key made from the password typed, and
+// the connection encrypted from now on; none typed: the wrong password
+static void stdComm_ENet_AnswerChallenge(ENetPeer* pPeer, const uint8_t* pChallenge)
+{
+    if (!stdComm_ENet_joinPassword[0]) {
+        stdComm_ENet_infoPrintf("ENet: this game has a password\n");
+        stdComm_ENet_bWrongPassword = 1;
+        enet_peer_disconnect(pPeer, 0);
+        return;
+    }
+    uint8_t passwordKey[STDCOMM_ENETCRYPTO_KEY_LEN];
+    uint8_t hello[STDCOMM_ENET_HELLO_LEN];
+    const uint32_t magic = STDCOMM_ENET_MAGIC_HELLO;
+    memcpy(hello, &magic, 4);
+    if (!stdComm_ENetCrypto_Random(hello + 4, STDCOMM_ENETCRYPTO_NONCE_LEN)) {
+        enet_peer_disconnect(pPeer, 0);
+        return;
+    }
+    stdComm_ENetCrypto_PasswordKey(stdComm_ENet_joinPassword, pChallenge + 4, passwordKey);
+    stdComm_ENetCrypto_StartSession(&stdComm_ENet_clientCrypto, passwordKey, pChallenge + 4 + STDCOMM_ENETCRYPTO_SALT_LEN,
+                                    hello + 4, STDCOMM_ENETCRYPTO_FROM_PLAYER);
+    memset(passwordKey, 0, sizeof(passwordKey));
+    stdComm_ENetCrypto_Seal(&stdComm_ENet_clientCrypto, 0, STDCOMM_ENET_HELLO_TEXT, STDCOMM_ENET_HELLO_TEXT_LEN,
+                            hello + 4 + STDCOMM_ENETCRYPTO_NONCE_LEN, STDCOMM_ENET_HELLO_TEXT_LEN + STDCOMM_ENETCRYPTO_OVERHEAD);
+    stdComm_ENet_SendPlain(pPeer, hello, sizeof(hello), 0);
+    stdComm_ENet_verbosePrintf("ENet: answered the game's password challenge\n");
+}
+
 static void stdComm_ENet_ClientEvent(ENetEvent* ev)
 {
     switch (ev->type)
@@ -291,21 +524,40 @@ static void stdComm_ENet_ClientEvent(ENetEvent* ev)
             stdComm_ENet_verbosePrintf("ENet: connected to the host\n");
             break;
         case ENET_EVENT_TYPE_DISCONNECT:
-            stdComm_ENet_infoPrintf("ENet: lost the host\n");
+            if (ev->data == STDCOMM_ENET_REASON_PASSWORD) {
+                stdComm_ENet_infoPrintf("ENet: wrong password for this game\n");
+                stdComm_ENet_bWrongPassword = 1;
+            }
+            else {
+                stdComm_ENet_infoPrintf("ENet: lost the host\n");
+            }
             stdComm_ENet_pServer = NULL;
             stdComm_ENet_bHostLost = 1;
             break;
         case ENET_EVENT_TYPE_RECEIVE:
         {
             ENetPacket* p = ev->packet;
-            if (stdComm_ENet_myId == 0xFFFFFFFF && p->dataLength == sizeof(stdCommENetInfo)) {
+            uint32_t magic = 0;
+            if (p->dataLength >= 4) memcpy(&magic, p->data, 4);
+            if (stdComm_ENet_myId == 0xFFFFFFFF && !stdComm_ENet_clientCrypto.bOn
+                && p->dataLength == STDCOMM_ENET_CHALLENGE_LEN && magic == STDCOMM_ENET_MAGIC_CHALLENGE) {
+                // (the game has a password: our answer)
+                stdComm_ENet_AnswerChallenge(ev->peer, p->data);
+                enet_packet_destroy(p);
+                break;
+            }
+            uint32_t len = 0;
+            const uint8_t* pData = stdComm_ENet_Received(ev->peer, p, ev->channelID, &len);
+            if (!pData) {
+                enet_packet_destroy(p);
+                break;
+            }
+            if (stdComm_ENet_myId == 0xFFFFFFFF && len == sizeof(stdCommENetInfo)) {
                 // the first: our id, and the session
                 stdCommENetInfo info;
-                memcpy(&info, p->data, sizeof(info));
+                memcpy(&info, pData, sizeof(info));
                 if (!info.id) {
-                    // (no id: the host wants the game's password, and this wasn't it)
-                    stdComm_ENet_infoPrintf("ENet: wrong password for this game\n");
-                    stdComm_ENet_bWrongPassword = 1;
+                    // (no id: the game has a password; its challenge comes next)
                     enet_packet_destroy(p);
                     break;
                 }
@@ -317,12 +569,12 @@ static void stdComm_ENet_ClientEvent(ENetEvent* ev)
                 stdComm_ENet_numEnumd = 1;
                 stdComm_ENet_verbosePrintf("ENet: we are id %x\n", stdComm_ENet_myId);
             }
-            else if (p->dataLength >= 8 && p->dataLength <= STDCOMM_ENET_MAX_MSG) {
+            else if (stdComm_ENet_myId != 0xFFFFFFFF && len >= 8 && len <= STDCOMM_ENET_MAX_MSG) {
                 uint32_t idFrom, idTo;
-                memcpy(&idFrom, p->data, 4);
-                memcpy(&idTo, p->data + 4, 4);
+                memcpy(&idFrom, pData, 4);
+                memcpy(&idTo, pData + 4, 4);
                 if (!idTo || idTo == stdComm_ENet_myId)
-                    stdComm_ENet_Push(0, (int)idFrom, p->data + 8, (int)p->dataLength - 8);
+                    stdComm_ENet_Push(0, (int)idFrom, pData + 8, (int)len - 8);
             }
             enet_packet_destroy(p);
             break;
@@ -347,6 +599,7 @@ static int stdComm_ENet_Thread(void* unused)
                 if (stdComm_ENet_bServer) stdComm_ENet_ServerEvent(&ev);
                 else stdComm_ENet_ClientEvent(&ev);
             }
+            stdComm_ENet_DropSlowAnswers();
         }
         SDL_UnlockMutex(stdComm_ENet_mutex);
         SDL_Delay(2);
@@ -393,6 +646,10 @@ static void stdComm_ENet_CloseHost(void)
     stdComm_ENet_usedIds = 0x1;
     stdComm_ENet_myId = 0xFFFFFFFF;
     stdComm_ENet_bHostLost = 0;
+    stdComm_ENet_limitedIds = 0;
+    for (int i = 0; i < 64; i++) stdComm_ENetCrypto_EndSession(&stdComm_ENet_aPeerCrypto[i].session);
+    memset(stdComm_ENet_hostKey, 0, sizeof(stdComm_ENet_hostKey));
+    stdComm_ENetCrypto_EndSession(&stdComm_ENet_clientCrypto);
     stdComm_ENet_ClearQueue();
     SDL_UnlockMutex(stdComm_ENet_mutex);
 }
@@ -687,7 +944,9 @@ int stdComm_Open(int idx, char16_t* pwPassword)
     stdComm_ENet_myId = 0xFFFFFFFF;
     stdComm_ENet_pHost = enet_host_create(NULL, 1, STDCOMM_ENET_CHANNELS, 0, 0);
     stdComm_ENet_bWrongPassword = 0;
-    stdComm_ENet_pServer = stdComm_ENet_pHost ? enet_host_connect(stdComm_ENet_pHost, &addr, STDCOMM_ENET_CHANNELS, stdComm_ENet_PasswordHash(pwPassword)) : NULL;
+    memset(stdComm_ENet_joinPassword, 0, sizeof(stdComm_ENet_joinPassword));
+    for (int i = 0; pwPassword && i < 32 && pwPassword[i]; i++) stdComm_ENet_joinPassword[i] = (uint16_t)pwPassword[i];
+    stdComm_ENet_pServer = stdComm_ENet_pHost ? enet_host_connect(stdComm_ENet_pHost, &addr, STDCOMM_ENET_CHANNELS, 0) : NULL;
     if (stdComm_ENet_pServer) enet_peer_timeout(stdComm_ENet_pServer, 32, STDCOMM_ENET_HOST_TIMEOUT_MS, STDCOMM_ENET_HOST_TIMEOUT_MS);
     SDL_UnlockMutex(stdComm_ENet_mutex);
     if (!stdComm_ENet_pServer) return 0x88770154 + 1;
@@ -702,8 +961,9 @@ int stdComm_Open(int idx, char16_t* pwPassword)
         SDL_Delay(10);
     }
     if (stdComm_ENet_myId == 0xFFFFFFFF) {
+        const int bWrongPassword = stdComm_ENet_bWrongPassword;
         stdComm_ENet_CloseHost();
-        return 0x88770154 + 1;
+        return bWrongPassword ? 0x88770154 : 0x88770154 + 1; // (the Join screen: "wrong password", or can't connect)
     }
     Hack_ResetClients();
     return 0;
@@ -714,6 +974,7 @@ void stdComm_Close()
     if (!stdComm_ENet_bInitted) return;
     stdComm_ENet_CloseHost();
     stdComm_ENet_bServer = 0;
+    stdComm_ENet_bHostCrypto = 0;
 }
 
 int DirectPlay_SendLobbyMessage(void* pPkt, uint32_t pktLen)
@@ -756,14 +1017,27 @@ void DirectPlay_Close()
 int DirectPlay_OpenHost(jkMultiEntry* pEntry)
 {
     stdComm_ENet_storedEntry = *pEntry;
-    stdComm_ENet_hostPasswordHash = stdComm_ENet_PasswordHash(pEntry->wPassword);
-    stdComm_ENet_limitedIds = 0;
     jkPlayer_maxPlayers = pEntry->maxPlayers;
     stdComm_bIsServer = 1;
 
     if (!stdComm_ENet_bInitted) return 0;
 
     stdComm_ENet_CloseHost();
+    // (a password: the game encrypted, its key made now, salted afresh)
+    stdComm_ENet_bHostCrypto = 0;
+    if (pEntry->wPassword[0]) {
+        uint16_t pw[33];
+        memset(pw, 0, sizeof(pw));
+        for (int i = 0; i < 32 && pEntry->wPassword[i]; i++) pw[i] = (uint16_t)pEntry->wPassword[i];
+        if (!stdComm_ENetCrypto_Random(stdComm_ENet_hostSalt, sizeof(stdComm_ENet_hostSalt))) {
+            stdComm_ENet_infoPrintf("ENet: no random numbers for the game's password\n");
+            return 0x88770118 + 1;
+        }
+        stdComm_ENetCrypto_PasswordKey(pw, stdComm_ENet_hostSalt, stdComm_ENet_hostKey);
+        memset(pw, 0, sizeof(pw));
+        stdComm_ENet_bHostCrypto = 1;
+        stdComm_ENet_infoPrintf("ENet: the game has a password: encrypted\n");
+    }
     ENetAddress addr;
     addr.host = ENET_HOST_ANY;
     addr.port = (enet_uint16)(jkGuiNetHost_portNum > 0 ? jkGuiNetHost_portNum : STDCOMM_ENET_DEFAULT_PORT);
@@ -772,6 +1046,8 @@ int DirectPlay_OpenHost(jkMultiEntry* pEntry)
     stdComm_ENet_myId = 1;
     stdComm_ENet_usedIds = 0x1;
     stdComm_ENet_pHost = enet_host_create(&addr, STDCOMM_ENET_MAX_PEERS, STDCOMM_ENET_CHANNELS, 0, 0);
+    // (a game with a password: no one address may hold all the places with unanswered challenges)
+    if (stdComm_ENet_pHost && stdComm_ENet_bHostCrypto) stdComm_ENet_pHost->duplicatePeers = STDCOMM_ENET_PEERS_PER_ADDRESS;
     SDL_UnlockMutex(stdComm_ENet_mutex);
     if (!stdComm_ENet_pHost) {
         stdComm_ENet_infoPrintf("ENet: can't listen on port %d\n", addr.port);

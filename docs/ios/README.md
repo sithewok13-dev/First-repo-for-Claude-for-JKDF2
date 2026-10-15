@@ -845,9 +845,16 @@ devices.
 
 Use **Tailscale** (a free VPN app) on every device. Join with the host's
 Tailscale address, which the host's top line also shows (`100.x.x.x`).
-Tailscale encrypts the game. Don't open a port on your router for the
-game: the game itself isn't encrypted, and a password only keeps out
-people who don't know it.
+Tailscale encrypts the game, and needs no router setup.
+
+A game with a **password** is encrypted too. Only players who type the
+right password get in, and nobody else can read or change the game on the
+way. The password itself is never sent. Use a long one (four or more
+random words): someone who records a player joining could try to guess
+it.
+
+A game without a password isn't encrypted. If you open a port on your
+router instead of using Tailscale (UDP 27020), always set a password.
 
 ## Cheats
 
@@ -1190,8 +1197,8 @@ If something doesn't work in OpenMoTS, please say so in your bug report
   mostly been tested on a computer. If an app doesn't find your files, put
   them in `jk1` (or `mots`) as this guide shows.
 - **Multiplayer is new.** It is tested with copies of the game on a
-  computer, not yet on two iPhones. Over the internet, use Tailscale; the
-  game's own traffic isn't encrypted.
+  computer, not yet on two iPhones. Over the internet, use Tailscale, or
+  give the game a password (that encrypts it).
 - **Multiplayer cutscenes:** each player watches the between-level
   cutscenes on their own. Whoever finishes first waits to join the next
   level.

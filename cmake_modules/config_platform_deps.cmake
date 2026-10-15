@@ -140,6 +140,20 @@ if(TARGET_USE_ENET)
     file(GLOB TARGET_ENET_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/ENet/*.c)
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_ENET_SRCS} ${TARGET_ENET_LIB_SRCS})
 
+    # Games with a password are encrypted (stdComm_ENetCrypto.c): ChaCha20-Poly1305 and SHA-256 from
+    # mbedtls (src/external/mbedtls), the few files they need, unless the update check (curl) already
+    # builds all of it. Its headers seen by those files only.
+    set(MBEDTLS_DIR ${PROJECT_SOURCE_DIR}/src/external/mbedtls)
+    set(ENET_CRYPTO_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/ENet/stdComm_ENetCrypto.c)
+    if(NOT (TARGET_USE_CURL AND NOT TARGET_LINUX))
+        set(ENET_MBEDTLS_SRCS
+            ${MBEDTLS_DIR}/chacha20.c ${MBEDTLS_DIR}/chachapoly.c ${MBEDTLS_DIR}/poly1305.c
+            ${MBEDTLS_DIR}/sha256.c ${MBEDTLS_DIR}/platform_util.c)
+        list(APPEND ENGINE_SOURCE_FILES ${ENET_MBEDTLS_SRCS})
+        list(APPEND ENET_CRYPTO_SRCS ${ENET_MBEDTLS_SRCS})
+    endif()
+    set_source_files_properties(${ENET_CRYPTO_SRCS} PROPERTIES INCLUDE_DIRECTORIES ${MBEDTLS_DIR})
+
     add_compile_definitions(PLATFORM_ENET)
 endif()
 

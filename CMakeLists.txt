@@ -290,9 +290,10 @@ if (EXPERIMENTAL_FIXED_POINT)
 endif()
 
 add_library(sith_engine OBJECT ${ENGINE_SOURCE_FILES})
-# Added: ENet (multiplayer, TARGET_USE_ENET) on Windows needs Winsock and the multimedia timer
+# Added: ENet (multiplayer, TARGET_USE_ENET) on Windows needs Winsock, the multimedia timer, and the
+# system's random numbers (bcrypt: password games' keys)
 if(TARGET_USE_ENET AND WIN32)
-    target_link_libraries(sith_engine PRIVATE ws2_32 winmm)
+    target_link_libraries(sith_engine PRIVATE ws2_32 winmm bcrypt)
 endif()
 # Generate cog headers (generated/globals.h) fully before compiling any engine
 # source -- many include it transitively, and a parallel build otherwise races the
