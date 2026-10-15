@@ -207,6 +207,16 @@ static int stdCommTransport_AskThread(void* pArg)
     return 0;
 }
 
+// (a host's description, from the network: its texts ended, whatever was sent)
+#define STDCOMM_TRANSPORT_END_TEXT(a) ((a)[sizeof(a) / sizeof((a)[0]) - 1] = 0)
+static void stdCommTransport_EndTexts(jkMultiEntry* pEntry)
+{
+    STDCOMM_TRANSPORT_END_TEXT(pEntry->serverName);
+    STDCOMM_TRANSPORT_END_TEXT(pEntry->episodeGobName);
+    STDCOMM_TRANSPORT_END_TEXT(pEntry->mapJklFname);
+    STDCOMM_TRANSPORT_END_TEXT(pEntry->wPassword);
+}
+
 int stdCommTransport_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing, int* pKindOut)
 {
     if (pKindOut) *pKindOut = STDCOMM_TRANSPORT_NONE;
@@ -220,6 +230,7 @@ int stdCommTransport_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int 
     }
     if (numTransports == 1) {
         const int r = stdCommTransport_apAll[onlyKind]->ProbeAddress(pAddress, pOut, timeoutMs, pbKeepGoing);
+        if (r > 0) stdCommTransport_EndTexts(pOut);
         if (r > 0 && pKindOut) *pKindOut = onlyKind;
         return r;
     }
@@ -267,6 +278,7 @@ int stdCommTransport_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int 
         if (a->result >= 0) bAnyAddress = 1;
         if (a->result > 0 && result <= 0) {
             *pOut = a->entry;
+            stdCommTransport_EndTexts(pOut);
             if (pKindOut) *pKindOut = k;
             result = 1;
         }
