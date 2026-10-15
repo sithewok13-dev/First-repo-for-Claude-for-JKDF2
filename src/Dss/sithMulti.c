@@ -173,6 +173,9 @@ int sithMulti_StartupClient()
     sithNet_teamScore[2] = 0;
     sithNet_teamScore[3] = 0;
     sithNet_teamScore[4] = 0;
+#ifdef QOL_IMPROVEMENTS
+    sithComm_ForgetSender(0); // Added: a game joined: what another game sent forgotten
+#endif
     stdComm_DoReceive();
     return 1;
 }
@@ -999,6 +1002,9 @@ void sithMulti_ProcessPlayerLost(int idPlayer)
 LABEL_10:
         v3 = -1;
     }
+#ifdef QOL_IMPROVEMENTS
+    sithComm_ForgetSender(idPlayer); // Added: that player gone
+#endif
     if ( v3 >= 0 )
     {
         v4 = sithStrTable_GetUniStringWithFallback("%s_HAS_LEFT_THE_GAME");
@@ -1099,6 +1105,9 @@ int sithMulti_ProcessJoinRequest(SithMessage *pMsg)
             return 1;
         }
 
+#ifdef QOL_IMPROVEMENTS
+        sithComm_ForgetSender(v1); // Added: a new player under this id (one that left and came back)
+#endif
         stdComm_cogMsg_SendEnumPlayers(v1);
         if ( sithMulti_quitGameState )
         {

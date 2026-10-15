@@ -12,6 +12,22 @@
 int sithComm_009a1160 = 0;
 int sithComm_version = 6;
 
+#ifdef QOL_IMPROVEMENTS
+// Added: the messages already taken from a sender (by their numbers, so a resent one isn't taken
+// twice) forgotten: that player gone, or a new one under its id (a game restarted counts its
+// messages from the start again, and would otherwise have them dropped as already taken); idx 0:
+// every sender's
+void sithComm_ForgetSender(int idx)
+{
+    for (int i = 0; i < 0x80; i++) {
+        if (!idx || sithComm_aMsgPairs[i].idx == (uint32_t)idx) {
+            sithComm_aMsgPairs[i].idx = 0;
+            sithComm_aMsgPairs[i].msgId = 0;
+        }
+    }
+}
+#endif
+
 // MOTS altered
 int sithComm_Startup()
 {
