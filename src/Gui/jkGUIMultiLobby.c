@@ -435,6 +435,29 @@ static int jkGuiMultiLobby_bConnecting = 0;
 static uint32_t jkGuiMultiLobby_connectingMs = 0;
 static jkGuiMultiLobbyTarget jkGuiMultiLobby_picked; // (the game being joined)
 
+// A level's title as plain text (for a game asked rather than heard, whose host gives only its file),
+// from this game's own level titles, loaded the first time one is wanted; "" if not known
+static stdStrTable jkGuiMultiLobby_titles;
+static int jkGuiMultiLobby_bTitles = 0;
+static void jkGuiMultiLobby_LevelTitle(char* pOut, int outLen, const char* level)
+{
+    pOut[0] = 0;
+    if (!level || !level[0]) return;
+    if (!jkGuiMultiLobby_bTitles) {
+        memset(&jkGuiMultiLobby_titles, 0, sizeof(jkGuiMultiLobby_titles));
+        stdStrTable_Load(&jkGuiMultiLobby_titles, "misc\\cogStrings.uni"); // (its result means little: an early END reads as 0)
+        jkGuiMultiLobby_bTitles = 1;
+    }
+    char16_t wTitle[64];
+    if (!jkGuiTitle_LevelTitle(&jkGuiMultiLobby_titles, level, wTitle, 64)) return;
+    int n = 0;
+    for (int i = 0; wTitle[i] && n < outLen - 1; i++) {
+        const char16_t c = wTitle[i];
+        pOut[n++] = (c == 0x2018 || c == 0x2019) ? '\'' : (c >= 0x20 && c < 0x7F) ? (char)c : '?';
+    }
+    pOut[n] = 0;
+}
+
 static void jkGuiMultiLobby_ModeText(char16_t* pOut, int outLen, const char* mode, const char* episodeGob, int flags)
 {
     // (heard: the host's word for it; asked: worked out from its episode and flags)
@@ -561,8 +584,10 @@ static void jkGuiMultiLobby_UpdateRows(jkGuiMenu* pMenu, int bRedraw)
             name[sizeof(name) - 1] = 0;
             int maxPlayers = (int)pEntry->maxPlayers;
             if ((pEntry->sessionFlags & SESSIONFLAG_ISDEDICATED) && maxPlayers > 1) maxPlayers--;
+            char title[64];
+            jkGuiMultiLobby_LevelTitle(title, sizeof(title), pEntry->mapJklFname);
             jkGuiMultiLobby_GameRow(row, LOBBY_ROW_LEN, name[0] ? name : r->name, NULL, pEntry->episodeGobName, pEntry->multiModeFlags, pEntry->mapJklFname,
-                                    NULL, pEntry->numPlayers, maxPlayers, (pEntry->sessionFlags & SESSIONFLAG_PASSWORD) != 0);
+                                    title, pEntry->numPlayers, maxPlayers, (pEntry->sessionFlags & SESSIONFLAG_PASSWORD) != 0);
         }
         else {
             const char* key = state == LOBBY_ASK_UNKNOWN ? "GUIEXT_MP_CHECKING" : "GUIEXT_MP_NOT_ANSWERING";
@@ -951,6 +976,10 @@ void jkGuiMultiLobby_Startup(void)
 void jkGuiMultiLobby_Shutdown(void)
 {
     jkGuiMultiLobby_StopAsking();
+    if (jkGuiMultiLobby_bTitles) {
+        stdStrTable_Free(&jkGuiMultiLobby_titles);
+        jkGuiMultiLobby_bTitles = 0;
+    }
 }
 
 #endif // JKGUI_MULTI_LOBBY

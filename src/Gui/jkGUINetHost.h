@@ -22,6 +22,7 @@ extern int jkGuiNetHost_bLobbyResume;
 const char* jkGuiNetHost_ModeName(const char* pEpisodeGob, int multiModeFlags);
 // Added: a game's mode flags made right for its episode: Mysteries of the Sith's Sith Lightsaber Training
 // (episode type 16) saber-only, with Jedi Knight-style ranked characters; any other episode neither
+int jkGuiNetHost_EpisodeModeFlags(const char* pEpisodeGob, int multiModeFlags);
 
 void jkGuiNetHost_SaveSettings();
 void jkGuiNetHost_LoadSettings();
