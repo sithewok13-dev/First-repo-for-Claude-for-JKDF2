@@ -57,7 +57,9 @@ void iosKbMouseView_Tick(void)
     @autoreleasepool {
         const int bFps = iosTouch_IsFpsShown();
         const int bMouse = bFps && iosKbMouseView_HasMouse(), bKeys = bFps && iosKbMouseView_HasKeyboard();
-        if (!bMouse && !bKeys) {
+        // (a pointer click with no GCMouse behind it -- an iPhone's AssistiveTouch? -- shows it too)
+        const int bClicks = bFps && iosKbMouse_SawPointerClick();
+        if (!bMouse && !bKeys && !bClicks) {
             if (iosKbMouseView_pLabel && !iosKbMouseView_pLabel.hidden) iosKbMouseView_pLabel.hidden = YES;
             return;
         }
@@ -99,8 +101,9 @@ void iosKbMouseView_Tick(void)
             const int bRel = displayWindow && SDL_GetWindowRelativeMouseMode(displayWindow);
             char counts[192];
             iosKbMouse_DiagText(counts, sizeof(counts));
-            l.text = [NSString stringWithFormat:@"MOUSE %s  KEYS %s  RELMODE %s  LOCK wanted %s, locked %s\n%s",
-                      bMouse ? "yes" : "no", bKeys ? "yes" : "no", bRel ? "on" : "off", pWant, pLocked, counts];
+            l.text = [NSString stringWithFormat:@"MOUSE %s  KEYS %s  RELMODE %s  LOCK wanted %s, locked %s%s\n%s",
+                      bMouse ? "yes" : "no", bKeys ? "yes" : "no", bRel ? "on" : "off", pWant, pLocked,
+                      (!bMouse && bClicks) ? "  CLICKS WITHOUT A MOUSE" : "", counts];
         }
 
         const CGRect B = host.bounds;

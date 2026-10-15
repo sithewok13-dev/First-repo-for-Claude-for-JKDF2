@@ -631,23 +631,26 @@ int iosKbMouse_HandleEvent(void* pSdlEvent)
     }
     case SDL_EVENT_KEY_DOWN: {
         const int sc = (int)e->key.scancode;
-        if (sc > 0 && sc < IOSKBM_NUM_KEYS && !e->key.repeat) iosKbMouse_s.aEventDown[sc] = 1;
-        iosKbMouse_s.nKeys++;
-        const int bCmd = (e->key.mod & SDL_KMOD_GUI) != 0;
-        if (sc == SDL_SCANCODE_PERIOD && bCmd) {
-            // Cmd-.: Escape (closing a wheel the keyboard opened, as Escape does)
-            if (!e->key.repeat) {
-                if (bGame && iosKbMouse_s.wheelState >= IOSKBM_WS_HELD) iosKbMouse_WheelClose(0);
-                else if (!(bGame && iosTouch_IsPhotoModeUp())) iosKbMouse_Escape();
-            }
-            return 1;
+        // A key pressed while typing (the typing line, cheats) is the typing
+        // line's: never a new press for us -- not even one let go in the
+        // frame the line closes (Return), nor while still held after
+        const int bTyping = jkHud_bChatOpen || stdControl_bDisableKeyboard;
+        if (sc > 0 && sc < IOSKBM_NUM_KEYS) {
+            if (bTyping) iosKbMouse_s.aStale[sc] = 1;
+            else if (!e->key.repeat) iosKbMouse_s.aEventDown[sc] = 1;
         }
-        if (!bGame) return 0;
+        iosKbMouse_s.nKeys++;
+        // Cmd-. is Escape, for keyboards without one: whatever Escape does
+        const int bCmdDot = sc == SDL_SCANCODE_PERIOD && (e->key.mod & SDL_KMOD_GUI) != 0;
+        if (!bGame) {
+            if (bCmdDot && !e->key.repeat) iosKbMouse_Escape();
+            return bCmdDot;
+        }
         // (a new press only, never a key still held -- its repeats neither --
         // so a touch's showing the controls again isn't undone; typing, the
         // on-screen keyboard's keys among them, isn't playing)
-        if (!e->key.repeat && !jkHud_bChatOpen && !stdControl_bDisableKeyboard && !iosKbMouse_IsPointerFree()) iosKbMouse_s.bActive = 1;
-        if (sc == SDL_SCANCODE_ESCAPE) {
+        if (!e->key.repeat && !bTyping && !iosKbMouse_IsPointerFree()) iosKbMouse_s.bActive = 1;
+        if (sc == SDL_SCANCODE_ESCAPE || bCmdDot) {
             if (iosKbMouse_s.wheelState >= IOSKBM_WS_HELD) {
                 // Escape on the keyboard's wheel: it closes, nothing picked (not the menu)
                 if (!e->key.repeat) iosKbMouse_WheelClose(0);
@@ -656,6 +659,11 @@ int iosKbMouse_HandleEvent(void* pSdlEvent)
             if (iosTouch_IsPhotoModeUp()) {
                 // Action Freeze: back to the game; the others go on their own (not the menu over them)
                 if (!e->key.repeat) iosTouch_KbmCamera(IOSTOUCH_CAM_FREEZE_END);
+                return 1;
+            }
+            if (bCmdDot) {
+                // (the game's own Escape, as the window gives it for the Escape key)
+                if (!e->key.repeat) iosKbMouse_Escape();
                 return 1;
             }
         }
@@ -713,6 +721,11 @@ int iosKbMouse_TakeWheelSteps(int dir)
 }
 
 // ------------------------------------------------------------ the readout
+
+int iosKbMouse_SawPointerClick(void)
+{
+    return iosKbMouse_s.lastTouch == 1;
+}
 
 void iosKbMouse_DiagText(char* pBuf, int size)
 {

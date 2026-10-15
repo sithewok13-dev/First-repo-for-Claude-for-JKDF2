@@ -105,6 +105,9 @@ const char* iosKbMouse_WheelHint(int bHot, int bCancel);
 
 // The diagnostic line's own part (counts since the readout came on)
 void iosKbMouse_DiagText(char* pBuf, int size);
+// Whether the last touch on the touch controls was a pointer click (the
+// readout shows then too, even with no GCMouse behind it)
+int iosKbMouse_SawPointerClick(void);
 
 // (iosKbMouseView.m) The diagnostic line under the FPS readout, kept up to
 // date (once a frame), and whether a mouse / a keyboard is connected
