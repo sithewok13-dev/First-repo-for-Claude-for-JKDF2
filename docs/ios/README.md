@@ -761,6 +761,86 @@ cancels, and the game holds still while the wheel is open.
   files, if they're somewhere else in the OpenJKDF2 folder). Copy that folder
   somewhere safe now and then.
 
+## Multiplayer
+
+**New, and not yet tested on two iPhones.** It has been tested with two to
+four copies of the game on a computer. Please report what happens on your
+phones.
+
+Up to four players on the same Wi-Fi, by address. Every player needs the
+same app (Jedi Knight or OpenMoTS) and the same game files. The desktop
+builds of this port use the same networking, so a computer can join too.
+
+### Hosting
+
+1. Tap **Multiplayer** on the main menu, then **Host**.
+2. Pick an episode and a level.
+   - A **multiplayer** episode (deathmatch, team or capture the flag)
+     plays the classic modes.
+   - A **story** episode plays **co-op**: the campaign, together.
+3. **Advanced** has the options:
+   - **Allow Cheats** (off unless you tick it): each player may use cheats
+     on themselves, the Sith button too.
+   - **Resume Co-op Save** (on): co-op carries on from its last save.
+4. Start. A line at the top says **Others can join at** and your address
+   (for example `192.168.1.20`). Tell the others.
+
+The first time, iOS asks to let the app find devices on your network.
+Say **Allow**, or nobody can join. (If you said no: *Settings > Privacy &
+Security > Local Network*.)
+
+### Joining
+
+1. Tap **Multiplayer**, then **Join**.
+2. Type the host's address and join.
+3. If the game has a password, type it when asked.
+
+### Co-op
+
+- The host plays the story's own character (Kyle, or Mara in OpenMoTS).
+  Everyone else plays the multiplayer character they picked.
+- Objectives are shared. When the level ends, everyone goes to the next
+  level together.
+- After a level, the score screen and the Force powers screen go on by
+  themselves (30 s and 90 s). Stars you don't spend are kept.
+- Each player keeps their own weapons, ammo, items and Force powers from
+  level to level. Keys and objectives stay with the level, as in single
+  player.
+- If you die, you come back at the level's start with what you had when
+  the level began.
+- If your path differs from the host's (light or dark side), you follow
+  the host's level.
+- With cheats allowed, the host can pick a level for everyone (sithewok,
+  hold DUCK), and a level in which you used cheats adds nothing to the
+  gear you carry on.
+
+### Co-op saves
+
+- The host's game saves the campaign at the start of every level: the
+  level and everyone's gear. Your single-player saves are never touched.
+- The save is in the **coop** folder next to your game files (one file
+  per episode).
+- Host the same episode again to carry on. A player who drops out and
+  rejoins gets their gear back.
+- With **Resume Co-op Save** off, a new campaign starts. The old one is
+  kept, with the date and time added to its name. Put the date part back
+  as `.txt` to go back to it.
+
+### Your lightsaber in multiplayer
+
+Other players see your saber as you set it on the SABER wheel: its colour,
+and two sabers if you chose them. In multiplayer the second saber is only
+for looks. It doesn't hit, to keep things fair for players on other
+devices.
+
+### Playing over the internet
+
+Use **Tailscale** (a free VPN app) on every device. Join with the host's
+Tailscale address, which the host's top line also shows (`100.x.x.x`).
+Tailscale encrypts the game. Don't open a port on your router for the
+game: the game itself isn't encrypted, and a password only keeps out
+people who don't know it.
+
 ## Cheats
 
 Cheats go into the game's typing line (on PC, that's where chat goes):
@@ -1101,7 +1181,12 @@ If something doesn't work in OpenMoTS, please say so in your bug report
 - **Finding the files outside `jk1` and `mots`** is new in v0.4, and has
   mostly been tested on a computer. If an app doesn't find your files, put
   them in `jk1` (or `mots`) as this guide shows.
-- **No multiplayer.** The iOS build has no networking.
+- **Multiplayer is new.** It is tested with copies of the game on a
+  computer, not yet on two iPhones. Over the internet, use Tailscale; the
+  game's own traffic isn't encrypted.
+- **Multiplayer cutscenes:** each player watches the between-level
+  cutscenes on their own. Whoever finishes first waits to join the next
+  level.
 - **No in-app file picker.** Game files have to be copied into the app's
   folder (`jk1`, or `mots` for OpenMoTS) with the Files app (or Finder /
   Apple Devices).
