@@ -13,6 +13,8 @@
 //   dying in co-op. A level in which the player used cheats (when the host
 //   allows them) adds nothing to it: they carry on what they began it with,
 //   and the Force power the story gives at its end.
+// - Characters: the host plays the story's own player (the level's: Kyle,
+//   Mara), the guests the multiplayer characters they picked.
 // - Starting spots: everyone starts (and comes back) where the one player
 //   would; one already standing there, the next is put beside them (on the
 //   floor, no wall between) rather than inside them.
@@ -36,6 +38,9 @@ extern "C" {
 
 // In a co-op game now
 int jkCoop_IsActive(void);
+// Co-op, and this game the host: it plays the story's own player (the level's), not the multiplayer
+// character picked (the guests play theirs)
+int jkCoop_HostKeepsProtagonist(void);
 
 // A player's gear, bin by bin (as carried between levels)
 typedef struct jkCoopKitBin

@@ -30,6 +30,11 @@ int jkCoop_IsActive(void)
     return sithNet_isMulti && (sithNet_MultiModeFlags & MULTIMODEFLAG_COOP);
 }
 
+int jkCoop_HostKeepsProtagonist(void)
+{
+    return jkCoop_IsActive() && sithNet_isServer;
+}
+
 // ------------------------------------------------------------------ gear between levels
 
 static char jkCoop_aHostLevel[32]; // (the host's level, below)

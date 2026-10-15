@@ -111,6 +111,9 @@ int jkDSS_Startup()
 
 int jkDSS_JKM1(int32_t vecUnknown1, SithEventParams* unused2)
 {
+#ifdef QOL_IMPROVEMENTS
+    if (jkCoop_HostKeepsProtagonist()) return 1; // Added: co-op, the host is the story's own player
+#endif
     if (jkDSS_005aec8c != 0) {
         jkDSS_SendSaberInfo_alt_Mots(sithPlayer_g_pLocalPlayerThing,jkGuiMultiplayer_mpcInfo.model,jkGuiMultiplayer_mpcInfo.soundClass,jkGuiMultiplayer_mpcInfo.sideMat,jkGuiMultiplayer_mpcInfo.tipMat,jkGuiMultiplayer_mpcInfo.personality);
     }
@@ -241,6 +244,11 @@ void jkDSS_Load()
 
 int jkDSS_wrap_SendSaberInfo_alt()
 {
+#ifdef QOL_IMPROVEMENTS
+    // Added: co-op, the host plays the story's own player (Kyle, Mara: the level's), not the
+    // multiplayer character picked; the guests are the characters they picked
+    if (jkCoop_HostKeepsProtagonist()) return 1;
+#endif
 #ifdef JKM_PARAMS
     if (Main_bMotsCompat) {
         return jkDSS_SendSaberInfo_alt_Mots(
