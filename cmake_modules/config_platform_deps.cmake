@@ -166,6 +166,11 @@ if(TARGET_USE_ENET)
     endif()
     include_directories(${ENET_DIR}/include)
     file(GLOB TARGET_ENET_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/ENet/*.c)
+    # Android's C library declares htonl and friends only with its BSD extras, which -std=c11
+    # leaves out unless asked for
+    if(TARGET_ANDROID)
+        set_property(SOURCE ${TARGET_ENET_LIB_SRCS} ${TARGET_ENET_SRCS} APPEND PROPERTY COMPILE_DEFINITIONS _BSD_SOURCE)
+    endif()
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_ENET_SRCS} ${TARGET_ENET_LIB_SRCS})
 
     # Games with a password are encrypted (stdComm_ENetCrypto.c): ChaCha20-Poly1305 and SHA-256 from
