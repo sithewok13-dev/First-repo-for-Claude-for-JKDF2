@@ -7,7 +7,7 @@
 #ifndef _PLATFORM_IOS_IOSGAME_H
 #define _PLATFORM_IOS_IOSGAME_H
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED) // (TOUCHUI_ENABLED: the Android touch overlay, src/Platform/Touch)
 
 #ifdef __cplusplus
 extern "C" {
@@ -205,6 +205,6 @@ void iosGame_GetMouseLookDegrees(float* pTurn, float* pPitch);
 }
 #endif
 
-#endif // TARGET_IOS
+#endif // TARGET_IOS || TOUCHUI_ENABLED
 
 #endif // _PLATFORM_IOS_IOSGAME_H

@@ -2,7 +2,7 @@
 
 #include "Platform/iOS/iosGame.h"
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED) // (TOUCHUI_ENABLED: the Android touch overlay, src/Platform/Touch)
 
 #include "Dss/sithGamesave.h"
 #include "General/stdString.h"
@@ -669,4 +669,4 @@ void iosGame_ViewKeyCycled(void)
     iosGame_bThirdPerson = sithCamera_g_curCycleCamNum ? 1 : 0;
 }
 
-#endif // TARGET_IOS
+#endif // TARGET_IOS || TOUCHUI_ENABLED

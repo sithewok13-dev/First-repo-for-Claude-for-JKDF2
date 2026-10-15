@@ -255,6 +255,22 @@ if(TARGET_USE_OPENGL)
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_GL_CPP_SRCS})
 endif()
 
+# Added: the touch controls overlay in plain C (src/Platform/Touch), drawn
+# with the game's own GL: on for Android (AUTO); ON for the Linux test rig.
+# Never on iOS, which has its UIKit overlay (src/Platform/iOS/iosTouch.m).
+# It shares the iOS overlay's game helpers (iosGame.c) and HUD safe-area
+# margins (iosSafeArea.c), which are plain C.
+set(OPENJKDF2_TOUCHUI "AUTO" CACHE STRING "Touch controls overlay: AUTO (Android), ON or OFF")
+if(TARGET_USE_SDL2 AND TARGET_USE_OPENGL AND NOT TARGET_IOS
+   AND (OPENJKDF2_TOUCHUI STREQUAL "ON" OR (OPENJKDF2_TOUCHUI STREQUAL "AUTO" AND TARGET_ANDROID)))
+    message(STATUS "Touch controls overlay: on")
+    add_compile_definitions(TOUCHUI_ENABLED)
+    file(GLOB TARGET_TOUCHUI_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Touch/*.c)
+    list(APPEND ENGINE_SOURCE_FILES ${TARGET_TOUCHUI_SRCS}
+         ${PROJECT_SOURCE_DIR}/src/Platform/iOS/iosGame.c
+         ${PROJECT_SOURCE_DIR}/src/Platform/iOS/iosSafeArea.c)
+endif()
+
 if(TARGET_USE_OPENGL11)
     file(GLOB TARGET_GL11_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/GL11/*.c)
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_GL11_SRCS})

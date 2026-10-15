@@ -26,6 +26,8 @@ static void jkDev_Custom_HostAddressTick(void); // Added
 #include "Main/jkQuakeConsole.h"
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosSaberThrow.h" // Added
+#endif
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
 #include "Platform/iOS/iosGame.h" // Added
 #endif
 #include "stdPlatform.h"
@@ -37,7 +39,7 @@ static void jkDev_Custom_HostAddressTick(void); // Added
 #include "Dss/sithGamesave.h"
 #include "Dss/jkDSS.h"
 #include "../jk.h"
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
 #include "Platform/iOS/iosSafeArea.h" // Added
 
 // Added: the top message text on iOS, relative to the HUD scale
@@ -281,6 +283,8 @@ void jkDev_DrawLog()
 #endif
 #ifdef TARGET_IOS
     iosSaberThrow_Tick(); // Added: two sabers' Saber Throw, once a frame
+#endif
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
     iosGame_ViewTick(); // Added: the view the player picked (VIEW), kept
 #endif
 #ifdef PLATFORM_ENET
@@ -405,8 +409,8 @@ void jkDev_BlitLogToScreenGPU()
 
     if (!jkDev_vbuf) return;
 
-#ifdef TARGET_IOS
-    // Added: on iOS the lines go under the touch overlay's top button row, a
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
+    // Added: on iOS (and with the Android touch overlay) the lines go under the overlay's top button row, a
     // third bigger than the rest of the HUD, wrapped between words
     {
         int textX, textY, textW;

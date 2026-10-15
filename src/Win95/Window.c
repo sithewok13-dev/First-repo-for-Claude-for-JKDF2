@@ -42,6 +42,9 @@
 
 #include "SDL2_helper.h"
 #include "Platform/iOS/iosPad.h" // Added: game controllers (iOS)
+#ifdef TOUCHUI_ENABLED
+#include "Platform/Touch/touchUiSdl.h" // Added: on-screen touch controls (Android)
+#endif
 
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosAngle.h"
@@ -831,6 +834,9 @@ void Window_SdlUpdate()
     // Added: show/hide the touch overlay and pass on its look movement
     iosTouch_Update();
 #endif
+#ifdef TOUCHUI_ENABLED
+    touchUiSdl_BeforeEvents(); // Added: the touch overlay: when this frame's events start
+#endif
 
     while (SDL_PollEvent(&event))
     {
@@ -848,6 +854,9 @@ void Window_SdlUpdate()
 
 #ifdef IOSPAD_ENABLED
         iosPad_HandleEvent(&event); // Added
+#endif
+#ifdef TOUCHUI_ENABLED
+        touchUiSdl_HandleEvent(&event); // Added: fingers, the gyro, and other input in use
 #endif
 
         switch (event.type)
@@ -1055,7 +1064,7 @@ void Window_SdlUpdate()
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
             case SDL_EVENT_MOUSE_BUTTON_UP:
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
                 // Added: a tap skips the cutscene (there is no Escape key on a phone)
                 if (jkCutscene_isRendering) {
                     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
@@ -1215,6 +1224,11 @@ void Window_SdlUpdate()
     // Added: gyro aiming, now that this frame's touches are in
     iosTouch_UpdateGyro();
 #endif
+#ifdef TOUCHUI_ENABLED
+    // Added: the touch overlay shown or hidden, its holds, its look movement
+    // and the gyro's, now that this frame's touches are in
+    touchUiSdl_AfterEvents();
+#endif
 
     // HACK: Escape key for controllers
     if (stdControl_bControllerEscapeKey && !stdControl_bControllerEscapeKey_last) {
@@ -1364,6 +1378,10 @@ void Window_SdlVblank()
 
     //static uint32_t roundtrip = 0;
     //uint32_t before = stdPlatform_GetTimeMsec();
+#ifdef TOUCHUI_ENABLED
+    touchUiSdl_Render(); // Added: the touch overlay, over the game and its HUD
+#endif
+
 #ifdef ARCH_WASM
     if (!jkGuiBuildMulti_bRendering)
 #endif
