@@ -154,9 +154,8 @@ const char* jkGuiNetHost_ModeName(const char* pEpisodeGob, int multiModeFlags)
 // no box here: other episodes play with MotS's own characters.)
 int jkGuiNetHost_EpisodeModeFlags(const char* pEpisodeGob, int multiModeFlags)
 {
-    if (!Main_bMotsCompat) return multiModeFlags;
-    multiModeFlags &= ~(MULTIMODEFLAG_1000 | MULTIMODEFLAG_SABERS_ONLY);
-    if (pEpisodeGob && pEpisodeGob[0] && (jkGuiSingleplayer_FUN_0041d590(pEpisodeGob) & JK_EPISODE_SABERS_ONLY))
+    multiModeFlags &= ~(MULTIMODEFLAG_1000 | MULTIMODEFLAG_SABERS_ONLY); // (Jedi Knight never uses them)
+    if (Main_bMotsCompat && pEpisodeGob && pEpisodeGob[0] && (jkGuiSingleplayer_FUN_0041d590(pEpisodeGob) & JK_EPISODE_SABERS_ONLY))
         multiModeFlags |= (MULTIMODEFLAG_1000 | MULTIMODEFLAG_SABERS_ONLY);
     return multiModeFlags;
 }
