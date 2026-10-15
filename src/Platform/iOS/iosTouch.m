@@ -685,6 +685,7 @@ static CGFloat iosTouch_wheelR0 = 0.0, iosTouch_wheelR1 = 0.0;
 // points at (a slice, IOSTOUCH_WHEEL_CANCEL, or -1: nothing) and which way
 typedef char iosTouch_assertPadWheels[(IOSPAD_WHEEL_FORCE == IOSTOUCH_WHEEL_FORCE && IOSPAD_WHEEL_WEAPONS == IOSTOUCH_WHEEL_WEAPONS
                                        && IOSPAD_WHEEL_SABER == IOSTOUCH_WHEEL_SABER) ? 1 : -1];
+static int iosTouch_bPhotosAsking = 0; // (iOS asking for Photos access, the game held)
 static int iosTouch_bPadHud = 0;
 static int iosTouch_bPadMasked = 0;
 static CAShapeLayer* iosTouch_pPadMask = nil;
@@ -1683,8 +1684,10 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         aButtonViews[BTN_CAMERA].hidden = !iosTouch_bShowCamera;
         // (shown from the start: Photos access asked now, as switching it on
         // asks, before any play; the game holds still while the question is up)
-        if (iosTouch_bShowCamera && iosPhotos_AskAccess(iosTouch_PhotosAsked))
+        if (iosTouch_bShowCamera && iosPhotos_AskAccess(iosTouch_PhotosAsked)) {
             iosGame_SetHoldReason(IOSGAME_HOLD_PHOTOS, 1);
+            iosTouch_bPhotosAsking = 1;
+        }
         NSInteger kinds = [[NSUserDefaults standardUserDefaults] integerForKey:IOSTOUCH_CAMKINDS_DEFAULTS_KEY];
         iosTouch_cameraKinds = (kinds & IOSCAPTURE_ALL) ? (int)(kinds & IOSCAPTURE_ALL) : IOSCAPTURE_CLEAN;
 
@@ -2596,6 +2599,7 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
 static void iosTouch_PhotosAsked(void)
 {
     iosGame_SetHoldReason(IOSGAME_HOLD_PHOTOS, 0);
+    iosTouch_bPhotosAsking = 0;
 }
 
 // CHEAT shown or hidden (the tray's cheat switch), and remembered; the
@@ -2874,8 +2878,10 @@ static int iosTouch_SaberBlade(void)
     [self refreshButtonLooks];
     // Photos access is asked for now, the first time, never in the middle of
     // play; the game holds still while the question is up
-    if (iosTouch_bShowCamera && iosPhotos_AskAccess(iosTouch_PhotosAsked))
+    if (iosTouch_bShowCamera && iosPhotos_AskAccess(iosTouch_PhotosAsked)) {
         iosGame_SetHoldReason(IOSGAME_HOLD_PHOTOS, 1);
+        iosTouch_bPhotosAsking = 1;
+    }
 }
 
 // Lets go of any touch on a row's buttons that is going away
@@ -5189,6 +5195,11 @@ void iosTouch_PadSaberChip(int chip)
     }
     iosTouch_padSlot = -1;
     if (iosTouch_bWheelOpen) [iosTouch_pOverlay refreshWheelLooks];
+}
+
+int iosTouch_IsPhotoModeUp(void)
+{
+    return iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE || iosTouch_bFreezing || iosTouch_bCinema || iosTouch_bPhotosAsking;
 }
 
 void iosTouch_SetFpsShown(int bShow)

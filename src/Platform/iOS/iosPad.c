@@ -146,6 +146,7 @@ enum { IOSPAD_WS_NONE = 0, IOSPAD_WS_PENDING, IOSPAD_WS_HELD, IOSPAD_WS_TAP };
 static struct {
     SDL_Gamepad* pGamepad;    // pad 0, as stdControl has it open (NULL: none)...
     SDL_JoystickID padId;     // ...and its SDL id (0: none)
+    int bPhoto;               // a photo mode is up: the pad does nothing
     int bRumbleCap;           // it can rumble
     double now, last;         // this frame's time and the last's (seconds)
     int aDown[PB_NUM];        // held this frame
@@ -866,6 +867,29 @@ void iosPad_Update(void)
         return;
     }
 
+    // A photo mode (selfie, Action Freeze, the cinematic burst, the Photos
+    // prompt): the pad does nothing -- no saves or loads under the photo
+    // camera, no menu, no wheels -- and what is held then is ignored after
+    const int bPhoto = iosTouch_IsPhotoModeUp();
+    if (bPhoto) {
+        if (!iosPad_s.bPhoto) {
+            iosPad_s.startState = iosPad_s.selState = 0;
+            iosPad_SetRing(IOSPAD_RING_NONE, 0.0f);
+            if (iosPad_s.wheelState == IOSPAD_WS_PENDING) iosPad_WheelReset();
+            iosPad_s.bRunOn = 0;
+            memset(iosPad_s.aPulseQueue, 0, sizeof(iosPad_s.aPulseQueue));
+            iosPad_s.saveQueue = 0;
+        }
+        iosPad_s.bPhoto = 1;
+        iosPad_MarkAllStale();
+        iosPad_s.aStickStale[0] = lm > 0.0f;
+        iosPad_s.aStickStale[1] = rm > 0.0f;
+        memcpy(iosPad_s.aPrev, iosPad_s.aDown, sizeof(iosPad_s.aPrev));
+        iosPad_s.rmPrev = rm;
+        return;
+    }
+    iosPad_s.bPhoto = 0;
+
     // Played with: the touch controls go
     int bActive = lm >= IOSPAD_ACTIVE_PUSH || rm >= IOSPAD_ACTIVE_PUSH || iosPad_s.lt >= IOSPAD_ACTIVE_PUSH || iosPad_s.rt >= IOSPAD_ACTIVE_PUSH;
     for (int i = 0; i < PB_NUM; i++) {
@@ -1003,7 +1027,7 @@ int iosPad_ReadGamepad(int idx, void* pSdlGamepad)
     if (!g) return 0;
     const int a0 = JK_JOYSTICK_AXIS_STRIDE * idx;
     const int bMine = idx == 0 && iosPad_s.padId && SDL_GetGamepadID(g) == iosPad_s.padId && iosPad_s.bGame;
-    const int bSuppress = bMine && (iosPad_s.bPanel || iosPad_s.wheelState >= IOSPAD_WS_HELD);
+    const int bSuppress = bMine && (iosPad_s.bPanel || iosPad_s.wheelState >= IOSPAD_WS_HELD || iosPad_s.bPhoto);
 
     // (as stdControl has always done: a pad's axes are read whether bound or not)
     stdControl_aAxisEnabled[idx] = 1;

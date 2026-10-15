@@ -143,6 +143,9 @@ int iosTouch_PadWheelHot(int* pbPickable);
 int iosTouch_PadWheelClose(int bSelect);
 // The saber wheel's choices (IOSPAD_CHIP_*)
 void iosTouch_PadSaberChip(int chip);
+// Whether a photo mode is up: a selfie, Action Freeze, the cinematic burst,
+// or iOS asking for Photos access (the pad leaves the game alone then)
+int iosTouch_IsPhotoModeUp(void);
 // The FPS readout (the tray's FPS), on or off
 int iosTouch_IsFpsShown(void);
 void iosTouch_SetFpsShown(int bShow);

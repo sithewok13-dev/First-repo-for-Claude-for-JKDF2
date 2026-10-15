@@ -40,7 +40,10 @@
 //       - the button bound to running (L3 by default): a click toggles
 //         running, until the move stick has rested for half a second.
 //     A button held while the game starts listening (back from a menu, a
-//     wheel closing) does nothing until it is let go.
+//     wheel closing) does nothing until it is let go. While a selfie, Action
+//     Freeze, the cinematic burst or the Photos access prompt is up
+//     (iosTouch_IsPhotoModeUp) the pad does nothing at all, as touches
+//     elsewhere than those modes' own controls do nothing then.
 //   - The touch controls hide while the pad is played and come back at a
 //     touch (which does nothing else) or when the pad goes; the gyro stops
 //     while they are hidden.
