@@ -33,10 +33,34 @@ older versions may refuse to start it).
    the browser): allow it, go back, tap **Install**.
 2. If Play Protect warns about an unknown app, choose to install anyway (it is
    a test build, not from the Play Store).
-3. A newer build installs over the old one and keeps your files, as long as it
-   was signed with the same key. If Android says the app "conflicts with an
-   existing package", the key changed: uninstall first (when asked, choose to
-   **keep the app's data**), then install.
+3. A newer build installs over the old one and keeps your files, as long as
+   both were signed with the same key. If Android says the app "conflicts with
+   an existing package" or "isn't compatible", the key changed. Then:
+   1. With the Files app (or a computer), copy the `jk1` and `mots` folders
+      (they hold your saves too) out of
+      `Android/data/org.openjkdf2.enhanced.jk/files/` to somewhere safe, such
+      as `Download/`.
+   2. Uninstall the app fully (if asked whether to keep its data, say **no**:
+      kept data still blocks the new key).
+   3. Install the new .apk, then copy `jk1` and `mots` back into that folder.
+
+### Keeping the key the same (once, for the owner)
+
+The builds are signed with a key kept in GitHub's build cache. GitHub forgets
+it after 7 days with no build, and the next build then has a new key (step 3
+above). To make the key permanent, store one as a repository secret:
+
+1. On a computer with Java, run:
+   `keytool -genkeypair -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"`
+   then `base64 -w0 debug.keystore > key.txt` (on a Mac: `base64 -i debug.keystore -o key.txt`).
+2. On GitHub: the repository > **Settings** > **Secrets and variables** >
+   **Actions** > **New repository secret**. Name: `ANDROID_DEBUG_KEYSTORE_B64`.
+   Value: the contents of `key.txt`. Save.
+3. Keep `debug.keystore` somewhere private and delete `key.txt`.
+
+(Or ask a Claude session to do this for you with the `gh` tool.) The first
+build after that has the new key, so do the copy-out / reinstall steps once.
+Every build after it installs over the last one.
 
 ## 3. Copy in your game files
 
