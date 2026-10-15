@@ -10,6 +10,7 @@
 #include "Win95/Window.h"
 #include "World/sithWorld.h"
 #include "Enhanced/iosGame.h"
+#include "Platform/platServices.h"
 
 extern GLint std3D_windowFbo;
 
@@ -109,7 +110,7 @@ static void iosCapture_Hand(unsigned char* pHud)
     // (the same count iosPhotos hands back to iosCapture_Done)
     iosCapture_bytesSaving += (long)iosCapture_w * iosCapture_h * 4 * ((pClean ? 1 : 0) + (pHud ? 1 : 0) + ((pHud && (kinds & IOSCAPTURE_HUDBTNS)) ? 1 : 0));
     if (iosCapture_bytesSaving > iosCapture_stats.peakBytes) iosCapture_stats.peakBytes = iosCapture_bytesSaving;
-    iosPhotos_SaveCapture(pClean, pHud, iosCapture_w, iosCapture_h, kinds, iosCapture_mode);
+    platServices_SavePhotos(pClean, pHud, iosCapture_w, iosCapture_h, kinds, iosCapture_mode);
 }
 
 // The window as drawn so far, RGBA with the top row first and fully opaque

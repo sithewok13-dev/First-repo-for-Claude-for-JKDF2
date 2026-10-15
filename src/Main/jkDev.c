@@ -37,10 +37,11 @@ static void jkDev_Custom_HostAddressTick(void); // Added
 #include "Dss/sithGamesave.h"
 #include "Dss/jkDSS.h"
 #include "../jk.h"
-#ifdef TARGET_IOS
-#include "Platform/iOS/iosSafeArea.h" // Added
+#ifdef JK_ENHANCED
+#include "Platform/platServices.h" // Added
 
-// Added: the top message text on iOS, relative to the HUD scale
+// Added: the top message text where the platform puts it (iOS: under the
+// touch overlay's top row), relative to the HUD scale
 #define JKDEV_IOS_TEXT_SCALE ((flex_t)1.33)
 #endif
 
@@ -405,12 +406,13 @@ void jkDev_BlitLogToScreenGPU()
 
     if (!jkDev_vbuf) return;
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     // Added: on iOS the lines go under the touch overlay's top button row, a
-    // third bigger than the rest of the HUD, wrapped between words
+    // third bigger than the rest of the HUD, wrapped between words (where the
+    // platform has a place of its own for them: platServices)
+    int textX, textY, textW;
+    if (platServices_GetTopTextRect(Video_format.width, Video_format.height, &textX, &textY, &textW))
     {
-        int textX, textY, textW;
-        iosSafeArea_GetTopTextRect(Video_format.width, Video_format.height, &textX, &textY, &textW);
         flex_t textScale = jkPlayer_hudScale * JKDEV_IOS_TEXT_SCALE;
         v1 = textY;
         v3 = &jkDev_aEntries[0];

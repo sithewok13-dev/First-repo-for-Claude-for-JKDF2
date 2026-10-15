@@ -6,7 +6,7 @@
 
 #include "Enhanced/iosFreeze.h"
 #include "Enhanced/iosCapture.h"
-#include "Platform/iOS/iosPhotos.h"
+#include "Platform/platServices.h"
 #include "Enhanced/iosGame.h"
 #include "Enhanced/iosPhotoCam.h"
 #include "World/sithThing.h"
@@ -426,7 +426,7 @@ int iosCinema_Start(double now)
     iosCinema_yawDone = iosCinema_pitchDone = 0.0f;
     iosCinema_tStart = iosCinema_tStage = iosCinema_tLast = now;
     iosCinema_state = IOSCINEMA_TAKING;
-    iosPhotos_SetBatch(1); // (one message for them all, numbered names)
+    platServices_SetPhotoBatch(1); // (one message for them all, numbered names)
     return IOSCINEMA_STARTED;
 }
 
@@ -499,7 +499,7 @@ void iosCinema_Stop(void)
     iosFreeze_End(); // (the game goes on from the same moment)
     // (the game held from the start to now, the last photo's showing too)
     iosCapture_NoteFreeze(iosCinema_tLast - iosCinema_tStart);
-    iosPhotos_SetBatch(0);
+    platServices_SetPhotoBatch(0);
 }
 
 int iosCinema_IsActive(void)

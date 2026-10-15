@@ -5,6 +5,7 @@
 // one (the world and the weapon in hand, before the HUD is drawn on top),
 // one with the HUD (everything the game draws), and that one again with the
 // touch overlay's buttons on top (added by iosPhotos, which saves them all).
+// They are handed over to be saved through platServices_SavePhotos.
 
 #ifdef JK_ENHANCED
 
@@ -72,11 +73,6 @@ void iosCapture_AfterScene(void);
 
 // std3D_DrawMenu: everything the game draws is in the window.
 void iosCapture_AfterHud(void);
-
-// iosPhotos.m: takes the images (RGBA, top row first, opaque, w x h pixels,
-// malloc'd, NULL if not taken; it frees them), adds the touch overlay for
-// IOSCAPTURE_HUDBTNS, saves the kinds asked for, then calls iosCapture_Done.
-void iosPhotos_SaveCapture(unsigned char* pClean, unsigned char* pHud, int w, int h, int kinds, int mode);
 
 #ifdef __cplusplus
 }
