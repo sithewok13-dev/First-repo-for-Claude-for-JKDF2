@@ -168,8 +168,9 @@ endif()
 
 # Establishes compile options, binary/library names, defines, etc
 plat_initialize()
-# (only where the platform had networking already: GameNetworkingSockets; iOS sets ENet itself)
-if(OPENJKDF2_NET_ENET AND TARGET_USE_GAMENETWORKINGSOCKETS)
+# (where the platform had networking already, GameNetworkingSockets, and on every desktop, whose
+# builds may leave that out: CI builds, MSVC; iOS sets ENet itself)
+if(OPENJKDF2_NET_ENET AND (TARGET_USE_GAMENETWORKINGSOCKETS OR PLAT_LINUX_32 OR PLAT_LINUX_64 OR PLAT_MACOS OR PLAT_MACOS_X86_64 OR PLAT_MINGW_X86_64 OR PLAT_MINGW_X86_32 OR PLAT_MSVC))
     set(TARGET_USE_GAMENETWORKINGSOCKETS FALSE)
     set(TARGET_USE_ENET TRUE)
 endif()
