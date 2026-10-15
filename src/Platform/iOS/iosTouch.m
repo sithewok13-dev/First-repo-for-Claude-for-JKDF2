@@ -24,6 +24,7 @@
 #include "Platform/iOS/iosCinema.h"
 #include "Platform/iOS/iosSaber.h"
 #include "Platform/iOS/iosPad.h"
+#include "Platform/iOS/iosPadPanel.h"
 
 extern SDL_Window* displayWindow;
 extern int stdControl_bControlsActive;
@@ -4984,9 +4985,20 @@ static void iosTouch_UpdateInPool(void)
         }
     }
 
-    // keep it on top of anything SDL adds later
-    if (iosTouch_pOverlay.superview && iosTouch_pOverlay.superview.subviews.lastObject != iosTouch_pOverlay) {
-        [iosTouch_pOverlay.superview bringSubviewToFront:iosTouch_pOverlay];
+    // keep it on top of anything SDL adds later -- but under a game
+    // controller's options, hold ring and prompts (iosPadPanel)
+    if (iosTouch_pOverlay.superview) {
+        UIView* top = nil;
+        for (UIView* v in [iosTouch_pOverlay.superview.subviews reverseObjectEnumerator]) {
+            if (!iosPadPanel_IsOwnView((__bridge const void*)v)) {
+                top = v;
+                break;
+            }
+        }
+        if (top != iosTouch_pOverlay) {
+            [iosTouch_pOverlay.superview bringSubviewToFront:iosTouch_pOverlay];
+            iosPadPanel_KeepOnTop();
+        }
     }
 
     if (bWant == iosTouch_pOverlay.hidden) {

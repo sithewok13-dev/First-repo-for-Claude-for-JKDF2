@@ -27,6 +27,11 @@ void iosPadPanel_HoldRing(int kind, float progress);
 // A line of button prompts along the bottom of the screen (NULL: none)
 void iosPadPanel_SetPrompt(const char* pText);
 
+// Whether a view is one of these (void*: a UIView*), and those shown put
+// back on top of the overlay (which keeps itself above what SDL adds)
+int iosPadPanel_IsOwnView(const void* pView);
+void iosPadPanel_KeepOnTop(void);
+
 // The settings, kept between launches
 int iosPadPanel_LoadInt(const char* pKey, int valDefault);
 void iosPadPanel_SaveInt(const char* pKey, int val);

@@ -57,6 +57,7 @@ static UIColor* iosPadPanel_Gold(CGFloat a)
     if (!self) return self;
     self.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.45];
     self.userInteractionEnabled = YES;
+    self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight; // (the phone turned round while it is up)
     card = [[UIView alloc] initWithFrame:CGRectZero];
     card.backgroundColor = [UIColor colorWithWhite:0.06 alpha:0.92];
     card.layer.cornerRadius = 16.0;
@@ -179,6 +180,21 @@ static void iosPadPanel_OnTop(UIView* v, UIView* host)
         [host addSubview:v];
     }
     if (host.subviews.lastObject != v) [host bringSubviewToFront:v];
+}
+
+int iosPadPanel_IsOwnView(const void* pView)
+{
+    return pView && (pView == (__bridge const void*)iosPadPanel_pPanel || pView == (__bridge const void*)iosPadPanel_pRing
+                     || pView == (__bridge const void*)iosPadPanel_pPrompt);
+}
+
+void iosPadPanel_KeepOnTop(void)
+{
+    UIView* aViews[3] = { iosPadPanel_pRing, iosPadPanel_pPrompt, iosPadPanel_pPanel };
+    for (int i = 0; i < 3; i++) {
+        UIView* v = aViews[i];
+        if (v && !v.hidden && v.superview) [v.superview bringSubviewToFront:v];
+    }
 }
 
 void iosPadPanel_Show(int bShow)

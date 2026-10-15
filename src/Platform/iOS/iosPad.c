@@ -155,6 +155,7 @@ static struct {
     unsigned char aPulseQueue[PB_NUM], aPulseReads[PB_NUM], aPulseGap[PB_NUM]; // taps for the game (as iosTouch's)
     float lx, ly, rx, ry;     // the sticks this frame, through the round dead zone (y down)
     float rmPrev;             // the right stick's push last frame
+    int aStickStale[2];       // the left, right stick: still pushed from a wheel or the options; nothing to the game until it rests
     float lt, rt;             // the triggers, 0..1
     int bGame;                // gameplay is listening
     int bHudHidden;           // the touch controls are hidden for the pad
@@ -441,6 +442,7 @@ static void iosPad_WheelClosed(void)
 {
     iosPad_WheelReset();
     iosPad_MarkAllStale();
+    iosPad_s.aStickStale[1] = 1; // (the stick that pointed doesn't turn the view on its way back)
 }
 
 // The right stick on the open wheel
@@ -542,6 +544,7 @@ static void iosPad_PanelOpen(int bOpen)
     iosPad_s.bPanelStickX = iosPad_s.bPanelStickY = 1; // (a stick already pushed waits to come back)
     iosGame_SetHoldReason(IOSGAME_HOLD_PADMENU, bOpen);
     iosPad_MarkAllStale();
+    iosPad_s.aStickStale[0] = iosPad_s.aStickStale[1] = 1;
     iosPadPanel_Show(bOpen);
     iosPadPanel_SetPrompt(NULL);
 }
@@ -664,7 +667,11 @@ static void iosPad_MenuTap(void)
 {
     // as MENU: the typing line closes if it is open, else the game menu
     if (jkHud_bChatOpen) iosGame_ToggleChat();
-    else iosPad_s.escFrames = IOSPAD_ESCAPE_FRAMES;
+    else {
+        // (down now, this frame's Window_SdlUpdate acts on it; let go after)
+        stdControl_bControllerEscapeKey = 1;
+        iosPad_s.escFrames = IOSPAD_ESCAPE_FRAMES - 1;
+    }
 }
 
 static void iosPad_StartInput(void)
@@ -830,6 +837,8 @@ void iosPad_Update(void)
     for (int i = 0; i < PB_NUM; i++) {
         if (!iosPad_s.aDown[i]) iosPad_s.aStale[i] = 0;
     }
+    if (lm == 0.0f) iosPad_s.aStickStale[0] = 0;
+    if (rm == 0.0f) iosPad_s.aStickStale[1] = 0;
 
     const int bGame = iosPad_IsGameplay();
     if (bGame != iosPad_s.bGame) {
@@ -887,6 +896,10 @@ void iosPad_Update(void)
         }
         else if (iosPad_s.wheelState == IOSPAD_WS_PENDING) {
             const int btn = iosPad_s.wheelBtn;
+            for (int i = 0; i < PB_NUM; i++) {
+                // (the other wheel's button meanwhile: nothing, as a second finger)
+                if (i != btn && iosPad_Pressed(i) && iosPad_WheelKindFor(i) >= 0) iosPad_s.aStale[i] = 1;
+            }
             if (!iosPad_s.aDown[btn]) {
                 // a tap: what the button is bound to (the next power, the next weapon)
                 iosPad_Pulse(btn);
@@ -989,7 +1002,7 @@ int iosPad_ReadGamepad(int idx, void* pSdlGamepad)
         const int axis = a0 + 2 * s;
         const float m = iosPad_Radial(SDL_GetGamepadAxis(g, s ? SDL_GAMEPAD_AXIS_RIGHTX : SDL_GAMEPAD_AXIS_LEFTX),
                                       SDL_GetGamepadAxis(g, s ? SDL_GAMEPAD_AXIS_RIGHTY : SDL_GAMEPAD_AXIS_LEFTY), &x, &y);
-        if (bSuppress) x = y = 0.0f;
+        if (bSuppress || (bMine && iosPad_s.aStickStale[s])) x = y = 0.0f;
         else if (bMine && m > 0.0f && iosPad_IsLookStick(axis)) {
             const float k = powf(m, iosPad_aCurve[iosPad_set.curve]) / m;
             x *= k * iosPad_aSens[iosPad_set.sensX] * iosPad_s.accelMult;
