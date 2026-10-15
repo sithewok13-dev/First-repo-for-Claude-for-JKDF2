@@ -890,8 +890,17 @@ void iosPad_Update(void)
     }
     iosPad_s.bPhoto = 0;
 
-    // Played with: the touch controls go
-    int bActive = lm >= IOSPAD_ACTIVE_PUSH || rm >= IOSPAD_ACTIVE_PUSH || iosPad_s.lt >= IOSPAD_ACTIVE_PUSH || iosPad_s.rt >= IOSPAD_ACTIVE_PUSH;
+    // Played with: the touch controls go. A stick or trigger counts when it is pushed past the mark,
+    // not while it stays there, so a touch that brings the controls back (iosPad_NoteTouch) isn't
+    // undone on the next frame by a stick still held
+    static int aPushed[4];
+    const float aLevel[4] = { lm, rm, iosPad_s.lt, iosPad_s.rt };
+    int bActive = 0;
+    for (int i = 0; i < 4; i++) {
+        const int bNow = aLevel[i] >= IOSPAD_ACTIVE_PUSH;
+        if (bNow && !aPushed[i]) bActive = 1;
+        aPushed[i] = bNow;
+    }
     for (int i = 0; i < PB_NUM; i++) {
         if (iosPad_Pressed(i)) bActive = 1;
     }
