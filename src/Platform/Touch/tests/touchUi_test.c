@@ -921,6 +921,23 @@ static void test_camera(void)
     CHECK(!touchUi_IsSelfieUp() && !strcmp(fg.lastMsg, "Still saving the last photo"));
     fg.selfieResult = 1;
 
+    g_case = "CAMERA half held, a wheel opened by another finger: no half-filled ring left, no selfie";
+    {
+        float wx, wy;
+        bxy(TOUCHUI_BTN_WHEEL, &wx, &wy);
+        down(5, cx, cy); wait(0.25);
+        CHECK(touchUi_GetRingProgress(TOUCHUI_BTN_CAMERA) > 0.4f);
+        down(6, wx, wy); move(6, wx + 12.0f, wy);
+        CHECK(touchUi_IsWheelOpen() && touchUi_GetRingProgress(TOUCHUI_BTN_CAMERA) == 0.0f);
+        wait(0.4);
+        CHECK(!touchUi_IsSelfieUp() && touchUi_GetRingProgress(TOUCHUI_BTN_CAMERA) == 0.0f);
+        up(5, cx, cy); up(6, wx + 12.0f, wy);
+        float pcx, pcy, r0, r1;
+        touchUi_GetWheelGeometry(&pcx, &pcy, &r0, &r1);
+        if (touchUi_IsWheelOpen()) { down(7, pcx, pcy + (r0 + r1) * 0.5f); up(7, pcx, pcy + (r0 + r1) * 0.5f); }
+        CHECK(!touchUi_IsWheelOpen());
+    }
+
     g_case = "CAMERA: slid 10 pt sideways: a burst, a clean shot every 0.2 s while the finger stays";
     int c0 = fg.captures;
     down(1, cx, cy);

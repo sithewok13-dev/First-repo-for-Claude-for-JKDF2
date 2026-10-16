@@ -40,6 +40,7 @@ extern int std3D_windowFbo;
 static int platServices_bBatch = 0;
 static int platServices_batchShot = 0;
 static int platServices_numSaved = 0, platServices_numFailed = 0;
+static int platServices_numInFiles = 0; // (Android: of the saved ones, how many went to the app's folder, not the gallery)
 static char platServices_dir[1024];
 static const char* platServices_dirShown = ""; // (said in the message)
 #ifdef TARGET_ANDROID
@@ -51,7 +52,6 @@ static const char* platServices_dirShown = ""; // (said in the message)
 static jclass platServicesAndroid_cls = NULL;
 static jmethodID platServicesAndroid_mid = NULL;
 static int platServicesAndroid_bLooked = 0;
-static volatile int platServicesAndroid_bToFiles = 0; // (a photo went to the app's folder: said in the message)
 #endif
 
 // The folder the photos go in (made the first time): Pictures/OpenJKDF2/, or
@@ -232,6 +232,9 @@ static void platServicesAndroid_Look(void)
 {
     if (platServicesAndroid_bLooked) return;
     platServicesAndroid_bLooked = 1;
+    // (below Android 10 the gallery would need a permission: never tried,
+    // so no photo is encoded for it in vain)
+    if (SDL_GetAndroidSDKVersion() < 29) return;
     JNIEnv* env = (JNIEnv*)SDL_GetAndroidJNIEnv();
     if (!env) return;
     jclass cls = (*env)->FindClass(env, "org/openjkdf2/app/PhotoSaver");
@@ -277,12 +280,16 @@ static int platServicesAndroid_ToGallery(const char* name, const unsigned char* 
 #endif
 
 // One image (RGBA, top row first) as <dir><name>.png (or, if that is taken,
-// <name>-2.png, -3...: no photo is ever written over); 1 if written
-static int platServices_WritePng(const char* name, const unsigned char* p, int w, int h)
+// <name>-2.png, -3...: no photo is ever written over); 1 if written (Android:
+// into the gallery if it can be; *pbInFiles: written to the folder instead)
+static int platServices_WritePng(const char* name, const unsigned char* p, int w, int h, int* pbInFiles)
 {
+    *pbInFiles = 1;
 #if defined(TARGET_ANDROID) && defined(TARGET_CAN_JKGM)
-    if (platServicesAndroid_ToGallery(name, p, w, h)) return 1;
-    platServicesAndroid_bToFiles = 1;
+    if (platServicesAndroid_ToGallery(name, p, w, h)) {
+        *pbInFiles = 0;
+        return 1;
+    }
 #endif
 #ifdef TARGET_CAN_JKGM
     const char* dir = platServices_PhotoDir();
@@ -313,6 +320,7 @@ typedef struct platServicesJob
     int w, h;
     int numFailed;   // (photos asked for and not taken: counted with the rest)
     int numSaved;
+    int numInFiles;  // (of those, how many went to the folder, not the gallery)
     long bytes;      // (held against the capture budget until handed back)
     uint64_t t0;
     struct platServicesJob* pNext;
@@ -341,7 +349,11 @@ static void platServices_Write(platServicesJob* pJob)
 {
     for (int i = 0; i < 3; i++) {
         if (!pJob->aName[i][0]) continue;
-        if (pJob->aImg[i] && platServices_WritePng(pJob->aName[i], pJob->aImg[i], pJob->w, pJob->h)) pJob->numSaved++;
+        int bInFiles = 0;
+        if (pJob->aImg[i] && platServices_WritePng(pJob->aName[i], pJob->aImg[i], pJob->w, pJob->h, &bInFiles)) {
+            pJob->numSaved++;
+            pJob->numInFiles += bInFiles;
+        }
         else pJob->numFailed++;
         free(pJob->aImg[i]);
         pJob->aImg[i] = NULL;
@@ -388,10 +400,16 @@ static void platServices_Report(void)
     int n = 0;
     msg[0] = 0;
 #ifdef TARGET_ANDROID
-    if (platServices_numSaved)
-        n += snprintf(msg + n, sizeof(msg) - n, "%d photo%s saved to %s", platServices_numSaved, platServices_numSaved == 1 ? "" : "s",
-                      platServicesAndroid_bToFiles ? "the app's Pictures/OpenJKDF2" : "Pictures/OpenJKDF2");
-    platServicesAndroid_bToFiles = 0;
+    {
+        // each place said with its own count: the gallery's Pictures/OpenJKDF2,
+        // and the app's own folder for any that couldn't go there
+        const int numGallery = platServices_numSaved - platServices_numInFiles;
+        if (numGallery > 0)
+            n += snprintf(msg + n, sizeof(msg) - n, "%d photo%s saved to Pictures/OpenJKDF2", numGallery, numGallery == 1 ? "" : "s");
+        if (platServices_numInFiles > 0 && n < (int)sizeof(msg))
+            n += snprintf(msg + n, sizeof(msg) - n, numGallery ? ", %d%s saved to the app's Pictures/OpenJKDF2" : "%d photo%s saved to the app's Pictures/OpenJKDF2",
+                          platServices_numInFiles, numGallery ? "" : (platServices_numInFiles == 1 ? "" : "s"));
+    }
 #else
     if (platServices_numSaved)
         n += snprintf(msg + n, sizeof(msg) - n, "%d photo%s saved to %s", platServices_numSaved, platServices_numSaved == 1 ? "" : "s",
@@ -400,13 +418,14 @@ static void platServices_Report(void)
     if (platServices_numFailed && n < (int)sizeof(msg))
         snprintf(msg + n, sizeof(msg) - n, "%s%d couldn't be saved", n ? ", " : "", platServices_numFailed);
     iosGame_ShowMessage(msg);
-    platServices_numSaved = platServices_numFailed = 0;
+    platServices_numSaved = platServices_numFailed = platServices_numInFiles = 0;
 }
 
 // A capture written: counted, and its images' memory given back to the capture
 static void platServices_Finish(platServicesJob* pJob)
 {
     platServices_numSaved += pJob->numSaved;
+    platServices_numInFiles += pJob->numInFiles;
     platServices_numFailed += pJob->numFailed;
     if (platServices_numPending > 0) platServices_numPending--;
     iosCapture_Done(pJob->bytes, (double)(SDL_GetTicksNS() - pJob->t0) * 1e-9);

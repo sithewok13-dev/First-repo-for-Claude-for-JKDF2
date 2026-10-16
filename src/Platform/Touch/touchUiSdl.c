@@ -45,6 +45,7 @@ static struct {
     double known;
     int bShown;
     int bEscWas;
+    int bPhotoModeWas; // (a selfie, Action Freeze or the cinematic burst up at the last frame)
     // the window, as last measured
     int pxW, pxH;
     float pxPerPt;   // pixels per point
@@ -326,6 +327,15 @@ void touchUiSdl_AfterEvents(void)
     touchUiSdl_RunSensors(touchUi_IsGyroWanted());
 
     touchUi_Tick(ts.known, now);
+
+    // A photo mode just ended: a mouse or trackpad moved meanwhile (the game
+    // held) doesn't turn the view now (iOS: showAfterPhotos)
+    const int bPhotoMode = touchUi_IsPhotoModeUp();
+    if (ts.bPhotoModeWas && !bPhotoMode) {
+        Window_lastXRel = 0;
+        Window_lastYRel = 0;
+    }
+    ts.bPhotoModeWas = bPhotoMode;
 
     int dx, dy, gx, gy;
     touchUi_TakeLook(&dx, &dy);

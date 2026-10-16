@@ -1934,6 +1934,7 @@ static void tu_OpenWheel(int kind, int button, int bTapMode)
         s->role = ROLE_IGNORED;
     }
     tu.aRing[BTN_QUICKSAVE] = tu.aRing[BTN_QUICKLOAD] = tu.aRing[BTN_MENU] = tu.aRing[BTN_TRAYCAM] = 0.0f;
+    tu.aRing[BTN_CAMERA] = tu.aRing[BTN_TRAYGYRO] = 0.0f; // (their fingers are ignored now: no half-filled ring left)
     tu.aRing[BTN_WHEEL] = tu.aRing[BTN_NEXTWPN] = tu.aRing[BTN_SABER] = 0.0f;
     // a tap on either wheel button not read yet would undo the pick
     tu.aPulseQueue[tu_aButtons[BTN_WHEEL].scancode] = 0;
