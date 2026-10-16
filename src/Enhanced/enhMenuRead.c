@@ -34,17 +34,16 @@ static const int enhMenuRead_aPadY[2] = { 2, 3 };
 // brighter bar.
 // The panel: the art under it this bright (out of 256)
 static const int enhMenuRead_aDarkLevel[2] = { 64, 22 };
-// Strong: the text this near-white, at least this bright (out of 256)
+// Strong: the text this near-white
 static const int enhMenuRead_aCream[3] = { 255, 244, 222 };
-#define ENHMENUREAD_STRONG_MIN 224
-// Text: coloured text goes to this pale gold, at least this bright (out of
-// 256), when the palette has it (Jedi Knight's has); else (Mysteries of the
-// Sith's, all purples) to a paler shade of its own colour, this much of the way
-// to white (out of 256). Text already bright (this bright and up: a list's
+// Text: coloured text goes to this pale gold, when the palette has it (Jedi
+// Knight's has); else (Mysteries of the Sith's, all purples) to a paler shade
+// of its own colour, this much of the way to white (out of 256). Either way
+// with the font's own shading kept. Text already bright (this bright and up: a list's
 // chosen row, yellow in Jedi Knight, white in Mysteries of the Sith) goes to
 // white, so it still stands apart.
 static const int enhMenuRead_aGold[3] = { 255, 214, 120 };
-#define ENHMENUREAD_TEXT_MIN 176
+#define ENHMENUREAD_BODY 200  // (a font colour this bright, any channel: its letters' middle, at full)
 #define ENHMENUREAD_PALER 150
 #define ENHMENUREAD_WHITE_LUM 170
 #define ENHMENUREAD_GOLD_NEAR 6000  // (how near the palette's nearest must be, as enhMenuRead_Dist)
@@ -83,6 +82,8 @@ static enhMenuReadBox enhMenuRead_aLive[ENHMENUREAD_MAX_LIVE];
 static int enhMenuRead_numLive = 0;
 static uint8_t enhMenuRead_aInk[ENHMENUREAD_W * ENHMENUREAD_H];   // differs from the art
 static uint8_t enhMenuRead_aArea[ENHMENUREAD_W * ENHMENUREAD_H];  // which effects apply
+static uint8_t enhMenuRead_aOutside[ENHMENUREAD_W * ENHMENUREAD_H]; // not inside a letter (an e's or an o's hole)
+static int32_t enhMenuRead_aQueue[ENHMENUREAD_W * ENHMENUREAD_H];
 #define AREA_PANEL 1
 #define AREA_TEXT  2
 #define AREA_BAR   4
@@ -152,23 +153,29 @@ static void enhMenuRead_MakeTables(void)
         }
         const int lum = (r * 77 + g * 151 + b * 28) >> 8;
         int hi = r > g ? r : g; hi = hi > b ? hi : b;
+        // (the fonts' letters are a bright middle shading to a dark edge, and
+        // the edge is what keeps the small holes in e, a, o, P... open: the
+        // new colour keeps that shading, a font's brightest at full)
+        const int t = hi >= ENHMENUREAD_BODY ? 256 : hi * 256 / ENHMENUREAD_BODY;
         if (lum >= ENHMENUREAD_WHITE_LUM) {
             enhMenuRead_aBright[1][i] = enhMenuRead_Nearest(255, 255, 255);
         }
         else {
-            const int v = ENHMENUREAD_STRONG_MIN + hi * (256 - ENHMENUREAD_STRONG_MIN) / 256;
-            enhMenuRead_aBright[1][i] = enhMenuRead_Nearest(enhMenuRead_aCream[0] * v / 256, enhMenuRead_aCream[1] * v / 256, enhMenuRead_aCream[2] * v / 256);
+            enhMenuRead_aBright[1][i] = enhMenuRead_Nearest(enhMenuRead_aCream[0] * t / 256, enhMenuRead_aCream[1] * t / 256, enhMenuRead_aCream[2] * t / 256);
         }
         if (lum >= ENHMENUREAD_WHITE_LUM) {
             enhMenuRead_aBright[0][i] = enhMenuRead_Nearest(255, 250, 235);
         }
         else if (!bGold) {
-            enhMenuRead_aBright[0][i] = enhMenuRead_Nearest(r + (255 - r) * ENHMENUREAD_PALER / 256, g + (255 - g) * ENHMENUREAD_PALER / 256,
-                                                         b + (255 - b) * ENHMENUREAD_PALER / 256);
+            // (its own colour at full brightness, paler)
+            const int n = hi ? hi : 1;
+            const int rn = r * 255 / n, gn = g * 255 / n, bn = b * 255 / n;
+            enhMenuRead_aBright[0][i] = enhMenuRead_Nearest((rn + (255 - rn) * ENHMENUREAD_PALER / 256) * t / 256,
+                                                            (gn + (255 - gn) * ENHMENUREAD_PALER / 256) * t / 256,
+                                                            (bn + (255 - bn) * ENHMENUREAD_PALER / 256) * t / 256);
         }
         else {
-            const int v = ENHMENUREAD_TEXT_MIN + hi * (256 - ENHMENUREAD_TEXT_MIN) / 256;
-            enhMenuRead_aBright[0][i] = enhMenuRead_Nearest(enhMenuRead_aGold[0] * v / 256, enhMenuRead_aGold[1] * v / 256, enhMenuRead_aGold[2] * v / 256);
+            enhMenuRead_aBright[0][i] = enhMenuRead_Nearest(enhMenuRead_aGold[0] * t / 256, enhMenuRead_aGold[1] * t / 256, enhMenuRead_aGold[2] * t / 256);
         }
     }
     enhMenuRead_outline = enhMenuRead_Nearest(0, 0, 0);
@@ -352,6 +359,45 @@ static const uint8_t* enhMenuRead_Make(jkGuiMenu* pMenu, const uint8_t* pSrc, in
             ink[x] = s[x] != a[x];
     }
     enhMenuRead_Areas(pMenu, k);
+
+    // What is outside the letters: reached, without crossing a letter (side
+    // to side or up and down), from where nothing is drawn within 2 pixels
+    // (more than any hole in the small fonts). The outline goes only there,
+    // so the holes inside letters are never filled.
+    {
+        // (nothing drawn within 2 side to side, then within 2 up and down)
+        for (int y = 0; y < ENHMENUREAD_H; y++) {
+            const uint8_t* ink = enhMenuRead_aInk + y * ENHMENUREAD_W;
+            uint8_t* o = enhMenuRead_aOutside + y * ENHMENUREAD_W;
+            for (int x = 0; x < ENHMENUREAD_W; x++) {
+                int bNear = 0;
+                for (int dx = -2; dx <= 2 && !bNear; dx++)
+                    if (x + dx >= 0 && x + dx < ENHMENUREAD_W && ink[x + dx]) bNear = 1;
+                o[x] = !bNear;
+            }
+        }
+        int n = 0;
+        for (int y = 0; y < ENHMENUREAD_H; y++)
+            for (int x = 0; x < ENHMENUREAD_W; x++) {
+                int bFar = 1;
+                for (int dy = -2; dy <= 2 && bFar; dy++)
+                    if (y + dy >= 0 && y + dy < ENHMENUREAD_H && !enhMenuRead_aOutside[(y + dy) * ENHMENUREAD_W + x]) bFar = 0;
+                if (bFar) enhMenuRead_aQueue[n++] = y * ENHMENUREAD_W + x;
+            }
+        memset(enhMenuRead_aOutside, 0, sizeof(enhMenuRead_aOutside));
+        for (int q = 0; q < n; q++) enhMenuRead_aOutside[enhMenuRead_aQueue[q]] = 1;
+        for (int q = 0; q < n; q++) {
+            const int i = enhMenuRead_aQueue[q], x = i % ENHMENUREAD_W, y = i / ENHMENUREAD_W;
+            const int an[4] = { x > 0 ? i - 1 : -1, x < ENHMENUREAD_W - 1 ? i + 1 : -1,
+                                y > 0 ? i - ENHMENUREAD_W : -1, y < ENHMENUREAD_H - 1 ? i + ENHMENUREAD_W : -1 };
+            for (int j = 0; j < 4; j++) {
+                const int m = an[j];
+                if (m < 0 || enhMenuRead_aOutside[m] || enhMenuRead_aInk[m]) continue;
+                enhMenuRead_aOutside[m] = 1;
+                enhMenuRead_aQueue[n++] = m;
+            }
+        }
+    }
     memcpy(enhMenuRead_aOut, pIn, sizeof(enhMenuRead_aOut));
 
     const int style = enhMenuRead_style;
@@ -370,7 +416,7 @@ static const uint8_t* enhMenuRead_Make(jkGuiMenu* pMenu, const uint8_t* pSrc, in
                 continue;
             }
             // The art: an outline round text, the chosen row's bar, a panel
-            if ((style & ENHMENUREAD_TEXT) && (f & AREA_TEXT)) {
+            if ((style & ENHMENUREAD_TEXT) && (f & AREA_TEXT) && enhMenuRead_aOutside[y * ENHMENUREAD_W + x]) {
                 int bNear = 0;
                 for (int dy = -1; dy <= 1 && !bNear; dy++) {
                     const int yy = y + dy;
