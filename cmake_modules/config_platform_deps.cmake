@@ -204,6 +204,13 @@ if(TARGET_USE_ENET)
     add_compile_definitions(PLATFORM_ENET)
 endif()
 
+# Added: experimental, the original game's DirectPlay (TCP/IP) as a third transport, next to ENet
+if(OPENJKDF2_NET_DPLAY AND TARGET_USE_ENET AND NOT WIN32)
+    file(GLOB TARGET_DPLAY_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/DPlay/*.c)
+    list(APPEND ENGINE_SOURCE_FILES ${TARGET_DPLAY_SRCS})
+    add_compile_definitions(PLATFORM_DPLAY)
+endif()
+
 if(TARGET_USE_BASICSOCKETS)
     file(GLOB TARGET_BASIC_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/Basic/*.c)
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_BASIC_SRCS})

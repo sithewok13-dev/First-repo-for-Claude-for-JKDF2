@@ -7,6 +7,9 @@
 #ifdef STDCOMM_TRANSPORTS
 
 #include "Win95/stdComm.h"
+#ifdef PLATFORM_DPLAY
+#include "Platform/Networking/DPlay/stdComm_DPlay.h"
+#endif
 #include "Dss/sithMulti.h"
 #include "General/stdString.h"
 #include "stdPlatform.h"
@@ -27,6 +30,11 @@ static const stdCommTransport* const stdCommTransport_apAll[STDCOMM_TRANSPORT_NU
 #endif
 #ifdef PLATFORM_GNS
     &stdComm_GNS_transport,
+#else
+    NULL,
+#endif
+#ifdef PLATFORM_DPLAY
+    &stdComm_DPlay_transport,
 #else
     NULL,
 #endif
@@ -77,7 +85,7 @@ int stdCommTransport_GetActiveKind(void)
 int stdCommTransport_IsClassic(void)
 {
 #ifdef PLATFORM_ENET
-    return stdCommTransport_activeKind == STDCOMM_TRANSPORT_GNS;
+    return stdCommTransport_activeKind == STDCOMM_TRANSPORT_GNS || stdCommTransport_activeKind == STDCOMM_TRANSPORT_DPLAY;
 #else
     return 0;
 #endif
@@ -87,7 +95,7 @@ int stdCommTransport_CanJoin(int kind, const jkMultiEntry* pEntry, const char** 
 {
     if (ppWhyKey) *ppWhyKey = NULL;
     // (co-op over a classic host: its co-op isn't this port's, and this port's isn't its)
-    if (stdCommTransport_apAll[STDCOMM_TRANSPORT_ENET] && kind == STDCOMM_TRANSPORT_GNS && pEntry && (pEntry->multiModeFlags & MULTIMODEFLAG_COOP)) {
+    if (stdCommTransport_apAll[STDCOMM_TRANSPORT_ENET] && (kind == STDCOMM_TRANSPORT_GNS || kind == STDCOMM_TRANSPORT_DPLAY) && pEntry && (pEntry->multiModeFlags & MULTIMODEFLAG_COOP)) {
         if (ppWhyKey) *ppWhyKey = "GUIEXT_MP_ERR_CLASSIC_COOP";
         return 0;
     }
@@ -391,17 +399,26 @@ void DirectPlay_Close()
 {
 }
 
-// Hosting: over the default transport (ENet)
+// Hosting: over the default transport (ENet), or DirectPlay (-dplayHost)
+static int stdCommTransport_HostKind(void)
+{
+#ifdef PLATFORM_DPLAY
+    if (stdComm_DPlay_bHostOverDPlay) return STDCOMM_TRANSPORT_DPLAY;
+#endif
+    return STDCOMM_TRANSPORT_DEFAULT;
+}
+
 int DirectPlay_OpenHost(jkMultiEntry* pEntry)
 {
-    const int r = stdCommTransport_Get(STDCOMM_TRANSPORT_DEFAULT)->OpenHost(pEntry);
-    if (!r) stdCommTransport_activeKind = STDCOMM_TRANSPORT_DEFAULT;
+    const int kind = stdCommTransport_HostKind();
+    const int r = stdCommTransport_Get(kind)->OpenHost(pEntry);
+    if (!r) stdCommTransport_activeKind = kind;
     return r;
 }
 
 int DirectPlay_GetSession_passwordidk(jkMultiEntry* pEntry)
 {
-    stdCommTransport_Get(STDCOMM_TRANSPORT_DEFAULT)->SetSession(pEntry);
+    stdCommTransport_Get(stdCommTransport_HostKind())->SetSession(pEntry);
     return 1;
 }
 

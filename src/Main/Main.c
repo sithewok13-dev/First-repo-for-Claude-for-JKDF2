@@ -4,6 +4,9 @@
 #include "stdPlatform.h"
 #include "Cog/jkCog.h"
 #include "Gui/jkGUINetHost.h"
+#ifdef PLATFORM_DPLAY
+#include "Platform/Networking/DPlay/stdComm_DPlay.h" // Added
+#endif
 #include "Gui/jkGUISound.h"
 #include "Gui/jkGUIMultiplayer.h"
 #include "Gui/jkGUISetup.h"
@@ -817,6 +820,13 @@ void Main_ParseCmdLine(char *cmdline)
             char* pArgNext = _strtok(0, " \t");
             if (pArgNext) stdString_SafeStrCopy(Main_strJoinPassword, pArgNext, sizeof(Main_strJoinPassword));
         }
+#ifdef PLATFORM_DPLAY
+        else if (!__strcmpi(pArgTok, "-dplayHost") || !__strcmpi(pArgTok, "/dplayHost") )
+        {
+            // Added: host over DirectPlay (the original game's), for it to join (experimental)
+            stdComm_DPlay_bHostOverDPlay = 1;
+        }
+#endif
         else if (!__strcmpi(pArgTok, "-headless") || !__strcmpi(pArgTok, "/headless") )
         {
             Main_bHeadless = 1;

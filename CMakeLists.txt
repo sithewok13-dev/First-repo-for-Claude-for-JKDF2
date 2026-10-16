@@ -61,6 +61,10 @@ option(OPENJKDF2_NET_ENET "Multiplayer over ENet (as on iOS)" ON)
 # by packaging/ios/build_gns_deps.sh into the program instead (the only way on iOS, where setting it
 # is what turns GNS on).
 option(OPENJKDF2_NET_GNS "Also join upstream OpenJKDF2 games (GameNetworkingSockets, next to ENet)" OFF)
+# Added: and, experimental, DirectPlay over TCP/IP (OPENJKDF2_NET_DPLAY), the original 1997 game's own
+# multiplayer, spoken directly: joining a game the original hosts, and hosting one it can join
+# (-dplayHost). Next to ENet; not on Windows yet (src/Platform/Networking/DPlay).
+option(OPENJKDF2_NET_DPLAY "Also join and host games of the original game over DirectPlay TCP/IP (experimental)" OFF)
 set(OPENJKDF2_GNS_PREBUILT "" CACHE PATH "GameNetworkingSockets built by packaging/ios/build_gns_deps.sh: linked in")
 set(TARGET_USE_LIBSMACKER FALSE)
 set(TARGET_USE_LIBSMUSHER FALSE)
