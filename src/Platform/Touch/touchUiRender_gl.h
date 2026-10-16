@@ -21,6 +21,11 @@ void touchUiRender_Draw(const touchUiDrawList* pList, unsigned int fbo, int pxW,
 // comes next -- even one at the same address
 void touchUiRender_ContextLost(void);
 
+// What framebuffer fbo holds now, w x h from its bottom left: RGBA, the top
+// row first, fully opaque, malloc'd (NULL if it couldn't be read) -- the
+// camera's HUD+BTNS photo, read after the overlay is drawn
+unsigned char* touchUiRender_ReadRGBA(unsigned int fbo, int w, int h);
+
 #ifdef __cplusplus
 }
 #endif

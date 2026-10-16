@@ -45,6 +45,9 @@
 #include "Platform/iOS/iosPad.h" // Added: game controllers (iOS)
 #include "Platform/iOS/iosKbMouse.h" // Added: keyboard and mouse (iOS)
 #include "Platform/Input/inputOverlay.h" // Added: the enhanced input's screen (desktops, Android)
+#ifdef TOUCHUI_ENABLED
+#include "Platform/Touch/touchUiSdl.h" // Added: on-screen touch controls (Android)
+#endif
 
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosAngle.h"
@@ -838,6 +841,9 @@ void Window_SdlUpdate()
     // Added: the enhanced gameplay's photo modes go on
     enh_Tick();
 #endif
+#ifdef TOUCHUI_ENABLED
+    touchUiSdl_BeforeEvents(); // Added: the touch overlay: when this frame's events start
+#endif
 
     while (SDL_PollEvent(&event))
     {
@@ -859,6 +865,12 @@ void Window_SdlUpdate()
 #endif
 #ifdef IOSPAD_ENABLED
         iosPad_HandleEvent(&event); // Added
+#endif
+#ifdef TOUCHUI_ENABLED
+        // Added: fingers, the gyro, and other input in use; a finger's mouse
+        // click is the touch controls' while they are up, not the game's
+        if (touchUiSdl_HandleEvent(&event))
+            continue;
 #endif
 #ifdef IOSKBM_ENABLED
         if (iosKbMouse_HandleEvent(&event)) continue; // Added: the keyboard's and mouse's own (a wheel's pointing...)
@@ -1069,7 +1081,7 @@ void Window_SdlUpdate()
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
             case SDL_EVENT_MOUSE_BUTTON_UP:
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
                 // Added: a tap skips the cutscene (there is no Escape key on a phone)
                 if (jkCutscene_isRendering) {
                     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
@@ -1235,6 +1247,11 @@ void Window_SdlUpdate()
     // Added: gyro aiming, now that this frame's touches are in
     iosTouch_UpdateGyro();
 #endif
+#ifdef TOUCHUI_ENABLED
+    // Added: the touch overlay shown or hidden, its holds, its look movement
+    // and the gyro's, now that this frame's touches are in
+    touchUiSdl_AfterEvents();
+#endif
 
     // HACK: Escape key for controllers
     if (stdControl_bControllerEscapeKey && !stdControl_bControllerEscapeKey_last) {
@@ -1391,6 +1408,10 @@ void Window_SdlVblank()
 
     //static uint32_t roundtrip = 0;
     //uint32_t before = stdPlatform_GetTimeMsec();
+#ifdef TOUCHUI_ENABLED
+    touchUiSdl_Render(); // Added: the touch overlay, over the game and its HUD
+#endif
+
 #ifdef ARCH_WASM
     if (!jkGuiBuildMulti_bRendering)
 #endif
@@ -1440,6 +1461,9 @@ void Window_RecreateSDL2Window()
     Window_needsRecreate = 0;
 
     if (displayWindow) {
+#ifdef TOUCHUI_ENABLED
+        touchUiSdl_ContextLost(); // Added: the touch controls' GL objects go with the context
+#endif
         std3D_FreeResources();
 #ifdef ENH_INPUT
         inputOverlay_ContextLost(); // Added: the enhanced input's GL objects go with the context

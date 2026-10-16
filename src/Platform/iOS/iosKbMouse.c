@@ -648,7 +648,16 @@ int iosKbMouse_HandleEvent(void* pSdlEvent)
         // (a new press only, never a key still held -- its repeats neither --
         // so a touch's showing the controls again isn't undone; typing, the
         // on-screen keyboard's keys among them, isn't playing)
+#ifdef TARGET_IOS
         if (!e->key.repeat && !bTyping && !iosKbMouse_IsPointerFree()) iosKbMouse_s.bActive = 1;
+#else
+        // (the phone's own keys -- Android's Back, the volume, media and
+        // power keys -- aren't a keyboard being played)
+        const int bDeviceKey = sc == SDL_SCANCODE_AC_BACK || sc == SDL_SCANCODE_VOLUMEUP || sc == SDL_SCANCODE_VOLUMEDOWN
+                               || sc == SDL_SCANCODE_MUTE || sc == SDL_SCANCODE_MEDIA_PLAY || sc == SDL_SCANCODE_MEDIA_PAUSE
+                               || sc == SDL_SCANCODE_MEDIA_PLAY_PAUSE || sc == SDL_SCANCODE_POWER || sc == SDL_SCANCODE_UNKNOWN;
+        if (!e->key.repeat && !bTyping && !bDeviceKey && !iosKbMouse_IsPointerFree()) iosKbMouse_s.bActive = 1;
+#endif
         if (sc == SDL_SCANCODE_ESCAPE || bCmdDot) {
             if (iosKbMouse_s.wheelState >= IOSKBM_WS_HELD) {
                 // Escape on the keyboard's wheel: it closes, nothing picked (not the menu)

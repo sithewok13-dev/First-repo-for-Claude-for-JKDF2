@@ -3,7 +3,9 @@
 // PNG files in the user's Pictures folder, in OpenJKDF2/, named as the iOS
 // apps name them, written on a thread of their own (one at a time, in order)
 // and handed back to the capture once a frame (platServices_Tick); no
-// haptics; no HUD margins; the game's own message text.
+// haptics; no HUD margins; the game's own message text. With the touch
+// overlay (TOUCHUI_ENABLED: Android, and the Linux test rig) its haptics, the
+// iOS safe-area margins and the message text under its top row.
 
 #if defined(JK_ENHANCED) && !defined(TARGET_IOS)
 
@@ -22,17 +24,54 @@
 #include <png.h>
 #endif
 
+#ifdef TOUCHUI_ENABLED
+#include "Platform/Touch/touchUi.h"
+#include "Platform/Touch/touchUiSdl.h"
+#include "Platform/Touch/touchUiRender_gl.h"
+#include "Platform/iOS/iosSafeArea.h"
+extern int std3D_windowFbo;
+#endif
+
+#ifdef TARGET_ANDROID
+#include <jni.h>
+#include <SDL3/SDL_system.h>
+#endif
+
 static int platServices_bBatch = 0;
 static int platServices_batchShot = 0;
 static int platServices_numSaved = 0, platServices_numFailed = 0;
+static int platServices_numInFiles = 0; // (Android: of the saved ones, how many went to the app's folder, not the gallery)
 static char platServices_dir[1024];
 static const char* platServices_dirShown = ""; // (said in the message)
+#ifdef TARGET_ANDROID
+// Android: the photos go to the device's gallery (MediaStore, Pictures/
+// OpenJKDF2) through org.openjkdf2.app.PhotoSaver; where that can't be done
+// (Android 9 and older, which would need a permission; the class missing; any
+// error), to the app's own Pictures folder instead (its external files,
+// Android/data/<app>/files/Pictures/OpenJKDF2, which needs none)
+static jclass platServicesAndroid_cls = NULL;
+static jmethodID platServicesAndroid_mid = NULL;
+static int platServicesAndroid_bLooked = 0;
+#endif
 
 // The folder the photos go in (made the first time): Pictures/OpenJKDF2/, or
 // photos/ next to the game if there is no Pictures folder
 static const char* platServices_PhotoDir(void)
 {
     if (platServices_dir[0]) return platServices_dir;
+#ifdef TARGET_ANDROID
+    {
+        const char* ext = SDL_GetAndroidExternalStoragePath();
+        if (ext && ext[0]) {
+            snprintf(platServices_dir, sizeof(platServices_dir), "%s/Pictures/", ext);
+            SDL_CreateDirectory(platServices_dir);
+            snprintf(platServices_dir, sizeof(platServices_dir), "%s/Pictures/OpenJKDF2/", ext);
+            platServices_dirShown = "Pictures/OpenJKDF2";
+            SDL_CreateDirectory(platServices_dir);
+            return platServices_dir;
+        }
+    }
+#endif
     const char* pics = SDL_GetUserFolder(SDL_FOLDER_PICTURES);
     if (pics && pics[0]) {
         snprintf(platServices_dir, sizeof(platServices_dir), "%sOpenJKDF2/", pics);
@@ -132,10 +171,126 @@ static int platServices_PngToFile(const char* path, const unsigned char* p, int 
 }
 #endif
 
-// One image (RGBA, top row first) as <dir><name>.png (or, if that is taken,
-// <name>-2.png, -3...: no photo is ever written over); 1 if written
-static int platServices_WritePng(const char* name, const unsigned char* p, int w, int h)
+#if defined(TARGET_ANDROID) && defined(TARGET_CAN_JKGM)
+typedef struct { unsigned char* p; size_t len, cap; int bFailed; } platServicesMem;
+
+static void platServices_PngMemWrite(png_structp png, png_bytep data, size_t len)
 {
+    platServicesMem* m = (platServicesMem*)png_get_io_ptr(png);
+    if (m->len + len > m->cap) {
+        size_t cap = m->cap ? m->cap * 2 : 1 << 20;
+        while (cap < m->len + len) cap *= 2;
+        unsigned char* q = (unsigned char*)realloc(m->p, cap);
+        if (!q) png_error(png, "out of memory");
+        m->p = q;
+        m->cap = cap;
+    }
+    memcpy(m->p + m->len, data, len);
+    m->len += len;
+}
+
+// The image as a PNG in memory (malloc'd, *pLen bytes), NULL on any error
+static unsigned char* platServices_PngToMem(const unsigned char* p, int w, int h, size_t* pLen)
+{
+    platServicesMem m = { NULL, 0, 0, 0 };
+    png_bytep row = (png_bytep)malloc((size_t)w * 3);
+    png_structp png = row ? png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL) : NULL;
+    png_infop info = png ? png_create_info_struct(png) : NULL;
+    if (!info) {
+        if (png) png_destroy_write_struct(&png, NULL);
+        free(row);
+        return NULL;
+    }
+    if (setjmp(png_jmpbuf(png))) {
+        png_destroy_write_struct(&png, &info);
+        free(row);
+        free(m.p);
+        return NULL;
+    }
+    png_set_write_fn(png, &m, platServices_PngMemWrite, platServices_PngFlush);
+    png_set_IHDR(png, info, (png_uint_32)w, (png_uint_32)h, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_write_info(png, info);
+    for (int y = 0; y < h; y++) {
+        const unsigned char* src = p + (size_t)y * w * 4;
+        for (int x = 0; x < w; x++) {
+            row[x * 3 + 0] = src[x * 4 + 0];
+            row[x * 3 + 1] = src[x * 4 + 1];
+            row[x * 3 + 2] = src[x * 4 + 2];
+        }
+        png_write_row(png, row);
+    }
+    png_write_end(png, NULL);
+    png_destroy_write_struct(&png, &info);
+    free(row);
+    *pLen = m.len;
+    return m.p;
+}
+
+// On the game's thread (which can see the app's classes): PhotoSaver found, once
+static void platServicesAndroid_Look(void)
+{
+    if (platServicesAndroid_bLooked) return;
+    platServicesAndroid_bLooked = 1;
+    // (below Android 10 the gallery would need a permission: never tried,
+    // so no photo is encoded for it in vain)
+    if (SDL_GetAndroidSDKVersion() < 29) return;
+    JNIEnv* env = (JNIEnv*)SDL_GetAndroidJNIEnv();
+    if (!env) return;
+    jclass cls = (*env)->FindClass(env, "org/openjkdf2/app/PhotoSaver");
+    if (cls && !(*env)->ExceptionCheck(env)) {
+        platServicesAndroid_cls = (jclass)(*env)->NewGlobalRef(env, cls);
+        platServicesAndroid_mid = (*env)->GetStaticMethodID(env, platServicesAndroid_cls, "savePng", "(Landroid/content/Context;[BLjava/lang/String;)Z");
+    }
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        platServicesAndroid_mid = NULL;
+    }
+    if (cls) (*env)->DeleteLocalRef(env, cls);
+}
+
+// The image into the gallery (MediaStore: Pictures/OpenJKDF2/<name>.png); 1
+// if it is there. On the writing thread (SDL attaches it to the VM).
+static int platServicesAndroid_ToGallery(const char* name, const unsigned char* p, int w, int h)
+{
+    if (!platServicesAndroid_mid) return 0;
+    JNIEnv* env = (JNIEnv*)SDL_GetAndroidJNIEnv();
+    if (!env) return 0;
+    size_t len = 0;
+    unsigned char* png = platServices_PngToMem(p, w, h, &len);
+    if (!png) return 0;
+    int bOk = 0;
+    jobject activity = (jobject)SDL_GetAndroidActivity();
+    jbyteArray arr = activity ? (*env)->NewByteArray(env, (jsize)len) : NULL;
+    jstring jname = arr ? (*env)->NewStringUTF(env, name) : NULL;
+    if (jname) {
+        (*env)->SetByteArrayRegion(env, arr, 0, (jsize)len, (const jbyte*)png);
+        bOk = (*env)->CallStaticBooleanMethod(env, platServicesAndroid_cls, platServicesAndroid_mid, activity, arr, jname) ? 1 : 0;
+    }
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        bOk = 0;
+    }
+    if (jname) (*env)->DeleteLocalRef(env, jname);
+    if (arr) (*env)->DeleteLocalRef(env, arr);
+    if (activity) (*env)->DeleteLocalRef(env, activity);
+    free(png);
+    return bOk;
+}
+#endif
+
+// One image (RGBA, top row first) as <dir><name>.png (or, if that is taken,
+// <name>-2.png, -3...: no photo is ever written over); 1 if written (Android:
+// into the gallery if it can be; *pbInFiles: written to the folder instead)
+static int platServices_WritePng(const char* name, const unsigned char* p, int w, int h, int* pbInFiles)
+{
+    *pbInFiles = 1;
+#if defined(TARGET_ANDROID) && defined(TARGET_CAN_JKGM)
+    if (platServicesAndroid_ToGallery(name, p, w, h)) {
+        *pbInFiles = 0;
+        return 1;
+    }
+#endif
 #ifdef TARGET_CAN_JKGM
     const char* dir = platServices_PhotoDir();
     SDL_CreateDirectory(dir); // (again each time: it may have been removed meanwhile)
@@ -160,11 +315,12 @@ static int platServices_WritePng(const char* name, const unsigned char* p, int w
 // One capture to write: its images (malloc'd, freed once written) and names
 typedef struct platServicesJob
 {
-    unsigned char* aImg[2];
-    char aName[2][128];
+    unsigned char* aImg[3];  // (clean, HUD, and with the touch overlay HUD+BTNS)
+    char aName[3][128];
     int w, h;
     int numFailed;   // (photos asked for and not taken: counted with the rest)
     int numSaved;
+    int numInFiles;  // (of those, how many went to the folder, not the gallery)
     long bytes;      // (held against the capture budget until handed back)
     uint64_t t0;
     struct platServicesJob* pNext;
@@ -177,6 +333,10 @@ static platServicesJob* platServices_pTodo = NULL;  // (oldest first)
 static platServicesJob* platServices_pDone = NULL;  // (oldest first)
 static int platServices_numPending = 0;             // handed over, not handed back yet
 static int platServices_bWriting = 0;               // (the thread is writing one)
+#ifdef TOUCHUI_ENABLED
+static platServicesJob* platServicesTouch_pWaiting = NULL; // (its HUD+BTNS photo waits for the overlay to be drawn)
+#endif
+static void platServices_Hand(platServicesJob* pJob);
 
 static void platServices_Append(platServicesJob** ppList, platServicesJob* pJob)
 {
@@ -187,9 +347,13 @@ static void platServices_Append(platServicesJob** ppList, platServicesJob* pJob)
 
 static void platServices_Write(platServicesJob* pJob)
 {
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 3; i++) {
         if (!pJob->aName[i][0]) continue;
-        if (pJob->aImg[i] && platServices_WritePng(pJob->aName[i], pJob->aImg[i], pJob->w, pJob->h)) pJob->numSaved++;
+        int bInFiles = 0;
+        if (pJob->aImg[i] && platServices_WritePng(pJob->aName[i], pJob->aImg[i], pJob->w, pJob->h, &bInFiles)) {
+            pJob->numSaved++;
+            pJob->numInFiles += bInFiles;
+        }
         else pJob->numFailed++;
         free(pJob->aImg[i]);
         pJob->aImg[i] = NULL;
@@ -235,19 +399,33 @@ static void platServices_Report(void)
     if (platServices_bBatch || platServices_numPending > 0 || (!platServices_numSaved && !platServices_numFailed)) return;
     int n = 0;
     msg[0] = 0;
+#ifdef TARGET_ANDROID
+    {
+        // each place said with its own count: the gallery's Pictures/OpenJKDF2,
+        // and the app's own folder for any that couldn't go there
+        const int numGallery = platServices_numSaved - platServices_numInFiles;
+        if (numGallery > 0)
+            n += snprintf(msg + n, sizeof(msg) - n, "%d photo%s saved to Pictures/OpenJKDF2", numGallery, numGallery == 1 ? "" : "s");
+        if (platServices_numInFiles > 0 && n < (int)sizeof(msg))
+            n += snprintf(msg + n, sizeof(msg) - n, numGallery ? ", %d%s saved to the app's Pictures/OpenJKDF2" : "%d photo%s saved to the app's Pictures/OpenJKDF2",
+                          platServices_numInFiles, numGallery ? "" : (platServices_numInFiles == 1 ? "" : "s"));
+    }
+#else
     if (platServices_numSaved)
         n += snprintf(msg + n, sizeof(msg) - n, "%d photo%s saved to %s", platServices_numSaved, platServices_numSaved == 1 ? "" : "s",
                       platServices_dirShown);
+#endif
     if (platServices_numFailed && n < (int)sizeof(msg))
         snprintf(msg + n, sizeof(msg) - n, "%s%d couldn't be saved", n ? ", " : "", platServices_numFailed);
     iosGame_ShowMessage(msg);
-    platServices_numSaved = platServices_numFailed = 0;
+    platServices_numSaved = platServices_numFailed = platServices_numInFiles = 0;
 }
 
 // A capture written: counted, and its images' memory given back to the capture
 static void platServices_Finish(platServicesJob* pJob)
 {
     platServices_numSaved += pJob->numSaved;
+    platServices_numInFiles += pJob->numInFiles;
     platServices_numFailed += pJob->numFailed;
     if (platServices_numPending > 0) platServices_numPending--;
     iosCapture_Done(pJob->bytes, (double)(SDL_GetTicksNS() - pJob->t0) * 1e-9);
@@ -284,11 +462,20 @@ void platServices_SavePhotos(unsigned char* pClean, unsigned char* pHud, int w, 
         iosCapture_Done((long)w * h * 4 * ((pClean ? 1 : 0) + (pHud ? 1 : 0)), 0.0);
         return;
     }
-    pJob->bytes = (long)w * h * 4 * ((pClean ? 1 : 0) + (pHud ? 1 : 0));
+    // (as iosCapture counts it: HUD+BTNS is a third image)
+    pJob->bytes = (long)w * h * 4 * ((pClean ? 1 : 0) + (pHud ? 1 : 0) + ((pHud && (kinds & IOSCAPTURE_HUDBTNS)) ? 1 : 0));
     pJob->w = w;
     pJob->h = h;
     pJob->t0 = SDL_GetTicksNS();
     platServices_PhotoDir(); // (found here, on the game's thread)
+#if defined(TARGET_ANDROID) && defined(TARGET_CAN_JKGM)
+    platServicesAndroid_Look();
+#endif
+#ifdef TOUCHUI_ENABLED
+    // (the flash and the tap: this frame is the photo -- once the buttons are
+    // read back, if they are wanted, so it isn't in it)
+    if (!((kinds & IOSCAPTURE_HUDBTNS) && pHud)) touchUi_CameraFeedback(mode);
+#endif
     char base[96];
     platServices_BaseName(base, sizeof(base));
     // (numbered: each shot of a burst, each of several selfies)
@@ -302,15 +489,42 @@ void platServices_SavePhotos(unsigned char* pClean, unsigned char* pHud, int w, 
         pJob->aImg[0] = pClean;
         pClean = NULL;
     }
+#ifdef TOUCHUI_ENABLED
+    // With the touch overlay: the HUD photo if asked for, and HUD+BTNS read
+    // back once the overlay is drawn over this frame (platServicesTouch_OverlayDrawn)
+    // (the HUD frame was read: the overlay comes next over the same frame)
+    const int bWaitBtns = (kinds & IOSCAPTURE_HUDBTNS) && pHud;
+    if (kinds & IOSCAPTURE_HUDBTNS) snprintf(pJob->aName[2], sizeof(pJob->aName[2]), "%s hud+buttons", base);
+    if (kinds & IOSCAPTURE_HUD) {
+        snprintf(pJob->aName[1], sizeof(pJob->aName[1]), "%s hud", base);
+        pJob->aImg[1] = pHud;
+        pHud = NULL;
+    }
+#else
     // (no on-screen buttons here: the HUD photo stands for both)
     if (kinds & (IOSCAPTURE_HUD | IOSCAPTURE_HUDBTNS)) {
         snprintf(pJob->aName[1], sizeof(pJob->aName[1]), "%s hud", base);
         pJob->aImg[1] = pHud;
         pHud = NULL;
     }
+#endif
     free(pClean); // (taken but not asked for)
     free(pHud);
     platServices_numPending++;
+#ifdef TOUCHUI_ENABLED
+    if (bWaitBtns) {
+        // (one at a time: a capture waits for the last to be handed over)
+        if (platServicesTouch_pWaiting) platServices_Hand(platServicesTouch_pWaiting);
+        platServicesTouch_pWaiting = pJob;
+        return;
+    }
+#endif
+    platServices_Hand(pJob);
+}
+
+// A capture's photos to be written (on the thread, or here if it can't run)
+static void platServices_Hand(platServicesJob* pJob)
+{
     if (!platServices_pLock) {
         platServices_pLock = SDL_CreateMutex();
         platServices_pWake = SDL_CreateCondition();
@@ -333,16 +547,39 @@ void platServices_SavePhotos(unsigned char* pClean, unsigned char* pHud, int w, 
 
 void platServices_PhotoModeEnded(int mode)
 {
+#ifdef TOUCHUI_ENABLED
+    touchUi_PhotoModeEnded(mode); // (its buttons back)
+#endif
     (void)mode;
 }
 
+#ifdef TOUCHUI_ENABLED
+void platServicesTouch_OverlayDrawn(int bDrawn)
+{
+    platServicesJob* pJob = platServicesTouch_pWaiting;
+    if (!pJob) return;
+    platServicesTouch_pWaiting = NULL;
+    // (the frame the HUD photo is of, the buttons over it; not drawn: none taken)
+    if (bDrawn) pJob->aImg[2] = touchUiRender_ReadRGBA((unsigned int)std3D_windowFbo, pJob->w, pJob->h);
+    touchUi_CameraFeedback(IOSCAPTURE_MODE_PHOTO);
+    platServices_Hand(pJob);
+}
+#endif
+
 void platServices_Haptic(int kind)
 {
+#ifdef TOUCHUI_ENABLED
+    touchUiPlat_Haptic(kind == PLATSERVICES_HAPTIC_TICK ? TOUCHUI_HAPTIC_TICK : TOUCHUI_HAPTIC_TAP);
+#endif
     (void)kind;
 }
 
 void platServices_GetHudMargins(int videoW, int videoH, int* pLeft, int* pRight, int* pBottom)
 {
+#ifdef TOUCHUI_ENABLED
+    iosSafeArea_GetHudMargins(videoW, videoH, pLeft, pRight, pBottom);
+    return;
+#endif
     (void)videoW; (void)videoH;
     if (pLeft) *pLeft = 0;
     if (pRight) *pRight = 0;
@@ -351,12 +588,20 @@ void platServices_GetHudMargins(int videoW, int videoH, int* pLeft, int* pRight,
 
 int platServices_GetTopTextRect(int videoW, int videoH, int* pX, int* pY, int* pW)
 {
+#ifdef TOUCHUI_ENABLED
+    // (under the touch overlay's top row, as on iOS)
+    iosSafeArea_GetTopTextRect(videoW, videoH, pX, pY, pW);
+    return 1;
+#endif
     (void)videoW; (void)videoH; (void)pX; (void)pY; (void)pW;
     return 0;
 }
 
 int platServices_IsTouchDevice(void)
 {
+#ifdef TOUCHUI_ENABLED
+    return 1;
+#endif
     return 0;
 }
 

@@ -2,11 +2,15 @@
 
 #include "Platform/iOS/iosSafeArea.h"
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED) // (TOUCHUI_ENABLED: the Android touch overlay, src/Platform/Touch)
 
 #include <SDL3/SDL.h>
 
+#ifdef TARGET_IOS
 #include "Platform/iOS/iosTouch.h"
+#else
+#include "Platform/Touch/touchUiSdl.h"
+#endif
 
 extern SDL_Window* displayWindow;
 
@@ -66,7 +70,11 @@ void iosSafeArea_GetTopTextRect(int videoW, int videoH, int* pX, int* pY, int* p
     float top = IOSSAFEAREA_TOPTEXT_TOP_PT;
     float left = IOSSAFEAREA_TOPTEXT_SIDE_PT;
     float right = winW - IOSSAFEAREA_TOPTEXT_SIDE_PT;
+#ifdef TARGET_IOS
     iosTouch_GetTopTextRectPt(&top, &left, &right);
+#else
+    touchUiSdl_GetTopTextRectWin(&top, &left, &right);
+#endif
     if (right - left < 60.0f) {
         left = winW * 0.5f - 30.0f;
         right = winW * 0.5f + 30.0f;
@@ -79,4 +87,4 @@ void iosSafeArea_GetTopTextRect(int videoW, int videoH, int* pX, int* pY, int* p
     *pW = (int)((right - left) * scaleX);
 }
 
-#endif // TARGET_IOS
+#endif // TARGET_IOS || TOUCHUI_ENABLED
