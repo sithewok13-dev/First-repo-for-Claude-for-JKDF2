@@ -50,21 +50,21 @@ typedef struct {
 enum { IOSSABER_HIDE_JK = 1, IOSSABER_HIDE_MOTS = 2 };
 
 // Round the wheel from the gap: the game's own, then by hue, red to pink,
-// then white and black. Red, yellow, light blue and purple are the classic
-// film blades, sampled across: red a narrow white middle into a deep rose red
-// that fades fast; yellow a white-hot middle into a warm golden haze; light
-// blue a pale cyan-white middle easing into a soft, pale sky blue; purple a
-// wide white middle into a strong violet that holds out far. The other strong
-// colours glow the same way (crimson darker and fading faster than red, pink
-// lightly); blue stays the deep blue, white and black the plain look of the
-// game's blue blade. Green is not on Jedi Knight's wheel: ORIGINAL is its green.
+// then white and black. Red, light blue and purple are the classic film
+// blades, sampled across: red a narrow white middle into a deep rose red that
+// fades fast; light blue a pale cyan-white middle easing into a soft, pale sky
+// blue; purple a wide white middle into a strong violet that holds out far.
+// The other strong colours glow the same way (crimson darker and fading faster
+// than red, pink lightly); yellow stays the game's own yellow blade, blue the
+// deep blue, and white and black the plain look of the game's blue blade.
+// Green is not on Jedi Knight's wheel: ORIGINAL is its green.
 static const iosSaberColour iosSaber_aColours[] = {
     { "game",      "ORIGINAL",   NULL,    NULL,    {   0,   0,   0 }, { 150, 150, 150 } },
     { "red",       "RED",        NULL,    "green", { 255, 248, 248 }, { 230,  45,  75 }, 2.0f, 0.6f },
     { "crimson",   "CRIMSON",    NULL,    "green", { 255, 236, 236 }, { 165,  10,  30 }, 2.0f, 0.8f },
     { "orange",    "ORANGE",     NULL,    "green", { 255, 250, 238 }, { 255,  95,  20 }, 1.6f, 0.6f },
     { "amber",     "AMBER",      NULL,    "green", { 255, 250, 232 }, { 255, 158,  18 }, 1.6f, 0.6f },
-    { "yellow",    "YELLOW",     NULL,    "green", { 255, 255, 245 }, { 250, 205,  95 }, 1.4f, 0.6f },
+    { "yellow",    "YELLOW",     "yellow", NULL,   {   0,   0,   0 }, { 255, 230,  40 } },
     { "lime",      "LIME",       NULL,    "green", { 248, 255, 235 }, { 150, 240,  40 }, 1.4f, 0.6f },
     { "green",     "GREEN",      NULL,    "green", { 242, 255, 242 }, {  50, 225,  75 }, 1.4f, 0.6f, IOSSABER_HIDE_JK },
     { "teal",      "TEAL",       NULL,    "green", { 238, 255, 250 }, {  15, 185, 150 }, 1.4f, 0.6f },
