@@ -131,13 +131,16 @@ static inputWheelMap inputWheel_saber = { inputWheel_aSaberSlices, 0, inputWheel
 
 static void inputWheel_SetupSaber(void)
 {
-    const int n = INPUTWHEEL_MIN(iosSaber_NumColours(), INPUTWHEEL_MAX);
+    // (each colour this game's wheel offers, in order: a slice's bin is its colour)
+    int aId[INPUTWHEEL_MAX], n = 0;
+    for (int id = 0; id < iosSaber_NumColours() && n < INPUTWHEEL_MAX; id++)
+        if (iosSaber_ColourOnWheel(id)) aId[n++] = id;
     for (int i = 0; i < n; i++) {
         inputWheelGroup* g = &inputWheel_aSaberGroups[i];
         g->title = NULL;
         g->titleDeg = 0.0f;
-        iosSaber_ColourRGB(i, &g->r, &g->g, &g->b);
-        inputWheel_aSaberSlices[i].bin = i;
+        iosSaber_ColourRGB(aId[i], &g->r, &g->g, &g->b);
+        inputWheel_aSaberSlices[i].bin = aId[i];
         inputWheel_aSaberSlices[i].group = i;
         inputWheel_aSaberSlices[i].deg = 90.0f + INPUTWHEEL_SABER_SLICE_DEG * ((n - 1) * 0.5f - i);
     }

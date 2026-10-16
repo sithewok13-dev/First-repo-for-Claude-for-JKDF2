@@ -44,16 +44,20 @@ typedef struct {
     float spread;               // made: how soon the colour comes in out from the middle (0: 2.8)
     float glow;                 // made: how slowly the colour fades to the edges (0: as the game's
                                 // blade does), the falloff's power: under 1 holds the colour out
+    int hide;                   // not on the wheel in these games (IOSSABER_HIDE_...): kept, saved
+                                // and drawn as ever when it is already chosen, or another player's
 } iosSaberColour;
+enum { IOSSABER_HIDE_JK = 1, IOSSABER_HIDE_MOTS = 2 };
 
 // Round the wheel from the gap: the game's own, then by hue, red to pink,
-// then white and black. Red, yellow, blue and purple are the classic film
-// blades, sampled across: red a narrow white middle into a deep rose red that
-// fades fast; yellow a white-hot middle into a warm golden haze; blue a pale
-// cyan-white middle easing into a soft, pale sky blue; purple a wide white
-// middle into a strong violet that holds out far. The other strong colours
-// glow the same way (crimson darker and fading faster than red, pink lightly);
-// white, light blue and black keep the plain look of the game's blue blade.
+// then white and black. Red, yellow, light blue and purple are the classic
+// film blades, sampled across: red a narrow white middle into a deep rose red
+// that fades fast; yellow a white-hot middle into a warm golden haze; light
+// blue a pale cyan-white middle easing into a soft, pale sky blue; purple a
+// wide white middle into a strong violet that holds out far. The other strong
+// colours glow the same way (crimson darker and fading faster than red, pink
+// lightly); blue stays the deep blue, white and black the plain look of the
+// game's blue blade. Green is not on Jedi Knight's wheel: ORIGINAL is its green.
 static const iosSaberColour iosSaber_aColours[] = {
     { "game",      "ORIGINAL",   NULL,    NULL,    {   0,   0,   0 }, { 150, 150, 150 } },
     { "red",       "RED",        NULL,    "green", { 255, 248, 248 }, { 230,  45,  75 }, 2.0f, 0.6f },
@@ -62,11 +66,11 @@ static const iosSaberColour iosSaber_aColours[] = {
     { "amber",     "AMBER",      NULL,    "green", { 255, 250, 232 }, { 255, 158,  18 }, 1.6f, 0.6f },
     { "yellow",    "YELLOW",     NULL,    "green", { 255, 255, 245 }, { 250, 205,  95 }, 1.4f, 0.6f },
     { "lime",      "LIME",       NULL,    "green", { 248, 255, 235 }, { 150, 240,  40 }, 1.4f, 0.6f },
-    { "green",     "GREEN",      NULL,    "green", { 242, 255, 242 }, {  50, 225,  75 }, 1.4f, 0.6f },
+    { "green",     "GREEN",      NULL,    "green", { 242, 255, 242 }, {  50, 225,  75 }, 1.4f, 0.6f, IOSSABER_HIDE_JK },
     { "teal",      "TEAL",       NULL,    "green", { 238, 255, 250 }, {  15, 185, 150 }, 1.4f, 0.6f },
     { "cyan",      "CYAN",       NULL,    "green", { 240, 255, 255 }, {  20, 225, 240 }, 1.4f, 0.6f },
-    { "lightblue", "LIGHT BLUE", NULL,    "blue",  { 245, 250, 255 }, { 120, 195, 255 } },
-    { "blue",      "BLUE",       NULL,    "green", { 240, 252, 255 }, { 115, 160, 240 }, 1.4f, 0.6f },
+    { "lightblue", "LIGHT BLUE", NULL,    "green", { 240, 252, 255 }, { 115, 160, 240 }, 1.4f, 0.6f },
+    { "blue",      "BLUE",       NULL,    "green", { 235, 245, 255 }, {  50, 110, 255 } },
     { "purple",    "PURPLE",     NULL,    "green", { 255, 255, 255 }, { 190,  67, 240 }, 1.2f, 0.55f },
     { "magenta",   "MAGENTA",    NULL,    "green", { 255, 245, 255 }, { 245,  35, 195 }, 1.4f, 0.6f },
     { "pink",      "PINK",       NULL,    "green", { 255, 248, 252 }, { 255, 115, 185 }, 2.0f, 0.8f },
@@ -78,6 +82,12 @@ static const iosSaberColour iosSaber_aColours[] = {
 int iosSaber_NumColours(void)
 {
     return IOSSABER_NUM_COLOURS;
+}
+
+int iosSaber_ColourOnWheel(int id)
+{
+    if (id < 0 || id >= IOSSABER_NUM_COLOURS) return 0;
+    return !(iosSaber_aColours[id].hide & (Main_bMotsCompat ? IOSSABER_HIDE_MOTS : IOSSABER_HIDE_JK));
 }
 
 const char* iosSaber_ColourName(int id)
@@ -219,7 +229,7 @@ static rdMaterial* iosSaber_pSavedTip = NULL;
 #define IOSSABER_PALE_EDGE 0.75f
 static void iosSaber_MakeTexels(const iosSaberColour* c, const uint8_t* pIdx, int w, int h, int pitch, const rdColor24* pal, uint8_t* pOut)
 {
-    // (pale: its edge colour light -- white, light blue -- and no glow of its own)
+    // (pale: its edge colour light -- white -- and no glow of its own)
     const int bPale = !c->glow && c->edge[0] >= 120 && c->edge[1] >= 120 && c->edge[2] >= 120;
     const float spread = c->spread ? c->spread : 2.8f;
     for (int y = 0; y < h; y++) {

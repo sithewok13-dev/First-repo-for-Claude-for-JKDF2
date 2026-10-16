@@ -31,6 +31,7 @@ extern "C" {
 // the gap): keep a choice by its key, which stays the same.
 #define IOSSABER_COLOUR_GAME 0 // the game's own: nothing changed
 int iosSaber_NumColours(void);
+int iosSaber_ColourOnWheel(int id);         // 1: the wheel offers it in this game (all but a few)
 const char* iosSaber_ColourName(int id);    // as the wheel shows it ("LIGHT BLUE"), NULL for no such id
 const char* iosSaber_ColourKey(int id);     // as it is kept ("lightblue")
 int iosSaber_ColourByKey(const char* key);  // -1 if none
