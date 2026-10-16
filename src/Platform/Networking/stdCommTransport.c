@@ -194,24 +194,41 @@ int stdCommTransport_SplitAddress(const char* pText, char* pHostOut, int hostLen
 }
 
 // One transport asking, on a thread of its own
+typedef struct stdCommTransportAskSet stdCommTransportAskSet;
 typedef struct stdCommTransportAsk
 {
     const stdCommTransport* pTransport;
     char address[256];
     int timeoutMs;
-    volatile int* pbKeepGoing; // (shared by all the asking: 0 once one has answered, or the caller gave up)
+    stdCommTransportAskSet* pSet;
     jkMultiEntry entry;
     volatile int result;
     volatile int bDone;
-    SDL_Thread* pThread;
 } stdCommTransportAsk;
+
+// The asking of all of them at once, on the heap: the caller goes on with the first answer, and the
+// last of the asking threads to end (or the caller, if they all did) frees it
+struct stdCommTransportAskSet
+{
+    SDL_AtomicInt refs;
+    volatile int bKeepGoing; // (shared by all the asking: 0 once one has answered, or the caller gave up)
+    stdCommTransportAsk aAsk[STDCOMM_TRANSPORT_NUM];
+};
+
+static void stdCommTransport_AskRelease(stdCommTransportAskSet* pSet)
+{
+    if (SDL_AddAtomicInt(&pSet->refs, -1) == 1) free(pSet);
+}
 
 static int stdCommTransport_AskThread(void* pArg)
 {
     stdCommTransportAsk* pAsk = (stdCommTransportAsk*)pArg;
+    stdCommTransportAskSet* pSet = pAsk->pSet;
     memset(&pAsk->entry, 0, sizeof(pAsk->entry));
-    pAsk->result = pAsk->pTransport->ProbeAddress(pAsk->address, &pAsk->entry, pAsk->timeoutMs, pAsk->pbKeepGoing);
+    pAsk->result = pAsk->pTransport->ProbeAddress(pAsk->address, &pAsk->entry, pAsk->timeoutMs, &pSet->bKeepGoing);
+    SDL_MemoryBarrierRelease();
     pAsk->bDone = 1;
+    stdCommTransport_AskRelease(pSet);
     return 0;
 }
 
@@ -228,7 +245,6 @@ static void stdCommTransport_EndTexts(jkMultiEntry* pEntry)
 int stdCommTransport_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing, int* pKindOut)
 {
     if (pKindOut) *pKindOut = STDCOMM_TRANSPORT_NONE;
-
     int numTransports = 0, onlyKind = STDCOMM_TRANSPORT_NONE;
     for (int k = 0; k < STDCOMM_TRANSPORT_NUM; k++) {
         if (stdCommTransport_apAll[k]) {
@@ -243,54 +259,50 @@ int stdCommTransport_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int 
         return r;
     }
 
-    // (all at once: a host answers on its own transport only, so the others wait out the time;
-    // the first answer stops them)
-    volatile int bKeepGoing = 1;
-    stdCommTransportAsk aAsk[STDCOMM_TRANSPORT_NUM];
-    memset(aAsk, 0, sizeof(aAsk));
+    // (all at once: a host answers on its own transport only, so the others wait out the time. The
+    // first answer is taken at once, and the others told to give up (they end by themselves); ENet's
+    // if two have answered by then)
+    stdCommTransportAskSet* pSet = (stdCommTransportAskSet*)calloc(1, sizeof(stdCommTransportAskSet));
+    if (!pSet) return 0;
+    pSet->bKeepGoing = 1;
+    SDL_SetAtomicInt(&pSet->refs, 1);
+    int numAsking = 0;
     for (int k = 0; k < STDCOMM_TRANSPORT_NUM; k++) {
-        stdCommTransportAsk* a = &aAsk[k];
+        stdCommTransportAsk* a = &pSet->aAsk[k];
         a->pTransport = stdCommTransport_apAll[k];
         if (!a->pTransport) continue;
         snprintf(a->address, sizeof(a->address), "%s", pAddress ? pAddress : "");
         a->timeoutMs = timeoutMs;
-        a->pbKeepGoing = &bKeepGoing;
-        a->result = 0;
-        a->bDone = 0;
-        a->pThread = SDL_CreateThread(stdCommTransport_AskThread, "stdCommTransport_Ask", a);
-        if (!a->pThread) stdCommTransport_AskThread(a); // (no thread: asked here, one after the other)
+        a->pSet = pSet;
+        SDL_AddAtomicInt(&pSet->refs, 1);
+        SDL_Thread* pThread = SDL_CreateThread(stdCommTransport_AskThread, "stdCommTransport_Ask", a);
+        if (pThread) SDL_DetachThread(pThread);
+        else stdCommTransport_AskThread(a); // (no thread: asked here, one after the other)
+        numAsking++;
     }
+    int result = 0, bAnyAddress = 0, kind = STDCOMM_TRANSPORT_NONE;
     for (;;) {
-        if (pbKeepGoing && !*pbKeepGoing) bKeepGoing = 0;
-        int bAllDone = 1;
+        if (pbKeepGoing && !*pbKeepGoing) pSet->bKeepGoing = 0;
+        int numDone = 0;
         for (int k = 0; k < STDCOMM_TRANSPORT_NUM; k++) {
-            const stdCommTransportAsk* a = &aAsk[k];
-            if (!a->pThread) continue;
-            if (!a->bDone) bAllDone = 0;
-            else if (a->result > 0) bKeepGoing = 0;
+            const stdCommTransportAsk* a = &pSet->aAsk[k];
+            if (!a->pTransport || !a->bDone) continue;
+            SDL_MemoryBarrierAcquire();
+            numDone++;
+            if (a->result >= 0) bAnyAddress = 1;
+            if (a->result > 0 && (result <= 0 || k == STDCOMM_TRANSPORT_ENET)) {
+                *pOut = a->entry;
+                stdCommTransport_EndTexts(pOut);
+                kind = k;
+                result = 1;
+            }
         }
-        if (bAllDone) break;
-        SDL_Delay(10);
+        if (result > 0 || numDone == numAsking || !pSet->bKeepGoing) break;
+        SDL_Delay(5);
     }
-    for (int k = 0; k < STDCOMM_TRANSPORT_NUM; k++) {
-        if (!aAsk[k].pThread) continue;
-        int unused;
-        SDL_WaitThread(aAsk[k].pThread, &unused);
-        aAsk[k].pThread = NULL;
-    }
-    // (ENet's answer first, if both answered)
-    int result = 0, bAnyAddress = 0;
-    for (int k = 0; k < STDCOMM_TRANSPORT_NUM; k++) {
-        const stdCommTransportAsk* a = &aAsk[k];
-        if (!a->pTransport) continue;
-        if (a->result >= 0) bAnyAddress = 1;
-        if (a->result > 0 && result <= 0) {
-            *pOut = a->entry;
-            stdCommTransport_EndTexts(pOut);
-            if (pKindOut) *pKindOut = k;
-            result = 1;
-        }
-    }
+    pSet->bKeepGoing = 0;
+    stdCommTransport_AskRelease(pSet);
+    if (result > 0 && pKindOut) *pKindOut = kind;
     if (result <= 0) result = bAnyAddress ? 0 : -1;
     return result;
 }
@@ -346,8 +358,13 @@ int stdComm_Open(int idx, char16_t* pwPassword)
 
     const int kind = stdCommTransport_apAll[stdCommTransport_joinKind] ? stdCommTransport_joinKind : STDCOMM_TRANSPORT_DEFAULT;
 #ifdef PLATFORM_DPLAY
-    // (an address with several DirectPlay sessions: the one picked)
-    if (kind == STDCOMM_TRANSPORT_DPLAY) stdComm_DPlay_SelectSession(&jkGuiMultiplayer_aEntries[idx].guidInstance);
+    // (an address with several DirectPlay sessions: the one picked, which must still be known; another
+    // transport's game: what DirectPlay said of an earlier one, forgotten)
+    if (kind == STDCOMM_TRANSPORT_DPLAY && !stdComm_DPlay_SelectSession(&jkGuiMultiplayer_aEntries[idx].guidInstance)) {
+        stdPlatform_Printf("Join: that DirectPlay game isn't listed any more\n");
+        return 0x88770154 + 1;
+    }
+    if (kind != STDCOMM_TRANSPORT_DPLAY) stdComm_DPlay_ClearProblem();
 #endif
     stdPlatform_Printf("Joining over %s\n", stdCommTransport_Get(kind)->pName);
     const int r = stdCommTransport_Get(kind)->Join(pwPassword);

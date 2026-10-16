@@ -4,7 +4,9 @@
 # (UDP 5351) or UPnP-IGD (SSDP on UDP 1900, its description and SOAP control over HTTP), and really
 # forwards what it maps: with PCP and NAT-PMP each port asked for is given as port + 1000 "outside"
 # (with UPnP the port asked for, if free), and what arrives there (TCP connections, UDP datagrams)
-# is passed on to the player's port. So a test host told
+# is passed on to the player's port. (Unlike a real router, it passes UDP on from its own address:
+# fine for a host on the same computer, but another player's datagrams then come from the wrong
+# address, and the player's checks rightly drop them -- test three players without it.) So a test host told
 # the outside ports reaches the player only if the player told it the right ones.
 #
 #   python3 mock_router.py --mode pcp|natpmp|upnp|none [--ip 127.0.0.1] [--log file]

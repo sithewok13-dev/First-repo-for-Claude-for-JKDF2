@@ -128,6 +128,9 @@ static int Main_StartupJoin(void)
     stdString_CharToWchar(jkGuiMultiplayer_ipText, Main_strJoin, 255);
     jkGuiMultiplayer_ipText[255] = 0;
     stdPlatform_Printf("Joining `%s`\n", Main_strJoin);
+#ifdef PLATFORM_DPLAY
+    stdComm_DPlay_WillJoin(Main_strJoin); // Added: a game to join, not just to list
+#endif
     if (stdComm_OpenConnection(0)) {
         stdPlatform_Printf("Join: no connection\n");
         return 1;

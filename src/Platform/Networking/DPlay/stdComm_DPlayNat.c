@@ -6,8 +6,16 @@
 //   whose WANIPConnection (or WANPPPConnection) service is asked with SOAP: AddPortMapping,
 //   GetExternalIPAddress, DeletePortMapping.
 //
+// The router is the default gateway (the routing table: /proc/net/route on Linux, sysctl on Apple's
+// systems); where that can't be read (Android blocks /proc/net/route) it is guessed: the .1 of our
+// own /24. SSDP's M-SEARCH goes to the router itself first (unicast to its port 1900, which most
+// answer: iOS 14 and later block multicast without an entitlement), then to the multicast group where
+// that is allowed (not on iOS). Each exchange has one deadline; nothing waits longer.
+//
+// Not thread-safe: the caller (stdComm_DPlay) holds one lock over Map and Unmap.
+//
 // For testing on a computer without such a router: OPENJKDF2_DPLAY_GATEWAY=<IPv4> (the router to
-// ask with PCP / NAT-PMP) and OPENJKDF2_DPLAY_SSDP=<IPv4> (where the M-SEARCH goes, unicast).
+// ask) and OPENJKDF2_DPLAY_SSDP=<IPv4> (where the M-SEARCH goes, unicast, instead of the router).
 
 #include "stdComm_DPlayNat.h"
 
@@ -26,6 +34,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
 
 #if defined(__APPLE__)
 #include <sys/sysctl.h>
@@ -48,6 +57,7 @@ static int stdComm_DPlayNat_bMapped = 0;
 static int stdComm_DPlayNat_method = 0; // 1 PCP, 2 NAT-PMP, 3 UPnP
 static uint16_t stdComm_DPlayNat_inTcp, stdComm_DPlayNat_inUdp, stdComm_DPlayNat_exTcp, stdComm_DPlayNat_exUdp;
 static uint32_t stdComm_DPlayNat_gateway = 0;
+static uint32_t stdComm_DPlayNat_mappedMs = 0;
 static uint8_t stdComm_DPlayNat_aNonce[2][12];
 static char stdComm_DPlayNat_controlUrl[512];
 static char stdComm_DPlayNat_serviceType[96];
@@ -84,13 +94,30 @@ const char* stdComm_DPlayNat_Problem(void)
 
 // ------------------------------------------------------------------ the router's address
 
+static uint32_t stdComm_DPlayNat_RouteGateway(void);
+
+// The router: the default gateway if the routing table says, otherwise the .1 of our own /24
 static uint32_t stdComm_DPlayNat_Gateway(void)
+{
+    uint32_t gw = stdComm_DPlayNat_RouteGateway();
+    if (gw) return gw;
+    const uint32_t local = stdComm_DPlayNat_LocalAddressToward(inet_addr("8.8.8.8")); // (no datagram sent)
+    if (!local || !stdComm_DPlayNat_IsPrivate(local)) return 0;
+    gw = htonl((ntohl(local) & 0xFFFFFF00u) | 1u);
+    if (gw == local) return 0;
+    char t[32];
+    inet_ntop(AF_INET, &gw, t, sizeof(t));
+    stdPlatform_Printf("DPlay: the routing table can't be read: guessing the router is %s\n", t);
+    return gw;
+}
+
+static uint32_t stdComm_DPlayNat_RouteGateway(void)
 {
     const char* pEnv = getenv("OPENJKDF2_DPLAY_GATEWAY");
     struct in_addr ia;
     if (pEnv && inet_pton(AF_INET, pEnv, &ia) == 1) return ia.s_addr;
 #if defined(__linux__)
-    FILE* f = fopen("/proc/net/route", "r");
+    FILE* f = fopen("/proc/net/route", "r"); // (Android: not readable by apps, so guessed)
     if (!f) return 0;
     char line[256];
     uint32_t gw = 0;
@@ -255,7 +282,9 @@ static int stdComm_DPlayNat_SplitUrl(const char* pUrl, char* pHost, int hostLen,
     return 1;
 }
 
-// One HTTP request and its whole answer (the router closes it); the answer's length, or -1
+// One HTTP request and its whole answer (the router closes it), all within DPLAYNAT_HTTP_MS; the
+// answer's length, or -1
+#define DPLAYNAT_HTTP_MS 3000
 static int stdComm_DPlayNat_Http(const char* pUrl, const char* pMethod, const char* pHeaders, const char* pBody, char* pOut, int outMax)
 {
     char host[128], path[384];
@@ -268,25 +297,48 @@ static int stdComm_DPlayNat_Http(const char* pUrl, const char* pMethod, const ch
     if (inet_pton(AF_INET, host, &a.sin_addr) != 1) return -1; // (a router gives its numeric address)
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) return -1;
-    struct timeval tv = { 2, 0 };
-    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 #ifdef SO_NOSIGPIPE
     int one = 1;
     setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
 #endif
-    if (connect(fd, (struct sockaddr*)&a, sizeof(a)) != 0) { close(fd); return -1; }
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+    const uint32_t start = stdPlatform_GetTimeMsec();
+#define DPLAYNAT_LEFT() ((int)(DPLAYNAT_HTTP_MS - (stdPlatform_GetTimeMsec() - start)))
+    if (connect(fd, (struct sockaddr*)&a, sizeof(a)) != 0) {
+        if (errno != EINPROGRESS) { close(fd); return -1; }
+        struct pollfd pf = { fd, POLLOUT, 0 };
+        int err = 0;
+        socklen_t el = sizeof(err);
+        if (poll(&pf, 1, DPLAYNAT_LEFT() > 0 ? DPLAYNAT_LEFT() : 0) <= 0 || getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &el) != 0 || err) { close(fd); return -1; }
+    }
     char req[2048];
     const int n = snprintf(req, sizeof(req), "%s %s HTTP/1.1\r\nHost: %s:%d\r\nConnection: close\r\n%s\r\n%s",
                            pMethod, path, host, port, pHeaders ? pHeaders : "", pBody ? pBody : "");
-    if (n <= 0 || n >= (int)sizeof(req) || send(fd, req, n, 0) != n) { close(fd); return -1; }
-    int got = 0;
+    if (n <= 0 || n >= (int)sizeof(req)) { close(fd); return -1; }
+    int sent = 0, got = 0;
+    while (sent < n) {
+        if (DPLAYNAT_LEFT() <= 0) { close(fd); return -1; }
+#ifdef MSG_NOSIGNAL
+        const ssize_t k = send(fd, req + sent, n - sent, MSG_NOSIGNAL);
+#else
+        const ssize_t k = send(fd, req + sent, n - sent, 0);
+#endif
+        if (k > 0) { sent += (int)k; continue; }
+        if (k < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) { struct pollfd pf = { fd, POLLOUT, 0 }; poll(&pf, 1, 20); continue; }
+        close(fd);
+        return -1;
+    }
     for (;;) {
-        const int k = (int)recv(fd, pOut + got, outMax - 1 - got, 0);
+        const int left = DPLAYNAT_LEFT();
+        if (left <= 0) break;
+        struct pollfd pf = { fd, POLLIN, 0 };
+        if (poll(&pf, 1, left) <= 0) break;
+        const ssize_t k = recv(fd, pOut + got, outMax - 1 - got, 0);
         if (k <= 0) break;
-        got += k;
+        got += (int)k;
         if (got >= outMax - 1) break;
     }
+#undef DPLAYNAT_LEFT
     close(fd);
     pOut[got] = 0;
     return got;
@@ -313,7 +365,7 @@ static int stdComm_DPlayNat_Tag(const char* p, const char* pEnd, const char* tag
 }
 
 // The router's WAN connection service, found with SSDP
-static int stdComm_DPlayNat_UpnpFind(void)
+static int stdComm_DPlayNat_UpnpFind(uint32_t gw)
 {
     if (stdComm_DPlayNat_controlUrl[0]) return 1;
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -322,15 +374,26 @@ static int stdComm_DPlayNat_UpnpFind(void)
     memset(&a, 0, sizeof(a));
     a.sin_family = AF_INET;
     a.sin_port = htons(1900);
+    // (to the router itself; then the multicast group, where that is allowed)
+    uint32_t aTo[2];
+    int numTo = 0;
     const char* pEnv = getenv("OPENJKDF2_DPLAY_SSDP");
-    if (!pEnv || inet_pton(AF_INET, pEnv, &a.sin_addr) != 1) inet_pton(AF_INET, "239.255.255.250", &a.sin_addr);
+    struct in_addr ia;
+    if (pEnv && inet_pton(AF_INET, pEnv, &ia) == 1) aTo[numTo++] = ia.s_addr;
+    else if (gw) aTo[numTo++] = gw;
+#ifndef TARGET_IOS
+    if (!pEnv) aTo[numTo++] = inet_addr("239.255.255.250");
+#endif
     static const char* const aSt[] = { "urn:schemas-upnp-org:device:InternetGatewayDevice:1", "urn:schemas-upnp-org:service:WANIPConnection:1" };
     char locations[4][256];
     int numLoc = 0;
-    for (int t = 0; t < 2; t++) {
-        char q[256];
-        const int n = snprintf(q, sizeof(q), "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 1\r\nST: %s\r\n\r\n", aSt[t]);
-        sendto(fd, q, n, 0, (struct sockaddr*)&a, sizeof(a));
+    for (int k = 0; k < numTo; k++) {
+        a.sin_addr.s_addr = aTo[k];
+        for (int t = 0; t < 2; t++) {
+            char q[256];
+            const int n = snprintf(q, sizeof(q), "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 1\r\nST: %s\r\n\r\n", aSt[t]);
+            sendto(fd, q, n, 0, (struct sockaddr*)&a, sizeof(a));
+        }
     }
     const uint32_t start = stdPlatform_GetTimeMsec();
     while (stdPlatform_GetTimeMsec() - start < 1500 && numLoc < 4) {
@@ -397,7 +460,7 @@ static int stdComm_DPlayNat_Soap(const char* pAction, const char* pArgs, char* p
     snprintf(headers, sizeof(headers), "Content-Type: text/xml; charset=\"utf-8\"\r\nSOAPAction: \"%s#%s\"\r\nContent-Length: %d\r\n",
              stdComm_DPlayNat_serviceType, pAction, (int)strlen(body));
     const int n = stdComm_DPlayNat_Http(stdComm_DPlayNat_controlUrl, "POST", headers, body, pOut, outMax);
-    if (n <= 0) return -1;
+    if (n <= 0) { stdComm_DPlayNat_controlUrl[0] = 0; return -1; } // (found again next time)
     if (!strncmp(pOut, "HTTP/1.1 200", 12) || !strncmp(pOut, "HTTP/1.0 200", 12)) return 0;
     char code[16];
     return stdComm_DPlayNat_Tag(pOut, NULL, "errorCode", code, sizeof(code)) ? atoi(code) : 501;
@@ -410,16 +473,19 @@ static int stdComm_DPlayNat_UpnpAdd(uint32_t localIp, const char* pProto, uint16
     // (the same port outside if free, otherwise one of the next few; a lease the router may not take)
     for (int k = 0; k < 8; k++) {
         const uint16_t ext = (uint16_t)(port + k);
-        for (int lease = 0; lease < 2; lease++) {
+        {
             snprintf(args, sizeof(args),
                      "<NewRemoteHost></NewRemoteHost><NewExternalPort>%u</NewExternalPort><NewProtocol>%s</NewProtocol>"
                      "<NewInternalPort>%u</NewInternalPort><NewInternalClient>%s</NewInternalClient><NewEnabled>1</NewEnabled>"
                      "<NewPortMappingDescription>OpenJKDF2 DirectPlay</NewPortMappingDescription><NewLeaseDuration>%d</NewLeaseDuration>",
-                     ext, pProto, port, ip, lease ? 0 : DPLAYNAT_LIFETIME);
+                     ext, pProto, port, ip, DPLAYNAT_LIFETIME);
             const int e = stdComm_DPlayNat_Soap("AddPortMapping", args, r, sizeof(r));
             if (e == 0) { *pExt = ext; return 1; }
-            if (e == 725) continue; // (OnlyPermanentLeasesSupported: again, lease 0)
-            if (e == 718 || e == 724) break; // (that port is taken, or must be the same: the next)
+            if (e == 725) { // (OnlyPermanentLeasesSupported: not asked for -- a forwarding left forever if we're gone)
+                snprintf(stdComm_DPlayNat_problem, sizeof(stdComm_DPlayNat_problem), "the router only forwards ports for good (UPnP), which isn't asked of it");
+                return 0;
+            }
+            if (e == 718 || e == 724) continue; // (that port is taken, or must be the same: the next)
             snprintf(stdComm_DPlayNat_problem, sizeof(stdComm_DPlayNat_problem), "the router refused (UPnP error %d)", e);
             return 0;
         }
@@ -437,63 +503,77 @@ static void stdComm_DPlayNat_UpnpDelete(const char* pProto, uint16_t ext)
 
 // ------------------------------------------------------------------ mapping
 
+static void stdComm_DPlayNat_Kept(stdCommDPlayNatMapping* pOut, const char* pMethod)
+{
+    pOut->extTcpPort = stdComm_DPlayNat_exTcp;
+    pOut->extUdpPort = stdComm_DPlayNat_exUdp;
+    pOut->pMethod = pMethod;
+}
+
 int stdComm_DPlayNat_Map(uint16_t tcpPort, uint16_t udpPort, stdCommDPlayNatMapping* pOut)
 {
+    static const char* const aMethod[4] = { NULL, "PCP", "NAT-PMP", "UPnP" };
     memset(pOut, 0, sizeof(*pOut));
     stdComm_DPlayNat_problem[0] = 0;
-    if (stdComm_DPlayNat_bMapped && stdComm_DPlayNat_inTcp == tcpPort && stdComm_DPlayNat_inUdp == udpPort && stdComm_DPlayNat_method == 3) {
-        // (UPnP's lease: long, or forever; as it is)
-        pOut->extTcpPort = stdComm_DPlayNat_exTcp;
-        pOut->extUdpPort = stdComm_DPlayNat_exUdp;
-        pOut->pMethod = "UPnP";
-        return 1;
-    }
+    // (other ports than those forwarded: those given back first)
+    if (stdComm_DPlayNat_bMapped && (stdComm_DPlayNat_inTcp != tcpPort || stdComm_DPlayNat_inUdp != udpPort)) stdComm_DPlayNat_Unmap();
+    const int bRenew = stdComm_DPlayNat_bMapped;
+    if (bRenew && stdComm_DPlayNat_method == 3) { stdComm_DPlayNat_Kept(pOut, "UPnP"); return 1; } // (its lease runs as it is)
     const uint32_t gw = stdComm_DPlayNat_Gateway();
     const uint32_t localIp = gw ? stdComm_DPlayNat_LocalAddressToward(gw) : 0;
-    uint16_t exTcp = 0, exUdp = 0;
-    uint32_t exIp = 0;
+    uint16_t exTcp = 0, exUdp = 0, e;
+    uint32_t exIp = 0, ip2 = 0;
+    int method = 0, b = 0;
 
-    // PCP, then NAT-PMP (the same port: a renewal keeps what was given)
-    if (gw && localIp) {
-        if (!stdComm_DPlayNat_bMapped) {
+    // PCP, then NAT-PMP (asking for the ports given before, on a renewal); one of the two ports
+    // forwarded alone is given back
+    if (gw && localIp && (!bRenew || stdComm_DPlayNat_method != 3)) {
+        if (!bRenew) {
             stdComm_DPlayNat_Random(stdComm_DPlayNat_aNonce[0], 12);
             stdComm_DPlayNat_Random(stdComm_DPlayNat_aNonce[1], 12);
         }
-        int bNotPcp = 0;
-        uint32_t ip2 = 0;
-        if (stdComm_DPlayNat_PcpMap(gw, localIp, 6, tcpPort, stdComm_DPlayNat_bMapped ? stdComm_DPlayNat_exTcp : tcpPort, DPLAYNAT_LIFETIME, stdComm_DPlayNat_aNonce[0], &exTcp, &exIp, &bNotPcp)
-            && stdComm_DPlayNat_PcpMap(gw, localIp, 17, udpPort, stdComm_DPlayNat_bMapped ? stdComm_DPlayNat_exUdp : udpPort, DPLAYNAT_LIFETIME, stdComm_DPlayNat_aNonce[1], &exUdp, &ip2, &bNotPcp)) {
-            stdComm_DPlayNat_method = 1;
-            pOut->pMethod = "PCP";
+        const uint16_t wantTcp = bRenew ? stdComm_DPlayNat_exTcp : tcpPort, wantUdp = bRenew ? stdComm_DPlayNat_exUdp : udpPort;
+        if ((!bRenew || stdComm_DPlayNat_method == 1)
+            && stdComm_DPlayNat_PcpMap(gw, localIp, 6, tcpPort, wantTcp, DPLAYNAT_LIFETIME, stdComm_DPlayNat_aNonce[0], &exTcp, &exIp, &b)) {
+            if (stdComm_DPlayNat_PcpMap(gw, localIp, 17, udpPort, wantUdp, DPLAYNAT_LIFETIME, stdComm_DPlayNat_aNonce[1], &exUdp, &ip2, &b)) method = 1;
+            else if (!bRenew) stdComm_DPlayNat_PcpMap(gw, localIp, 6, tcpPort, 0, 0, stdComm_DPlayNat_aNonce[0], &e, &ip2, &b);
         }
-        else if (stdComm_DPlayNat_PmpMap(gw, 2, tcpPort, stdComm_DPlayNat_bMapped ? stdComm_DPlayNat_exTcp : tcpPort, DPLAYNAT_LIFETIME, &exTcp, NULL)
-                 && stdComm_DPlayNat_PmpMap(gw, 1, udpPort, stdComm_DPlayNat_bMapped ? stdComm_DPlayNat_exUdp : udpPort, DPLAYNAT_LIFETIME, &exUdp, NULL)) {
-            stdComm_DPlayNat_PmpMap(gw, 0, 0, 0, 0, NULL, &exIp);
-            stdComm_DPlayNat_method = 2;
-            pOut->pMethod = "NAT-PMP";
+        if (!method && (!bRenew || stdComm_DPlayNat_method == 2)
+            && stdComm_DPlayNat_PmpMap(gw, 2, tcpPort, wantTcp, DPLAYNAT_LIFETIME, &exTcp, NULL)) {
+            if (stdComm_DPlayNat_PmpMap(gw, 1, udpPort, wantUdp, DPLAYNAT_LIFETIME, &exUdp, NULL)) {
+                stdComm_DPlayNat_PmpMap(gw, 0, 0, 0, 0, NULL, &exIp);
+                method = 2;
+            }
+            else if (!bRenew) stdComm_DPlayNat_PmpMap(gw, 2, tcpPort, 0, 0, &e, NULL);
         }
     }
     // UPnP-IGD
-    if (!pOut->pMethod && stdComm_DPlayNat_UpnpFind()) {
+    if (!method && !bRenew && stdComm_DPlayNat_UpnpFind(gw)) {
         const uint32_t lip = localIp ? localIp : stdComm_DPlayNat_LocalAddressToward(inet_addr("8.8.8.8"));
         if (stdComm_DPlayNat_UpnpAdd(lip, "TCP", tcpPort, &exTcp)) {
             if (stdComm_DPlayNat_UpnpAdd(lip, "UDP", udpPort, &exUdp)) {
                 char r[4096], ipText[32];
                 if (!stdComm_DPlayNat_Soap("GetExternalIPAddress", "", r, sizeof(r)) && stdComm_DPlayNat_Tag(r, NULL, "NewExternalIPAddress", ipText, sizeof(ipText)))
                     inet_pton(AF_INET, ipText, &exIp);
-                stdComm_DPlayNat_method = 3;
-                pOut->pMethod = "UPnP";
+                method = 3;
             }
             else stdComm_DPlayNat_UpnpDelete("TCP", exTcp);
         }
     }
-    if (!pOut->pMethod) {
+    if (!method) {
         if (!stdComm_DPlayNat_problem[0])
             snprintf(stdComm_DPlayNat_problem, sizeof(stdComm_DPlayNat_problem), "no router answered (UPnP, NAT-PMP, PCP)");
+        // (a renewal that failed: what was forwarded still is, for the rest of its lifetime)
+        if (bRenew && stdPlatform_GetTimeMsec() - stdComm_DPlayNat_mappedMs < DPLAYNAT_LIFETIME * 1000u) {
+            stdComm_DPlayNat_Kept(pOut, aMethod[stdComm_DPlayNat_method]);
+            return 1;
+        }
         stdComm_DPlayNat_bMapped = 0;
         return 0;
     }
     stdComm_DPlayNat_bMapped = 1;
+    stdComm_DPlayNat_method = method;
+    stdComm_DPlayNat_mappedMs = stdPlatform_GetTimeMsec();
     stdComm_DPlayNat_gateway = gw;
     stdComm_DPlayNat_inTcp = tcpPort;
     stdComm_DPlayNat_inUdp = udpPort;
@@ -502,6 +582,7 @@ int stdComm_DPlayNat_Map(uint16_t tcpPort, uint16_t udpPort, stdCommDPlayNatMapp
     pOut->extTcpPort = exTcp;
     pOut->extUdpPort = exUdp;
     pOut->extIp = exIp;
+    pOut->pMethod = aMethod[method];
     // (a router that is itself behind another -- a carrier's NAT: its address no one can reach)
     if (exIp && stdComm_DPlayNat_IsPrivate(exIp))
         snprintf(stdComm_DPlayNat_problem, sizeof(stdComm_DPlayNat_problem), "the router is behind another network (its address is a private one)");

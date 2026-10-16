@@ -659,6 +659,9 @@ static void jkGuiMultiLobby_PasswordIdle(jkGuiMenu* pMenu)
 static void jkGuiMultiLobby_Pick(jkGuiMenu* pMenu, const jkGuiMultiLobbyTarget* pTarget)
 {
     jkGuiMultiLobby_picked = *pTarget;
+#ifdef PLATFORM_DPLAY
+    stdComm_DPlay_WillJoin(pTarget->address); // Added: a game picked to join (the router's ports, if DirectPlay needs them)
+#endif
     SDL_LockMutex(jkGuiMultiLobby_mutex);
     snprintf(jkGuiMultiLobby_joinAddress, sizeof(jkGuiMultiLobby_joinAddress), "%s", pTarget->address);
     jkGuiMultiLobby_bJoinIsPassword = 0;
