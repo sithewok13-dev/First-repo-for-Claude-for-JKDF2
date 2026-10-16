@@ -33,6 +33,7 @@ static void stdString_CharToWchar(char16_t* d, const char* s, int n) { int i = 0
 static void stdString_WcharToChar(char* d, const char16_t* s, int n) { int i = 0; for (; i < n && s[i]; i++) d[i] = (char)s[i]; if (i < n) d[i] = 0; }
 static char* _strncpy(char* d, const char* s, size_t n) { return strncpy(d, s, n); }
 int Main_bVerboseNetworking = 1;
+int Main_bMotsCompat = 0;
 static sithDplayPlayer DirectPlay_aPlayers[32];
 static int DirectPlay_numPlayers, stdComm_dplayIdSelf, stdComm_bIsServer, jkPlayer_maxPlayers;
 static char16_t jkPlayer_playerShortName[32];
