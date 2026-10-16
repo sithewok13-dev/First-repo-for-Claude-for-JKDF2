@@ -58,8 +58,8 @@ jobs:
       - name: Show build errors
         if: failure()
         run: |
-          grep -E "error:|Error [0-9]|undefined|No such file|cp: |ld: |CMake Error" build.log 2>/dev/null \
-            | grep -vE "Building|^\s*-- |ERROR: int16_t" | head -10 \
+          # (the lines just before the first failure; GitHub shows ten notes at most)
+          grep -m1 -B9 -E "\] Error [0-9]|CMake Error|error:" build.log 2>/dev/null | cut -c1-400 \
             | while IFS= read -r l; do echo "::error::$l"; done
       - name: Package
         run: |
@@ -105,8 +105,8 @@ jobs:
       - name: Show build errors
         if: failure()
         run: |
-          grep -E "error:|Error [0-9]|undefined|No such file|cp: |ld: |CMake Error" build.log 2>/dev/null \
-            | grep -vE "Building|^\s*-- |ERROR: int16_t" | head -10 \
+          # (the lines just before the first failure; GitHub shows ten notes at most)
+          grep -m1 -B9 -E "\] Error [0-9]|CMake Error|error:" build.log 2>/dev/null | cut -c1-400 \
             | while IFS= read -r l; do echo "::error::$l"; done
       - name: Package
         run: |
@@ -167,8 +167,8 @@ jobs:
       - name: Show build errors
         if: failure()
         run: |
-          grep -E "error:|Error [0-9]|undefined|No such file|cp: |ld: |CMake Error" build.log 2>/dev/null \
-            | grep -vE "Building|^\s*-- |ERROR: int16_t" | head -10 \
+          # (the lines just before the first failure; GitHub shows ten notes at most)
+          grep -m1 -B9 -E "\] Error [0-9]|CMake Error|error:" build.log 2>/dev/null | cut -c1-400 \
             | while IFS= read -r l; do echo "::error::$l"; done
       - name: Package
         run: |
