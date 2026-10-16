@@ -29,6 +29,21 @@ function(macos_target_add_standard_deps target_name)
 endfunction()
 
 macro(postcompile_macos)
+    # Added: GameNetworkingSockets and the OpenSSL it needs go in the bundle only
+    # when they are built (with ENet alone, the default, neither is)
+    set(MACOS_BUNDLE_GNS_COMMANDS "")
+    set(MACOS_BUNDLE_SSL_COMMANDS "")
+    if(TARGET_USE_GAMENETWORKINGSOCKETS)
+        set(MACOS_BUNDLE_GNS_COMMANDS
+            COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/GameNetworkingSockets/bin/libGameNetworkingSockets.dylib ${BUNDLE}/Contents/MacOS
+            COMMAND install_name_tool -change @rpath/libGameNetworkingSockets.dylib @executable_path/libGameNetworkingSockets.dylib ${BUNDLE}/Contents/MacOS/${BIN_NAME})
+        set(MACOS_BUNDLE_SSL_COMMANDS
+            COMMAND install_name_tool -change ${OPENSSL_CRYPTO_LIBRARY} @executable_path/libcrypto.dylib ${BUNDLE}/Contents/MacOS/libGameNetworkingSockets.dylib
+            COMMAND install_name_tool -change ${OPENSSL_CRYPTO_LIBRARY} @executable_path/libcrypto.dylib ${BUNDLE}/Contents/MacOS/${BIN_NAME}
+            COMMAND install_name_tool -change ${HOMEBREW_PREFIX}/opt/openssl@3/lib/libcrypto.3.dylib @executable_path/libcrypto.dylib ${BUNDLE}/Contents/MacOS/libGameNetworkingSockets.dylib
+            COMMAND install_name_tool -change ${HOMEBREW_PREFIX}/opt/openssl@3/lib/libcrypto.3.dylib @executable_path/libcrypto.dylib ${BUNDLE}/Contents/MacOS/${BIN_NAME}
+            COMMAND cp ${OPENSSL_CRYPTO_LIBRARY} ${BUNDLE}/Contents/MacOS/libcrypto.dylib)
+    endif()
     add_custom_command(TARGET ${BIN_NAME}
         POST_BUILD
         COMMAND dsymutil ${CMAKE_CURRENT_BINARY_DIR}/${BIN_NAME} -o ${CMAKE_CURRENT_BINARY_DIR}/${BIN_NAME}.dsym
@@ -41,8 +56,7 @@ macro(postcompile_macos)
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/${BIN_NAME} ${BUNDLE}/Contents/MacOS
         
         
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/GameNetworkingSockets/bin/libGameNetworkingSockets.dylib ${BUNDLE}/Contents/MacOS
-        COMMAND install_name_tool -change @rpath/libGameNetworkingSockets.dylib @executable_path/libGameNetworkingSockets.dylib ${BUNDLE}/Contents/MacOS/${BIN_NAME}
+        ${MACOS_BUNDLE_GNS_COMMANDS}
 
         # zlib
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/zlib/*/*/libz.1.dylib ${BUNDLE}/Contents/MacOS
@@ -53,11 +67,7 @@ macro(postcompile_macos)
         COMMAND install_name_tool -change libopenal.1.dylib @executable_path/libopenal.1.dylib ${BUNDLE}/Contents/MacOS/${BIN_NAME}
         COMMAND install_name_tool -change @rpath/libopenal.1.dylib @executable_path/libopenal.1.dylib ${BUNDLE}/Contents/MacOS/${BIN_NAME}
 
-        COMMAND install_name_tool -change ${OPENSSL_CRYPTO_LIBRARY} @executable_path/libcrypto.dylib ${BUNDLE}/Contents/MacOS/libGameNetworkingSockets.dylib
-        COMMAND install_name_tool -change ${OPENSSL_CRYPTO_LIBRARY} @executable_path/libcrypto.dylib ${BUNDLE}/Contents/MacOS/${BIN_NAME}
-        COMMAND install_name_tool -change ${HOMEBREW_PREFIX}/opt/openssl@3/lib/libcrypto.3.dylib @executable_path/libcrypto.dylib ${BUNDLE}/Contents/MacOS/libGameNetworkingSockets.dylib
-        COMMAND install_name_tool -change ${HOMEBREW_PREFIX}/opt/openssl@3/lib/libcrypto.3.dylib @executable_path/libcrypto.dylib ${BUNDLE}/Contents/MacOS/${BIN_NAME}
-        COMMAND cp ${OPENSSL_CRYPTO_LIBRARY} ${BUNDLE}/Contents/MacOS/libcrypto.dylib
+        ${MACOS_BUNDLE_SSL_COMMANDS}
 
         COMMAND chmod 774 ${BUNDLE}/Contents/MacOS/*.dylib
         COMMAND cp -r ${CMAKE_CURRENT_BINARY_DIR}/openjkdf2-64.dsym ${BUNDLE}/Contents/MacOS/openjkdf2-64.dsym

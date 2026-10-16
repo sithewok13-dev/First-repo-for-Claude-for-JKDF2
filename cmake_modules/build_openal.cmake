@@ -8,6 +8,18 @@ else()
     set(ALSOFT_STATIC_STDCXX FALSE)
 endif()
 
+# Added: a Windows build (MinGW, cross-compiled on Linux) leaves out the Linux
+# sound backends, which would otherwise be picked up from the build machine's
+# own headers (PipeWire's needs sys/un.h, which MinGW lacks)
+set(ALSOFT_EXTRA_ARGS "")
+if(TARGET_WIN32)
+    set(ALSOFT_EXTRA_ARGS
+        -DALSOFT_BACKEND_PIPEWIRE:BOOL=FALSE -DALSOFT_BACKEND_PULSEAUDIO:BOOL=FALSE
+        -DALSOFT_BACKEND_ALSA:BOOL=FALSE -DALSOFT_BACKEND_OSS:BOOL=FALSE
+        -DALSOFT_BACKEND_JACK:BOOL=FALSE -DALSOFT_BACKEND_SNDIO:BOOL=FALSE
+        -DALSOFT_BACKEND_PORTAUDIO:BOOL=FALSE -DALSOFT_BACKEND_SOLARIS:BOOL=FALSE)
+endif()
+
 if(PLAT_MINGW_X86_32)
     set(CAN_WE_SSE FALSE)
 else()
@@ -72,6 +84,7 @@ ExternalProject_Add(
                         -DALSOFT_STATIC_LIBGCC:BOOL=${ALSOFT_STATIC_LIBGCC}
                         -DALSOFT_STATIC_STDCXX:BOOL=${ALSOFT_STATIC_STDCXX}
                         -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+                        ${ALSOFT_EXTRA_ARGS}
     CMAKE_CACHE_ARGS    -DEXTRA_LIBS:STRINGS=${EXTRA_LIBS}
     BUILD_BYPRODUCTS    ${OPENAL_LIBRARY}
 )
