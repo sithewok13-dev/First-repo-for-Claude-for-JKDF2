@@ -1,4 +1,7 @@
 #include "jkGUIMultiTally.h"
+#ifdef JK_ENHANCED
+#include "Enhanced/enhMenuRead.h" // Added
+#endif
 
 #include "General/Darray.h"
 #include "General/stdBitmap.h"
@@ -473,8 +476,17 @@ int jkGuiMultiTally_SortPlayerScore(const SithPlayer *pA, const SithPlayer *pB)
 void jkGuiMultiTally_Startup()
 {
     jkGui_InitMenu(&jkGuiMultiTally_menu, jkGui_stdBitmaps[JKGUI_BM_BK_TALLY]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiTally_menu); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiTally_menu2, jkGui_stdBitmaps[JKGUI_BM_BK_TALLY]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiTally_menu2); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiTally_menu3, jkGui_stdBitmaps[JKGUI_BM_BK_TALLY]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiTally_menu3); // Added: shown easier to read
+#endif
 }
 
 void jkGuiMultiTally_Shutdown()

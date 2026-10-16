@@ -1,4 +1,7 @@
 #include "jkGUINetHost.h"
+#ifdef JK_ENHANCED
+#include "Enhanced/enhMenuRead.h" // Added
+#endif
 
 #include <errno.h>
 
@@ -346,7 +349,13 @@ void jkGuiNetHost_Startup()
     stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
     
     jkGui_InitMenu(&jkGuiNetHost_menu, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiNetHost_menu); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiNetHost_menuSettings, jkGui_stdBitmaps[JKGUI_BM_BK_SETUP]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiNetHost_menuSettings); // Added: shown easier to read
+#endif
     
     jkGuiNetHost_LoadSettings();
     jkGuiNetHost_bInitted = 1;

@@ -1,6 +1,9 @@
 // Added: entire file. See jkGUIMultiLobby.h.
 
 #include "jkGUIMultiLobby.h"
+#ifdef JK_ENHANCED
+#include "Enhanced/enhMenuRead.h" // Added
+#endif
 
 #ifdef JKGUI_MULTI_LOBBY
 
@@ -983,10 +986,25 @@ int jkGuiMultiLobby_ShowMain(void)
 void jkGuiMultiLobby_Startup(void)
 {
     jkGui_InitMenu(&jkGuiMultiLobby_menuMain, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiLobby_menuMain); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiLobby_menuHostMode, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiLobby_menuHostMode); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiLobby_menuResume, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiLobby_menuResume); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiLobby_menuJoin, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiLobby_menuJoin); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiLobby_menuPassword, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiLobby_menuPassword); // Added: shown easier to read
+#endif
 }
 
 void jkGuiMultiLobby_Shutdown(void)

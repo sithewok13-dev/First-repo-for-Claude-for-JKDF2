@@ -1,4 +1,7 @@
 #include "jkGUIBuildMulti.h"
+#ifdef JK_ENHANCED
+#include "Enhanced/enhMenuRead.h" // Added
+#endif
 
 #include "General/Darray.h"
 #include "General/stdBitmap.h"
@@ -272,6 +275,9 @@ int32_t jkGuiBuildMulti_bRendering = 0;
 void jkGuiBuildMulti_StartupEditCharacter()
 {
     jkGui_InitMenu(&jkGuiBuildMulti_menu, jkGui_stdBitmaps[JKGUI_BM_BK_BUILD_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiBuildMulti_menu); // Added: shown easier to read
+#endif
 }
 
 void jkGuiBuildMulti_ShutdownEditCharacter()
@@ -867,8 +873,17 @@ int jkGuiBuildMulti_Startup()
         jkGuiBuildMulti_pNewCharacterElements = jkGuiBuildMulti_menuNewCharacter_buttonsMots;
     }
     jkGui_InitMenu(jkGuiBuildMulti_pNewCharacterMenu, jkGui_stdBitmaps[JKGUI_BM_BK_BUILD_LOAD]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(jkGuiBuildMulti_pNewCharacterMenu); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiBuildMulti_menuEditCharacter, jkGui_stdBitmaps[JKGUI_BM_BK_BUILD_LOAD]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiBuildMulti_menuEditCharacter); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiBuildMulti_menuLoadCharacter, jkGui_stdBitmaps[JKGUI_BM_BK_BUILD_LOAD]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiBuildMulti_menuLoadCharacter); // Added: shown easier to read
+#endif
 
     jkGuiBuildMulti_bInitted = 1;
     return 1;

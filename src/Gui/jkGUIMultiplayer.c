@@ -1,4 +1,7 @@
 #include "jkGUIMultiplayer.h"
+#ifdef JK_ENHANCED
+#include "Enhanced/enhMenuRead.h" // Added
+#endif
 
 #include "General/stdBitmap.h"
 #include "General/stdFont.h"
@@ -85,9 +88,21 @@ void jkGuiMultiplayer_Startup()
     stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
     
     jkGui_InitMenu(&jkGuiMultiplayer_menu, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiplayer_menu); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiplayer_menu2, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiplayer_menu2); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiplayer_menu3, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiplayer_menu3); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiplayer_menu4, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiplayer_menu4); // Added: shown easier to read
+#endif
     jkGuiMultiplayer_bInitted = 1;
 
 #ifdef QOL_IMPROVEMENTS
