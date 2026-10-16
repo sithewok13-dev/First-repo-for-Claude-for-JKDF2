@@ -12,6 +12,7 @@
 #include "General/stdString.h"
 #include "engine_config.h"
 #include "types_enums.h"
+#include "jk.h" // (__strcmpi)
 
 // The cvars' own copies (linked)
 static char enhSettings_saberStyle[SITHCVAR_MAX_STRLEN];
@@ -50,8 +51,9 @@ void enhSettings_StartupCvars(void)
 static void enhSettings_FromCvars(enhSettingsState* p)
 {
     p->style = IOSSABER_STYLE_SINGLE;
+    // (any case: the console lowers what is typed, "DUAL" arrives as "dual")
     for (int st = 0; st < IOSSABER_NUM_STYLES; st++)
-        if (!strcmp(enhSettings_saberStyle, iosSaber_StyleName(st))) p->style = st;
+        if (!__strcmpi(enhSettings_saberStyle, iosSaber_StyleName(st))) p->style = st;
     for (int i = 0; i < 3; i++) {
         const int id = iosSaber_ColourByKey(enhSettings_aColour[i]);
         p->aColour[i] = id >= 0 ? id : IOSSABER_COLOUR_GAME;
