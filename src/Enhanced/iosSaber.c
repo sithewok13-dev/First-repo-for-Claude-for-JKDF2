@@ -7,6 +7,7 @@
 
 #ifdef JK_ENHANCED
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -40,26 +41,35 @@ typedef struct {
     const char* from;           // made: the game's blade it is made from
     unsigned char core[3];      // made: the middle
     unsigned char edge[3];      // made: the edges; and the swatch for all
+    float spread;               // made: how soon the colour comes in out from the middle (0: 2.8)
+    float glow;                 // made: how slowly the colour fades to the edges (0: as the game's
+                                // blade does), the falloff's power: under 1 holds the colour out
 } iosSaberColour;
 
 // Round the wheel from the gap: the game's own, then by hue, red to pink,
-// then white and black
+// then white and black. Red, yellow, blue and purple are the classic film
+// blades, sampled across: red a narrow white middle into a deep rose red that
+// fades fast; yellow a white-hot middle into a warm golden haze; blue a pale
+// cyan-white middle easing into a soft, pale sky blue; purple a wide white
+// middle into a strong violet that holds out far. The other strong colours
+// glow the same way (crimson darker and fading faster than red, pink lightly);
+// white, light blue and black keep the plain look of the game's blue blade.
 static const iosSaberColour iosSaber_aColours[] = {
     { "game",      "ORIGINAL",   NULL,    NULL,    {   0,   0,   0 }, { 150, 150, 150 } },
-    { "red",       "RED",        "red",   NULL,    {   0,   0,   0 }, { 255,  40,  30 } },
-    { "crimson",   "CRIMSON",    "dred",  NULL,    {   0,   0,   0 }, { 170,   0,  20 } },
-    { "orange",    "ORANGE",     "orange", NULL,   {   0,   0,   0 }, { 255, 120,  20 } },
-    { "amber",     "AMBER",      NULL,    "green", { 255, 250, 225 }, { 255, 165,   0 } },
-    { "yellow",    "YELLOW",     "yellow", NULL,   {   0,   0,   0 }, { 255, 230,  40 } },
-    { "lime",      "LIME",       NULL,    "green", { 245, 255, 225 }, { 150, 255,  20 } },
-    { "green",     "GREEN",      "green", NULL,    {   0,   0,   0 }, {  40, 220,  60 } },
-    { "teal",      "TEAL",       NULL,    "green", { 230, 255, 250 }, {   0, 190, 150 } },
-    { "cyan",      "CYAN",       NULL,    "green", { 235, 255, 255 }, {   0, 235, 255 } },
+    { "red",       "RED",        NULL,    "green", { 255, 248, 248 }, { 230,  45,  75 }, 2.0f, 0.6f },
+    { "crimson",   "CRIMSON",    NULL,    "green", { 255, 236, 236 }, { 165,  10,  30 }, 2.0f, 0.8f },
+    { "orange",    "ORANGE",     NULL,    "green", { 255, 250, 238 }, { 255,  95,  20 }, 1.6f, 0.6f },
+    { "amber",     "AMBER",      NULL,    "green", { 255, 250, 232 }, { 255, 158,  18 }, 1.6f, 0.6f },
+    { "yellow",    "YELLOW",     NULL,    "green", { 255, 255, 245 }, { 250, 205,  95 }, 1.4f, 0.6f },
+    { "lime",      "LIME",       NULL,    "green", { 248, 255, 235 }, { 150, 240,  40 }, 1.4f, 0.6f },
+    { "green",     "GREEN",      NULL,    "green", { 242, 255, 242 }, {  50, 225,  75 }, 1.4f, 0.6f },
+    { "teal",      "TEAL",       NULL,    "green", { 238, 255, 250 }, {  15, 185, 150 }, 1.4f, 0.6f },
+    { "cyan",      "CYAN",       NULL,    "green", { 240, 255, 255 }, {  20, 225, 240 }, 1.4f, 0.6f },
     { "lightblue", "LIGHT BLUE", NULL,    "blue",  { 245, 250, 255 }, { 120, 195, 255 } },
-    { "blue",      "BLUE",       NULL,    "green", { 235, 245, 255 }, {  50, 110, 255 } },
-    { "purple",    "PURPLE",     "purple", NULL,   {   0,   0,   0 }, { 160,  60, 255 } },
-    { "magenta",   "MAGENTA",    NULL,    "green", { 255, 235, 255 }, { 255,  20, 220 } },
-    { "pink",      "PINK",       NULL,    "green", { 255, 245, 250 }, { 255, 110, 185 } },
+    { "blue",      "BLUE",       NULL,    "green", { 240, 252, 255 }, { 115, 160, 240 }, 1.4f, 0.6f },
+    { "purple",    "PURPLE",     NULL,    "green", { 255, 255, 255 }, { 190,  67, 240 }, 1.2f, 0.55f },
+    { "magenta",   "MAGENTA",    NULL,    "green", { 255, 245, 255 }, { 245,  35, 195 }, 1.4f, 0.6f },
+    { "pink",      "PINK",       NULL,    "green", { 255, 248, 252 }, { 255, 115, 185 }, 2.0f, 0.8f },
     { "white",     "WHITE",      NULL,    "blue",  { 255, 255, 255 }, { 215, 225, 255 } },
     { "black",     "BLACK",      NULL,    "blue",  {  10,  10,  14 }, { 245, 248, 255 } },
 };
@@ -88,38 +98,47 @@ int iosSaber_ColourByKey(const char* key)
     return -1;
 }
 
-// The game's own colour, as near as can be told: the one of the game's
-// colours whose side material the local player's blade has now, or -1
-static int iosSaber_GameColour(void)
+// The game's own blades (each colour here is made instead), and the swatch each
+// had as the game's: ORIGINAL shows the game's own blade exactly as the game
+// draws it, and its swatch with it
+static const struct { const char* side; unsigned char rgb[3]; } iosSaber_aGameSwatches[] = {
+    { "saberdred1",   { 170,   0,  20 } },
+    { "saberred1",    { 255,  40,  30 } },
+    { "saberorange1", { 255, 120,  20 } },
+    { "sabergreen1",  {  40, 220,  60 } },
+    { "saberyellow1", { 255, 230,  40 } },
+    { "saberblue1",   {  50, 110, 255 } },
+    { "saberpurple1", { 160,  60, 255 } },
+};
+
+// The game's own colour's swatch, as near as can be told: that of the game's
+// blade whose side material the local player's blade has now, or NULL
+static const unsigned char* iosSaber_GameSwatch(void)
 {
     SithThing* p = sithPlayer_g_pLocalPlayerThing;
-    if (!p || !p->playerInfo || !p->playerInfo->polyline.face.material) return -1;
+    if (!p || !p->playerInfo || !p->playerInfo->polyline.face.material) return NULL;
     char name[64];
     stdString_SafeStrCopy(name, p->playerInfo->polyline.face.material->mat_fpath, sizeof(name));
     for (char* q = name; *q; q++) {
         if (*q >= 'A' && *q <= 'Z') *q += 'a' - 'A';
     }
-    for (int i = 0; i < IOSSABER_NUM_COLOURS; i++) {
-        char side[32];
-        if (!iosSaber_aColours[i].stock) continue;
-        snprintf(side, sizeof(side), "saber%s1", iosSaber_aColours[i].stock);
-        if (strstr(name, side)) return i;
+    for (int i = 0; i < (int)(sizeof(iosSaber_aGameSwatches) / sizeof(iosSaber_aGameSwatches[0])); i++) {
+        if (strstr(name, iosSaber_aGameSwatches[i].side)) return iosSaber_aGameSwatches[i].rgb;
     }
-    // (the game's blue blade: blue's swatch, though blue is made, not the game's)
-    if (strstr(name, "saberblue1")) return iosSaber_ColourByKey("blue");
-    return -1;
+    return NULL;
 }
 
 void iosSaber_ColourRGB(int id, unsigned char* pR, unsigned char* pG, unsigned char* pB)
 {
     if (id < 0 || id >= IOSSABER_NUM_COLOURS) id = IOSSABER_COLOUR_GAME;
+    const unsigned char* c = iosSaber_aColours[id].edge;
     if (id == IOSSABER_COLOUR_GAME) {
-        const int game = iosSaber_GameColour();
-        if (game >= 0) id = game;
+        const unsigned char* game = iosSaber_GameSwatch();
+        if (game) c = game;
     }
-    *pR = iosSaber_aColours[id].edge[0];
-    *pG = iosSaber_aColours[id].edge[1];
-    *pB = iosSaber_aColours[id].edge[2];
+    *pR = c[0];
+    *pG = c[1];
+    *pB = c[2];
 }
 
 // ------------------------------------------------------------ the styles
@@ -200,8 +219,9 @@ static rdMaterial* iosSaber_pSavedTip = NULL;
 #define IOSSABER_PALE_EDGE 0.75f
 static void iosSaber_MakeTexels(const iosSaberColour* c, const uint8_t* pIdx, int w, int h, int pitch, const rdColor24* pal, uint8_t* pOut)
 {
-    // (pale: its edge colour light -- white, light blue)
-    const int bPale = c->edge[0] >= 120 && c->edge[1] >= 120 && c->edge[2] >= 120;
+    // (pale: its edge colour light -- white, light blue -- and no glow of its own)
+    const int bPale = !c->glow && c->edge[0] >= 120 && c->edge[1] >= 120 && c->edge[2] >= 120;
+    const float spread = c->spread ? c->spread : 2.8f;
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
             const int idx = pIdx[y * pitch + x];
@@ -217,7 +237,8 @@ static void iosSaber_MakeTexels(const iosSaberColour* c, const uint8_t* pIdx, in
             // specks, in white, look like grit against a bright sky)
             float v = mx / 255.0f;
             if (bPale && v < IOSSABER_PALE_EDGE) v = IOSSABER_PALE_EDGE + (v - IOSSABER_PALE_EDGE) * 0.35f;
-            float t = mx ? 2.8f * (mx - mn) / (float)mx : 0.0f;
+            if (c->glow) v = powf(v, c->glow);
+            float t = mx ? spread * (mx - mn) / (float)mx : 0.0f;
             if (t > 1.0f) t = 1.0f;
             float out[3];
             for (int k = 0; k < 3; k++) out[k] = (c->core[k] * (1.0f - t) + c->edge[k] * t) * v;
@@ -295,9 +316,8 @@ static int iosSaber_Load(int id)
 // ------------------------------------------------------------ thrown sabers
 
 // A thrown saber (Mysteries of the Sith's +fsab_..., a spinning model whose
-// blade is its first material, sab0<colour>.mat) drawn in a colour: the game's
-// own thrown blade for its seven, and the others made from its green or blue
-// one as the hand-held blades are (iosSaber_MakeTexels), loaded as needed and
+// blade is its first material, sab0<colour>.mat) drawn in a colour: made from
+// its green or blue one as the hand-held blades are (iosSaber_MakeTexels), loaded as needed and
 // freed with the level. While one is drawn, its blade's faces have it.
 static rdMaterial iosSaber_aThrownMat[IOSSABER_NUM_COLOURS];
 static int iosSaber_aThrownLoaded[IOSSABER_NUM_COLOURS]; // 1: loaded; -1: tried, and couldn't be
