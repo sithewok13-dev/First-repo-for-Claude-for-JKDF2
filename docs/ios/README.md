@@ -826,9 +826,11 @@ same way as the other wheels: tap or hold it to open the wheel and then tap a
 colour, or slide off it towards a colour and lift. The gap at the bottom
 cancels, and the game holds still while the wheel is open.
 
-- **17 colours:** ORIGINAL (the game's own, unchanged), red, crimson, orange,
-  amber, yellow, lime, green, teal, cyan, light blue, blue, purple, magenta,
-  pink, white, and black with a bright edge.
+- **The colours:** ORIGINAL (the game's own, unchanged: green in Jedi
+  Knight, orange in Mysteries of the Sith), red, crimson, orange, amber,
+  yellow, lime, green (Mysteries of the Sith only), teal, cyan, light blue,
+  blue, purple, magenta, pink, white, and black with a bright edge. Most
+  glow like the film blades: a white-hot middle in a haze of colour.
 - **The wheel stays open** after you pick a colour, so you can change both
   blades in one go. Close it with the gap at the bottom, or by tapping outside
   the wheel.
