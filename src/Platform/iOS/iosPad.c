@@ -18,8 +18,7 @@
 #include "World/sithWorld.h"
 #include "World/sithThing.h"
 #include "Enhanced/iosGame.h"
-#include "Platform/iOS/iosTouch.h"
-#include "Platform/iOS/iosPadPanel.h"
+#include "Platform/Input/inputUi.h" // (iOS: the touch overlay and iosPadPanel; elsewhere: inputOverlay.c)
 
 extern int stdControl_bControllerEscapeKey;
 SDL_Gamepad* stdControl_GetSdlGamepad(int idx);
@@ -118,22 +117,27 @@ static int iosPad_Clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? 
 static void iosPad_LoadSettings(void)
 {
     iosPad_bSettingsLoaded = 1;
-    iosPad_set.sensX = iosPad_Clampi(iosPadPanel_LoadInt("iosPadLookX", IOSPAD_SENS_DEFAULT), 0, IOSPAD_NUM_SENS - 1);
-    iosPad_set.sensY = iosPad_Clampi(iosPadPanel_LoadInt("iosPadLookY", IOSPAD_SENS_DEFAULT), 0, IOSPAD_NUM_SENS - 1);
-    iosPad_set.curve = iosPad_Clampi(iosPadPanel_LoadInt("iosPadCurve", IOSPAD_CURVE_DEFAULT), 0, IOSPAD_NUM_CURVES - 1);
-    iosPad_set.bInvertY = iosPadPanel_LoadInt("iosPadInvertY", 0) != 0;
-    iosPad_set.bAccel = iosPadPanel_LoadInt("iosPadAccel", 0) != 0;
-    iosPad_set.bRumble = iosPadPanel_LoadInt("iosPadRumble", 1) != 0;
+    iosPad_set.sensX = iosPad_Clampi(inputUi_LoadInt("iosPadLookX", IOSPAD_SENS_DEFAULT), 0, IOSPAD_NUM_SENS - 1);
+    iosPad_set.sensY = iosPad_Clampi(inputUi_LoadInt("iosPadLookY", IOSPAD_SENS_DEFAULT), 0, IOSPAD_NUM_SENS - 1);
+    iosPad_set.curve = iosPad_Clampi(inputUi_LoadInt("iosPadCurve", IOSPAD_CURVE_DEFAULT), 0, IOSPAD_NUM_CURVES - 1);
+    iosPad_set.bInvertY = inputUi_LoadInt("iosPadInvertY", 0) != 0;
+    iosPad_set.bAccel = inputUi_LoadInt("iosPadAccel", 0) != 0;
+    iosPad_set.bRumble = inputUi_LoadInt("iosPadRumble", 1) != 0;
 }
 
 static void iosPad_SaveSettings(void)
 {
-    iosPadPanel_SaveInt("iosPadLookX", iosPad_set.sensX);
-    iosPadPanel_SaveInt("iosPadLookY", iosPad_set.sensY);
-    iosPadPanel_SaveInt("iosPadCurve", iosPad_set.curve);
-    iosPadPanel_SaveInt("iosPadInvertY", iosPad_set.bInvertY);
-    iosPadPanel_SaveInt("iosPadAccel", iosPad_set.bAccel);
-    iosPadPanel_SaveInt("iosPadRumble", iosPad_set.bRumble);
+    inputUi_SaveInt("iosPadLookX", iosPad_set.sensX);
+    inputUi_SaveInt("iosPadLookY", iosPad_set.sensY);
+    inputUi_SaveInt("iosPadCurve", iosPad_set.curve);
+    inputUi_SaveInt("iosPadInvertY", iosPad_set.bInvertY);
+    inputUi_SaveInt("iosPadAccel", iosPad_set.bAccel);
+    inputUi_SaveInt("iosPadRumble", iosPad_set.bRumble);
+}
+
+void iosPad_ReloadSettings(void)
+{
+    iosPad_LoadSettings();
 }
 
 float iosPad_GetLookSensX(void) { return iosPad_aSens[iosPad_set.sensX]; }
@@ -201,7 +205,7 @@ static void iosPad_SetHudHidden(int bHidden)
 {
     if (iosPad_s.bHudHidden == bHidden) return;
     iosPad_s.bHudHidden = bHidden;
-    iosTouch_SetPadHud(bHidden);
+    inputUi_SetPadHud(bHidden);
 }
 
 void iosPad_NoteTouch(void)
@@ -382,7 +386,7 @@ static void iosPad_SetWheelPrompt(void)
     else {
         snprintf(t, sizeof(t), "Right stick or D-pad: point   %s: pick   %s: cancel", a, bb);
     }
-    iosPadPanel_SetPrompt(t);
+    inputUi_SetPrompt(t);
 }
 
 const char* iosPad_WheelHint(int bHot, int bCancel)
@@ -406,7 +410,7 @@ static void iosPad_WheelReset(void)
     iosPad_s.wheelState = IOSPAD_WS_NONE;
     iosPad_s.wheelBtn = -1;
     iosPad_s.bWheelAimOn = 0;
-    iosPadPanel_SetPrompt(NULL);
+    inputUi_SetPrompt(NULL);
 }
 
 // The wheel a press of pb would open (IOSPAD_WHEEL_*), or -1
@@ -423,7 +427,7 @@ static int iosPad_WheelKindFor(int pb)
 static void iosPad_WheelOpen(int bHeld)
 {
     iosPad_s.wheelState = IOSPAD_WS_HELD; // (first: the wheel asks for its hint as it opens)
-    if (!iosTouch_PadWheelOpen(iosPad_s.wheelKind, 0)) {
+    if (!inputUi_PadWheelOpen(iosPad_s.wheelKind, 0)) {
         // (it can't: the press is spent)
         iosPad_s.wheelState = IOSPAD_WS_NONE;
         iosPad_s.aStale[iosPad_s.wheelBtn] = iosPad_s.aDown[iosPad_s.wheelBtn];
@@ -459,7 +463,7 @@ static void iosPad_WheelAimFromStick(void)
     }
     if (m >= IOSPAD_WHEEL_AIM || (iosPad_s.bWheelAimOn && m >= IOSPAD_WHEEL_LETGO)) {
         float deg = atan2f(-iosPad_s.ry, iosPad_s.rx) * (180.0f / (float)M_PI);
-        iosTouch_PadWheelAim(1, deg);
+        inputUi_WheelAim(1, deg);
         iosPad_s.bWheelAimOn = 1;
         iosPad_s.bWheelAimed = 1;
         iosPad_s.tWheelLetGo = 0.0;
@@ -467,7 +471,7 @@ static void iosPad_WheelAimFromStick(void)
     else if (iosPad_s.bWheelAimOn) {
         if (iosPad_s.tWheelLetGo == 0.0) iosPad_s.tWheelLetGo = iosPad_s.now;
         else if (iosPad_s.now - iosPad_s.tWheelLetGo >= IOSPAD_WHEEL_GRACE) {
-            iosTouch_PadWheelAim(0, 0.0f);
+            inputUi_WheelAim(0, 0.0f);
             iosPad_s.bWheelAimOn = 0;
         }
     }
@@ -476,7 +480,7 @@ static void iosPad_WheelAimFromStick(void)
 static void iosPad_WheelCloseWith(int bSelect)
 {
     iosPad_s.wheelState = IOSPAD_WS_TAP; // (as it would be if it stays open: its hint is asked for)
-    if (iosTouch_PadWheelClose(bSelect)) {
+    if (inputUi_WheelClose(bSelect)) {
         // the saber wheel, still open on its colour: on to pick more with A
         iosPad_s.bWheelAimOn = 0;
         iosPad_SetWheelPrompt();
@@ -487,7 +491,7 @@ static void iosPad_WheelCloseWith(int bSelect)
 
 static void iosPad_WheelInput(void)
 {
-    if (!iosTouch_PadWheelIsOpen()) {
+    if (!inputUi_PadWheelIsOpen()) {
         // closed some other way (a touch, the overlay going)
         iosPad_WheelClosed();
         return;
@@ -495,14 +499,14 @@ static void iosPad_WheelInput(void)
     const int btn = iosPad_s.wheelBtn;
     const int bSaber = iosPad_s.wheelKind == IOSPAD_WHEEL_SABER;
     iosPad_WheelAimFromStick();
-    if (iosPad_Pressed(PB_DLEFT) && btn != PB_DLEFT) { iosTouch_PadWheelStep(-1); iosPad_s.bWheelAimed = 1; }
-    if (iosPad_Pressed(PB_DRIGHT)) { iosTouch_PadWheelStep(1); iosPad_s.bWheelAimed = 1; }
+    if (iosPad_Pressed(PB_DLEFT) && btn != PB_DLEFT) { inputUi_WheelStep(-1); iosPad_s.bWheelAimed = 1; }
+    if (iosPad_Pressed(PB_DRIGHT)) { inputUi_WheelStep(1); iosPad_s.bWheelAimed = 1; }
     if (bSaber) {
-        if (iosPad_Pressed(PB_X)) iosTouch_PadSaberChip(IOSPAD_CHIP_STYLE);
-        if (iosPad_Pressed(PB_Y)) iosTouch_PadSaberChip(IOSPAD_CHIP_TARGET);
+        if (iosPad_Pressed(PB_X)) inputUi_SaberChip(IOSPAD_CHIP_STYLE);
+        if (iosPad_Pressed(PB_Y)) inputUi_SaberChip(IOSPAD_CHIP_TARGET);
         if (iosPad_Pressed(PB_RS)) {
-            iosTouch_PadSaberChip(IOSPAD_CHIP_EQUIP);
-            if (!iosTouch_PadWheelIsOpen()) {
+            inputUi_SaberChip(IOSPAD_CHIP_EQUIP);
+            if (!inputUi_PadWheelIsOpen()) {
                 iosPad_WheelClosed();
                 return;
             }
@@ -514,7 +518,7 @@ static void iosPad_WheelInput(void)
         return;
     }
     int bPickable = 0;
-    const int bHot = iosTouch_PadWheelHot(&bPickable);
+    const int bHot = inputUi_WheelHot(&bPickable);
     if (iosPad_s.wheelState == IOSPAD_WS_HELD) {
         if (!iosPad_s.aDown[btn]) {
             // the button let go: picks what is pointed at; pointing at nothing
@@ -522,7 +526,7 @@ static void iosPad_WheelInput(void)
             if (bHot) iosPad_WheelCloseWith(1);
             else if (!iosPad_s.bWheelAimed && (iosPad_s.bWheelHeldOpen || bSaber)) {
                 iosPad_s.wheelState = IOSPAD_WS_TAP;
-                iosTouch_PadWheelSetTapMode();
+                inputUi_WheelSetTapMode();
                 iosPad_SetWheelPrompt();
             }
             else iosPad_WheelCloseWith(0);
@@ -547,8 +551,8 @@ static void iosPad_PanelOpen(int bOpen)
     iosGame_SetHoldReason(IOSGAME_HOLD_PADMENU, bOpen);
     iosPad_MarkAllStale();
     iosPad_s.aStickStale[0] = iosPad_s.aStickStale[1] = 1;
-    iosPadPanel_Show(bOpen);
-    iosPadPanel_SetPrompt(NULL);
+    inputUi_PanelShow(bOpen);
+    inputUi_SetPrompt(NULL);
 }
 
 int iosPad_PanelIsOpen(void)
@@ -588,7 +592,7 @@ void iosPad_PanelRow(int row, char* pLabel, int labelSize, char* pValue, int val
         case IOSPAD_ROW_INVERT: snprintf(pValue, valueSize, "%s", iosPad_set.bInvertY ? "ON" : "OFF"); break;
         case IOSPAD_ROW_ACCEL: snprintf(pValue, valueSize, "%s", iosPad_set.bAccel ? "ON" : "OFF"); break;
         case IOSPAD_ROW_RUMBLE: snprintf(pValue, valueSize, "%s", !iosPad_s.bRumbleCap ? "NOT ON THIS PAD" : iosPad_set.bRumble ? "ON" : "OFF"); break;
-        case IOSPAD_ROW_FPS: snprintf(pValue, valueSize, "%s", iosTouch_IsFpsShown() ? "ON" : "OFF"); break;
+        case IOSPAD_ROW_FPS: snprintf(pValue, valueSize, "%s", inputUi_IsFpsShown() ? "ON" : "OFF"); break;
         case IOSPAD_ROW_TYPE: snprintf(pValue, valueSize, "keyboard for cheats"); break;
     }
 }
@@ -614,7 +618,7 @@ static void iosPad_PanelChange(int row, int dir)
             iosPad_set.bRumble = !iosPad_set.bRumble;
             iosPad_Rumble(0.5f, 0.5f, 150); // (what it feels like)
             break;
-        case IOSPAD_ROW_FPS: iosTouch_SetFpsShown(!iosTouch_IsFpsShown()); break;
+        case IOSPAD_ROW_FPS: inputUi_SetFpsShown(!inputUi_IsFpsShown()); break;
         case IOSPAD_ROW_TYPE:
             // the typing line, for cheats (the options close: the keyboard needs the screen)
             iosPad_PanelOpen(0);
@@ -622,7 +626,7 @@ static void iosPad_PanelChange(int row, int dir)
             return;
     }
     iosPad_SaveSettings();
-    iosPadPanel_Refresh();
+    inputUi_PanelRefresh();
 }
 
 void iosPad_PanelTap(int row)
@@ -634,7 +638,7 @@ void iosPad_PanelTap(int row)
     }
     iosPad_s.panelFocus = row;
     iosPad_PanelChange(row, 1);
-    iosPadPanel_Refresh();
+    inputUi_PanelRefresh();
 }
 
 static void iosPad_PanelInput(void)
@@ -655,7 +659,7 @@ static void iosPad_PanelInput(void)
     else if (fabsf(iosPad_s.lx) < IOSPAD_PANEL_PUSH * 0.5f) iosPad_s.bPanelStickX = 0;
     if (dy) {
         iosPad_s.panelFocus = (iosPad_s.panelFocus + dy + IOSPAD_NUM_ROWS) % IOSPAD_NUM_ROWS;
-        iosPadPanel_Refresh();
+        inputUi_PanelRefresh();
         iosPad_Rumble(0.0f, 0.15f, 20);
     }
     const int row = iosPad_s.panelFocus;
@@ -707,7 +711,7 @@ static void iosPad_StartInput(void)
 static void iosPad_SetRing(int kind, float progress)
 {
     iosPad_s.ringKind = kind;
-    iosPadPanel_HoldRing(kind, progress);
+    inputUi_HoldRing(kind, progress);
 }
 
 static void iosPad_SelectInput(void)
@@ -755,7 +759,7 @@ static void iosPad_SelectInput(void)
 
 static void iosPad_LeaveGame(void)
 {
-    if (iosPad_s.wheelState >= IOSPAD_WS_HELD && iosTouch_PadWheelIsOpen()) iosTouch_PadWheelClose(0);
+    if (iosPad_s.wheelState >= IOSPAD_WS_HELD && inputUi_PadWheelIsOpen()) inputUi_WheelClose(0);
     iosPad_WheelReset();
     iosPad_PanelOpen(0);
     iosPad_s.startState = iosPad_s.selState = 0;
@@ -870,7 +874,7 @@ void iosPad_Update(void)
     // A photo mode (selfie, Action Freeze, the cinematic burst, the Photos
     // prompt): the pad does nothing -- no saves or loads under the photo
     // camera, no menu, no wheels -- and what is held then is ignored after
-    const int bPhoto = iosTouch_IsPhotoModeUp();
+    const int bPhoto = inputUi_IsPhotoModeUp();
     if (bPhoto) {
         if (!iosPad_s.bPhoto) {
             iosPad_s.startState = iosPad_s.selState = 0;
