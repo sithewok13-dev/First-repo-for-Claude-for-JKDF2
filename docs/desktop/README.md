@@ -82,21 +82,25 @@ isn't signed by Apple, so the first time:
    (A downloaded app is run from a hidden copy until that mark is removed,
    and then it can't see the files next to it.)
 
-For Mysteries of the Sith there's no separate app yet. Open **Terminal**,
-go to the folder with the Mysteries of the Sith files and start it like
-this:
+For Mysteries of the Sith there's no separate app yet. Quit the game if it's
+running, open **Terminal**, go to the folder with the Mysteries of the Sith
+files (with its own copy of `OpenJKDF2.app`) and start it like this:
 
 ```
-cd ~/Downloads/OpenJKDF2-macos-arm64
-open OpenJKDF2.app --args -motsCompat
+cd ~/Downloads/OpenMoTS
+open -n OpenJKDF2.app --args -motsCompat
 ```
+
+(`-n` starts a fresh copy, so the Mysteries of the Sith setting isn't lost if
+another copy of the game is already open.)
 
 ### Linux
 
-Double-click `openjkdf2.sh` (or `openmots.sh` for Mysteries of the Sith),
-or open a terminal in the folder and type `./openjkdf2.sh` (or
-`./openmots.sh`). Both start the game from their own folder, which is
-where it looks for the game files.
+Open a terminal in the folder and type `./openjkdf2.sh` (or `./openmots.sh`
+for Mysteries of the Sith). Both start the game from their own folder, which
+is where it looks for the game files. Double-clicking them only works if your
+file manager runs scripts; in Ubuntu's Files, right-click the script and
+choose **Run as a Program** instead (a plain double-click opens it as text).
 It needs these libraries, which most desktops already have (on Ubuntu or
 Debian): `sudo apt install libopenal1 libgtk-3-0 libcurl4 libssl3 libavahi-compat-libdnssd1`.
 `libraries.txt` in the folder lists everything it was built against.
