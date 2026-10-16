@@ -19,10 +19,14 @@ check_list() { # $1: where; stdin: one path per line
     fi
 }
 for a in "$@"; do
-    if [ -d "$a" ]; then LIST=$(cd "$a" && find . -mindepth 1)
-    elif [[ "$a" == *.zip ]]; then LIST=$(unzip -Z1 "$a")
-    elif [[ "$a" == *.tar.gz || "$a" == *.tgz ]]; then LIST=$(tar -tzf "$a")
+    # (a listing that fails, or lists nothing, fails the check: nothing unseen passes)
+    if [ -d "$a" ]; then LIST=$(cd "$a" && find . -mindepth 1); rc=$?
+    elif [[ "$a" == *.zip ]]; then LIST=$(unzip -Z1 "$a"); rc=$?
+    elif [[ "$a" == *.tar.gz || "$a" == *.tgz ]]; then LIST=$(tar -tzf "$a"); rc=$?
     else echo "::error::not a folder, .zip or .tar.gz: $a"; bad=1; continue; fi
+    if [ $rc -ne 0 ] || [ -z "$LIST" ]; then
+        echo "::error::couldn't list $a (exit $rc), or it is empty"; bad=1; continue
+    fi
     check_list "$a" <<<"$LIST"
     echo "checked $a: $(wc -l <<<"$LIST") entries"
 done

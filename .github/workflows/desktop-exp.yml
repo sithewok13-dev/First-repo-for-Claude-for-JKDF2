@@ -66,6 +66,7 @@ jobs:
           P=OpenJKDF2-linux-x86_64
           mkdir -p pkg/$P
           cp build/openjkdf2 pkg/$P/
+          cp packaging/desktop/openjkdf2.sh packaging/desktop/openmots.sh pkg/$P/
           cp docs/desktop/README.md pkg/$P/README.md
           cp LICENSE.md pkg/$P/
           ldd build/openjkdf2 | sed 's/ (0x.*//' > pkg/$P/libraries.txt
@@ -113,6 +114,7 @@ jobs:
           P=OpenJKDF2-windows-x86_64
           mkdir -p pkg/$P
           cp build/openjkdf2-64.exe build/OpenAL32.dll pkg/$P/
+          cp "packaging/desktop/Mysteries of the Sith.bat" pkg/$P/
           cp docs/desktop/README.md pkg/$P/README.md
           cp LICENSE.md pkg/$P/
           # Every DLL the program needs must be Windows' own or shipped next to it

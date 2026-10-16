@@ -39,12 +39,16 @@ these folders from your game into the OpenJKDF2 folder you unzipped:
 - Mysteries of the Sith: its own `Episode`, `Resource` and `MUSIC`.
 
 The two games can't share one folder. For both, make two copies of the
-OpenJKDF2 folder, one per game. The game sees which one it has by itself.
+OpenJKDF2 folder, one per game, and start Mysteries of the Sith with its
+own launcher (below).
 
-If the game doesn't find its files, it offers to copy them: say **Yes** and
-pick your game's install folder. It then copies them to its own folder
-(Windows: `%APPDATA%\OpenJKDF2\openjkdf2`, Mac: `~/Library/Application
-Support/OpenJKDF2/openjkdf2`, Linux: `~/.local/share/OpenJKDF2/openjkdf2`).
+**Jedi Knight only:** if the game doesn't find its files, it offers to copy
+them: say **Yes** and pick your Jedi Knight install folder. It then copies
+them to its own folder (Windows: `%APPDATA%\OpenJKDF2\openjkdf2`, Mac:
+`~/Library/Application Support/OpenJKDF2/openjkdf2`, Linux:
+`~/.local/share/OpenJKDF2/openjkdf2`). **Don't use that offer for Mysteries
+of the Sith:** it would copy the wrong files and leave the folder unusable.
+Copy Mysteries of the Sith's folders next to the program by hand instead.
 
 ## Start it
 
@@ -54,6 +58,9 @@ Double-click `openjkdf2-64.exe`. Windows may say **"Windows protected your
 PC"** (SmartScreen), because the program isn't signed. Click **More info**,
 then **Run anyway**. Keep `OpenAL32.dll` next to the program (it's the
 sound).
+
+For Mysteries of the Sith, double-click `Mysteries of the Sith.bat` instead
+(in the folder with the Mysteries of the Sith files).
 
 ### Mac
 
@@ -75,15 +82,21 @@ isn't signed by Apple, so the first time:
    (A downloaded app is run from a hidden copy until that mark is removed,
    and then it can't see the files next to it.)
 
+For Mysteries of the Sith there's no separate app yet. Open **Terminal**,
+go to the folder with the Mysteries of the Sith files and start it like
+this:
+
+```
+cd ~/Downloads/OpenJKDF2-macos-arm64
+open OpenJKDF2.app --args -motsCompat
+```
+
 ### Linux
 
-Open a terminal in the folder and type:
-
-```
-./openjkdf2
-```
-
-Start it from inside that folder: that is where it looks for the game files.
+Double-click `openjkdf2.sh` (or `openmots.sh` for Mysteries of the Sith),
+or open a terminal in the folder and type `./openjkdf2.sh` (or
+`./openmots.sh`). Both start the game from their own folder, which is
+where it looks for the game files.
 It needs these libraries, which most desktops already have (on Ubuntu or
 Debian): `sudo apt install libopenal1 libgtk-3-0 libcurl4 libavahi-compat-libdnssd1`.
 `libraries.txt` in the folder lists everything it was built against.
@@ -115,6 +128,9 @@ key on a computer yet; they are set by typing in the game's console.
 - With two sabers you get the resting stances, and in Mysteries of the Sith
   Saber Throw throws both, one after the other.
 - **Cheats:** type them on the typing line (**T**), as in the original.
+- **In a multiplayer game** the console and **T** only send chat, so
+  these settings and cheats can't be typed there. Set them before you host
+  or join.
 
 ### Photos
 
