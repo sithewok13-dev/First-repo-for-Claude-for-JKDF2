@@ -18,6 +18,7 @@
 #include "Enhanced/enhTick.h"
 #include "Win95/Window.h"
 #include "globals.h"
+#include "Main/jkQuakeConsole.h"
 
 // A photo asked for that no frame takes this soon is dropped
 #define INPUTPHOTO_TIMEOUT 0.5
@@ -142,9 +143,16 @@ int inputPhoto_Camera(int action)
     }
 }
 
+// Whether the mouse is the camera's now (not while the console or the
+// typing line has the keys and the pointer)
+static int inputPhoto_MouseIsCamera(void)
+{
+    return inputPhoto_s.bFreezing && !jkQuakeConsole_bOpen && !jkHud_bChatOpen;
+}
+
 void inputPhoto_FreezeMouse(float dx, float dy)
 {
-    if (!inputPhoto_s.bFreezing) return;
+    if (!inputPhoto_MouseIsCamera()) return;
     // (as a finger: what is on screen follows the mouse)
     inputPhoto_s.aMove[INPUTPHOTO_YAW] -= dx * INPUTPHOTO_ORBIT;
     inputPhoto_s.aMove[INPUTPHOTO_PITCH] -= dy * INPUTPHOTO_ORBIT;
@@ -152,7 +160,7 @@ void inputPhoto_FreezeMouse(float dx, float dy)
 
 void inputPhoto_FreezeWheel(float notches)
 {
-    if (!inputPhoto_s.bFreezing) return;
+    if (!inputPhoto_MouseIsCamera()) return;
     inputPhoto_s.aMove[INPUTPHOTO_ZOOM] += notches * logf(INPUTPHOTO_ZOOM_NOTCH);
 }
 

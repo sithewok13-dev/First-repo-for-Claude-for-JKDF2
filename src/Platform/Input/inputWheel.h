@@ -156,6 +156,11 @@ typedef struct {
 // wheel its choices beside it. Nothing if no wheel is open.
 void inputWheel_Draw(touchUiDrawList* pList, const inputWheelScreen* pScreen);
 
+// Text for the label font, which is printable ASCII: the few other
+// characters the prompts and names use (a PlayStation pad's symbols, the
+// D-pad's arrows, dashes) in words, any other as '?'
+void inputWheel_Ascii(const char* in, char* out, int outSize);
+
 // Where it was last drawn (points), for the tests and for pointing with a
 // finger or a pointer
 void inputWheel_GetGeometry(float* pX, float* pY, float* pR0, float* pR1);

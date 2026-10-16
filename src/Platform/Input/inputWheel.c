@@ -578,6 +578,43 @@ static void inputWheel_Layout(const inputWheelScreen* s)
 
 // ------------------------------------------------------------ drawing
 
+// Text for the label font (printable ASCII): the few others the prompts
+// and names use, in words
+void inputWheel_Ascii(const char* in, char* out, int outSize)
+{
+    static const struct { const char* utf8; const char* ascii; } aMap[] = {
+        { "\xE2\x9C\x95", "Cross" }, { "\xE2\x97\x8B", "Circle" }, { "\xE2\x96\xA1", "Square" }, { "\xE2\x96\xB3", "Triangle" },
+        { "\xE2\x86\x91", "up" }, { "\xE2\x86\x93", "down" }, { "\xE2\x86\x90", "left" }, { "\xE2\x86\x92", "right" },
+        { "\xE2\x80\x94", "-" }, { "\xE2\x80\x93", "-" },
+    };
+    int o = 0;
+    for (const unsigned char* p = (const unsigned char*)in; *p && o < outSize - 1;) {
+        if (*p < 0x80) {
+            out[o++] = (*p >= 32 && *p < 127) ? (char)*p : ' ';
+            p++;
+            continue;
+        }
+        const char* rep = "?";
+        int len = 1;
+        for (unsigned i = 0; i < sizeof(aMap) / sizeof(aMap[0]); i++) {
+            const size_t n = strlen(aMap[i].utf8);
+            if (!strncmp((const char*)p, aMap[i].utf8, n)) {
+                rep = aMap[i].ascii;
+                len = (int)n;
+                break;
+            }
+        }
+        if (len == 1) {
+            // (another character: one '?', its continuation bytes skipped)
+            while (p[len] >= 0x80 && p[len] < 0xC0) len++;
+        }
+        for (const char* r = rep; *r && o < outSize - 1; r++) out[o++] = *r;
+        p += len;
+    }
+    out[o] = 0;
+}
+
+
 // A group's colour, mixed k of the way to it from the wheel's dark grey
 static touchUiColor inputWheel_Colour(const inputWheelGroup* g, float k, float a)
 {
@@ -840,7 +877,12 @@ void inputWheel_Draw(touchUiDrawList* pList, const inputWheelScreen* pScreen)
         // opener's words (why a slice can't be picked stays as it is)
         const int bPickable = hot >= 0 && inputWheel_s.aEarned[hot];
         const char* h = (hot >= 0 && !bPickable) ? NULL : inputWheel_s.pfnHint(bPickable, bCancel);
-        if (h) hint = h;
+        if (h) {
+            // (a PlayStation pad's button symbols, in words: the font is ASCII)
+            static char hintAscii[96];
+            inputWheel_Ascii(h, hintAscii, sizeof(hintAscii));
+            hint = hintAscii;
+        }
     }
     {
         // the title: "BOW- CASTER" and "LIGHT- SABER" whole; a weapon's name

@@ -16,6 +16,7 @@
 #include "Gui/jkGUIRend.h"
 #include "Main/sithCvar.h"
 #include "Platform/stdControl.h"
+#include "Win95/Window.h"
 #include "Platform/Input/inputUi.h"
 #include "Platform/Input/inputWheel.h"
 #include "Platform/Input/inputPhoto.h"
@@ -298,7 +299,13 @@ void inputUi_SetFpsShown(int bShow)
 
 // ------------------------------------------------------------ the options, the ring, the prompts
 
-void inputUi_PanelShow(int bShow) { inputOverlay_s.bPanel = bShow != 0; }
+void inputUi_PanelShow(int bShow)
+{
+    if (inputOverlay_s.bPanel == (bShow != 0)) return;
+    inputOverlay_s.bPanel = bShow != 0;
+    // (the mouse's buttons start over: none held into or out of the options)
+    Window_bMouseLeft = Window_bMouseRight = 0;
+}
 void inputUi_PanelRefresh(void) {} // (drawn as they are, every frame)
 
 void inputUi_HoldRing(int kind, float progress)
@@ -316,48 +323,12 @@ void inputUi_KbmViewTick(void) {}
 
 // ------------------------------------------------------------ the screen
 
-// Text for the label font (printable ASCII): the few others the prompts
-// and names use, in words
-static void inputOverlay_Ascii(const char* in, char* out, int outSize)
-{
-    static const struct { const char* utf8; const char* ascii; } aMap[] = {
-        { "\xE2\x9C\x95", "Cross" }, { "\xE2\x97\x8B", "Circle" }, { "\xE2\x96\xA1", "Square" }, { "\xE2\x96\xB3", "Triangle" },
-        { "\xE2\x86\x91", "up" }, { "\xE2\x86\x93", "down" }, { "\xE2\x86\x90", "left" }, { "\xE2\x86\x92", "right" },
-        { "\xE2\x80\x94", "-" }, { "\xE2\x80\x93", "-" },
-    };
-    int o = 0;
-    for (const unsigned char* p = (const unsigned char*)in; *p && o < outSize - 1;) {
-        if (*p < 0x80) {
-            out[o++] = (*p >= 32 && *p < 127) ? (char)*p : ' ';
-            p++;
-            continue;
-        }
-        const char* rep = "?";
-        int len = 1;
-        for (unsigned i = 0; i < sizeof(aMap) / sizeof(aMap[0]); i++) {
-            const size_t n = strlen(aMap[i].utf8);
-            if (!strncmp((const char*)p, aMap[i].utf8, n)) {
-                rep = aMap[i].ascii;
-                len = (int)n;
-                break;
-            }
-        }
-        if (len == 1) {
-            // (another character: one '?', its continuation bytes skipped)
-            while (p[len] >= 0x80 && p[len] < 0xC0) len++;
-        }
-        for (const char* r = rep; *r && o < outSize - 1; r++) out[o++] = *r;
-        p += len;
-    }
-    out[o] = 0;
-}
-
 // Text at a size, made smaller (to minScale) to fit maxW; drawn with its
 // left edge, middle or right edge (align -1, 0, 1) at x
 static void inputOverlay_Text(const char* pText, float x, float y, float size, float maxW, float minScale, int align, touchUiColor c)
 {
     char t[256];
-    inputOverlay_Ascii(pText, t, sizeof(t));
+    inputWheel_Ascii(pText, t, sizeof(t));
     float w = 0.0f;
     touchUiDraw_MeasureText(t, size, 1.0f, &w, NULL);
     if (maxW > 0.0f && w > maxW) {
@@ -456,7 +427,7 @@ static void inputOverlay_DrawPrompt(void)
     float left, top, right, bottom;
     inputOverlay_Bounds(&left, &top, &right, &bottom);
     char t[256];
-    inputOverlay_Ascii(inputOverlay_s.prompt, t, sizeof(t));
+    inputWheel_Ascii(inputOverlay_s.prompt, t, sizeof(t));
     float tw = 0.0f, size = 13.0f;
     touchUiDraw_MeasureText(t, size, 1.0f, &tw, NULL);
     const float maxW = right - left - 28.0f;
@@ -568,8 +539,9 @@ int inputOverlay_HandleEvent(void* pSdlEvent)
     case SDL_EVENT_MOUSE_BUTTON_UP:
         // the controller options: a click on a row changes it (as A does);
         // off the card, they close. Every click is theirs while they are up.
-        if (!iosPad_PanelIsOpen() || e->button.which == SDL_TOUCH_MOUSEID) return 0;
-        if (e->type == SDL_EVENT_MOUSE_BUTTON_DOWN && e->button.button == SDL_BUTTON_LEFT && inputOverlay_s.pxPerPt > 0.0f) {
+        // (a button let go always reaches the window, so the game never keeps one held)
+        if (!iosPad_PanelIsOpen() || e->button.which == SDL_TOUCH_MOUSEID || e->type != SDL_EVENT_MOUSE_BUTTON_DOWN) return 0;
+        if (e->button.button == SDL_BUTTON_LEFT && inputOverlay_s.pxPerPt > 0.0f) {
             const float k = inputOverlay_s.winToPx / inputOverlay_s.pxPerPt;
             const int row = inputOverlay_PanelRowAt(e->button.x * k, e->button.y * k);
             if (row != -2) iosPad_PanelTap(row);
