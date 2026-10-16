@@ -834,6 +834,157 @@ static void test_items_cheats(void)
     CHECK(fg.bThird == 1);
 }
 
+// sithewok's level pick: the tray's LEVEL (right of its CHEAT switch, only
+// while the cheat is on); DUCK only ever crouches
+static void openTrayT(void) { float mx, my; bxy(TOUCHUI_BTN_MENU, &mx, &my); down(1, mx, my); wait(0.5); up(1, mx, my); }
+static void closeTrayT(void) { if (touchUi_IsTrayOpen()) { down(9, 400, 250); up(9, 400, 250); tick(); } }
+static void check_level_tray_layout(const char* name, float W, float H, float l, float t, float r, float b, int bSwap)
+{
+    g_case = name;
+    setup();
+    touchUi_SetScreen(W, H, l, t, r, b);
+    if (bSwap) { openTrayT(); downOn(2, TOUCHUI_BTN_TRAYCTRL); upOn(2, TOUCHUI_BTN_TRAYCTRL); closeTrayT(); }
+    float aOff[TOUCHUI_BTN_COUNT], x, y, rr, fx0, fy0;
+    bxy(TOUCHUI_BTN_FORCE, &fx0, &fy0);
+    openTrayT();
+    CHECK(!touchUi_GetButton(TOUCHUI_BTN_TRAYLEVEL, &x, &y, &rr));
+    for (int i = TOUCHUI_BTN_TRAYGYRO; i <= TOUCHUI_BTN_TRAYKEYS; i++) { touchUi_GetButton(i, &aOff[i], &y, &rr); }
+    closeTrayT();
+    fg.bCheat = 1; tick();
+    float fx1, fy1; bxy(TOUCHUI_BTN_FORCE, &fx1, &fy1);
+    CHECK(fx0 == fx1 && fy0 == fy1); // (FORCE never moves with the cheat)
+    openTrayT();
+    float lx, ly, cx, vx;
+    CHECK(touchUi_GetButton(TOUCHUI_BTN_TRAYLEVEL, &lx, &ly, &rr));
+    bxy(TOUCHUI_BTN_TRAYCHEAT, &cx, &y); bxy(TOUCHUI_BTN_TRAYVIEW, &vx, &y);
+    CHECKF(lx - cx, 50.0, 0.5);
+    CHECKF(vx - lx, 50.0, 0.5);
+    float gx, kx, ky; bxy(TOUCHUI_BTN_TRAYGYRO, &gx, &y); bxy(TOUCHUI_BTN_TRAYKEYS, &kx, &ky);
+    // its left end inside the safe area; its right end where it was without
+    // LEVEL (the row grows to the left only)
+    CHECK(gx - 26 >= (l > 8 ? l : 0) - 0.5f && ky - 26 >= t - 0.5f);
+    CHECKF(kx, aOff[TOUCHUI_BTN_TRAYKEYS], 0.5);
+    printf("  [%s] tray with LEVEL %.0f..%.0f (off: %.0f..%.0f)\n", name, gx - 26, kx + 26, aOff[TOUCHUI_BTN_TRAYGYRO] - 26, aOff[TOUCHUI_BTN_TRAYKEYS] + 26);
+    // the moved message line with the tray and each row open: clear of every
+    // button shown, down 70 pt (stacked lines), at least 120 pt wide
+    for (int st = 0; st < 4; st++) {
+        closeTrayT(); openTrayT();
+        if (st == 1) { downOn(2, TOUCHUI_BTN_TRAYGYRO); wait(0.55); upOn(2, TOUCHUI_BTN_TRAYGYRO); }
+        if (st >= 2) { downOn(2, TOUCHUI_BTN_TRAYCAM); wait(0.55); upOn(2, TOUCHUI_BTN_TRAYCAM); }
+        if (st == 3) { downOn(2, TOUCHUI_BTN_CAMROW_PHOTO); upOn(2, TOUCHUI_BTN_CAMROW_PHOTO); }
+        tick();
+        float tt, tl, tr2;
+        touchUi_GetTopTextRect(&tt, &tl, &tr2);
+        float bx, by, br;
+        const int aRowBtn[4] = { -1, TOUCHUI_BTN_GYROOPT_MODE, TOUCHUI_BTN_CAMROW_PHOTO, TOUCHUI_BTN_CAMOPT_CLEAN };
+        if (st > 0) CHECK(touchUi_GetButton(aRowBtn[st], &bx, &by, &br));
+        CHECK(tr2 - tl >= 120.0f);
+        for (int i = 0; i < TOUCHUI_BTN_COUNT; i++) {
+            if (!touchUi_GetButton(i, &bx, &by, &br)) continue;
+            const int bOver = bx + br > tl + 0.5f && bx - br < tr2 - 0.5f && by + br > tt + 0.5f && by - br < tt + 70.0f - 0.5f;
+            if (bOver) printf("  [%s] message line (state %d) over button %d\n", name, st, i);
+            CHECK(!bOver);
+        }
+        printf("  [%s] message line, state %d: top %.0f, x %.0f..%.0f\n", name, st, tt, tl, tr2);
+    }
+    closeTrayT();
+}
+
+static void test_level_tray(void)
+{
+    setup();
+    float x, y, r;
+    g_case = "level pick: DUCK held still with sithewok on only crouches";
+    fg.bCheat = 1; fg.numLevels = 21; tick();
+    downOn(1, TOUCHUI_BTN_DUCK); wait(3.0);
+    CHECK(touchUi_IsKeyHeld(SC_C));
+    upOn(1, TOUCHUI_BTN_DUCK); wait(0.1);
+    CHECK(!touchUi_IsKeyHeld(SC_C) && fg.levelLoaded == 0 && fg.lastMsg[0] == 0);
+
+    g_case = "level pick: no LEVEL in the tray with sithewok off";
+    fg.bCheat = 0; tick();
+    openTrayT();
+    CHECK(touchUi_IsTrayOpen() && !touchUi_GetButton(TOUCHUI_BTN_TRAYLEVEL, &x, &y, &r) && touchUi_GetButton(TOUCHUI_BTN_TRAYVIEW, &x, &y, &r));
+    float cx, vx; bxy(TOUCHUI_BTN_TRAYCHEAT, &cx, &y); bxy(TOUCHUI_BTN_TRAYVIEW, &vx, &y);
+    CHECKF(vx - cx, 50.0, 0.5);
+    closeTrayT();
+
+    g_case = "level pick: LEVEL right of CHEAT with sithewok on; a tap only says how";
+    fg.bCheat = 1; tick();
+    openTrayT();
+    CHECK(touchUi_GetButton(TOUCHUI_BTN_TRAYLEVEL, &x, &y, &r));
+    downOn(2, TOUCHUI_BTN_TRAYLEVEL); wait(0.1); upOn(2, TOUCHUI_BTN_TRAYLEVEL); wait(0.1);
+    CHECK(fg.levelLoaded == 0 && !strcmp(fg.lastMsg, "Hold LEVEL to count levels") && touchUi_IsTrayOpen());
+
+    g_case = "level pick: the message line under the open tray, back up when it closes";
+    { float t0, l0, r0, t1, l1, r1, gx2, gy2; touchUi_GetTopTextRect(&t1, &l1, &r1); bxy(TOUCHUI_BTN_TRAYGYRO, &gx2, &gy2);
+      closeTrayT(); touchUi_GetTopTextRect(&t0, &l0, &r0); openTrayT();
+      CHECK(t1 >= gy2 + 26 && t0 < gy2 - 20 && r1 - l1 >= 120); }
+    g_case = "level pick: LEVEL held counts 1, 2, 3; lifted, level 3 loads and the tray closes";
+    downOn(2, TOUCHUI_BTN_TRAYLEVEL); wait(0.45);
+    CHECK(fg.lastMsg[0] == 'H');
+    wait(0.1); CHECK(!strcmp(fg.lastMsg, "Level 1 of 21"));
+    CHECK(takeHaptics() & TOUCHUI_HAPTIC_TAP);
+    wait(0.4); CHECK(!strcmp(fg.lastMsg, "Level 2 of 21"));
+    wait(0.4); CHECK(!strcmp(fg.lastMsg, "Level 3 of 21"));
+    upOn(2, TOUCHUI_BTN_TRAYLEVEL);
+    CHECK(fg.levelLoaded == 0 && !strcmp(fg.lastMsg, "Loading level 3"));
+    wait(0.05);
+    CHECK(fg.levelLoaded == 3 && !touchUi_IsTrayOpen());
+
+    g_case = "level pick: round past the last";
+    fg.levelLoaded = 0; openTrayT();
+    downOn(2, TOUCHUI_BTN_TRAYLEVEL); wait(9.1); CHECK(!strcmp(fg.lastMsg, "Level 1 of 21"));
+    upOn(2, TOUCHUI_BTN_TRAYLEVEL); wait(0.05);
+    CHECK(fg.levelLoaded == 1);
+
+    g_case = "level pick: slid off while counting: no level";
+    fg.levelLoaded = 0; openTrayT();
+    float lx, ly; bxy(TOUCHUI_BTN_TRAYLEVEL, &lx, &ly);
+    down(2, lx, ly); wait(1.0); move(2, lx + 20, ly); wait(0.1);
+    CHECK(!strcmp(fg.lastMsg, "No level picked"));
+    move(2, lx, ly); wait(0.5); up(2, lx, ly); wait(0.1);
+    CHECK(fg.levelLoaded == 0 && !strcmp(fg.lastMsg, "No level picked"));
+
+    g_case = "level pick: the tray closed while counting: no level";
+    closeTrayT(); openTrayT();
+    down(2, lx, ly); wait(1.0); down(3, 400, 250); up(3, 400, 250); wait(0.1);
+    CHECK(!touchUi_IsTrayOpen() && !strcmp(fg.lastMsg, "No level picked"));
+    wait(0.5); up(2, lx, ly); wait(0.1);
+    CHECK(fg.levelLoaded == 0);
+
+    g_case = "level pick: the touch cancelled while counting: no level";
+    openTrayT(); down(2, lx, ly); wait(1.0); cancel(2); wait(0.1);
+    CHECK(fg.levelLoaded == 0);
+
+    g_case = "level pick: sithewok off with the tray open: LEVEL goes, no level";
+    closeTrayT(); openTrayT(); down(2, lx, ly); wait(1.0); fg.bCheat = 0; wait(0.1);
+    CHECK(!touchUi_GetButton(TOUCHUI_BTN_TRAYLEVEL, &x, &y, &r) && touchUi_IsTrayOpen());
+    up(2, lx, ly); wait(0.1);
+    CHECK(fg.levelLoaded == 0);
+    fg.bCheat = 1; wait(0.1);
+    CHECK(touchUi_GetButton(TOUCHUI_BTN_TRAYLEVEL, &x, &y, &r));
+
+    g_case = "level pick: no level to pick (multiplayer guest): never counts, says so";
+    fg.numLevels = 0; fg.lastMsg[0] = 0;
+    downOn(2, TOUCHUI_BTN_TRAYLEVEL); wait(2.0); CHECK(fg.lastMsg[0] == 0); upOn(2, TOUCHUI_BTN_TRAYLEVEL); wait(0.1);
+    CHECK(fg.levelLoaded == 0);
+    downOn(2, TOUCHUI_BTN_TRAYLEVEL); upOn(2, TOUCHUI_BTN_TRAYLEVEL); wait(0.1);
+    CHECK(!strcmp(fg.lastMsg, "No level to pick here"));
+    fg.numLevels = 21;
+    closeTrayT();
+
+    check_level_tray_layout("level tray: iPhone-sized", 852, 393, 59, 0, 59, 21, 0);
+    check_level_tray_layout("level tray: iPhone-sized, SWAPPED", 852, 393, 59, 0, 59, 21, 1);
+    check_level_tray_layout("level tray: Android phone (732x360)", 732, 360, 0, 0, 0, 0, 0);
+    check_level_tray_layout("level tray: small phone (640x360)", 640, 360, 0, 0, 0, 0, 0);
+    check_level_tray_layout("level tray: small phone (640x360), SWAPPED", 640, 360, 0, 0, 0, 0, 1);
+    check_level_tray_layout("level tray: Android phone (873x393, cutout on the right)", 873, 393, 0, 0, 32, 0, 0);
+    check_level_tray_layout("level tray: iPhone SE, Display Zoom (568x320)", 568, 320, 0, 0, 0, 0, 0);
+    check_level_tray_layout("level tray: iPhone mini, Display Zoom (693x320)", 693, 320, 44, 0, 44, 21, 0);
+    check_level_tray_layout("level tray: iPhone mini (780x360)", 780, 360, 50, 0, 50, 21, 0);
+}
+
 static void test_other_input(void)
 {
     setup();
@@ -1415,6 +1566,7 @@ int main(void)
     test_saber();
     test_shared_wheel();
     test_other_photo_and_cancel();
+    test_level_tray();
     check_layout("layout: iPhone-sized (852x393, notch insets)", 852, 393, 59, 0, 59, 21);
     check_layout("layout: Android phone (873x393, cutout on the left)", 873, 393, 32, 0, 0, 0);
     check_layout("layout: Android phone (873x393, cutout on the right)", 873, 393, 0, 0, 32, 0);

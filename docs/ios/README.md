@@ -277,8 +277,8 @@ screen, the camera cutout and the HUD.
 ```
  NEXT   FORCE   LIGHT  IR  BACTA  CAMERA  SABER  CHEAT  VIEW  (FPS)  QUICK  QUICK  MENU
  WPN    WHEEL   (only items you have)                         SAVE   LOAD
-                          [GYRO] [FPS] [CAMERA] [CHEAT] [VIEW] [JUMP] [CONTROLS] [keyboard]
-                          (MENU's tray, when held)
+                  [GYRO] [FPS] [CAMERA] [CHEAT] ([LEVEL]) [VIEW] [JUMP] [CONTROLS] [keyboard]
+                  (MENU's tray, when held; LEVEL only while sithewok is on)
                              [MODE] [SENS]             (GYRO held in the tray)
                              [PHOTO] [SELFIES] [FREEZE] (CAMERA held in the tray)
 
@@ -345,15 +345,16 @@ BACTA and CHEAT need a hold, so a brush past does nothing. NEXT WPN and FORCE
 WHEEL act on a quick tap when you lift, or open their wheel when you slide or
 hold (see [Tap, slide or hold](#tap-slide-or-hold)). SABER opens its wheel
 however you touch it. While
-`sithewok` is on, JUMP, ACT and DUCK show a small red second line (FLY,
-NOCLIP, LVL SEL) for their cheat holds: see [Cheats](#cheats).
+`sithewok` is on, JUMP and ACT show a small red second line (FLY, NOCLIP)
+for their cheat holds: see [Cheats](#cheats). DUCK only ever crouches.
 
 ### MENU's tray: tilt aiming, FPS, camera, cheat mode, view and keyboard
 
 **Tap MENU** for the game's menu. **Hold MENU** until its ring fills (about
 half a second), and a small tray opens just under it with eight buttons, from
 left to right **GYRO**, **FPS**, **CAMERA**, **CHEAT**, **VIEW**, **JUMP**,
-**CONTROLS** and the **keyboard**.
+**CONTROLS** and the **keyboard**. While `sithewok` is on there's a ninth,
+**LEVEL**, between CHEAT and VIEW.
 Either keep your thumb down, slide it onto a tray button and lift, or lift
 first and then tap one. Anywhere on the tray's dark backing counts as the
 nearest button.
@@ -372,6 +373,14 @@ nearest button.
 - **CHEAT:** cheat mode on or off. On, the CHEAT button appears and
   `sithewok` goes on. Off, `sithewok` goes off and the button goes away.
   Yellow while cheat mode is on. See [Cheats](#cheats).
+- **LEVEL** (only while `sithewok` is on): **hold** it to pick a level. After
+  half a second it shows **LEVEL 1**, then counts up one every 0.4 seconds
+  (with a tick each, and *Level 7 of 21* on the message line, which sits just
+  under the tray while it's open), going round to 1 again after the last
+  level. Lift your finger to go to that level (the tray closes). Slide off, or close the tray, to cancel. A quick tap does
+  nothing but say *Hold LEVEL to count levels*, and the tray stays open. In
+  multiplayer only the host can pick (with cheats allowed); for everyone
+  else LEVEL is dimmed and says *No level to pick here*.
 - **VIEW:** shows or hides the **VIEW** button on the top row, after CHEAT
   (yellow while it's shown). **Tap VIEW** to switch between first person
   (**1P**) and third person (**3P**) at once. The app remembers both, and
@@ -957,8 +966,8 @@ screen (in co-op the host always plays Kyle, or Mara).
 - If your path differs from the host's (light or dark side), you follow
   the host's level.
 - With cheats allowed, the host can pick a level for everyone (sithewok,
-  hold DUCK), and a level in which you used cheats adds nothing to the
-  gear you carry on.
+  hold LEVEL in MENU's tray), and a level in which you used cheats adds
+  nothing to the gear you carry on.
 
 ### Co-op saves
 
@@ -1054,19 +1063,22 @@ and invincibility. While it's on:
 - **It stays on** through new levels and loaded games, and puts everything
   back at the start of each level. Your weapon in hand and your selected
   Force power come with you to the next level.
-- **JUMP, ACT and DUCK get new holds.** While the cheat is on, each shows its
-  hold in small red letters under the button (FLY, NOCLIP, LVL SEL):
+- **JUMP and ACT get new holds.** While the cheat is on, each shows its
+  hold in small red letters under the button (FLY, NOCLIP):
   - **Hold JUMP** still for half a second (a ring fills): **fly**. You float,
     forward goes where you look, hold JUMP to rise and DUCK to sink. Hold JUMP
     again for half a second, or **double-tap JUMP**, to land. Walls still stop
     you.
   - **Hold ACT** still for half a second: **noclip**, flying straight through
     walls. Hold it again to switch it off.
-  - **Hold DUCK** still: **pick a level**. After half a second the button
-    shows **1**, then counts up one every 0.4 seconds (with a tick each, and
-    *Level 7 of 21* on the message line), going round to 1 again after the
-    last level. Lift your finger to go to that level. Slide off to cancel.
-  - A quick press of JUMP, ACT or DUCK does what it always does.
+  - A quick press of JUMP or ACT does what it always does.
+- **Pick a level** with **LEVEL** in MENU's tray (hold MENU; LEVEL is there
+  while the cheat is on, right of CHEAT). **Hold LEVEL**: after half a second
+  it shows **LEVEL 1**, then counts up one every 0.4 seconds (with a tick
+  each, and *Level 7 of 21* on the message line), going round to 1 again
+  after the last level. Lift your finger to go to that level. Slide off, or
+  close the tray, to cancel. A quick tap only says how. **DUCK only ever
+  crouches**, so crouching behind cover never takes you to another level.
 
 **Typing `sithewok` again switches it off** (so does the CHEAT button,
 below): no more invincibility, endless Force, safe falls, flying or noclip.
@@ -1111,7 +1123,7 @@ random (never the same one twice in a row). Then:
   the other side's stars away one at a time, which takes about 16 seconds if
   you've used `sithewok`. Wait until it stops before you tap OK, or your path
   isn't fully set until a later Force screen.
-- **Picking a level** with DUCK jumps straight there, skipping the story in
+- **Picking a level** with LEVEL jumps straight there, skipping the story in
   between, and goes to the level itself rather than the cutscene before it.
   Where a level number has a light and a dark side version, you get the first
   one. Keep a normal save of your real progress.
@@ -1285,8 +1297,9 @@ Things to know:
 Jedi Knight (see [Cheats](#cheats)): all weapons and ammo, all items, every
 Force power at 4 stars with the top Jedi rank, full health and shields,
 invincibility, the endless Force, safe falls, the Force catching you in pits,
-flying, noclip, and picking a level with DUCK (13 levels). Cheat mode and the
-CHEAT button work the same way. The catches in Mysteries of the Sith:
+flying, noclip, and picking a level with LEVEL in MENU's tray (13 levels).
+Cheat mode and the CHEAT button work the same way. The catches in Mysteries
+of the Sith:
 
 - Your Force powers stay through the Force screen at the end of each level.
   Normally Mysteries of the Sith takes back powers beyond what your rank
