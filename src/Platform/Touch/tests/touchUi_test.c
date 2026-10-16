@@ -863,6 +863,28 @@ static void check_level_tray_layout(const char* name, float W, float H, float l,
     CHECK(gx - 26 >= (l > 8 ? l : 0) - 0.5f && ky - 26 >= t - 0.5f);
     CHECKF(kx, aOff[TOUCHUI_BTN_TRAYKEYS], 0.5);
     printf("  [%s] tray with LEVEL %.0f..%.0f (off: %.0f..%.0f)\n", name, gx - 26, kx + 26, aOff[TOUCHUI_BTN_TRAYGYRO] - 26, aOff[TOUCHUI_BTN_TRAYKEYS] + 26);
+    // the moved message line with the tray and each row open: clear of every
+    // button shown, down 70 pt (stacked lines), at least 120 pt wide
+    for (int st = 0; st < 4; st++) {
+        closeTrayT(); openTrayT();
+        if (st == 1) { downOn(2, TOUCHUI_BTN_TRAYGYRO); wait(0.55); upOn(2, TOUCHUI_BTN_TRAYGYRO); }
+        if (st >= 2) { downOn(2, TOUCHUI_BTN_TRAYCAM); wait(0.55); upOn(2, TOUCHUI_BTN_TRAYCAM); }
+        if (st == 3) { downOn(2, TOUCHUI_BTN_CAMROW_PHOTO); upOn(2, TOUCHUI_BTN_CAMROW_PHOTO); }
+        tick();
+        float tt, tl, tr2;
+        touchUi_GetTopTextRect(&tt, &tl, &tr2);
+        float bx, by, br;
+        const int aRowBtn[4] = { -1, TOUCHUI_BTN_GYROOPT_MODE, TOUCHUI_BTN_CAMROW_PHOTO, TOUCHUI_BTN_CAMOPT_CLEAN };
+        if (st > 0) CHECK(touchUi_GetButton(aRowBtn[st], &bx, &by, &br));
+        CHECK(tr2 - tl >= 120.0f);
+        for (int i = 0; i < TOUCHUI_BTN_COUNT; i++) {
+            if (!touchUi_GetButton(i, &bx, &by, &br)) continue;
+            const int bOver = bx + br > tl + 0.5f && bx - br < tr2 - 0.5f && by + br > tt + 0.5f && by - br < tt + 70.0f - 0.5f;
+            if (bOver) printf("  [%s] message line (state %d) over button %d\n", name, st, i);
+            CHECK(!bOver);
+        }
+        printf("  [%s] message line, state %d: top %.0f, x %.0f..%.0f\n", name, st, tt, tl, tr2);
+    }
     closeTrayT();
 }
 
@@ -956,6 +978,9 @@ static void test_level_tray(void)
     check_level_tray_layout("level tray: small phone (640x360)", 640, 360, 0, 0, 0, 0, 0);
     check_level_tray_layout("level tray: small phone (640x360), SWAPPED", 640, 360, 0, 0, 0, 0, 1);
     check_level_tray_layout("level tray: Android phone (873x393, cutout on the right)", 873, 393, 0, 0, 32, 0, 0);
+    check_level_tray_layout("level tray: iPhone SE, Display Zoom (568x320)", 568, 320, 0, 0, 0, 0, 0);
+    check_level_tray_layout("level tray: iPhone mini, Display Zoom (693x320)", 693, 320, 44, 0, 44, 21, 0);
+    check_level_tray_layout("level tray: iPhone mini (780x360)", 780, 360, 50, 0, 50, 21, 0);
 }
 
 static void test_other_input(void)

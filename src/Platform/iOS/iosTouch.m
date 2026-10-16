@@ -854,9 +854,6 @@ static CGFloat iosTouch_DistToSegment(CGPoint p, CGFloat ax, CGFloat ay, CGFloat
     return sqrt(dx * dx + dy * dy);
 }
 
-// The tray's buttons in its row now: all of them, LEVEL only while sithewok
-// is on (iosTouch_bTrayLevel); and a tray button's place in it, from the
-// right end (the keyboard, 0)
 // Whether a tray button is in its row now: all of them, LEVEL only while
 // sithewok is on (iosTouch_bTrayLevel); and a tray button's place in the
 // row, counted from its right end (the keyboard, 0)
@@ -2327,8 +2324,11 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
     // The game's top message text and typing line (iosTouch_GetTopTextRectPt):
     // just under the top row, centred on the screen, and only as wide as keeps
     // it clear of any other button up near it (FORCE or ALT, on smaller screens)
-    // -- and, for while MENU's tray is open, the same just under the tray (or
-    // the row open under it), where the tray doesn't cover it
+    // -- and, for while MENU's tray is open, just under the tray (or the row
+    // open under it), where the tray doesn't cover it: there, over the
+    // widest stretch of game view that no button reaches into, all the way
+    // down IOSTOUCH_TOPTEXT_DEPTH (stacked lines too), so that on a short
+    // screen it never runs behind FORCE, DUCK or the rest
     for (int k = 0; k < 5; k++) {
         // (k 1..4: just under the tray's backing, or the row's)
         UIView* aUnder[4] = { trayBack, gyroOptBack, camRowBack, camOptBack };
@@ -2347,10 +2347,42 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
             half = MIN(half, fabs(q->x - W * 0.5) - q->radius - IOSTOUCH_TOUCH_SLOP);
         }
         half = MAX(half, 60.0);
+        CGFloat x0 = W * 0.5 - half, x1 = W * 0.5 + half;
+        if (k > 0) {
+            // (the free stretches between the buttons reaching into the
+            // band; the widest one)
+            CGFloat aL[IOSTOUCH_NUM_BUTTONS], aR[IOSTOUCH_NUM_BUTTONS];
+            int n = 0;
+            for (int i = 0; i < IOSTOUCH_NUM_BUTTONS; i++) {
+                if (iosTouch_IsTrayButton(i) || iosTouch_IsOptButton(i)) continue;
+                iosTouchButton* q = &iosTouch_aButtons[i];
+                const CGFloat reach = q->radius + IOSTOUCH_TOUCH_SLOP;
+                if (q->y + reach < textTop || q->y - reach > textTop + IOSTOUCH_TOPTEXT_DEPTH) continue;
+                aL[n] = q->x - reach;
+                aR[n] = q->x + reach;
+                n++;
+            }
+            const CGFloat lo = left + IOSTOUCH_TOPTEXT_SIDE, hi = right - IOSTOUCH_TOPTEXT_SIDE;
+            CGFloat best = -1.0;
+            for (int a = -1; a < n; a++) {
+                const CGFloat gs = a < 0 ? lo : aR[a]; // a stretch starts at the left edge or a button's right side...
+                if (gs < lo || gs > hi) continue;
+                CGFloat ge = hi;                      // ...and runs to the nearest button to its right
+                int bInside = 0;
+                for (int b = 0; b < n; b++) {
+                    if (aL[b] < gs + 0.5 && aR[b] > gs + 0.5) bInside = 1;
+                    if (aL[b] >= gs) ge = MIN(ge, aL[b]);
+                }
+                if (bInside || ge - gs <= best) continue;
+                best = ge - gs;
+                x0 = gs;
+                x1 = ge;
+            }
+        }
         float* pText = k == 0 ? iosTouch_aTopText : iosTouch_aTopTextTray[k - 1];
         pText[0] = textTop;
-        pText[1] = W * 0.5 - half;
-        pText[2] = W * 0.5 + half;
+        pText[1] = x0;
+        pText[2] = x1;
         iosTouch_bTopText = 1;
     }
 

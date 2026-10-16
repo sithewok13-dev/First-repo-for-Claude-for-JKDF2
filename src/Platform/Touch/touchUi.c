@@ -825,8 +825,10 @@ static void tu_Layout(void)
     tu.fpsX = tu.bFpsBottom ? W * 0.5f : right - TU_FPS_LABEL_X;
     tu.fpsY = tu.bFpsBottom ? bottom - 9.0f : top + 26;
 
-    // The game's top message text; and, for while MENU's tray is open, the
-    // same just under the tray or the row open under it (not covered by it)
+    // The game's top message text; and, for while MENU's tray is open, just
+    // under the tray or the row open under it (not covered by it), over the
+    // widest stretch of game view no button reaches into, all the way down
+    // TU_TOPTEXT_DEPTH (stacked lines too): never behind FORCE or DUCK
     for (int k = 0; k < 5; k++) {
         const float* aUnder[4] = { tu.trayBack, tu.aRowBack[0], tu.aRowBack[1], tu.aRowBack[2] };
         const float textTop = k == 0 ? top + 26 + tu_aButtons[BTN_MENU].radius + TU_TOPTEXT_GAP
@@ -843,10 +845,40 @@ static void tu_Layout(void)
             half = TU_MIN(half, fabsf(q->x - W * 0.5f) - q->radius - TU_TOUCH_SLOP);
         }
         half = TU_MAX(half, 60.0f);
+        float x0 = W * 0.5f - half, x1 = W * 0.5f + half;
+        if (k > 0) {
+            float aL[BTN_COUNT], aR[BTN_COUNT];
+            int n = 0;
+            for (int i = 0; i < BTN_COUNT; i++) {
+                if (tu_IsTrayButton(i) || tu_IsOptButton(i)) continue;
+                const tuButton* q = &tu_aButtons[i];
+                const float reach = q->radius + TU_TOUCH_SLOP;
+                if (q->y + reach < textTop || q->y - reach > textTop + TU_TOPTEXT_DEPTH) continue;
+                aL[n] = q->x - reach;
+                aR[n] = q->x + reach;
+                n++;
+            }
+            const float lo = left + TU_TOPTEXT_SIDE, hi = right - TU_TOPTEXT_SIDE;
+            float best = -1.0f;
+            for (int a = -1; a < n; a++) {
+                const float gs = a < 0 ? lo : aR[a]; // (a stretch from the left edge or a button's right side...
+                if (gs < lo || gs > hi) continue;
+                float ge = hi;                     // ...to the nearest button to its right)
+                int bInside = 0;
+                for (int b = 0; b < n; b++) {
+                    if (aL[b] < gs + 0.5f && aR[b] > gs + 0.5f) bInside = 1;
+                    if (aL[b] >= gs) ge = TU_MIN(ge, aL[b]);
+                }
+                if (bInside || ge - gs <= best) continue;
+                best = ge - gs;
+                x0 = gs;
+                x1 = ge;
+            }
+        }
         float* pText = k == 0 ? tu.aTopText : tu.aTopTextTray[k - 1];
         pText[0] = textTop;
-        pText[1] = W * 0.5f - half;
-        pText[2] = W * 0.5f + half;
+        pText[1] = x0;
+        pText[2] = x1;
         tu.bTopText = 1;
     }
     tu.bLaidOut = 1;
