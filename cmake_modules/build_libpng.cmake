@@ -18,6 +18,13 @@ set(PNG_VERSION_STRING 1.6.39)
 set(PNG_STATIC_LIBRARY_PATH ${PNG_ROOT}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${PNG_LIBRARIES}${CMAKE_STATIC_LIBRARY_SUFFIX})
 set(PNG_IMPORT_LIBRARY_PATH ${PNG_ROOT}/lib/${CMAKE_IMPORT_LIBRARY_PREFIX}${PNG_LIBRARIES}${CMAKE_IMPORT_LIBRARY_SUFFIX})
 
+# Added: no png.framework on the Mac (we only link the static library; its
+# install step fails on the framework: "no LC_RPATH load command" for zlib)
+set(LIBPNG_EXTRA_ARGS "")
+if(TARGET_MACOS)
+    set(LIBPNG_EXTRA_ARGS -DPNG_FRAMEWORK:BOOL=FALSE)
+endif()
+
 ExternalProject_Add(
     LIBPNG
     SOURCE_DIR          ${CMAKE_SOURCE_DIR}/lib/libpng
@@ -41,6 +48,7 @@ ExternalProject_Add(
                         -DPNG_TESTS:BOOL=FALSE
                         -DCMAKE_POLICY_VERSION_MINIMUM=3.5
                         -DZLIB_ROOT:PATH=${ZLIB_ROOT}
+                        ${LIBPNG_EXTRA_ARGS}
     DEPENDS             ${LIBPNG_DEPENDS}
     BUILD_BYPRODUCTS    ${PNG_STATIC_LIBRARY_PATH} #${PNG_IMPORT_LIBRARY_PATH}
 )
