@@ -2196,7 +2196,8 @@ static int dp_resolve(const char* pAddress, uint32_t* aIpOut, int max)
     char host[256];
     int port = DPLAY_ENUM_PORT;
     if (!stdCommTransport_SplitAddress(pAddress, host, sizeof(host), &port, DPLAY_ENUM_PORT)) return 0;
-    if (port != DPLAY_ENUM_PORT) return 0;
+    // (the Join screen adds this port's own 27020 to an address typed without one: not a port asked for)
+    if (port != DPLAY_ENUM_PORT && port != 27020) return 0;
     struct in_addr a;
     if (inet_pton(AF_INET, host, &a) == 1) { aIpOut[0] = a.s_addr; return 1; }
     struct addrinfo hints, *pRes = NULL;
@@ -2242,6 +2243,9 @@ static int stdComm_DPlay_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, 
         if (!stdComm_DPlay_bActive && !stdComm_DPlay_bJoining) stdComm_DPlay_ClearProblem();
         SDL_UnlockMutex(stdComm_DPlay_mutex);
     }
+    // (Mysteries of the Sith's original games have their own application id, not looked for yet:
+    // none of Jedi Knight's are offered to it)
+    if (Main_bMotsCompat) return 0;
     uint32_t aIp[4];
     const int numIp = dp_resolve(pAddress, aIp, 4);
     if (!numIp) return -1;

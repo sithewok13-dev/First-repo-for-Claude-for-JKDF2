@@ -12,6 +12,9 @@
 #include "Gui/jkGUIRend.h"
 #include "General/stdString.h"
 #include "jk.h"
+#ifdef JK_ENHANCED
+#include "Enhanced/enhMenuRead.h"
+#endif
 
 #include <string.h>
 
@@ -63,6 +66,9 @@ int jkGuiDPlayPick_Pick(jkMultiEntry* pInOut)
 
     if (!jkGuiDPlayPick_bInitted) {
         jkGui_InitMenu(&jkGuiDPlayPick_menu, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+        enhMenuRead_Mark(&jkGuiDPlayPick_menu); // shown easier to read, as the Join screen
+#endif
         jkGuiDPlayPick_bInitted = 1;
     }
     jkGuiDPlayPick_aElements[0].wstr = u"Games at this address";

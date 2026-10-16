@@ -950,6 +950,32 @@ that address, a full game, or a wrong password.
 To change who you play, tap **Multiplayer Characters** on the Multiplayer
 screen (in co-op the host always plays Kyle, or Mara).
 
+### Joining a game of the original 1997 Jedi Knight
+
+You can also join a game hosted by the original Jedi Knight (JK.EXE) on a PC,
+for example one announced for a community game night. This is new and
+experimental: it has only been tried against a stand-in on a test computer,
+not yet against a real PC game or a real router.
+
+1. Tap **Multiplayer**, then **Join Game**.
+2. Type the host's address (numbers or a name) in the **Address** box and
+   tap **Join**. The app tries our own games and the original game's at the
+   same time and uses whichever answers.
+3. If that address has several games, a list shows each one's name, level
+   and players. Pick one and tap **Join**.
+
+Things to know:
+
+- **Your home internet, not mobile data.** For a game on the internet, the
+  original game's host connects back to you, so the app asks your router to
+  let that through (usually TCP 2300 and UDP 2350) while you play, and gives
+  the ports back afterwards. Most home routers allow this. If yours doesn't,
+  the message says so: turn on UPnP or NAT-PMP in the router's settings.
+  On mobile data it can't work, and the message says that too.
+- **Jedi Knight only.** OpenMoTS can't join original Mysteries of the Sith
+  games yet.
+- **Joining only.** You can't host a game for the original to join.
+
 ### Co-op
 
 - The host plays the story's own character (Kyle, or Mara in OpenMoTS).
