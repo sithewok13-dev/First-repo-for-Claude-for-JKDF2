@@ -6,6 +6,7 @@
 
 #include <string.h>
 
+#include "General/stdBitmap.h"
 #include "Gui/jkGUIRend.h"
 #include "Win95/stdDisplay.h"
 #include "jk.h"
@@ -22,12 +23,20 @@
 #define ENHMENUREAD_W 640  // the menus' own size (the buffer's top left)
 #define ENHMENUREAD_H 480
 #define ENHMENUREAD_MAX_MENUS 32
-#define ENHMENUREAD_PAD_X 6  // a text's panel reaches this far past it
-#define ENHMENUREAD_PAD_Y 2
+// A text's panel reaches this far past it (normal, strong)
+static const int enhMenuRead_aPadX[2] = { 6, 8 };
+static const int enhMenuRead_aPadY[2] = { 2, 3 };
 #define ENHMENUREAD_TITLE_FONT 5  // this font and up: titles (large*.sft), left as they are
 
+// Two strengths: normal, and strong for the screens where there is the most
+// small text (hosting a game: its settings, Advanced). Strong: darker panels,
+// all the text near white (a list's chosen row told apart by its bar) and a
+// brighter bar.
 // The panel: the art under it this bright (out of 256)
-#define ENHMENUREAD_DARK 64
+static const int enhMenuRead_aDarkLevel[2] = { 64, 22 };
+// Strong: the text this near-white, at least this bright (out of 256)
+static const int enhMenuRead_aCream[3] = { 255, 244, 222 };
+#define ENHMENUREAD_STRONG_MIN 224
 // Text: coloured text goes to this pale gold, at least this bright (out of
 // 256), when the palette has it (Jedi Knight's has); else (Mysteries of the
 // Sith's, all purples) to a paler shade of its own colour, this much of the way
@@ -40,20 +49,21 @@ static const int enhMenuRead_aGold[3] = { 255, 214, 120 };
 #define ENHMENUREAD_WHITE_LUM 170
 #define ENHMENUREAD_GOLD_NEAR 6000  // (how near the palette's nearest must be, as enhMenuRead_Dist)
 // The chosen row's bar: dark gold with the gold text, else purple
-static const int enhMenuRead_aBarGold[3] = { 128, 92, 24 };
-static const int enhMenuRead_aBarPurple[3] = { 100, 36, 124 };
+static const int enhMenuRead_aBarGold[2][3] = { { 128, 92, 24 }, { 168, 116, 20 } };
+static const int enhMenuRead_aBarPurple[2][3] = { { 100, 36, 124 }, { 132, 52, 168 } };
 
 static jkGuiMenu* enhMenuRead_apMenus[ENHMENUREAD_MAX_MENUS];
+static uint8_t enhMenuRead_abStrong[ENHMENUREAD_MAX_MENUS];
 static int enhMenuRead_numMenus = 0;
 static int enhMenuRead_style = ENHMENUREAD_STYLE;
 
 // Palette tables, made again when the palette changes
 static rdColor24 enhMenuRead_palette[256];
 static int enhMenuRead_bTables = 0;
-static uint8_t enhMenuRead_aDark[256];
-static uint8_t enhMenuRead_aBright[256];
+static uint8_t enhMenuRead_aDark[2][256];
+static uint8_t enhMenuRead_aBright[2][256];
 static uint8_t enhMenuRead_outline;
-static uint8_t enhMenuRead_bar;
+static uint8_t enhMenuRead_aBar[2];
 
 // Work buffers
 static uint8_t enhMenuRead_aOut[ENHMENUREAD_W * ENHMENUREAD_H];   // what is shown
@@ -67,20 +77,33 @@ static uint8_t enhMenuRead_aArea[ENHMENUREAD_W * ENHMENUREAD_H];  // which effec
 #define AREA_BAR   4
 #define AREA_BOX   8  // an input box or a list, and its focus frame
 
-void enhMenuRead_Mark(jkGuiMenu* pMenu)
+static void enhMenuRead_Add(jkGuiMenu* pMenu, int bStrong)
 {
     if (!pMenu) return;
     for (int i = 0; i < enhMenuRead_numMenus; i++)
-        if (enhMenuRead_apMenus[i] == pMenu) return;
-    if (enhMenuRead_numMenus < ENHMENUREAD_MAX_MENUS)
+        if (enhMenuRead_apMenus[i] == pMenu) { enhMenuRead_abStrong[i] = (uint8_t)bStrong; return; }
+    if (enhMenuRead_numMenus < ENHMENUREAD_MAX_MENUS) {
+        enhMenuRead_abStrong[enhMenuRead_numMenus] = (uint8_t)bStrong;
         enhMenuRead_apMenus[enhMenuRead_numMenus++] = pMenu;
+    }
 }
 
-static int enhMenuRead_IsMarked(jkGuiMenu* pMenu)
+void enhMenuRead_Mark(jkGuiMenu* pMenu)
+{
+    enhMenuRead_Add(pMenu, 0);
+}
+
+void enhMenuRead_MarkStrong(jkGuiMenu* pMenu)
+{
+    enhMenuRead_Add(pMenu, 1);
+}
+
+// -1 if not marked, else 0 (normal) or 1 (strong)
+static int enhMenuRead_Strength(jkGuiMenu* pMenu)
 {
     for (int i = 0; i < enhMenuRead_numMenus; i++)
-        if (enhMenuRead_apMenus[i] == pMenu) return 1;
-    return 0;
+        if (enhMenuRead_apMenus[i] == pMenu) return enhMenuRead_abStrong[i];
+    return -1;
 }
 
 // How far a palette entry is from a colour (weighted: green counts most, as
@@ -112,24 +135,36 @@ static void enhMenuRead_MakeTables(void)
                                        enhMenuRead_aGold[0], enhMenuRead_aGold[1], enhMenuRead_aGold[2]) <= ENHMENUREAD_GOLD_NEAR;
     for (int i = 0; i < 256; i++) {
         const int r = enhMenuRead_palette[i].r, g = enhMenuRead_palette[i].g, b = enhMenuRead_palette[i].b;
-        enhMenuRead_aDark[i] = enhMenuRead_Nearest(r * ENHMENUREAD_DARK / 256, g * ENHMENUREAD_DARK / 256, b * ENHMENUREAD_DARK / 256);
+        for (int k = 0; k < 2; k++) {
+            const int d = enhMenuRead_aDarkLevel[k];
+            enhMenuRead_aDark[k][i] = enhMenuRead_Nearest(r * d / 256, g * d / 256, b * d / 256);
+        }
         const int lum = (r * 77 + g * 151 + b * 28) >> 8;
+        int hi = r > g ? r : g; hi = hi > b ? hi : b;
         if (lum >= ENHMENUREAD_WHITE_LUM) {
-            enhMenuRead_aBright[i] = enhMenuRead_Nearest(255, 250, 235);
+            enhMenuRead_aBright[1][i] = enhMenuRead_Nearest(255, 255, 255);
+        }
+        else {
+            const int v = ENHMENUREAD_STRONG_MIN + hi * (256 - ENHMENUREAD_STRONG_MIN) / 256;
+            enhMenuRead_aBright[1][i] = enhMenuRead_Nearest(enhMenuRead_aCream[0] * v / 256, enhMenuRead_aCream[1] * v / 256, enhMenuRead_aCream[2] * v / 256);
+        }
+        if (lum >= ENHMENUREAD_WHITE_LUM) {
+            enhMenuRead_aBright[0][i] = enhMenuRead_Nearest(255, 250, 235);
         }
         else if (!bGold) {
-            enhMenuRead_aBright[i] = enhMenuRead_Nearest(r + (255 - r) * ENHMENUREAD_PALER / 256, g + (255 - g) * ENHMENUREAD_PALER / 256,
+            enhMenuRead_aBright[0][i] = enhMenuRead_Nearest(r + (255 - r) * ENHMENUREAD_PALER / 256, g + (255 - g) * ENHMENUREAD_PALER / 256,
                                                          b + (255 - b) * ENHMENUREAD_PALER / 256);
         }
         else {
-            int hi = r > g ? r : g; hi = hi > b ? hi : b;
-            int v = ENHMENUREAD_TEXT_MIN + hi * (256 - ENHMENUREAD_TEXT_MIN) / 256;
-            enhMenuRead_aBright[i] = enhMenuRead_Nearest(enhMenuRead_aGold[0] * v / 256, enhMenuRead_aGold[1] * v / 256, enhMenuRead_aGold[2] * v / 256);
+            const int v = ENHMENUREAD_TEXT_MIN + hi * (256 - ENHMENUREAD_TEXT_MIN) / 256;
+            enhMenuRead_aBright[0][i] = enhMenuRead_Nearest(enhMenuRead_aGold[0] * v / 256, enhMenuRead_aGold[1] * v / 256, enhMenuRead_aGold[2] * v / 256);
         }
     }
     enhMenuRead_outline = enhMenuRead_Nearest(0, 0, 0);
-    const int* bar = bGold ? enhMenuRead_aBarGold : enhMenuRead_aBarPurple;
-    enhMenuRead_bar = enhMenuRead_Nearest(bar[0], bar[1], bar[2]);
+    for (int k = 0; k < 2; k++) {
+        const int* bar = bGold ? enhMenuRead_aBarGold[k] : enhMenuRead_aBarPurple[k];
+        enhMenuRead_aBar[k] = enhMenuRead_Nearest(bar[0], bar[1], bar[2]);
+    }
 }
 
 typedef struct { int x0, y0, x1, y1; } enhMenuReadBox; // x1, y1 past the end
@@ -170,7 +205,7 @@ static int enhMenuRead_InkBounds(enhMenuReadBox b, enhMenuReadBox* pOut)
 }
 
 // Which effects go where, from the menu's elements
-static void enhMenuRead_Areas(jkGuiMenu* pMenu)
+static void enhMenuRead_Areas(jkGuiMenu* pMenu, int k)
 {
     memset(enhMenuRead_aArea, 0, sizeof(enhMenuRead_aArea));
     // (boxes and lists first: text next to them is found without their frames)
@@ -210,9 +245,16 @@ static void enhMenuRead_Areas(jkGuiMenu* pMenu)
             if (pEl->type != ELEMENT_CHECKBOX && pEl->textType >= ENHMENUREAD_TITLE_FONT) break;
             enhMenuReadBox ink;
             if (!enhMenuRead_InkBounds(box, &ink)) break;
-            enhMenuRead_SetArea(box, AREA_TEXT);
-            enhMenuRead_SetArea(enhMenuRead_Clip(ink.x0 - ENHMENUREAD_PAD_X, ink.y0 - ENHMENUREAD_PAD_Y,
-                                                 ink.x1 - ink.x0 + 2 * ENHMENUREAD_PAD_X, ink.y1 - ink.y0 + 2 * ENHMENUREAD_PAD_Y), AREA_PANEL);
+            enhMenuReadBox textBox = box;
+            if (pEl->type == ELEMENT_CHECKBOX) {
+                // (the box itself, left of its words, as it is: ticked or not)
+                stdBitmap* pCheck = pMenu->ui_structs ? pMenu->ui_structs[pMenu->checkboxBitmapIdx] : NULL;
+                if (pCheck && pCheck->mipSurfaces && pCheck->mipSurfaces[0])
+                    textBox.x0 = enhMenuRead_Clip(r->x + pCheck->mipSurfaces[0]->format.width + 2, r->y, 0, 0).x0;
+            }
+            enhMenuRead_SetArea(textBox, AREA_TEXT);
+            const int px = enhMenuRead_aPadX[k], py = enhMenuRead_aPadY[k];
+            enhMenuRead_SetArea(enhMenuRead_Clip(ink.x0 - px, ink.y0 - py, ink.x1 - ink.x0 + 2 * px, ink.y1 - ink.y0 + 2 * py), AREA_PANEL);
             break;
         }
         default:
@@ -226,7 +268,9 @@ const uint8_t* enhMenuRead_Filter(const uint8_t* pSrc, int w, int h, int pitch)
     if (!pSrc || !enhMenuRead_style || w < ENHMENUREAD_W || h < ENHMENUREAD_H || pitch < w) return NULL;
     if (jkGame_isDDraw || jkCutscene_isRendering) return NULL;
     jkGuiMenu* pMenu = jkGuiRend_GetActiveMenu();
-    if (!pMenu || !enhMenuRead_IsMarked(pMenu)) return NULL;
+    if (!pMenu) return NULL;
+    const int k = enhMenuRead_Strength(pMenu);
+    if (k < 0) return NULL;
 
     // The art the menu is drawn on
 #ifdef STDBITMAP_PARTIAL_LOAD
@@ -261,7 +305,7 @@ const uint8_t* enhMenuRead_Filter(const uint8_t* pSrc, int w, int h, int pitch)
         for (int x = 0; x < ENHMENUREAD_W; x++)
             ink[x] = s[x] != a[x];
     }
-    enhMenuRead_Areas(pMenu);
+    enhMenuRead_Areas(pMenu, k);
     memcpy(enhMenuRead_aOut, pIn, sizeof(enhMenuRead_aOut));
 
     const int style = enhMenuRead_style;
@@ -276,7 +320,7 @@ const uint8_t* enhMenuRead_Filter(const uint8_t* pSrc, int w, int h, int pitch)
             if (!f) continue;
             if (ink[x]) {
                 if ((style & ENHMENUREAD_TEXT) && (f & AREA_TEXT))
-                    o[x] = enhMenuRead_aBright[s[x]];
+                    o[x] = enhMenuRead_aBright[k][s[x]];
                 continue;
             }
             // The art: an outline round text, the chosen row's bar, a panel
@@ -295,9 +339,9 @@ const uint8_t* enhMenuRead_Filter(const uint8_t* pSrc, int w, int h, int pitch)
                 if (bNear) { o[x] = enhMenuRead_outline; continue; }
             }
             if ((style & ENHMENUREAD_ROWBAR) && (f & AREA_BAR))
-                o[x] = enhMenuRead_bar;
+                o[x] = enhMenuRead_aBar[k];
             else if ((style & ENHMENUREAD_PANELS) && (f & AREA_PANEL))
-                o[x] = enhMenuRead_aDark[a[x]];
+                o[x] = enhMenuRead_aDark[k][a[x]];
         }
     }
     return enhMenuRead_aOut;

@@ -21,6 +21,9 @@ extern "C" {
 
 // A menu (a multiplayer screen) to show the readable way
 void enhMenuRead_Mark(jkGuiMenu* pMenu);
+// ...and one with a lot of small text (hosting's settings), more strongly:
+// darker panels, near-white text with a thicker outline, a brighter bar
+void enhMenuRead_MarkStrong(jkGuiMenu* pMenu);
 
 // With a marked menu up: its part of the menu buffer (the top left 640x480;
 // rows pitch bytes apart), made readable, to show in its place: 640x480

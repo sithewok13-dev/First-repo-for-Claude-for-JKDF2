@@ -350,11 +350,11 @@ void jkGuiNetHost_Startup()
     
     jkGui_InitMenu(&jkGuiNetHost_menu, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
 #ifdef JK_ENHANCED
-    enhMenuRead_Mark(&jkGuiNetHost_menu); // Added: shown easier to read
+    enhMenuRead_MarkStrong(&jkGuiNetHost_menu); // Added: shown easier to read
 #endif
     jkGui_InitMenu(&jkGuiNetHost_menuSettings, jkGui_stdBitmaps[JKGUI_BM_BK_SETUP]);
 #ifdef JK_ENHANCED
-    enhMenuRead_Mark(&jkGuiNetHost_menuSettings); // Added: shown easier to read
+    enhMenuRead_MarkStrong(&jkGuiNetHost_menuSettings); // Added: shown easier to read
 #endif
     
     jkGuiNetHost_LoadSettings();
