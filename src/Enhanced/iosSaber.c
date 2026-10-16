@@ -49,7 +49,10 @@ typedef struct {
 } iosSaberColour;
 enum { IOSSABER_HIDE_JK = 1, IOSSABER_HIDE_MOTS = 2 };
 
-// Round the wheel from the gap: the game's own, then by hue, red to pink,
+// Each look's colours, by id (each table in the same order, with the same keys
+// and names): REFORGED's, then CLASSIC's.
+//
+// REFORGED. Round the wheel from the gap: the game's own, then by hue, red to pink,
 // then white and black. Red, light blue and purple are the classic film
 // blades, sampled across: red a narrow white middle into a deep rose red that
 // fades fast; light blue a pale cyan-white middle easing into a soft, pale sky
@@ -79,6 +82,66 @@ static const iosSaberColour iosSaber_aColours[] = {
 };
 #define IOSSABER_NUM_COLOURS ((int)(sizeof(iosSaber_aColours) / sizeof(iosSaber_aColours[0])))
 
+// CLASSIC: the colours as they were first made, row for row: the game's own
+// red, crimson, orange, yellow, green and purple blades, the others made with
+// the plain look of the game's blades, and green on both games' wheels
+static const iosSaberColour iosSaber_aClassicColours[] = {
+    { "game",      "ORIGINAL",   NULL,    NULL,    {   0,   0,   0 }, { 150, 150, 150 } },
+    { "red",       "RED",        "red",   NULL,    {   0,   0,   0 }, { 255,  40,  30 } },
+    { "crimson",   "CRIMSON",    "dred",  NULL,    {   0,   0,   0 }, { 170,   0,  20 } },
+    { "orange",    "ORANGE",     "orange", NULL,   {   0,   0,   0 }, { 255, 120,  20 } },
+    { "amber",     "AMBER",      NULL,    "green", { 255, 250, 225 }, { 255, 165,   0 } },
+    { "yellow",    "YELLOW",     "yellow", NULL,   {   0,   0,   0 }, { 255, 230,  40 } },
+    { "lime",      "LIME",       NULL,    "green", { 245, 255, 225 }, { 150, 255,  20 } },
+    { "green",     "GREEN",      "green", NULL,    {   0,   0,   0 }, {  40, 220,  60 } },
+    { "teal",      "TEAL",       NULL,    "green", { 230, 255, 250 }, {   0, 190, 150 } },
+    { "cyan",      "CYAN",       NULL,    "green", { 235, 255, 255 }, {   0, 235, 255 } },
+    { "lightblue", "LIGHT BLUE", NULL,    "blue",  { 245, 250, 255 }, { 120, 195, 255 } },
+    { "blue",      "BLUE",       NULL,    "green", { 235, 245, 255 }, {  50, 110, 255 } },
+    { "purple",    "PURPLE",     "purple", NULL,   {   0,   0,   0 }, { 160,  60, 255 } },
+    { "magenta",   "MAGENTA",    NULL,    "green", { 255, 235, 255 }, { 255,  20, 220 } },
+    { "pink",      "PINK",       NULL,    "green", { 255, 245, 250 }, { 255, 110, 185 } },
+    { "white",     "WHITE",      NULL,    "blue",  { 255, 255, 255 }, { 215, 225, 255 } },
+    { "black",     "BLACK",      NULL,    "blue",  {  10,  10,  14 }, { 245, 248, 255 } },
+};
+typedef char iosSaber_aClassicColours_size_check[(sizeof(iosSaber_aClassicColours) / sizeof(iosSaber_aClassicColours[0])
+                                                  == IOSSABER_NUM_COLOURS) ? 1 : -1];
+
+// ------------------------------------------------------------ the look
+
+static int iosSaber_look = IOSSABER_LOOK_REFORGED;
+static const char* const iosSaber_aLookName[IOSSABER_NUM_LOOKS] = {
+    [IOSSABER_LOOK_CLASSIC] = "CLASSIC", [IOSSABER_LOOK_REFORGED] = "REFORGED"
+};
+
+int iosSaber_GetLook(void)
+{
+    return iosSaber_look;
+}
+
+void iosSaber_SetLook(int look)
+{
+    if (look >= 0 && look < IOSSABER_NUM_LOOKS) iosSaber_look = look;
+}
+
+const char* iosSaber_LookName(int look)
+{
+    return (look >= 0 && look < IOSSABER_NUM_LOOKS) ? iosSaber_aLookName[look] : NULL;
+}
+
+int iosSaber_LookByName(const char* name)
+{
+    for (int i = 0; name && i < IOSSABER_NUM_LOOKS; i++)
+        if (!strcmp(iosSaber_aLookName[i], name)) return i;
+    return -1;
+}
+
+// A colour as the look draws it (id in range)
+static const iosSaberColour* iosSaber_Row(int look, int id)
+{
+    return look == IOSSABER_LOOK_CLASSIC ? &iosSaber_aClassicColours[id] : &iosSaber_aColours[id];
+}
+
 int iosSaber_NumColours(void)
 {
     return IOSSABER_NUM_COLOURS;
@@ -87,16 +150,7 @@ int iosSaber_NumColours(void)
 int iosSaber_ColourOnWheel(int id)
 {
     if (id < 0 || id >= IOSSABER_NUM_COLOURS) return 0;
-    return !(iosSaber_aColours[id].hide & (Main_bMotsCompat ? IOSSABER_HIDE_MOTS : IOSSABER_HIDE_JK));
-}
-
-// One's own colour as it was kept (saved, or set before): a colour this game's
-// wheel doesn't offer is the game's own (Jedi Knight's green: ORIGINAL, its green)
-int iosSaber_OwnColourByKey(const char* key)
-{
-    const int id = iosSaber_ColourByKey(key);
-    if (id < 0) return -1;
-    return iosSaber_ColourOnWheel(id) ? id : IOSSABER_COLOUR_GAME;
+    return !(iosSaber_Row(iosSaber_look, id)->hide & (Main_bMotsCompat ? IOSSABER_HIDE_MOTS : IOSSABER_HIDE_JK));
 }
 
 const char* iosSaber_ColourName(int id)
@@ -150,7 +204,7 @@ static const unsigned char* iosSaber_GameSwatch(void)
 void iosSaber_ColourRGB(int id, unsigned char* pR, unsigned char* pG, unsigned char* pB)
 {
     if (id < 0 || id >= IOSSABER_NUM_COLOURS) id = IOSSABER_COLOUR_GAME;
-    const unsigned char* c = iosSaber_aColours[id].edge;
+    const unsigned char* c = iosSaber_Row(iosSaber_look, id)->edge;
     if (id == IOSSABER_COLOUR_GAME) {
         const unsigned char* game = iosSaber_GameSwatch();
         if (game) c = game;
@@ -219,14 +273,22 @@ void iosSaber_SetColour(int style, int blade, int id)
     iosSaber_aColour[style][blade] = id;
 }
 
+int iosSaber_GetShownColour(int style, int blade)
+{
+    const int id = iosSaber_GetColour(style, blade);
+    return iosSaber_ColourOnWheel(id) ? id : IOSSABER_COLOUR_GAME;
+}
+
 // ------------------------------------------------------------ the materials
 
 // Each colour's side (1) and tip (0) materials, loaded (privately: not the
 // world's, so the game's own blades never change) the first time it is drawn
-// on a level; a made colour's also carry their true-colour texels
+// on a level, in the look it is drawn in (each look's kept apart, so switching
+// back and forth makes nothing again); a made colour's also carry their
+// true-colour texels
 enum { IOSSABER_SIDE = 0, IOSSABER_TIP, IOSSABER_NUM_PARTS };
-static rdMaterial iosSaber_aMat[IOSSABER_NUM_COLOURS][IOSSABER_NUM_PARTS];
-static int iosSaber_aLoaded[IOSSABER_NUM_COLOURS]; // 1: loaded; -1: tried, and couldn't be
+static rdMaterial iosSaber_aMat[IOSSABER_NUM_LOOKS][IOSSABER_NUM_COLOURS][IOSSABER_NUM_PARTS];
+static int iosSaber_aLoaded[IOSSABER_NUM_LOOKS][IOSSABER_NUM_COLOURS]; // 1: loaded; -1: tried, and couldn't be
 static rdMaterial* iosSaber_pSavedSide = NULL;   // the game's, while a blade is drawn in another colour
 static rdMaterial* iosSaber_pSavedTip = NULL;
 
@@ -309,27 +371,31 @@ static void iosSaber_FreeMaterial(rdMaterial* pMat)
     memset(pMat, 0, sizeof(*pMat));
 }
 
-static int iosSaber_Load(int id)
+// (the look's materials for a colour, loaded if need be; NULL if they can't be)
+static rdMaterial* iosSaber_Load(int id)
 {
-    if (iosSaber_aLoaded[id]) return iosSaber_aLoaded[id] > 0;
-    iosSaber_aLoaded[id] = -1;
-    const iosSaberColour* c = &iosSaber_aColours[id];
+    const int look = iosSaber_look;
+    rdMaterial* aMat = iosSaber_aMat[look][id];
+    int* pLoaded = &iosSaber_aLoaded[look][id];
+    if (*pLoaded) return *pLoaded > 0 ? aMat : NULL;
+    *pLoaded = -1;
+    const iosSaberColour* c = iosSaber_Row(look, id);
     const rdColor24* pal = (sithWorld_g_pCurrentWorld && sithWorld_g_pCurrentWorld->colormaps)
                            ? sithWorld_g_pCurrentWorld->colormaps[0].colors : NULL;
-    if (!c->stock && !pal) return 0;
+    if (!c->stock && !pal) return NULL;
     char aPath[IOSSABER_NUM_PARTS][64];
     for (int p = 0; p < IOSSABER_NUM_PARTS; p++) {
         snprintf(aPath[p], sizeof(aPath[p]), "mat\\saber%s%d.mat", c->stock ? c->stock : c->from, p == IOSSABER_SIDE ? 1 : 0);
     }
     for (int p = 0; p < IOSSABER_NUM_PARTS; p++) {
-        if (!rdMaterial_LoadEntry(aPath[p], &iosSaber_aMat[id][p], 0, 0)
-            || (!c->stock && !iosSaber_Recolour(&iosSaber_aMat[id][p], c, pal))) {
-            for (int q = 0; q <= p; q++) iosSaber_FreeMaterial(&iosSaber_aMat[id][q]);
-            return 0;
+        if (!rdMaterial_LoadEntry(aPath[p], &aMat[p], 0, 0)
+            || (!c->stock && !iosSaber_Recolour(&aMat[p], c, pal))) {
+            for (int q = 0; q <= p; q++) iosSaber_FreeMaterial(&aMat[q]);
+            return NULL;
         }
     }
-    iosSaber_aLoaded[id] = 1;
-    return 1;
+    *pLoaded = 1;
+    return aMat;
 }
 
 // ------------------------------------------------------------ thrown sabers
@@ -337,11 +403,12 @@ static int iosSaber_Load(int id)
 // A thrown saber (Mysteries of the Sith's +fsab_..., a spinning model whose
 // blade is its first material, sab0<colour>.mat) drawn in a colour: made from
 // its green or blue one as the hand-held blades are (iosSaber_MakeTexels), loaded as needed and
-// freed with the level. While one is drawn, its blade's faces have it.
-static rdMaterial iosSaber_aThrownMat[IOSSABER_NUM_COLOURS];
-static int iosSaber_aThrownLoaded[IOSSABER_NUM_COLOURS]; // 1: loaded; -1: tried, and couldn't be
-static rdModel3* iosSaber_pThrownModel = NULL; // (the one being drawn, its blade as it was)
+// freed with the level (each look's apart). While one is drawn, its blade's faces have it.
+static rdMaterial iosSaber_aThrownMat[IOSSABER_NUM_LOOKS][IOSSABER_NUM_COLOURS];
+static int iosSaber_aThrownLoaded[IOSSABER_NUM_LOOKS][IOSSABER_NUM_COLOURS]; // 1: loaded; -1: tried, and couldn't be
+static rdModel3* iosSaber_pThrownModel = NULL; // (the one being drawn, its blade as it was and as it is drawn)
 static rdMaterial* iosSaber_pThrownBlade = NULL;
+static rdMaterial* iosSaber_pThrownDrawn = NULL;
 
 static const char* iosSaber_ThrownName(const char* key)
 {
@@ -355,22 +422,25 @@ static const char* iosSaber_ThrownName(const char* key)
 static rdMaterial* iosSaber_ThrownMat(int id)
 {
     if (id <= IOSSABER_COLOUR_GAME || id >= IOSSABER_NUM_COLOURS) return NULL;
-    if (iosSaber_aThrownLoaded[id]) return iosSaber_aThrownLoaded[id] > 0 ? &iosSaber_aThrownMat[id] : NULL;
-    iosSaber_aThrownLoaded[id] = -1;
-    const iosSaberColour* c = &iosSaber_aColours[id];
+    const int look = iosSaber_look;
+    rdMaterial* pMat = &iosSaber_aThrownMat[look][id];
+    int* pLoaded = &iosSaber_aThrownLoaded[look][id];
+    if (*pLoaded) return *pLoaded > 0 ? pMat : NULL;
+    *pLoaded = -1;
+    const iosSaberColour* c = iosSaber_Row(look, id);
     const char* name = iosSaber_ThrownName(c->stock ? c->stock : c->from);
     const rdColor24* pal = (sithWorld_g_pCurrentWorld && sithWorld_g_pCurrentWorld->colormaps)
                            ? sithWorld_g_pCurrentWorld->colormaps[0].colors : NULL;
     if (!name || (!c->stock && !pal)) return NULL;
     char path[64];
     snprintf(path, sizeof(path), "3do\\mat\\sab0%s.mat", name); // (as the thrown saber models have them)
-    if (!rdMaterial_LoadEntry(path, &iosSaber_aThrownMat[id], 0, 0)) return NULL;
-    if (!c->stock && !iosSaber_Recolour(&iosSaber_aThrownMat[id], c, pal)) {
-        iosSaber_FreeMaterial(&iosSaber_aThrownMat[id]);
+    if (!rdMaterial_LoadEntry(path, pMat, 0, 0)) return NULL;
+    if (!c->stock && !iosSaber_Recolour(pMat, c, pal)) {
+        iosSaber_FreeMaterial(pMat);
         return NULL;
     }
-    iosSaber_aThrownLoaded[id] = 1;
-    return &iosSaber_aThrownMat[id];
+    *pLoaded = 1;
+    return pMat;
 }
 
 static void iosSaber_SwapThrownBlade(rdModel3* m, rdMaterial* from, rdMaterial* to)
@@ -395,15 +465,15 @@ void iosSaber_BeginThrown(SithThing* pThing)
     if (!pMat) return;
     iosSaber_pThrownModel = m;
     iosSaber_pThrownBlade = m->aMaterials[0];
+    iosSaber_pThrownDrawn = pMat;
     iosSaber_SwapThrownBlade(m, iosSaber_pThrownBlade, pMat);
 }
 
 void iosSaber_EndThrown(SithThing* pThing)
 {
+    (void)pThing;
     if (!iosSaber_pThrownModel) return;
-    const int id = iosSaberThrow_ThrownColour(pThing);
-    if (id > IOSSABER_COLOUR_GAME && iosSaber_aThrownLoaded[id] > 0)
-        iosSaber_SwapThrownBlade(iosSaber_pThrownModel, &iosSaber_aThrownMat[id], iosSaber_pThrownBlade);
+    iosSaber_SwapThrownBlade(iosSaber_pThrownModel, iosSaber_pThrownDrawn, iosSaber_pThrownBlade);
     iosSaber_pThrownModel = NULL;
 }
 
@@ -411,15 +481,15 @@ static void iosSaber_ForgetArms(void); // (below: the second saber's arm)
 
 void iosSaber_FreeWorld(void)
 {
-    for (int id = 0; id < IOSSABER_NUM_COLOURS; id++) {
-        if (iosSaber_aLoaded[id] > 0) {
-            for (int p = 0; p < IOSSABER_NUM_PARTS; p++) iosSaber_FreeMaterial(&iosSaber_aMat[id][p]);
+    for (int look = 0; look < IOSSABER_NUM_LOOKS; look++) {
+        for (int id = 0; id < IOSSABER_NUM_COLOURS; id++) {
+            if (iosSaber_aLoaded[look][id] > 0) {
+                for (int p = 0; p < IOSSABER_NUM_PARTS; p++) iosSaber_FreeMaterial(&iosSaber_aMat[look][id][p]);
+            }
+            iosSaber_aLoaded[look][id] = 0;
+            if (iosSaber_aThrownLoaded[look][id] > 0) iosSaber_FreeMaterial(&iosSaber_aThrownMat[look][id]);
+            iosSaber_aThrownLoaded[look][id] = 0;
         }
-        iosSaber_aLoaded[id] = 0;
-    }
-    for (int id = 0; id < IOSSABER_NUM_COLOURS; id++) {
-        if (iosSaber_aThrownLoaded[id] > 0) iosSaber_FreeMaterial(&iosSaber_aThrownMat[id]);
-        iosSaber_aThrownLoaded[id] = 0;
     }
     // (the arms' joints found again for the next level's model, even one at the same address)
     iosSaber_ForgetArms();
@@ -439,7 +509,7 @@ static int iosSaber_LookOf(SithThing* pThing, int* pStyle, int aId[IOSSABER_MAX_
 {
     if (iosSaber_IsPlayers(pThing)) {
         *pStyle = iosSaber_style;
-        for (int b = 0; b < IOSSABER_MAX_BLADES; b++) aId[b] = iosSaber_aColour[iosSaber_style][b];
+        for (int b = 0; b < IOSSABER_MAX_BLADES; b++) aId[b] = iosSaber_GetShownColour(iosSaber_style, b);
         return 1;
     }
 #ifdef QOL_IMPROVEMENTS
@@ -500,12 +570,13 @@ void iosSaber_BeginBlade(SithThing* pThing, rdThing* pLine, int blade)
     // (two sabers with the right one thrown: the left one, in hand, in its own colour)
     if (style == IOSSABER_STYLE_DUAL && blade == 0 && iosSaber_IsPlayers(pThing) && iosSaberThrow_HandsInHand() == 2)
         id = aId[1];
-    if (id == IOSSABER_COLOUR_GAME || !iosSaber_Load(id)) return;
+    rdMaterial* aMat = id == IOSSABER_COLOUR_GAME ? NULL : iosSaber_Load(id);
+    if (!aMat) return;
     rdPolyline* l = pLine->polyline;
     iosSaber_pSavedSide = l->face.material;
     iosSaber_pSavedTip = l->tipFace.material;
-    l->face.material = &iosSaber_aMat[id][IOSSABER_SIDE];
-    l->tipFace.material = &iosSaber_aMat[id][IOSSABER_TIP];
+    l->face.material = &aMat[IOSSABER_SIDE];
+    l->tipFace.material = &aMat[IOSSABER_TIP];
 }
 
 void iosSaber_EndBlade(rdThing* pLine)

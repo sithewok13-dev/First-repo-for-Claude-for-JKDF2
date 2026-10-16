@@ -217,7 +217,7 @@ static int iosSaberThrow_Throw(SithThing* p, int hand)
     h->signature = pSaber->signature;
     h->lastPos = pSaber->position;
     h->secThrown = sithTime_g_secGameTime;
-    h->colour = iosSaber_GetColour(IOSSABER_STYLE_DUAL, hand);
+    h->colour = iosSaber_GetShownColour(IOSSABER_STYLE_DUAL, hand);
     iosSaberThrow_aFlyColour[hand].thingIdx = pSaber->idx;
     iosSaberThrow_aFlyColour[hand].signature = pSaber->signature;
     iosSaberThrow_aFlyColour[hand].colour = h->colour;
@@ -369,7 +369,7 @@ int iosSaberThrow_ThrownColour(SithThing* pThing)
     static const char* aTpl[7] = { "+fsab_blue", "+fsab_green", "+fsab_yellow", "+fsab_orange", "+fsab_red", "+fsab_dred", "+fsab_purple" };
     for (int i = 0; i < 7; i++) {
         if (pThing->pTemplate == sithTemplate_GetTemplate(aTpl[i]))
-            return iosSaber_GetColour(IOSSABER_STYLE_SINGLE, 0);
+            return iosSaber_GetShownColour(IOSSABER_STYLE_SINGLE, 0);
     }
     return -1;
 }

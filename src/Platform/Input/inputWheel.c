@@ -55,6 +55,12 @@
 #define INPUTWHEEL_CHIP_H 28.0f
 #define INPUTWHEEL_CHIP_OUT 22.0f
 #define INPUTWHEEL_CHIP_GAP 8.0f
+// The look's switch, at the top of the middle (over the colour's name, as
+// EQUIP is under the hint): this big at most, smaller to keep inside the
+// middle on a small wheel
+#define INPUTWHEEL_LOOK_W 76.0f
+#define INPUTWHEEL_LOOK_H 24.0f
+#define INPUTWHEEL_LOOK_Y 33.0f // (its middle, this far over the wheel's)
 // The saber's bin (Jedi Knight, Mysteries of the Sith)
 #define INPUTWHEEL_SABER_BIN_JK 10
 #define INPUTWHEEL_SABER_BIN_MOTS 131
@@ -211,7 +217,7 @@ static struct {
     float topClear;
     // where it was last laid out
     float cx, cy, R0, R1;
-    float chipX[INPUTWHEEL_NUM_CHIPS], chipY[INPUTWHEEL_NUM_CHIPS];
+    float chipX[INPUTWHEEL_NUM_CHIPS], chipY[INPUTWHEEL_NUM_CHIPS], chipW[INPUTWHEEL_NUM_CHIPS], chipH[INPUTWHEEL_NUM_CHIPS];
     int aChipShown[INPUTWHEEL_NUM_CHIPS];
     inputWheelFit aFit[INPUTWHEEL_NUM_KINDS];
 } inputWheel_s = { .hot = -1, .lastHot = -1, .saberTarget = INPUTWHEEL_SABER_BOTH };
@@ -255,12 +261,29 @@ static void inputWheel_HotChanged(void)
 
 // ------------------------------------------------------------ the open wheel
 
+static void inputWheel_ReadSlices(void);
+
 int inputWheel_Open(int kind, int bTapMode)
 {
     if (inputWheel_s.bOpen || kind < 0 || kind >= INPUTWHEEL_NUM_KINDS) return 0;
     if (kind == INPUTWHEEL_SABER && !iosGame_IsSaberButtonShown()) return 0;
-    const inputWheelMap* m = inputWheel_GetMap(kind, iosGame_IsMots());
     inputWheel_s.kind = kind;
+    inputWheel_ReadSlices();
+    inputWheel_s.bOpen = 1;
+    inputWheel_s.bTapMode = bTapMode != 0;
+    inputWheel_s.hot = inputWheel_s.lastHot = -1;
+    inputWheel_s.bNeedle = 0;
+    inputWheel_s.bCancelShown = 0;
+    iosGame_SetHold(1);
+    return 1;
+}
+
+// The open wheel's map and each slice's state, as they are now (the saber
+// wheel's: made again from the colours, in the look)
+static void inputWheel_ReadSlices(void)
+{
+    const int kind = inputWheel_s.kind;
+    const inputWheelMap* m = inputWheel_GetMap(kind, iosGame_IsMots());
     inputWheel_s.pMap = m;
     for (int i = 0; i < m->numSlices; i++) {
         const int bin = m->aSlices[i].bin;
@@ -285,13 +308,6 @@ int inputWheel_Open(int kind, int bTapMode)
         }
     }
     if (kind == INPUTWHEEL_SABER) inputWheel_s.aFit[kind].map = NULL; // (fitted again: the colours' names)
-    inputWheel_s.bOpen = 1;
-    inputWheel_s.bTapMode = bTapMode != 0;
-    inputWheel_s.hot = inputWheel_s.lastHot = -1;
-    inputWheel_s.bNeedle = 0;
-    inputWheel_s.bCancelShown = 0;
-    iosGame_SetHold(1);
-    return 1;
 }
 
 int inputWheel_IsOpen(void) { return inputWheel_s.bOpen; }
@@ -441,6 +457,12 @@ void inputWheel_SaberChip(int chip)
         inputWheel_s.saberTarget = chip == INPUTWHEEL_CHIP_LEFT ? INPUTWHEEL_SABER_LEFT
                                  : chip == INPUTWHEEL_CHIP_RIGHT ? INPUTWHEEL_SABER_RIGHT : INPUTWHEEL_SABER_BOTH;
     }
+    else if (chip == INPUTWHEEL_CHIP_LOOK) {
+        // the other look: the colours (which slices, their swatches, the
+        // blades) in it at once; the wheel open as it was
+        iosSaber_SetLook(iosSaber_GetLook() == IOSSABER_LOOK_CLASSIC ? IOSSABER_LOOK_REFORGED : IOSSABER_LOOK_CLASSIC);
+        inputWheel_ReadSlices();
+    }
     else return;
     inputWheel_s.bTapMode = 1;
     inputWheel_s.hot = inputWheel_s.lastHot = -1;
@@ -483,8 +505,11 @@ int inputWheel_ChipAt(float x, float y)
     if (!inputWheel_s.bOpen || inputWheel_s.kind != INPUTWHEEL_SABER) return -1;
     for (int i = 0; i < INPUTWHEEL_NUM_CHIPS; i++) {
         if (!inputWheel_s.aChipShown[i]) continue;
-        if (fabsf(x - inputWheel_s.chipX[i]) <= INPUTWHEEL_CHIP_W * 0.5f + 6.0f && fabsf(y - inputWheel_s.chipY[i]) <= INPUTWHEEL_CHIP_H * 0.5f + 6.0f)
-            return i;
+        if (fabsf(x - inputWheel_s.chipX[i]) > inputWheel_s.chipW[i] * 0.5f + 6.0f || fabsf(y - inputWheel_s.chipY[i]) > inputWheel_s.chipH[i] * 0.5f + 6.0f)
+            continue;
+        // (the look's switch: only in the middle, never over a slice)
+        if (i == INPUTWHEEL_CHIP_LOOK && hypotf(x - inputWheel_s.cx, y - inputWheel_s.cy) > inputWheel_s.R0 - 1.0f) continue;
+        return i;
     }
     return -1;
 }
@@ -621,11 +646,28 @@ static int inputWheel_IsClear(float x0, float y0, float x1, float y1)
     return y0 >= inputWheel_s.topClear && inputWheel_s.pfnClear(x0, y0, x1, y1);
 }
 
+// The look's switch, at the top of the saber wheel's middle (of radius R0):
+// its size, and how far over the middle its own middle is -- a pill kept
+// wholly inside the middle, clear of the slices (iosTouch.m's the same)
+static void inputWheel_LookChipSize(float R0, float* pW, float* pH, float* pUp)
+{
+    const float h = INPUTWHEEL_MIN(INPUTWHEEL_LOOK_H, roundf(R0 * 0.42f));
+    const float up = INPUTWHEEL_MIN(INPUTWHEEL_LOOK_Y, roundf(R0 * 0.62f));
+    // (its round ends' middles, a either side and up over the wheel's
+    // middle, no further out than R0 - 1 - h/2: a^2 + up^2 <= that^2)
+    const float k = R0 - 1.0f - h * 0.5f, a2 = k * k - up * up;
+    const float w = a2 > 0.0f ? 2.0f * (sqrtf(a2) + h * 0.5f) : h;
+    *pW = INPUTWHEEL_MIN(INPUTWHEEL_LOOK_W, floorf(w));
+    *pH = h;
+    *pUp = up;
+}
+
 // The saber wheel's choices: SINGLE and DUAL on the left of the ring, with
 // two blades LEFT, BOTH and RIGHT on its right, EQUIP in the middle under
-// the hint. Kept clear of the opener's buttons (inputWheel_SetKeepClear):
-// each column moved up or down as little as it can be; where the right has
-// no such place, all down the left.
+// the hint, the look's switch in the middle over the colour's name. Kept
+// clear of the opener's buttons (inputWheel_SetKeepClear): each column moved
+// up or down as little as it can be; where the right has no such place, all
+// down the left.
 static void inputWheel_LayoutChips(const inputWheelScreen* s)
 {
     const int bSaber = inputWheel_s.bOpen && inputWheel_s.kind == INPUTWHEEL_SABER;
@@ -660,10 +702,20 @@ static void inputWheel_LayoutChips(const inputWheelScreen* s)
         }
     }
     for (int i = 0; i < INPUTWHEEL_NUM_CHIPS; i++) {
+        inputWheel_s.chipW[i] = INPUTWHEEL_CHIP_W;
+        inputWheel_s.chipH[i] = INPUTWHEEL_CHIP_H;
         if (i == INPUTWHEEL_CHIP_EQUIP) {
             inputWheel_s.aChipShown[i] = bSaber;
             inputWheel_s.chipX[i] = cx;
             inputWheel_s.chipY[i] = cy + 34.0f;
+            continue;
+        }
+        if (i == INPUTWHEEL_CHIP_LOOK) {
+            float up;
+            inputWheel_s.aChipShown[i] = bSaber;
+            inputWheel_LookChipSize(inputWheel_s.R0, &inputWheel_s.chipW[i], &inputWheel_s.chipH[i], &up);
+            inputWheel_s.chipX[i] = cx;
+            inputWheel_s.chipY[i] = cy - up;
             continue;
         }
         const int bStyle = i <= INPUTWHEEL_CHIP_DUAL;
@@ -761,7 +813,7 @@ static void inputWheel_DrawStar(float cx, float cy, float k, int bFilled, int bP
 // saber to take
 static void inputWheel_DrawChips(void)
 {
-    static const char* const aName[INPUTWHEEL_NUM_CHIPS] = { "SINGLE", "DUAL", "LEFT", "BOTH", "RIGHT", "EQUIP" };
+    static const char* const aName[INPUTWHEEL_NUM_CHIPS] = { "SINGLE", "DUAL", "LEFT", "BOTH", "RIGHT", "EQUIP", "" };
     touchUiDrawList* l = inputWheel_pDraw;
     const int st = iosSaber_GetStyle();
     const int bTwo = iosSaber_StyleNumBlades(st) >= 2;
@@ -771,6 +823,7 @@ static void inputWheel_DrawChips(void)
         float alpha;
         int bOn = 0;
         if (i == INPUTWHEEL_CHIP_EQUIP) alpha = inputWheel_CanEquipSaber() ? 1.0f : 0.35f;
+        else if (i == INPUTWHEEL_CHIP_LOOK) alpha = 1.0f;
         else {
             if (i == INPUTWHEEL_CHIP_SINGLE) bOn = !bTwo;
             else if (i == INPUTWHEEL_CHIP_DUAL) bOn = bTwo;
@@ -782,14 +835,19 @@ static void inputWheel_DrawChips(void)
         touchUiColor text = touchUi_White(1.0f);
         if (i == INPUTWHEEL_CHIP_LEFT || i == INPUTWHEEL_CHIP_RIGHT) {
             unsigned char r, g, b;
-            iosSaber_ColourRGB(iosSaber_GetColour(st, i == INPUTWHEEL_CHIP_LEFT ? 1 : 0), &r, &g, &b);
+            iosSaber_ColourRGB(iosSaber_GetShownColour(st, i == INPUTWHEEL_CHIP_LEFT ? 1 : 0), &r, &g, &b);
             text = touchUi_Rgba((r * 0.7f + 255.0f * 0.3f) / 255.0f, (g * 0.7f + 255.0f * 0.3f) / 255.0f, (b * 0.7f + 255.0f * 0.3f) / 255.0f, 1.0f);
         }
         const touchUiColor border = bOn ? touchUi_Rgba(1.0f, 0.85f, 0.3f, 0.95f) : touchUi_White(0.4f);
+        const float w = inputWheel_s.chipW[i], h = inputWheel_s.chipH[i];
+        const char* name = i == INPUTWHEEL_CHIP_LOOK ? iosSaber_LookName(iosSaber_GetLook()) : aName[i];
+        float size = 11.0f, tw;
+        // (the look's name kept inside its switch: smaller on a small wheel)
+        touchUiDraw_MeasureText(name, size, 1.0f, &tw, NULL);
+        if (tw > w - 10.0f) size = INPUTWHEEL_MAX_F(8.0f, floorf(size * (w - 10.0f) / tw * 2.0f) / 2.0f);
         l->alpha = alpha;
-        touchUiDraw_RRect(l, x - INPUTWHEEL_CHIP_W * 0.5f, y - INPUTWHEEL_CHIP_H * 0.5f, INPUTWHEEL_CHIP_W, INPUTWHEEL_CHIP_H,
-                          INPUTWHEEL_CHIP_H * 0.5f, touchUi_Black(0.55f), bOn ? 2.0f : 1.5f, border);
-        touchUiDraw_Text(l, aName[i], x, y, 11.0f, 1.0f, text);
+        touchUiDraw_RRect(l, x - w * 0.5f, y - h * 0.5f, w, h, h * 0.5f, touchUi_Black(0.55f), bOn ? 2.0f : 1.5f, border);
+        touchUiDraw_Text(l, name, x, y, size, 1.0f, text);
         l->alpha = 1.0f;
     }
 }
@@ -812,7 +870,7 @@ void inputWheel_Draw(touchUiDrawList* pList, const inputWheelScreen* pScreen)
 
     const int hot = inputWheel_s.hot;
     const int bCancel = hot == INPUTWHEEL_CANCEL || (hot == -1 && inputWheel_s.bCancelShown);
-    const int cur = bSaber ? iosSaber_GetColour(iosSaber_GetStyle(), inputWheel_SaberBlade())
+    const int cur = bSaber ? iosSaber_GetShownColour(iosSaber_GetStyle(), inputWheel_SaberBlade())
                   : bWeapons ? iosGame_GetCurWeapon() : iosGame_GetCurPower();
     int curSlice = -1, bAnyEarned = 0;
     for (int i = 0; i < m->numSlices; i++) {

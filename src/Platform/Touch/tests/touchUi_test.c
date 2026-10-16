@@ -40,6 +40,7 @@ static struct {
     int bGauge;
     // the saber
     int bSaberBtn, saberStyle, aSaberColour[2][2], bDualOk;
+    int saberLook; // (0 CLASSIC, 1 REFORGED; the default, as setup leaves it)
     // the camera
     int bCaptureFull, captures, lastKinds, lastMode, captureCancels, batch, batchSets;
     int selfieResult, selfieShots, bSelfie, selfieStops;
@@ -138,6 +139,9 @@ static int F_SaberGetStyle(void) { return fg.saberStyle; }
 static void F_SaberSetStyle(int st) { fg.saberStyle = st; }
 static int F_SaberGetColour(int st, int b) { return fg.aSaberColour[st & 1][b & 1]; }
 static void F_SaberSetColour(int st, int b, int id) { fg.aSaberColour[st & 1][b & 1] = id; }
+static const char* F_SaberLookName(int lk) { return lk == 0 ? "CLASSIC" : lk == 1 ? "REFORGED" : NULL; }
+static int F_SaberGetLook(void) { return fg.saberLook; }
+static void F_SaberSetLook(int lk) { if (lk == 0 || lk == 1) fg.saberLook = lk; }
 static int F_CaptureRequest(int kinds, int mode)
 {
     if (fg.bCaptureFull) return 0;
@@ -171,7 +175,7 @@ static const touchUiGame fakeGame = {
     F_IsThirdPerson, F_SetForceJumpStyle, F_GetForceJumpRank, F_ShowMessage, F_ShowMessage, F_GetGaugeRect,
     F_IsSaberButtonShown, F_SaberNumColours, F_SaberColourName, F_SaberColourKey, F_SaberColourByKey, F_SaberColourRGB,
     F_SaberStyleAvailable, F_SaberStyleName, F_SaberStyleNumBlades, F_SaberGetStyle, F_SaberSetStyle, F_SaberGetColour,
-    F_SaberSetColour, F_CaptureRequest, F_CaptureCancel, F_SetPhotoBatch, F_SelfieStart, F_SelfieStop, F_SelfieIsActive,
+    F_SaberSetColour, F_SaberLookName, F_SaberGetLook, F_SaberSetLook, F_CaptureRequest, F_CaptureCancel, F_SetPhotoBatch, F_SelfieStart, F_SelfieStop, F_SelfieIsActive,
     F_FreezeBegin, F_FreezeEnd, F_FreezeIsActive, F_FreezeSetSmooth, F_FreezeOrbit, F_FreezePan, F_FreezeZoom,
     F_CinemaStart, F_CinemaStop, F_CinemaIsActive,
 };
@@ -190,18 +194,23 @@ int iosGame_SelectWeapon(int bin) { return F_SelectWeapon(bin); }
 void iosGame_SetHold(int b) { F_SetHold(b); }
 int iosGame_IsSaberButtonShown(void) { return F_IsSaberButtonShown(); }
 int iosSaber_NumColours(void) { return F_SaberNumColours(); }
-// (as iosSaber.c: one colour, 7 here as GREEN is there, is off Jedi Knight's wheel)
-int iosSaber_ColourOnWheel(int id) { return id >= 0 && id < F_SaberNumColours() && !(id == 7 && !F_IsMots()); }
+// (as iosSaber.c: one colour, 7 here as GREEN is there, is off Jedi Knight's wheel in
+// the REFORGED look; each look's swatches its own, here by their green)
+int iosSaber_ColourOnWheel(int id) { return id >= 0 && id < F_SaberNumColours() && !(id == 7 && !F_IsMots() && fg.saberLook == 1); }
+int iosSaber_GetLook(void) { return F_SaberGetLook(); }
+void iosSaber_SetLook(int lk) { F_SaberSetLook(lk); }
+const char* iosSaber_LookName(int lk) { return F_SaberLookName(lk); }
+int iosSaber_GetShownColour(int st, int b) { const int id = F_SaberGetColour(st, b); return iosSaber_ColourOnWheel(id) ? id : 0; }
 const char* iosSaber_ColourName(int id) { return F_SaberColourName(id); }
-void iosSaber_ColourRGB(int id, unsigned char* r, unsigned char* g, unsigned char* b) { F_SaberColourRGB(id, r, g, b); }
+void iosSaber_ColourRGB(int id, unsigned char* r, unsigned char* g, unsigned char* b) { F_SaberColourRGB(id, r, g, b); if (!fg.saberLook) *g = 50; }
 int iosSaber_StyleAvailable(int st) { return F_SaberStyleAvailable(st); }
 int iosSaber_StyleNumBlades(int st) { return F_SaberStyleNumBlades(st); }
 int iosSaber_GetStyle(void) { return F_SaberGetStyle(); }
 void iosSaber_SetStyle(int st) { F_SaberSetStyle(st); }
 int iosSaber_GetColour(int st, int b) { return F_SaberGetColour(st, b); }
 void iosSaber_SetColour(int st, int b, int id) { F_SaberSetColour(st, b, id); }
-static int g_platHaptics = 0;
-void platServices_Haptic(int kind) { g_platHaptics |= kind == 0 ? TOUCHUI_HAPTIC_TICK : TOUCHUI_HAPTIC_TAP; }
+static int g_platHaptics = 0, g_platTicks = 0;
+void platServices_Haptic(int kind) { g_platHaptics |= kind == 0 ? TOUCHUI_HAPTIC_TICK : TOUCHUI_HAPTIC_TAP; if (kind == 0) g_platTicks++; }
 
 // What the hand felt since last asked: the overlay's own, and the wheel's
 static int takeHaptics(void)
@@ -231,6 +240,7 @@ static void setup_screen(float w, float h, float l, float t, float r, float b)
 static void setup(void)
 {
     memset(&fg, 0, sizeof(fg));
+    fg.saberLook = 1;
     fg.curPower = -1;
     fg.curWeapon = 2;
     // Jedi Knight: every power learned, at levels 1..4 round
@@ -1375,6 +1385,120 @@ static void test_saber(void)
     CHECK(touchUi_IsWheelOpen() && !touchUi_GetSaberChip(TOUCHUI_CHIP_DUAL, NULL, NULL));
 }
 
+// The saber wheel's look switch (CLASSIC / REFORGED), in its middle
+static void test_saber_look(void)
+{
+    float sx, sy, cx, cy, r0, r1, deg, px, py, lx, ly, qx, qy;
+    setup();
+    fg.bSaberBtn = 1;
+    tick();
+    bxy(TOUCHUI_BTN_SABER, &sx, &sy);
+    g_case = "look: the switch in the saber wheel's middle, over the name; REFORGED to start, 16 slices (no GREEN) in Jedi Knight";
+    down(1, sx, sy); wait(0.1); up(1, sx, sy);
+    touchUi_GetWheelGeometry(&cx, &cy, &r0, &r1);
+    CHECK(touchUi_IsWheelOpen() && touchUi_GetSaberChip(TOUCHUI_CHIP_LOOK, &lx, &ly));
+    CHECK(fabsf(lx - cx) < 0.01f && ly < cy - 20.0f && hypotf(lx - cx, ly - cy) < r0 - 10.0f);
+    CHECK(fg.saberLook == 1 && touchUi_GetWheelSliceBin(15) == 16 && touchUi_GetWheelSliceBin(16) == -1 && touchUi_GetWheelSlice(7, NULL) < 0);
+    g_case = "look: tapped: CLASSIC, a tick, the wheel open (to tap) with all 17, the game still held";
+    g_platTicks = 0;
+    down(2, lx, ly); up(2, lx, ly);
+    CHECK(fg.saberLook == 0 && g_platTicks == 1 && touchUi_IsWheelOpen() && touchUi_IsWheelTapMode() && fg.bHold);
+    CHECK(touchUi_GetWheelSliceBin(16) == 16 && touchUi_GetWheelSliceBin(17) == -1 && touchUi_GetWheelSlice(7, &deg) == 7);
+    g_case = "look: CLASSIC, Jedi Knight: GREEN tapped: set; back to REFORGED: 16 again, GREEN kept (shown as ORIGINAL)";
+    polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    CHECK(fg.aSaberColour[0][0] == 7 && touchUi_IsWheelOpen());
+    down(2, lx, ly); up(2, lx, ly);
+    CHECK(fg.saberLook == 1 && fg.aSaberColour[0][0] == 7 && iosSaber_GetShownColour(0, 0) == 0 && touchUi_GetWheelSlice(7, NULL) < 0 && touchUi_IsWheelOpen());
+    g_case = "look: slid from SABER in CLASSIC: one tick per slice (17); the gap cancels";
+    down(2, lx, ly); up(2, lx, ly); // (CLASSIC)
+    polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    CHECK(!touchUi_IsWheelOpen() && !fg.bHold && fg.saberLook == 0);
+    down(1, sx, sy);
+    move(1, sx, sy + 10.5f);
+    CHECK(touchUi_IsWheelOpen() && !touchUi_IsWheelTapMode());
+    g_platTicks = 0;
+    for (int k = 0; k < 17; k++) {
+        touchUi_GetWheelSlice(touchUi_GetWheelSliceBin(k), &deg);
+        polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
+        move(1, px, py);
+    }
+    const int nTicks = g_platTicks;
+    polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+    move(1, px, py); up(1, px, py);
+    CHECK(nTicks == 17 && !touchUi_IsWheelOpen() && fg.aSaberColour[0][0] == 7);
+    g_case = "look: a slide lifted on the switch: nothing picked, closed, the look unchanged";
+    down(1, sx, sy);
+    move(1, sx, sy + 10.5f);
+    touchUi_GetWheelSlice(9, &deg);
+    polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
+    move(1, px, py); move(1, lx, ly); up(1, lx, ly);
+    CHECK(!touchUi_IsWheelOpen() && fg.saberLook == 0 && fg.aSaberColour[0][0] == 7);
+    g_case = "look: held 0.3 s, open to tap: the switch works";
+    down(1, sx, sy); wait(0.31); up(1, sx, sy);
+    CHECK(touchUi_IsWheelOpen() && touchUi_IsWheelTapMode());
+    down(2, lx, ly); up(2, lx, ly);
+    CHECK(fg.saberLook == 1 && touchUi_IsWheelOpen() && touchUi_GetWheelSliceBin(16) == -1);
+    g_case = "look: the ring's top slice just past the switch: that slice, not the switch";
+    {
+        const int k = 8; // (TEAL: the top in REFORGED's 16 is between TEAL and CYAN; TEAL just left of it)
+        touchUi_GetWheelSlice(k, &deg);
+        polar(cx, cy, deg, r0 + 6.0f, &px, &py);
+        down(2, px, py); up(2, px, py);
+        CHECK(fg.saberLook == 1 && fg.aSaberColour[0][0] == k && touchUi_IsWheelOpen());
+    }
+    g_case = "look: DUAL in both looks: LEFT gets GREEN in CLASSIC, RIGHT gets BLUE in REFORGED";
+    touchUi_GetSaberChip(TOUCHUI_CHIP_DUAL, &qx, &qy);
+    down(2, qx, qy); up(2, qx, qy);
+    down(2, lx, ly); up(2, lx, ly); // CLASSIC
+    touchUi_GetSaberChip(TOUCHUI_CHIP_LEFT, &qx, &qy);
+    down(2, qx, qy); up(2, qx, qy);
+    touchUi_GetWheelSlice(7, &deg);
+    polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    CHECK(fg.saberStyle == TOUCHUI_SABER_DUAL && fg.aSaberColour[1][1] == 7 && fg.aSaberColour[1][0] == 0);
+    down(2, lx, ly); up(2, lx, ly); // REFORGED
+    touchUi_GetSaberChip(TOUCHUI_CHIP_RIGHT, &qx, &qy);
+    down(2, qx, qy); up(2, qx, qy);
+    touchUi_GetWheelSlice(11, &deg);
+    polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    CHECK(fg.saberLook == 1 && fg.aSaberColour[1][0] == 11 && fg.aSaberColour[1][1] == 7 && iosSaber_GetShownColour(1, 1) == 0 && touchUi_IsWheelOpen());
+    polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    CHECK(!touchUi_IsWheelOpen());
+    g_case = "look: Mysteries of the Sith: 17 in both looks";
+    fg.bMots = 1;
+    down(1, sx, sy); wait(0.1); up(1, sx, sy);
+    const int n0 = touchUi_GetWheelSliceBin(16) == 16 && touchUi_GetWheelSlice(7, NULL) == 7;
+    down(2, lx, ly); up(2, lx, ly);
+    CHECK(n0 && fg.saberLook == 0 && touchUi_GetWheelSliceBin(16) == 16 && touchUi_GetWheelSliceBin(17) == -1 && touchUi_GetWheelSlice(7, NULL) == 7);
+    polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    fg.bMots = 0;
+    g_case = "look: the shared wheel's own call (a pad's L3, the 4 key) switches it, the wheel open";
+    down(1, sx, sy); wait(0.1); up(1, sx, sy);
+    inputWheel_SaberChip(INPUTWHEEL_CHIP_LOOK);
+    CHECK(fg.saberLook == 1 && inputWheel_IsOpen() && inputWheel_GetOpenMap()->numSlices == 16);
+    polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    CHECK(!touchUi_IsWheelOpen());
+    g_case = "look: no switch on the Force wheel";
+    {
+        float wx, wy;
+        bxy(TOUCHUI_BTN_WHEEL, &wx, &wy);
+        down(1, wx, wy); wait(0.35); up(1, wx, wy);
+        CHECK(touchUi_IsWheelOpen() && !touchUi_GetSaberChip(TOUCHUI_CHIP_LOOK, NULL, NULL) && inputWheel_ChipAt(cx, cy - 30.0f) < 0);
+        polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+        down(2, px, py); up(2, px, py);
+    }
+    g_case = "look: remembered (by name) over a restart";
+    fg.saberLook = 1;
+    touchUi_Init(&fakeGame, g_settings);
+    CHECK(fg.saberLook == 0);
+}
+
 static int g_layoutSaber = 1;
 static void check_layout(const char* name, float W, float H, float l, float t, float r, float b)
 {
@@ -1564,6 +1688,7 @@ int main(void)
     test_swapped();
     test_camera();
     test_saber();
+    test_saber_look();
     test_shared_wheel();
     test_other_photo_and_cancel();
     test_level_tray();

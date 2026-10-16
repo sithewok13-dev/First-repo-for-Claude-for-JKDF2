@@ -378,6 +378,10 @@ static void tu_SaveSettings(void)
         const char* name = tu.game->SaberStyleName(tu.game->SaberGetStyle());
         if (name) fprintf(f, "saberStyle=%s\n", name);
     }
+    if (G(SaberGetLook) && G(SaberLookName)) {
+        const char* name = tu.game->SaberLookName(tu.game->SaberGetLook());
+        if (name) fprintf(f, "saberLook=%s\n", name);
+    }
     if (G(SaberStyleName) && G(SaberStyleNumBlades) && G(SaberGetColour) && G(SaberColourKey)) {
         for (int st = TOUCHUI_SABER_SINGLE; st <= TOUCHUI_SABER_DUAL; st++) {
             const char* name = tu.game->SaberStyleName(st);
@@ -440,6 +444,10 @@ static void tu_LoadSettings(void)
                     const char* name = tu.game->SaberStyleName(st);
                     if (name && !strcmp(name, v)) tu.game->SaberSetStyle(st);
                 }
+            }
+            else if (!strcmp(k, "saberLook") && G(SaberLookName) && G(SaberSetLook)) {
+                for (int lk = 0; tu.game->SaberLookName(lk); lk++)
+                    if (!strcmp(tu.game->SaberLookName(lk), v)) tu.game->SaberSetLook(lk);
             }
             else if (!strncmp(k, "saberColour.", 12) && G(SaberStyleName) && G(SaberSetColour) && G(SaberColourByKey)) {
                 const char* dot = strrchr(k, '.');
@@ -1559,8 +1567,12 @@ static void tu_SaberTargetFromShared(void)
 }
 
 // One of the saber wheel's choices tapped: one saber or two (each keeps its
-// own colours), or which of the two a colour goes to -- the wheel stays open
-// to tap a colour; or EQUIP: the saber in hand, the wheel closed
+// own colours), which of the two a colour goes to, or the colours' look (the
+// wheel made again in it) -- the wheel stays open to tap a colour; or EQUIP:
+// the saber in hand, the wheel closed
+// (the overlay's choices are the shared wheel's, by number)
+typedef char tu_assertChips[((int)TOUCHUI_CHIP_EQUIP == (int)INPUTWHEEL_CHIP_EQUIP && (int)TOUCHUI_CHIP_LOOK == (int)INPUTWHEEL_CHIP_LOOK
+                             && (int)TOUCHUI_NUM_CHIPS == (int)INPUTWHEEL_NUM_CHIPS) ? 1 : -1];
 static void tu_UseSaberChip(int chip)
 {
     if (!tu.bWheelOpen) return;

@@ -67,8 +67,10 @@ int jkPlayerLook_GetLocal(jkPlayerLook* pOut)
 #ifdef JK_ENHANCED
     pOut->style = iosSaber_GetStyle();
     for (int b = 0; b < JKPLAYERLOOK_MAX_BLADES && b < iosSaber_StyleNumBlades(pOut->style); b++) {
-        const char* key = iosSaber_ColourKey(iosSaber_GetColour(pOut->style, b));
-        if (key && iosSaber_GetColour(pOut->style, b) != IOSSABER_COLOUR_GAME)
+        // (as it is shown here: the saber wheel's look can make a kept colour the game's own)
+        const int id = iosSaber_GetShownColour(pOut->style, b);
+        const char* key = iosSaber_ColourKey(id);
+        if (key && id != IOSSABER_COLOUR_GAME)
             strncpy(pOut->aColourKey[b], key, JKPLAYERLOOK_KEY_LEN - 1);
     }
     return 1;
