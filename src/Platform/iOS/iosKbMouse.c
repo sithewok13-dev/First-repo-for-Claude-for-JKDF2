@@ -18,10 +18,9 @@
 #include "World/sithWorld.h"
 #include "World/sithThing.h"
 #include "stdPlatform.h"
-#include "Platform/iOS/iosGame.h"
-#include "Platform/iOS/iosTouch.h"
+#include "Enhanced/iosGame.h"
 #include "Platform/iOS/iosPad.h"
-#include "Platform/iOS/iosPadPanel.h"
+#include "Platform/Input/inputUi.h" // (iOS: the touch overlay and iosPadPanel; elsewhere: inputOverlay.c)
 
 extern SDL_Window* displayWindow;
 extern int stdControl_bControllerEscapeKey;
@@ -151,7 +150,7 @@ static void iosKbMouse_SetHudHidden(int bHidden)
 {
     if (iosKbMouse_s.bHudHidden == bHidden) return;
     iosKbMouse_s.bHudHidden = bHidden;
-    iosTouch_SetKbmHud(bHidden);
+    inputUi_SetKbmHud(bHidden);
 }
 
 void iosKbMouse_NoteTouch(void)
@@ -167,7 +166,7 @@ void iosKbMouse_NoteTouchKind(int bPointer)
 
 int iosKbMouse_IsPointerFree(void)
 {
-    return iosTouch_WantsPointer() || iosPad_PanelIsOpen();
+    return inputUi_WantsPointer() || iosPad_PanelIsOpen();
 }
 
 // ------------------------------------------------------------ the wheels
@@ -187,7 +186,7 @@ static void iosKbMouse_SetWheelPrompt(void)
         snprintf(t, sizeof(t), "Mouse: point   Let go of %s: pick   Right click or Esc: cancel", iosKbMouse_KeyName(iosKbMouse_s.wheelKey));
     else
         snprintf(t, sizeof(t), "Mouse or scroll wheel: point   Click: pick   Right click or Esc: close");
-    iosPadPanel_SetPrompt(t);
+    inputUi_SetPrompt(t);
 }
 
 const char* iosKbMouse_WheelHint(int bHot, int bCancel)
@@ -213,7 +212,7 @@ static int iosKbMouse_WheelKindFor(int sc)
 
 static void iosKbMouse_WheelReset(void)
 {
-    if (iosKbMouse_s.wheelState >= IOSKBM_WS_HELD) iosPadPanel_SetPrompt(NULL);
+    if (iosKbMouse_s.wheelState >= IOSKBM_WS_HELD) inputUi_SetPrompt(NULL);
     // (its key, still held, doesn't reach the game either)
     const int key = iosKbMouse_s.wheelKey;
     if (key >= 0 && iosKbMouse_s.aDown[key]) iosKbMouse_s.aStale[key] = 1;
@@ -228,7 +227,7 @@ static void iosKbMouse_WheelOpen(int bTap)
     iosKbMouse_s.wheelState = bTap ? IOSKBM_WS_TAP : IOSKBM_WS_HELD; // (first: the wheel asks for its hint as it opens)
     iosKbMouse_s.aimX = iosKbMouse_s.aimY = 0.0f;
     iosKbMouse_s.bAimOn = iosKbMouse_s.bAimMoved = 0;
-    if (!iosTouch_KbmWheelOpen(iosKbMouse_s.wheelKind, bTap)) {
+    if (!inputUi_KbmWheelOpen(iosKbMouse_s.wheelKind, bTap)) {
         // (it can't now: the press is spent)
         iosKbMouse_s.wheelState = IOSKBM_WS_PENDING; // (no prompt to take away)
         iosKbMouse_WheelReset();
@@ -239,7 +238,7 @@ static void iosKbMouse_WheelOpen(int bTap)
 
 static void iosKbMouse_WheelClose(int bSelect)
 {
-    if (iosTouch_KbmWheelIsOpen() && iosTouch_PadWheelClose(bSelect)) {
+    if (inputUi_KbmWheelIsOpen() && inputUi_WheelClose(bSelect)) {
         // a saber colour set: the wheel stays open, to tap
         iosKbMouse_s.wheelState = IOSKBM_WS_TAP;
         iosKbMouse_SetWheelPrompt();
@@ -270,11 +269,11 @@ static void iosKbMouse_ApplyAim(void)
     if (m >= IOSKBM_AIM_ON) iosKbMouse_s.bAimOn = 1;
     else if (m < IOSKBM_AIM_OFF) iosKbMouse_s.bAimOn = 0;
     if (!iosKbMouse_s.bAimOn) {
-        iosTouch_PadWheelAim(0, 0.0f);
+        inputUi_WheelAim(0, 0.0f);
         return;
     }
     // (degrees counter-clockwise from pointing right, as the slices are; the mouse's y is down)
-    iosTouch_PadWheelAim(1, atan2f(-iosKbMouse_s.aimY, iosKbMouse_s.aimX) * (float)(180.0 / M_PI));
+    inputUi_WheelAim(1, atan2f(-iosKbMouse_s.aimY, iosKbMouse_s.aimX) * (float)(180.0 / M_PI));
 }
 
 static int iosKbMouse_Pressed(int sc)
@@ -305,14 +304,14 @@ static void iosKbMouse_WheelInput(void)
         return;
     }
 
-    if (!iosTouch_KbmWheelIsOpen()) {
+    if (!inputUi_KbmWheelIsOpen()) {
         // closed by a touch (or the overlay went)
         iosKbMouse_WheelReset();
         return;
     }
     iosKbMouse_ApplyAim();
     while (iosKbMouse_s.scrollSteps) {
-        iosTouch_PadWheelStep(iosKbMouse_s.scrollSteps > 0 ? 1 : -1);
+        inputUi_WheelStep(iosKbMouse_s.scrollSteps > 0 ? 1 : -1);
         iosKbMouse_s.scrollSteps += iosKbMouse_s.scrollSteps > 0 ? -1 : 1;
         iosKbMouse_s.bAimOn = 0; // (the scroll wheel points now, until the mouse moves on)
         iosKbMouse_s.aimX = iosKbMouse_s.aimY = 0.0f;
@@ -327,20 +326,20 @@ static void iosKbMouse_WheelInput(void)
         return;
     }
     if (iosKbMouse_s.wheelKind == IOSPAD_WHEEL_SABER) {
-        if (iosKbMouse_Pressed(SDL_SCANCODE_1)) iosTouch_PadSaberChip(IOSPAD_CHIP_STYLE);
-        if (iosKbMouse_Pressed(SDL_SCANCODE_2)) iosTouch_PadSaberChip(IOSPAD_CHIP_TARGET);
-        if (iosKbMouse_Pressed(SDL_SCANCODE_3)) iosTouch_PadSaberChip(IOSPAD_CHIP_EQUIP);
-        if (!iosTouch_KbmWheelIsOpen()) {
+        if (iosKbMouse_Pressed(SDL_SCANCODE_1)) inputUi_SaberChip(IOSPAD_CHIP_STYLE);
+        if (iosKbMouse_Pressed(SDL_SCANCODE_2)) inputUi_SaberChip(IOSPAD_CHIP_TARGET);
+        if (iosKbMouse_Pressed(SDL_SCANCODE_3)) inputUi_SaberChip(IOSPAD_CHIP_EQUIP);
+        if (!inputUi_KbmWheelIsOpen()) {
             iosKbMouse_WheelReset();
             return;
         }
     }
     if (st == IOSKBM_WS_HELD && key >= 0 && !iosKbMouse_s.aDown[key]) {
         // let go: what it points at; nothing pointed at, it stays open to click
-        if (iosTouch_PadWheelHot(NULL)) iosKbMouse_WheelClose(1);
+        if (inputUi_WheelHot(NULL)) iosKbMouse_WheelClose(1);
         else {
             iosKbMouse_s.wheelState = IOSKBM_WS_TAP;
-            iosTouch_PadWheelSetTapMode();
+            inputUi_WheelSetTapMode();
             iosKbMouse_SetWheelPrompt();
         }
         return;
@@ -354,12 +353,12 @@ static void iosKbMouse_WheelInput(void)
 
 static void iosKbMouse_SetRing(int kind, float progress)
 {
-    iosPadPanel_HoldRing(kind, progress);
+    inputUi_HoldRing(kind, progress);
 }
 
 static void iosKbMouse_LeaveGame(void)
 {
-    if (iosKbMouse_s.wheelState >= IOSKBM_WS_HELD && iosTouch_KbmWheelIsOpen()) iosTouch_PadWheelClose(0);
+    if (iosKbMouse_s.wheelState >= IOSKBM_WS_HELD && inputUi_KbmWheelIsOpen()) inputUi_WheelClose(0);
     iosKbMouse_WheelReset();
     if (iosKbMouse_s.loadState == 1) iosKbMouse_SetRing(IOSPAD_RING_NONE, 0.0f);
     iosKbMouse_s.loadState = iosKbMouse_s.camState = 0;
@@ -393,17 +392,17 @@ static void iosKbMouse_Shortcuts(void)
     if (iosKbMouse_s.camState == 1) {
         if (!iosKbMouse_s.aDown[IOSKBM_KEY_PHOTO]) {
             iosKbMouse_s.camState = 0;
-            iosTouch_KbmCamera(IOSTOUCH_CAM_PHOTO);
+            inputUi_Camera(INPUTUI_CAM_PHOTO);
         }
         else if (iosKbMouse_s.now - iosKbMouse_s.tCam >= IOSKBM_SELFIE_HOLD) {
             iosKbMouse_s.camState = 0;
-            iosTouch_KbmCamera(IOSTOUCH_CAM_SELFIE);
+            inputUi_Camera(INPUTUI_CAM_SELFIE);
         }
     }
 
     // O: Action Freeze
     if (iosKbMouse_Pressed(IOSKBM_KEY_FREEZE) && iosKbMouse_IsFree(IOSKBM_KEY_FREEZE))
-        iosTouch_KbmCamera(IOSTOUCH_CAM_FREEZE);
+        inputUi_Camera(INPUTUI_CAM_FREEZE);
 
     // F10 held: quick load, its ring filling meanwhile (as QUICK LOAD)
     if (iosKbMouse_Pressed(IOSKBM_KEY_LOAD) && iosKbMouse_IsFree(IOSKBM_KEY_LOAD)) {
@@ -465,8 +464,8 @@ void iosKbMouse_Update(void)
     if (bGame) {
         const int bWheelBefore = iosKbMouse_s.wheelState >= IOSKBM_WS_HELD;
         const int bCmd = iosKbMouse_s.aDown[SDL_SCANCODE_LGUI] || iosKbMouse_s.aDown[SDL_SCANCODE_RGUI];
-        const int bPhoto = iosTouch_IsPhotoModeUp();
-        const int bOtherWheel = iosTouch_IsWheelOpen() && !iosTouch_KbmWheelIsOpen();
+        const int bPhoto = inputUi_IsPhotoModeUp();
+        const int bOtherWheel = inputUi_IsWheelOpen() && !inputUi_KbmWheelIsOpen();
         const int bTyping = jkHud_bChatOpen || stdControl_bDisableKeyboard;
 
         if (iosKbMouse_s.bActive && !bPhoto) iosKbMouse_SetHudHidden(1);
@@ -477,8 +476,8 @@ void iosKbMouse_Update(void)
             iosKbMouse_s.camState = 0;
             if (iosKbMouse_s.loadState == 1) iosKbMouse_SetRing(IOSPAD_RING_NONE, 0.0f);
             iosKbMouse_s.loadState = 0;
-            if (!bCmd && iosKbMouse_Pressed(IOSKBM_KEY_PHOTO) && iosKbMouse_IsFree(IOSKBM_KEY_PHOTO)) iosTouch_KbmCamera(IOSTOUCH_CAM_PHOTO);
-            if (!bCmd && iosKbMouse_Pressed(IOSKBM_KEY_FREEZE) && iosKbMouse_IsFree(IOSKBM_KEY_FREEZE)) iosTouch_KbmCamera(IOSTOUCH_CAM_FREEZE);
+            if (!bCmd && iosKbMouse_Pressed(IOSKBM_KEY_PHOTO) && iosKbMouse_IsFree(IOSKBM_KEY_PHOTO)) inputUi_Camera(INPUTUI_CAM_PHOTO);
+            if (!bCmd && iosKbMouse_Pressed(IOSKBM_KEY_FREEZE) && iosKbMouse_IsFree(IOSKBM_KEY_FREEZE)) inputUi_Camera(INPUTUI_CAM_FREEZE);
         }
         else if (bTyping || bOtherWheel || iosPad_PanelIsOpen() || bCmd) {
             // typing (the keys are the typing line's), a wheel a finger or the
@@ -534,7 +533,7 @@ void iosKbMouse_Update(void)
     memset(iosKbMouse_s.aEventDown, 0, sizeof(iosKbMouse_s.aEventDown));
     memset(iosKbMouse_s.aBtnClick, 0, sizeof(iosKbMouse_s.aBtnClick));
 
-    iosKbMouseView_Tick();
+    inputUi_KbmViewTick();
 }
 
 // ------------------------------------------------------------ events
@@ -572,7 +571,7 @@ int iosKbMouse_HandleEvent(void* pSdlEvent)
             iosKbMouse_Aim(e->motion.xrel, e->motion.yrel);
             return 1; // (the wheel's, not the view's)
         }
-        if (iosKbMouse_IsPointerFree() || iosTouch_IsPhotoModeUp() || iosTouch_IsWheelOpen()) {
+        if (iosKbMouse_IsPointerFree() || inputUi_IsPhotoModeUp() || inputUi_IsWheelOpen()) {
             // the pointer let go (a photo mode, a panel) or something else has the game: not the view's
             iosKbMouse_s.restX = iosKbMouse_s.restY = 0.0f;
             return 1;
@@ -609,7 +608,7 @@ int iosKbMouse_HandleEvent(void* pSdlEvent)
         iosKbMouse_s.nWheel++;
         iosKbMouse_s.lastWheel = e->wheel.y;
         if (!bGame) return 0;
-        if (iosKbMouse_IsPointerFree() || iosTouch_IsPhotoModeUp() || (iosTouch_IsWheelOpen() && !bWheel)) return 1;
+        if (iosKbMouse_IsPointerFree() || inputUi_IsPhotoModeUp() || (inputUi_IsWheelOpen() && !bWheel)) return 1;
         if (!bWheel && iosKbMouse_IsScrollBound()) {
             iosKbMouse_s.bActive = 1;
             return 0; // (the player's own binding)
@@ -656,9 +655,9 @@ int iosKbMouse_HandleEvent(void* pSdlEvent)
                 if (!e->key.repeat) iosKbMouse_WheelClose(0);
                 return 1;
             }
-            if (iosTouch_IsPhotoModeUp()) {
+            if (inputUi_IsPhotoModeUp()) {
                 // Action Freeze: back to the game; the others go on their own (not the menu over them)
-                if (!e->key.repeat) iosTouch_KbmCamera(IOSTOUCH_CAM_FREEZE_END);
+                if (!e->key.repeat) inputUi_Camera(INPUTUI_CAM_FREEZE_END);
                 return 1;
             }
             if (bCmdDot) {

@@ -637,7 +637,7 @@ void jkPlayer_WriteConf(char16_t *name)
         // Added: the controls just written are this version's (see iosPadBinds_Migrate)
         stdJSON_SaveInt(ext_fpath, IOSPADBINDS_JSON_KEY, IOSPADBINDS_VERSION);
 #endif
-#ifdef IOSKBM_ENABLED
+#ifdef IOSKBM_IOS_BINDS
         stdJSON_SaveInt(ext_fpath, IOSKBMBINDS_JSON_KEY, IOSKBMBINDS_VERSION); // Added: likewise the mouse's (iosKbMouse_MigrateBinds)
 #endif
 
@@ -878,7 +878,7 @@ int jkPlayer_ReadConf(char16_t *name)
 #endif
         
         stdConffile_Close();
-#if defined(IOSPAD_ENABLED) || defined(IOSKBM_ENABLED)
+#if defined(IOSPAD_ENABLED) || defined(IOSKBM_IOS_BINDS)
         {
             // Added: a player's game controller and mouse bindings brought up
             // to this version's once, and kept (see iosPadBinds_Migrate,
@@ -888,7 +888,7 @@ int jkPlayer_ReadConf(char16_t *name)
 #ifdef IOSPAD_ENABLED
             const int padVersion = stdJSON_GetInt(ext_fpath, IOSPADBINDS_JSON_KEY, 0);
 #endif
-#ifdef IOSKBM_ENABLED
+#ifdef IOSKBM_IOS_BINDS
             const int kbmVersion = stdJSON_GetInt(ext_fpath, IOSKBMBINDS_JSON_KEY, 0);
             bWrite |= iosKbMouse_MigrateBinds(kbmVersion);
 #endif
