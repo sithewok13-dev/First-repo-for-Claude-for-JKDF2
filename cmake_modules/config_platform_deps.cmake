@@ -166,6 +166,12 @@ if(TARGET_USE_ENET)
     endif()
     include_directories(${ENET_DIR}/include)
     file(GLOB TARGET_ENET_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/ENet/*.c)
+    # Android's C library defines htonl and friends in its <sys/endian.h>, which its socket headers
+    # reach through <endian.h> -- and libsmusher's own endian.h (src/external/libsmusher/src, on
+    # the include path of every file) is found first. So ENet's files include the real one first.
+    if(TARGET_ANDROID)
+        set_property(SOURCE ${TARGET_ENET_LIB_SRCS} ${TARGET_ENET_SRCS} APPEND PROPERTY COMPILE_OPTIONS "-includesys/endian.h") # (clang: -include, joined)
+    endif()
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_ENET_SRCS} ${TARGET_ENET_LIB_SRCS})
 
     # Games with a password are encrypted (stdComm_ENetCrypto.c): ChaCha20-Poly1305 and SHA-256 from
@@ -196,6 +202,13 @@ if(TARGET_USE_ENET)
     endif()
 
     add_compile_definitions(PLATFORM_ENET)
+endif()
+
+# Added: experimental, the original game's DirectPlay (TCP/IP) as a third transport, next to ENet
+if(OPENJKDF2_NET_DPLAY AND TARGET_USE_ENET AND NOT WIN32)
+    file(GLOB TARGET_DPLAY_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/DPlay/*.c)
+    list(APPEND ENGINE_SOURCE_FILES ${TARGET_DPLAY_SRCS})
+    add_compile_definitions(PLATFORM_DPLAY)
 endif()
 
 if(TARGET_USE_BASICSOCKETS)
@@ -247,6 +260,27 @@ if(TARGET_USE_OPENGL)
 
     file(GLOB TARGET_GL_CPP_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/GL/*.cpp)
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_GL_CPP_SRCS})
+endif()
+
+# Added: the touch controls overlay in plain C (src/Platform/Touch), drawn
+# with the game's own GL: on for Android (AUTO); ON for the Linux test rig.
+# Never on iOS, which has its UIKit overlay (src/Platform/iOS/iosTouch.m).
+# It needs the enhanced gameplay (src/Enhanced, JK_ENHANCED: the game helpers
+# in iosGame.c, the sabers, the photo modes) and shares the iOS HUD safe-area
+# margins (iosSafeArea.c), which are plain C.
+set(OPENJKDF2_TOUCHUI "AUTO" CACHE STRING "Touch controls overlay: AUTO (Android), ON or OFF")
+if(TARGET_USE_SDL2 AND TARGET_USE_OPENGL AND NOT TARGET_IOS
+   AND (OPENJKDF2_TOUCHUI STREQUAL "ON" OR (OPENJKDF2_TOUCHUI STREQUAL "AUTO" AND TARGET_ANDROID)))
+    if(NOT OPENJKDF2_ENHANCED)
+        message(FATAL_ERROR "The touch controls overlay needs OPENJKDF2_ENHANCED=ON")
+    endif()
+    message(STATUS "Touch controls overlay: on")
+    add_compile_definitions(TOUCHUI_ENABLED)
+    file(GLOB TARGET_TOUCHUI_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Touch/*.c)
+    # (its wheels are the shared ones: src/Platform/Input/inputWheel.c)
+    list(APPEND ENGINE_SOURCE_FILES ${TARGET_TOUCHUI_SRCS}
+         ${PROJECT_SOURCE_DIR}/src/Platform/iOS/iosSafeArea.c
+         ${PROJECT_SOURCE_DIR}/src/Platform/Input/inputWheel.c)
 endif()
 
 if(TARGET_USE_OPENGL11)
@@ -312,6 +346,31 @@ if(TARGET_IOS)
     # No nativefiledialog-extended backend exists for iOS (nfd_cocoa.m is
     # NSOpenPanel/AppKit), so InstallHelper's folder-picker path is compiled out
     # there -- assets are dropped into the app's Documents dir instead.
+endif()
+
+# Added: the enhanced input everywhere but iOS (ENH_INPUT): game controllers
+# and a keyboard and mouse play as on iOS -- the Force, weapon and saber
+# wheels, the shortcuts, the controller options -- with what iOS draws in
+# UIKit drawn with the game's own GL (src/Platform/Input). The pad and
+# keyboard logic is iOS's own plain C (src/Platform/iOS/iosPad*.c,
+# iosKbMouse.c); the drawing uses the touch overlay's draw list and renderer
+# (src/Platform/Touch, shared with Android's touch controls; their renderer
+# is built here whether or not those are on). AUTO: on with the enhanced
+# gameplay, SDL and OpenGL.
+set(OPENJKDF2_ENH_INPUT "AUTO" CACHE STRING "Enhanced controller and keyboard input: AUTO, ON or OFF")
+if(NOT TARGET_IOS AND OPENJKDF2_ENHANCED AND TARGET_USE_SDL2 AND TARGET_USE_OPENGL AND NOT OPENJKDF2_ENH_INPUT STREQUAL "OFF")
+    message(STATUS "Enhanced input (wheels for pads, keyboard and mouse): on")
+    add_compile_definitions(ENH_INPUT)
+    file(GLOB TARGET_ENH_INPUT_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Input/*.c)
+    list(APPEND ENGINE_SOURCE_FILES ${TARGET_ENH_INPUT_SRCS}
+         ${PROJECT_SOURCE_DIR}/src/Platform/iOS/iosPad.c
+         ${PROJECT_SOURCE_DIR}/src/Platform/iOS/iosPadBinds.c
+         ${PROJECT_SOURCE_DIR}/src/Platform/iOS/iosKbMouse.c
+         ${PROJECT_SOURCE_DIR}/src/Platform/Touch/touchUiDraw.c
+         ${PROJECT_SOURCE_DIR}/src/Platform/Touch/touchUiRender_gl.c)
+    # (the renderer is guarded by the touch overlay's define; it is wanted here too)
+    set_property(SOURCE ${PROJECT_SOURCE_DIR}/src/Platform/Touch/touchUiRender_gl.c APPEND PROPERTY COMPILE_DEFINITIONS TOUCHUI_ENABLED)
+    list(REMOVE_DUPLICATES ENGINE_SOURCE_FILES)
 endif()
 
 if(TARGET_MACOS)

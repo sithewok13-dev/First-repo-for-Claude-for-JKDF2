@@ -11,6 +11,9 @@
 #include "Gui/jkGUI.h"
 #include "Main/jkStrings.h"
 #include "Win95/stdDisplay.h"
+#ifdef JK_ENHANCED
+#include "Enhanced/enhMenuRead.h" // Added
+#endif
 
 jkGuiElement jkGuiDialog_Ok_buttons[4] = {
     {ELEMENT_TEXT, 0, 2, 0, 3, {0x82, 0x8C, 0x186, 0x28}, 1, 0, 0, 0, 0, 0, {0}, 0},
@@ -62,6 +65,10 @@ tVBuffer *jkGuiDialog_sub_416900()
         copyY = (int)((flex_t)copyY * 0.4);
 #endif
         stdDisplay_VBufferCopy(v0, &Video_menuBuffer, 0, 0, 0, 0);
+#ifdef JK_ENHANCED
+        // Added: over a multiplayer screen, the screen behind as it is shown (easier to read)
+        enhMenuRead_CopyShown(v0, &Video_menuBuffer);
+#endif
         stdDisplay_VBufferCopy(v1, *jkGui_stdBitmaps[JKGUI_BM_BK_DIALOG]->mipSurfaces, copyX, copyY, 0, 0);
     }
 

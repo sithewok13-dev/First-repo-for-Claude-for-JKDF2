@@ -1,14 +1,14 @@
-#include "Platform/iOS/iosCinema.h"
+#include "Enhanced/iosCinema.h"
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include <stdio.h>
 
-#include "Platform/iOS/iosFreeze.h"
-#include "Platform/iOS/iosCapture.h"
-#include "Platform/iOS/iosPhotos.h"
-#include "Platform/iOS/iosGame.h"
-#include "Platform/iOS/iosPhotoCam.h"
+#include "Enhanced/iosFreeze.h"
+#include "Enhanced/iosCapture.h"
+#include "Platform/platServices.h"
+#include "Enhanced/iosGame.h"
+#include "Enhanced/iosPhotoCam.h"
 #include "World/sithThing.h"
 #include "World/sithWorld.h"
 #include "Gameplay/sithPlayer.h"
@@ -426,7 +426,7 @@ int iosCinema_Start(double now)
     iosCinema_yawDone = iosCinema_pitchDone = 0.0f;
     iosCinema_tStart = iosCinema_tStage = iosCinema_tLast = now;
     iosCinema_state = IOSCINEMA_TAKING;
-    iosPhotos_SetBatch(1); // (one message for them all, numbered names)
+    platServices_SetPhotoBatch(1); // (one message for them all, numbered names)
     return IOSCINEMA_STARTED;
 }
 
@@ -499,12 +499,17 @@ void iosCinema_Stop(void)
     iosFreeze_End(); // (the game goes on from the same moment)
     // (the game held from the start to now, the last photo's showing too)
     iosCapture_NoteFreeze(iosCinema_tLast - iosCinema_tStart);
-    iosPhotos_SetBatch(0);
+    platServices_SetPhotoBatch(0);
 }
 
 int iosCinema_IsActive(void)
 {
     return iosCinema_state != IOSCINEMA_IDLE;
+}
+
+int iosCinema_GetState(void)
+{
+    return iosCinema_state;
 }
 
 int iosCinema_NumTaken(void)
@@ -527,4 +532,4 @@ void iosCinema_GetPlan(float* pRise, int* pSubject, float* pDist0, float* pDist1
     if (pbZoomOnly) *pbZoomOnly = iosCinema_bZoomOnly;
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED

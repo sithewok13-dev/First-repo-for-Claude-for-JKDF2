@@ -61,6 +61,11 @@ option(OPENJKDF2_NET_ENET "Multiplayer over ENet (as on iOS)" ON)
 # by packaging/ios/build_gns_deps.sh into the program instead (the only way on iOS, where setting it
 # is what turns GNS on).
 option(OPENJKDF2_NET_GNS "Also join upstream OpenJKDF2 games (GameNetworkingSockets, next to ENet)" OFF)
+# Added: and, experimental, DirectPlay over TCP/IP (OPENJKDF2_NET_DPLAY), the original 1997 game's own
+# multiplayer, spoken directly: joining a game the original hosts (the Join screen's typed address is
+# asked over it too), the router's ports opened for it (UPnP, NAT-PMP, PCP). Next to ENet; not on
+# Windows yet. Off by default; on for iOS (cmake_modules/plat_ios.cmake) (src/Platform/Networking/DPlay).
+option(OPENJKDF2_NET_DPLAY "Also join games of the original game over DirectPlay TCP/IP (experimental)" OFF)
 set(OPENJKDF2_GNS_PREBUILT "" CACHE PATH "GameNetworkingSockets built by packaging/ios/build_gns_deps.sh: linked in")
 set(TARGET_USE_LIBSMACKER FALSE)
 set(TARGET_USE_LIBSMUSHER FALSE)
@@ -176,13 +181,35 @@ endif()
 # Establishes compile options, binary/library names, defines, etc
 plat_initialize()
 # (where the platform had networking already, GameNetworkingSockets, and on every desktop, whose
-# builds may leave that out: CI builds, MSVC; iOS sets ENet itself)
-if(OPENJKDF2_NET_ENET AND (TARGET_USE_GAMENETWORKINGSOCKETS OR PLAT_LINUX_32 OR PLAT_LINUX_64 OR PLAT_MACOS OR PLAT_MACOS_X86_64 OR PLAT_MINGW_X86_64 OR PLAT_MINGW_X86_32 OR PLAT_MSVC))
+# builds may leave that out: CI builds, MSVC; and Android, which upstream builds with no networking
+# at all; iOS sets ENet itself)
+if(OPENJKDF2_NET_ENET AND (TARGET_USE_GAMENETWORKINGSOCKETS OR PLAT_LINUX_32 OR PLAT_LINUX_64 OR PLAT_MACOS OR PLAT_MACOS_X86_64 OR PLAT_MINGW_X86_64 OR PLAT_MINGW_X86_32 OR PLAT_MSVC OR TARGET_ANDROID))
     set(TARGET_USE_GAMENETWORKINGSOCKETS ${OPENJKDF2_NET_GNS})
     set(TARGET_USE_ENET TRUE)
 endif()
 if(TARGET_IOS AND OPENJKDF2_GNS_PREBUILT)
     set(TARGET_USE_GAMENETWORKINGSOCKETS TRUE)
+endif()
+
+# Added: the enhanced gameplay first made for the iOS apps (two sabers and their
+# stances, Saber Throw with two, Action Freeze, selfies, the cinematic burst, the
+# photo camera...), shared by every platform: src/Enhanced (built everywhere, each
+# file empty without JK_ENHANCED). Always on for iOS; on by default for the
+# desktops and Android; -DOPENJKDF2_ENHANCED=OFF builds the game as upstream has
+# it. Defines JK_ENHANCED; TARGET_IOS stays for what only the touch overlay
+# (UIKit) has. (Not by default for the 32-bit Windows XP build, whose old
+# OpenGL path it has not been tried on.)
+if(PLAT_LINUX_32 OR PLAT_LINUX_64 OR PLAT_MACOS OR PLAT_MACOS_X86_64 OR PLAT_MINGW_X86_64 OR PLAT_MSVC OR PLAT_ANDROID_ARM64)
+    set(OPENJKDF2_ENHANCED_DEFAULT ON)
+else()
+    set(OPENJKDF2_ENHANCED_DEFAULT OFF)
+endif()
+option(OPENJKDF2_ENHANCED "The enhanced gameplay of the iOS apps (two sabers, stances, photo modes...)" ${OPENJKDF2_ENHANCED_DEFAULT})
+if(TARGET_IOS)
+    set(OPENJKDF2_ENHANCED ON)
+endif()
+if(OPENJKDF2_ENHANCED)
+    add_definitions(-DJK_ENHANCED)
 endif()
 
 if(NOT CMAKE_BUILD_TYPE)

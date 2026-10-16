@@ -23,6 +23,9 @@
 #include "Devices/sithComm.h"
 #include "stdPlatform.h"
 #include "Main/jkCoop.h" // Added
+#ifdef PLATFORM_DPLAY
+#include "Platform/Networking/stdCommTransport.h" // Added
+#endif
 
 #define sithMulti_infoPrintf(fmt, ...) stdPlatform_Printf(fmt, ##__VA_ARGS__)
 #define sithMulti_verbosePrintf(fmt, ...) if (Main_bVerboseNetworking) \
@@ -224,7 +227,13 @@ int sithMulti_Startup()
     // Remove all actor aThings from the world
     sithMulti_RemoveAllActorsFromWorld(sithWorld_g_pCurrentWorld);
 
-    sithNet_checksum = sithWorld_CalcWorldChecksum(sithWorld_g_pCurrentWorld, 0/*jkGuiMultiplayer_checksumSeed*/); // Added: TODO fix the checksum seed
+    uint32_t checksumSeed = 0;
+#ifdef PLATFORM_DPLAY
+    // Added: the original game seeds the checksum with the session's number (its dwUser1): over
+    // DirectPlay the same, so the original's host (which refuses a wrong one) takes ours
+    if (stdCommTransport_GetActiveKind() == STDCOMM_TRANSPORT_DPLAY) checksumSeed = (uint32_t)jkGuiMultiplayer_checksumSeed;
+#endif
+    sithNet_checksum = sithWorld_CalcWorldChecksum(sithWorld_g_pCurrentWorld, checksumSeed/*jkGuiMultiplayer_checksumSeed*/); // Added: TODO fix the checksum seed
     sithNet_syncIdx = 0;
     sithSurface_numUnsyncedSurfaces = 0;
     sithSector_numModifiedSectors = 0;

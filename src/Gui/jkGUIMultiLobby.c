@@ -1,6 +1,9 @@
 // Added: entire file. See jkGUIMultiLobby.h.
 
 #include "jkGUIMultiLobby.h"
+#ifdef JK_ENHANCED
+#include "Enhanced/enhMenuRead.h" // Added
+#endif
 
 #ifdef JKGUI_MULTI_LOBBY
 
@@ -29,6 +32,9 @@
 #include "Platform/Networking/ENet/stdComm_ENet.h"
 #include "Platform/Networking/ENet/stdComm_ENetDiscover.h"
 #include "Platform/Networking/stdCommTransport.h"
+#ifdef PLATFORM_DPLAY
+#include "Platform/Networking/DPlay/stdComm_DPlay.h" // Added
+#endif
 
 extern char16_t jkGuiMultiplayer_ipText[256];
 
@@ -656,6 +662,9 @@ static void jkGuiMultiLobby_PasswordIdle(jkGuiMenu* pMenu)
 static void jkGuiMultiLobby_Pick(jkGuiMenu* pMenu, const jkGuiMultiLobbyTarget* pTarget)
 {
     jkGuiMultiLobby_picked = *pTarget;
+#ifdef PLATFORM_DPLAY
+    stdComm_DPlay_WillJoin(pTarget->address); // Added: a game picked to join (the router's ports, if DirectPlay needs them)
+#endif
     SDL_LockMutex(jkGuiMultiLobby_mutex);
     snprintf(jkGuiMultiLobby_joinAddress, sizeof(jkGuiMultiLobby_joinAddress), "%s", pTarget->address);
     jkGuiMultiLobby_bJoinIsPassword = 0;
@@ -675,7 +684,7 @@ static int jkGuiMultiLobby_Answered(jkGuiMenu* pMenu)
     jkGuiMultiLobby_SetStatus(pMenu, u"");
     SDL_LockMutex(jkGuiMultiLobby_mutex);
     const int result = jkGuiMultiLobby_joinResult;
-    const jkMultiEntry entry = jkGuiMultiLobby_joinEntry;
+    jkMultiEntry entry = jkGuiMultiLobby_joinEntry;
     const int kind = jkGuiMultiLobby_joinKind;
     SDL_UnlockMutex(jkGuiMultiLobby_mutex);
 
@@ -689,9 +698,16 @@ static int jkGuiMultiLobby_Answered(jkGuiMenu* pMenu)
         stdString_CharToWchar(wAddr, jkGuiMultiLobby_picked.address, 63);
         wAddr[63] = 0;
         jk_snwprintf(msg, 256, jkGuiMultiLobby_Str("GUIEXT_MP_ERR_NOGAME"), wAddr);
+#ifdef PLATFORM_DPLAY
+        if (stdCommTransport_WhyNoAnswer()) jk_snwprintf(msg, 256, u"%S", stdCommTransport_WhyNoAnswer()); // Added: DirectPlay's reason
+#endif
         jkGuiDialog_ErrorDialog(jkStrings_GetUniStringWithFallback("GUINET_JOINERROR"), msg);
         return 0;
     }
+#ifdef PLATFORM_DPLAY
+    // Added: an address with several of the original game's sessions: one picked
+    if (kind == STDCOMM_TRANSPORT_DPLAY && !jkGuiDPlayPick_Pick(&entry)) return 0;
+#endif
     int maxPlayers = (int)entry.maxPlayers;
     if ((entry.sessionFlags & SESSIONFLAG_ISDEDICATED) && maxPlayers > 1) maxPlayers--;
     if (maxPlayers > 0 && (int)entry.numPlayers >= maxPlayers) {
@@ -983,10 +999,25 @@ int jkGuiMultiLobby_ShowMain(void)
 void jkGuiMultiLobby_Startup(void)
 {
     jkGui_InitMenu(&jkGuiMultiLobby_menuMain, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiLobby_menuMain); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiLobby_menuHostMode, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiLobby_menuHostMode); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiLobby_menuResume, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiLobby_menuResume); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiLobby_menuJoin, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiLobby_menuJoin); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiLobby_menuPassword, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiLobby_menuPassword); // Added: shown easier to read
+#endif
 }
 
 void jkGuiMultiLobby_Shutdown(void)

@@ -1,11 +1,11 @@
-#include "Platform/iOS/iosSelfieShots.h"
+#include "Enhanced/iosSelfieShots.h"
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
-#include "Platform/iOS/iosSelfie.h"
-#include "Platform/iOS/iosCapture.h"
-#include "Platform/iOS/iosPhotos.h"
-#include "Platform/iOS/iosGame.h"
+#include "Enhanced/iosSelfie.h"
+#include "Enhanced/iosCapture.h"
+#include "Platform/platServices.h"
+#include "Enhanced/iosGame.h"
 
 #include <stdio.h>
 
@@ -41,7 +41,7 @@ int iosSelfieShots_Start(int numShots, double now, int* pNumPeople)
     iosSelfieShots_tStart = iosSelfieShots_tStage = iosSelfieShots_tLast = now;
     iosSelfieShots_state = IOSSELFIESHOTS_TAKING;
     // (several: one message for them all, and numbered names)
-    if (numShots > 1) iosPhotos_SetBatch(1);
+    if (numShots > 1) platServices_SetPhotoBatch(1);
     return IOSSELFIESHOTS_STARTED;
 }
 
@@ -98,7 +98,7 @@ void iosSelfieShots_Stop(void)
     iosSelfie_End();
     // (the game held from the start to now, the last photo's showing too)
     iosCapture_NoteFreeze(iosSelfieShots_tLast - iosSelfieShots_tStart);
-    if (iosSelfieShots_num > 1) iosPhotos_SetBatch(0);
+    if (iosSelfieShots_num > 1) platServices_SetPhotoBatch(0);
 }
 
 int iosSelfieShots_IsActive(void)
@@ -106,9 +106,14 @@ int iosSelfieShots_IsActive(void)
     return iosSelfieShots_state != IOSSELFIESHOTS_IDLE;
 }
 
+int iosSelfieShots_GetState(void)
+{
+    return iosSelfieShots_state;
+}
+
 int iosSelfieShots_NumTaken(void)
 {
     return iosSelfieShots_taken;
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED

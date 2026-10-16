@@ -30,6 +30,11 @@ macro(plat_initialize)
     set(TARGET_FIND_OPENAL FALSE)
     set(TARGET_USE_GAMENETWORKINGSOCKETS FALSE)
     set(TARGET_USE_ENET TRUE)
+    # And DirectPlay, for joining games the original 1997 game hosts (src/Platform/Networking/DPlay):
+    # on for iOS; -DOPENJKDF2_NET_DPLAY_IOS=OFF leaves it out.
+    if(NOT DEFINED OPENJKDF2_NET_DPLAY_IOS OR OPENJKDF2_NET_DPLAY_IOS)
+        set(OPENJKDF2_NET_DPLAY ON)
+    endif()
 
     set(TARGET_IOS TRUE)
 

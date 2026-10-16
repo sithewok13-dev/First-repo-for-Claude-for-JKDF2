@@ -1,4 +1,7 @@
 #include "jkGUIMultiplayer.h"
+#ifdef JK_ENHANCED
+#include "Enhanced/enhMenuRead.h" // Added
+#endif
 
 #include "General/stdBitmap.h"
 #include "General/stdFont.h"
@@ -19,6 +22,10 @@
 #include "Devices/sithComm.h"
 #include "Main/jkCoop.h" // Added
 #include "Gui/jkGUIMultiLobby.h" // Added
+#ifdef PLATFORM_DPLAY
+#include "Platform/Networking/stdCommTransport.h" // Added
+#include "Platform/Networking/DPlay/stdComm_DPlay.h" // Added
+#endif
 
 static int jkGuiMultiplayer_bInitted = 0;
 static int32_t jkGuiMultiplayer_aElements2_aIdk[2] = {0xd, 0xe};
@@ -85,9 +92,21 @@ void jkGuiMultiplayer_Startup()
     stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
     
     jkGui_InitMenu(&jkGuiMultiplayer_menu, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiplayer_menu); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiplayer_menu2, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiplayer_menu2); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiplayer_menu3, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiplayer_menu3); // Added: shown easier to read
+#endif
     jkGui_InitMenu(&jkGuiMultiplayer_menu4, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+#ifdef JK_ENHANCED
+    enhMenuRead_Mark(&jkGuiMultiplayer_menu4); // Added: shown easier to read
+#endif
     jkGuiMultiplayer_bInitted = 1;
 
 #ifdef QOL_IMPROVEMENTS
@@ -352,6 +371,7 @@ LABEL_1:
                     }
                     while ( jkGuiNetHost_Show(&v34) == 1 );
 LABEL_51:
+                    stdComm_Close(); // Added: a host that failed to load stops listening and its network thread
                     stdComm_CloseConnection();
                     continue;
                 case 102:
@@ -439,6 +459,15 @@ LABEL_29:
             {
                 v27 = jkStrings_GetUniStringWithFallback("GUINET_NOGAMECONNECT");
                 v11 = jkStrings_GetUniStringWithFallback("GUINET_JOINERROR");
+#ifdef PLATFORM_DPLAY
+                // Added: an original game the router couldn't open the way to: what to do about it
+                static char16_t wWhy[384];
+                if (stdCommTransport_GetJoinKind() == STDCOMM_TRANSPORT_DPLAY && stdComm_DPlay_JoinFailReason()) {
+                    stdString_CharToWchar(wWhy, stdComm_DPlay_JoinFailReason(), 383);
+                    wWhy[383] = 0;
+                    v27 = wWhy;
+                }
+#endif
             }
             jkGuiDialog_ErrorDialog(v11, v27);
             goto LABEL_28;
@@ -457,7 +486,10 @@ LABEL_29:
         jkGuiRend_DarrayFree(&jkGuiMultiplayer_stru_5564A8);
         sithMulti_InitTick(v35.tickRateMs);
         if ( !jkMain_loadFile2(v35.episodeGobName, v35.mapJklFname) )
+        {
+            stdComm_Close(); // Added: leave the host and stop the network thread
             continue;
+        }
         return 1;
     }
 }

@@ -2130,7 +2130,7 @@ void sithControl_RegisterMouseBindings()
         v10->binaryAxisVal = 0.3;
 #endif
     
-#ifdef IOSKBM_ENABLED
+#ifdef IOSKBM_IOS_BINDS
     iosKbMouse_MapMouseDefaults(); // Added: the iOS buttons, the wheel left for the weapons (iosKbMouse)
 #else
     v10 = sithControl_BindAxis(INPUT_FUNC_PITCH, AXIS_MOUSE_Z, 0);

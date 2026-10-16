@@ -1,12 +1,12 @@
-#include "Platform/iOS/iosFreeze.h"
+#include "Enhanced/iosFreeze.h"
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include <math.h>
 #include <string.h>
 
-#include "Platform/iOS/iosGame.h"
-#include "Platform/iOS/iosPhotoCam.h"
+#include "Enhanced/iosGame.h"
+#include "Enhanced/iosPhotoCam.h"
 #include "World/sithThing.h"
 #include "Gameplay/sithPlayer.h"
 #include "World/sithWorld.h"
@@ -287,9 +287,9 @@ int iosFreeze_Begin(void)
     SithSector* eyeSector = cur->sector;
 
     // The focus: what is being looked at
-    rdVector3 far = eye;
-    rdVector_ScaleAdd3Acc(&far, &fwd, IOSFREEZE_FOCUS_MAX);
-    float wall = iosPhotoCam_ClearDist(eyeSector, &eye, &far, NULL);
+    rdVector3 farPoint = eye;
+    rdVector_ScaleAdd3Acc(&farPoint, &fwd, IOSFREEZE_FOCUS_MAX);
+    float wall = iosPhotoCam_ClearDist(eyeSector, &eye, &farPoint, NULL);
     float d = iosFreeze_ThingAhead(&eye, &fwd, wall - IOSFREEZE_WALL_GAP);
     if (d <= 0.0f) d = IOSFREEZE_FOCUS_AHEAD;
     if (d > wall - IOSFREEZE_WALL_GAP) d = wall - IOSFREEZE_WALL_GAP;
@@ -444,4 +444,4 @@ void iosFreeze_GetState(float* pDist, float* pFov)
     if (pFov) *pFov = iosPhotoCam_GetFov();
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED

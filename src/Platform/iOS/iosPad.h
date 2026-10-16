@@ -46,7 +46,8 @@
 //     elsewhere than those modes' own controls do nothing then.
 //   - The touch controls hide while the pad is played and come back at a
 //     touch (which does nothing else) or when the pad goes; the gyro stops
-//     while they are hidden.
+//     while they are hidden. (Everywhere: the same pad, the same wheels;
+//     on iOS drawn by the touch overlay, elsewhere with the game's GL.)
 //   - Vibration (where the pad has it, and VIBRATION is on): the wheels'
 //     ticks, a save or load going off, and the player being hurt.
 // Everywhere else (menus, cutscenes) the pad is passed on as it is, its
@@ -56,11 +57,14 @@
 #ifndef _PLATFORM_IOS_IOSPAD_H
 #define _PLATFORM_IOS_IOSPAD_H
 
-// On in the iOS build. IOSPAD_RIG (the Linux test rig only) turns on just
-// the engine's hooks into it; the rig then builds iosPad.c and iosPadBinds.c
-// itself with TARGET_IOS defined, and stands in for the touch overlay and
-// iosPadPanel (iosPad.c needs TARGET_IOS: iosGame.h, iosTouch.h)
-#if defined(TARGET_IOS) || defined(IOSPAD_RIG)
+// On in the iOS build, and with the enhanced input (ENH_INPUT: the desktops
+// and Android), where the wheels, the hold ring, the prompts and the options
+// are drawn with the game's GL instead (Platform/Input/inputUi.h says what
+// this asks of the screen, and where each platform has it). IOSPAD_RIG (the
+// Linux test rig only) turns on just the engine's hooks into it; the rig then
+// builds iosPad.c and iosPadBinds.c itself with TARGET_IOS defined, and
+// stands in for the touch overlay and iosPadPanel.
+#if defined(TARGET_IOS) || defined(IOSPAD_RIG) || defined(ENH_INPUT)
 #define IOSPAD_ENABLED 1
 #endif
 
@@ -79,6 +83,7 @@ extern "C" {
 #define IOSPAD_CHIP_STYLE 0  // one saber or two
 #define IOSPAD_CHIP_TARGET 1 // with two: the next of LEFT, BOTH, RIGHT
 #define IOSPAD_CHIP_EQUIP 2  // the saber in hand
+#define IOSPAD_CHIP_LOOK 3   // the colours' other look (CLASSIC / REFORGED)
 
 // Hold rings (iosPadPanel_HoldRing)
 #define IOSPAD_RING_NONE 0
@@ -142,6 +147,9 @@ void iosPad_PanelTap(int row); // a finger on a row (-1: off the panel, which cl
 
 // The look settings (also what the options show)
 float iosPad_GetLookSensX(void);
+// ...read again (inputUi_LoadInt), changed somewhere else than the options
+// (the desktops' console: their cvars)
+void iosPad_ReloadSettings(void);
 float iosPad_GetLookSensY(void);
 
 // ------------------------------------------------------------ bindings

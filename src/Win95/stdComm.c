@@ -3,6 +3,10 @@
 #include "Dss/sithMulti.h"
 #include "General/stdString.h"
 #include "jk.h"
+#ifdef PLATFORM_DPLAY
+#include "Platform/Networking/DPlay/stdComm_DPlay.h"
+#include "Platform/Networking/stdCommTransport.h"
+#endif
 
 
 int stdComm_Startup()
@@ -22,6 +26,9 @@ int stdComm_Startup()
 #endif
 #ifdef PLATFORM_ENET
     stdComm_ENet_Startup();
+#endif
+#ifdef PLATFORM_DPLAY
+    stdComm_DPlay_Startup(); // (Added: nothing opened until a DirectPlay game is looked for or hosted)
 #endif
 #ifdef PLATFORM_NOSOCKETS
     stdComm_None_Startup();
@@ -43,6 +50,9 @@ void stdComm_Shutdown()
 #endif
 #ifdef PLATFORM_ENET
     stdComm_ENet_Shutdown();
+#endif
+#ifdef PLATFORM_DPLAY
+    stdComm_DPlay_Shutdown();
 #endif
 }
 
@@ -106,6 +116,10 @@ int stdComm_CreatePlayer(jkMultiEntry *pEntry)
         if ( stdComm_dplayIdSelf )
         {
             stdComm_dplayIdSelf = 1; // HACK
+#ifdef PLATFORM_DPLAY
+            // Added: DirectPlay's ids are its own (not 1): the transport's roster read, which sets ours
+            if (stdCommTransport_GetActiveKind() == STDCOMM_TRANSPORT_DPLAY) DirectPlay_EnumPlayers(0);
+#endif
             stdComm_bIsServer = 1;
             stdComm_dword_8321E0 = 1;
             result = 0;

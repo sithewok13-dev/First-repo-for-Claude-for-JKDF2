@@ -1,6 +1,6 @@
-#include "Platform/iOS/iosCapture.h"
+#include "Enhanced/iosCapture.h"
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +9,9 @@
 #include "SDL2_helper.h"
 #include "Win95/Window.h"
 #include "World/sithWorld.h"
-#include "Platform/iOS/iosGame.h"
+#include "Enhanced/iosGame.h"
+#include "Platform/platServices.h"
+#include "Enhanced/enhTick.h"
 
 extern GLint std3D_windowFbo;
 
@@ -21,11 +23,10 @@ static unsigned char* iosCapture_pClean = NULL;
 static int iosCapture_w = 0, iosCapture_h = 0;
 static iosCaptureStats iosCapture_stats;
 
+// (seconds, steady: only differences are used -- enh_Now, which MSVC has too)
 static double iosCapture_Now(void)
 {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+    return enh_Now();
 }
 
 // One full-screen image now (the window's size)
@@ -109,7 +110,7 @@ static void iosCapture_Hand(unsigned char* pHud)
     // (the same count iosPhotos hands back to iosCapture_Done)
     iosCapture_bytesSaving += (long)iosCapture_w * iosCapture_h * 4 * ((pClean ? 1 : 0) + (pHud ? 1 : 0) + ((pHud && (kinds & IOSCAPTURE_HUDBTNS)) ? 1 : 0));
     if (iosCapture_bytesSaving > iosCapture_stats.peakBytes) iosCapture_stats.peakBytes = iosCapture_bytesSaving;
-    iosPhotos_SaveCapture(pClean, pHud, iosCapture_w, iosCapture_h, kinds, iosCapture_mode);
+    platServices_SavePhotos(pClean, pHud, iosCapture_w, iosCapture_h, kinds, iosCapture_mode);
 }
 
 // The window as drawn so far, RGBA with the top row first and fully opaque
@@ -187,4 +188,4 @@ void iosCapture_AfterHud(void)
     iosCapture_Hand(pHud);
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED

@@ -155,6 +155,26 @@ static int iosPadBinds_FuncHasPadAxis(int func)
     return 0;
 }
 
+#ifndef TARGET_IOS
+// Whether every one of version 1's button defaults is bound, as it was made
+// (the desktops: those were the game's own controller defaults there; its
+// sticks were often not kept, for a player made with no pad connected)
+static int iosPadBinds_HasAllV1Buttons(void)
+{
+    for (int i = IOSPADBINDS_NUM_STICKS; i < IOSPADBINDS_COUNT(iosPadBinds_aV1); i++) {
+        const iosPadBind b = iosPadBinds_ForGame(&iosPadBinds_aV1[i], i);
+        const stdControlKeyInfo* k = &sithControl_aInputFuncToKeyinfo[b.func];
+        int bFound = 0;
+        for (uint32_t j = 0; j < k->numEntries && j < 8 && !bFound; j++) {
+            const stdControlKeyInfoEntry* e = &k->aEntries[j];
+            bFound = e->dxKeyNum == b.key && iosPadBinds_IsV1(b.func, e);
+        }
+        if (!bFound) return 0;
+    }
+    return 1;
+}
+#endif
+
 int iosPadBinds_Migrate(int savedVersion)
 {
     if (savedVersion >= IOSPADBINDS_VERSION) return 0;
@@ -169,6 +189,23 @@ int iosPadBinds_Migrate(int savedVersion)
             if (!iosPadBinds_IsV1(f, e)) numOwn++;
         }
     }
+
+#ifndef TARGET_IOS
+    // The desktops and Android: only a player whose pad bindings are exactly
+    // the game's old defaults gets the new ones. No pad bindings at all is
+    // the player's choice (a flight stick, a drifting pad), and a layout of
+    // their own is kept exactly as it is -- no sticks added (on a generic
+    // joystick they could bind a throttle or a twist to turning).
+    const int numV1 = IOSPADBINDS_COUNT(iosPadBinds_aV1);
+    if (numOwn == 0 && (numPad == numV1 || numPad == numV1 - IOSPADBINDS_NUM_STICKS) && iosPadBinds_HasAllV1Buttons()) {
+        iosPadBinds_UnbindAll();
+        iosPadBinds_MapDefaults();
+        stdPlatform_Printf("iosPadBinds: the old default pad bindings -> version %d defaults\n", IOSPADBINDS_VERSION);
+        return 1;
+    }
+    stdPlatform_Printf("iosPadBinds: %d pad bindings, %d not the old defaults: kept as they are\n", numPad, numOwn);
+    return 1;
+#endif
 
     if (numOwn == 0) {
         // version 1's defaults (all, or some): the new ones instead

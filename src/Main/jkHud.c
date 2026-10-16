@@ -29,7 +29,7 @@
 #include "types.h"
 #include "types_enums.h"
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
 #include "Platform/iOS/iosSafeArea.h" // Added
 #include <math.h>
 #include <string.h>
@@ -346,7 +346,7 @@ int jkHud_Open()
 #endif
         ++fontIter;
     }
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
     // Added: complete the bottom of each gauge's ring (see jkHudIosRing)
     jkHud_iosLeftExtraRows = jkHud_IosCompleteGauge(jkHud_pStatusLeftBm, &jkHud_iosRingLeft);
     jkHud_iosRightExtraRows = jkHud_IosCompleteGauge(jkHud_pStatusRightBm, &jkHud_iosRingRight);
@@ -357,7 +357,7 @@ int jkHud_Open()
     v6 = *jkHud_pStatusRightBm->mipSurfaces;
     jkHud_rightBlitX = Video_format.width - HUD_SCALED(v6->format.width);
     jkHud_rightBlitY = Video_format.height - HUD_SCALED(v6->format.height);
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
     // Added: lift the corner gauges (and everything drawn relative to them)
     // clear of the home indicator. Sideways they stay against the screen
     // edges, as the art was drawn to be: the straps and bezels end in a

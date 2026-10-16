@@ -20,7 +20,7 @@
 #ifndef _PLATFORM_IOS_IOSSABERTHROW_H
 #define _PLATFORM_IOS_IOSSABERTHROW_H
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
 #include "types.h"
 
@@ -62,6 +62,6 @@ int iosSaberThrow_ThrownColour(SithThing* pThing);
 }
 #endif
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED
 
 #endif // _PLATFORM_IOS_IOSSABERTHROW_H

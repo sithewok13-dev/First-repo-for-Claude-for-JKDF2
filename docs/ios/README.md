@@ -277,8 +277,8 @@ screen, the camera cutout and the HUD.
 ```
  NEXT   FORCE   LIGHT  IR  BACTA  CAMERA  SABER  CHEAT  VIEW  (FPS)  QUICK  QUICK  MENU
  WPN    WHEEL   (only items you have)                         SAVE   LOAD
-                          [GYRO] [FPS] [CAMERA] [CHEAT] [VIEW] [JUMP] [CONTROLS] [keyboard]
-                          (MENU's tray, when held)
+                  [GYRO] [FPS] [CAMERA] [CHEAT] ([LEVEL]) [VIEW] [JUMP] [CONTROLS] [keyboard]
+                  (MENU's tray, when held; LEVEL only while sithewok is on)
                              [MODE] [SENS]             (GYRO held in the tray)
                              [PHOTO] [SELFIES] [FREEZE] (CAMERA held in the tray)
 
@@ -345,15 +345,16 @@ BACTA and CHEAT need a hold, so a brush past does nothing. NEXT WPN and FORCE
 WHEEL act on a quick tap when you lift, or open their wheel when you slide or
 hold (see [Tap, slide or hold](#tap-slide-or-hold)). SABER opens its wheel
 however you touch it. While
-`sithewok` is on, JUMP, ACT and DUCK show a small red second line (FLY,
-NOCLIP, LVL SEL) for their cheat holds: see [Cheats](#cheats).
+`sithewok` is on, JUMP and ACT show a small red second line (FLY, NOCLIP)
+for their cheat holds: see [Cheats](#cheats). DUCK only ever crouches.
 
 ### MENU's tray: tilt aiming, FPS, camera, cheat mode, view and keyboard
 
 **Tap MENU** for the game's menu. **Hold MENU** until its ring fills (about
 half a second), and a small tray opens just under it with eight buttons, from
 left to right **GYRO**, **FPS**, **CAMERA**, **CHEAT**, **VIEW**, **JUMP**,
-**CONTROLS** and the **keyboard**.
+**CONTROLS** and the **keyboard**. While `sithewok` is on there's a ninth,
+**LEVEL**, between CHEAT and VIEW.
 Either keep your thumb down, slide it onto a tray button and lift, or lift
 first and then tap one. Anywhere on the tray's dark backing counts as the
 nearest button.
@@ -372,6 +373,14 @@ nearest button.
 - **CHEAT:** cheat mode on or off. On, the CHEAT button appears and
   `sithewok` goes on. Off, `sithewok` goes off and the button goes away.
   Yellow while cheat mode is on. See [Cheats](#cheats).
+- **LEVEL** (only while `sithewok` is on): **hold** it to pick a level. After
+  half a second it shows **LEVEL 1**, then counts up one every 0.4 seconds
+  (with a tick each, and *Level 7 of 21* on the message line, which sits just
+  under the tray while it's open), going round to 1 again after the last
+  level. Lift your finger to go to that level (the tray closes). Slide off, or close the tray, to cancel. A quick tap does
+  nothing but say *Hold LEVEL to count levels*, and the tray stays open. In
+  multiplayer only the host can pick (with cheats allowed); for everyone
+  else LEVEL is dimmed and says *No level to pick here*.
 - **VIEW:** shows or hides the **VIEW** button on the top row, after CHEAT
   (yellow while it's shown). **Tap VIEW** to switch between first person
   (**1P**) and third person (**3P**) at once. The app remembers both, and
@@ -442,7 +451,8 @@ switch the controller off and they come back.
   Point at the gap at the bottom, or press B, to cancel. If you open it without
   pointing anywhere, it stays open: point and press A, or step round with the
   D-pad. On the saber wheel, A sets the colour, X picks one saber or two, Y
-  which blade a colour goes to, and R3 takes the saber in hand.
+  which blade a colour goes to, L3 switches CLASSIC and REFORGED ("look" on
+  the screen), and R3 takes the saber in hand ("equip").
 - **Quick save and quick load** need a short hold (a ring fills at the top of
   the screen), so a stray press never saves or loads.
 - **Controller options** (hold Start): look speed across and up and down,
@@ -511,7 +521,8 @@ Turn on FPS in MENU's tray to see what the app gets (below).
   If you let go without pointing anywhere, the wheel stays open: point with
   the mouse or the scroll wheel and click. Right click or Esc cancels. On the
   saber wheel, a click sets the colour, 1 picks one saber or two, 2 which
-  blade a colour goes to, and 3 takes the saber in hand.
+  blade a colour goes to, 3 takes the saber in hand ("equip" on the screen),
+  and 4 switches CLASSIC and REFORGED ("look").
 - **Your own keys and buttons:** Setup > Controls > Keyboard and Setup >
   Controls > Mouse change any of them; the mouse sensitivity is there too.
   Whatever key you put on next/previous power or weapon gets the wheel when
@@ -826,9 +837,22 @@ same way as the other wheels: tap or hold it to open the wheel and then tap a
 colour, or slide off it towards a colour and lift. The gap at the bottom
 cancels, and the game holds still while the wheel is open.
 
-- **17 colours:** ORIGINAL (the game's own, unchanged), red, crimson, orange,
-  amber, yellow, lime, green, teal, cyan, light blue, blue, purple, magenta,
-  pink, white, and black with a bright edge.
+- **The colours:** ORIGINAL (the game's own, unchanged: green in Jedi
+  Knight, orange in Mysteries of the Sith), red, crimson, orange, amber,
+  yellow, lime, green, teal, cyan, light blue, blue, purple, magenta, pink,
+  white, and black with a bright edge.
+- **CLASSIC or REFORGED**, at the top of the wheel's middle (above the
+  colour's name), picks how every colour looks. Tap it to switch. The wheel
+  stays open and changes at once, and so does the blade in your hand. The
+  app remembers it.
+  - **REFORGED** (the default): most colours glow like the film blades, a
+    white-hot middle in a haze of colour. In Jedi Knight there's no green
+    on the wheel, because ORIGINAL is the game's own green (16 colours).
+  - **CLASSIC:** every colour's earlier look, from before the film-style
+    glow, with green on the wheel in both games (17 colours).
+  - In Jedi Knight, a green you kept (picked in CLASSIC) shows as
+    ORIGINAL while REFORGED is on, and is shown to other players as
+    ORIGINAL too. Switch back to CLASSIC and it's green again.
 - **The wheel stays open** after you pick a colour, so you can change both
   blades in one go. Close it with the gap at the bottom, or by tapping outside
   the wheel.
@@ -939,6 +963,40 @@ that address, a full game, or a wrong password.
 To change who you play, tap **Multiplayer Characters** on the Multiplayer
 screen (in co-op the host always plays Kyle, or Mara).
 
+### Joining a game of the original 1997 Jedi Knight
+
+You can also join a game hosted by the original Jedi Knight (JK.EXE) on a PC,
+for example one announced for a community game night. This is new and
+experimental: it has only been tried against a stand-in on a test computer,
+not yet against a real PC game or a real router.
+
+1. Tap **Multiplayer**, then **Join Game**.
+2. Type the host's address (numbers or a name) in the **Address** box and
+   tap **Join**. The app tries our own games and the original game's at the
+   same time and uses whichever answers.
+3. If that address has several games, a list shows each one's name, level
+   and players. Pick one and tap **Join**.
+
+Things to know:
+
+- **Your home internet, not mobile data.** For a game on the internet, the
+  original game's host connects back to you, so the app asks your router to
+  let that through (usually TCP 2300 and UDP 2350) while you play, and gives
+  the ports back afterwards. Most home routers allow this.
+- **If your router can't be asked,** the app still tries to join. It works if
+  you forwarded those ports to your phone yourself, or if your phone has an
+  address of its own on the internet.
+- **To forward the ports by hand,** give your phone a fixed address on your
+  Wi-Fi in the router's settings, then forward TCP 2300 and UDP 2350 to it.
+  The app usually uses those two; if it can't get through, the message names
+  the exact ports it used.
+- **If it can't get through,** the message says so: turn on UPnP or NAT-PMP
+  in the router's settings, or forward the ports as above. On mobile data it
+  can't work.
+- **Jedi Knight only.** OpenMoTS can't join original Mysteries of the Sith
+  games yet.
+- **Joining only.** You can't host a game for the original to join.
+
 ### Co-op
 
 - The host plays the story's own character (Kyle, or Mara in OpenMoTS).
@@ -955,8 +1013,8 @@ screen (in co-op the host always plays Kyle, or Mara).
 - If your path differs from the host's (light or dark side), you follow
   the host's level.
 - With cheats allowed, the host can pick a level for everyone (sithewok,
-  hold DUCK), and a level in which you used cheats adds nothing to the
-  gear you carry on.
+  hold LEVEL in MENU's tray), and a level in which you used cheats adds
+  nothing to the gear you carry on.
 
 ### Co-op saves
 
@@ -974,7 +1032,10 @@ screen (in co-op the host always plays Kyle, or Mara).
 ### Your lightsaber in multiplayer
 
 Other players see your saber as you set it on the SABER wheel: its colour,
-and two sabers if you chose them. In multiplayer the second saber is only
+and two sabers if you chose them. CLASSIC or REFORGED changes how you see
+every saber on your screen, yours and theirs. One thing reaches other
+players: in Jedi Knight, a green you kept shows as ORIGINAL while REFORGED
+is on, and other players see it as ORIGINAL too. In multiplayer the second saber is only
 for looks. It doesn't hit, to keep things fair for players on other
 devices.
 
@@ -1052,19 +1113,22 @@ and invincibility. While it's on:
 - **It stays on** through new levels and loaded games, and puts everything
   back at the start of each level. Your weapon in hand and your selected
   Force power come with you to the next level.
-- **JUMP, ACT and DUCK get new holds.** While the cheat is on, each shows its
-  hold in small red letters under the button (FLY, NOCLIP, LVL SEL):
+- **JUMP and ACT get new holds.** While the cheat is on, each shows its
+  hold in small red letters under the button (FLY, NOCLIP):
   - **Hold JUMP** still for half a second (a ring fills): **fly**. You float,
     forward goes where you look, hold JUMP to rise and DUCK to sink. Hold JUMP
     again for half a second, or **double-tap JUMP**, to land. Walls still stop
     you.
   - **Hold ACT** still for half a second: **noclip**, flying straight through
     walls. Hold it again to switch it off.
-  - **Hold DUCK** still: **pick a level**. After half a second the button
-    shows **1**, then counts up one every 0.4 seconds (with a tick each, and
-    *Level 7 of 21* on the message line), going round to 1 again after the
-    last level. Lift your finger to go to that level. Slide off to cancel.
-  - A quick press of JUMP, ACT or DUCK does what it always does.
+  - A quick press of JUMP or ACT does what it always does.
+- **Pick a level** with **LEVEL** in MENU's tray (hold MENU; LEVEL is there
+  while the cheat is on, right of CHEAT). **Hold LEVEL**: after half a second
+  it shows **LEVEL 1**, then counts up one every 0.4 seconds (with a tick
+  each, and *Level 7 of 21* on the message line), going round to 1 again
+  after the last level. Lift your finger to go to that level. Slide off, or
+  close the tray, to cancel. A quick tap only says how. **DUCK only ever
+  crouches**, so crouching behind cover never takes you to another level.
 
 **Typing `sithewok` again switches it off** (so does the CHEAT button,
 below): no more invincibility, endless Force, safe falls, flying or noclip.
@@ -1109,7 +1173,7 @@ random (never the same one twice in a row). Then:
   the other side's stars away one at a time, which takes about 16 seconds if
   you've used `sithewok`. Wait until it stops before you tap OK, or your path
   isn't fully set until a later Force screen.
-- **Picking a level** with DUCK jumps straight there, skipping the story in
+- **Picking a level** with LEVEL jumps straight there, skipping the story in
   between, and goes to the level itself rather than the cutscene before it.
   Where a level number has a light and a dark side version, you get the first
   one. Keep a normal save of your real progress.
@@ -1283,8 +1347,9 @@ Things to know:
 Jedi Knight (see [Cheats](#cheats)): all weapons and ammo, all items, every
 Force power at 4 stars with the top Jedi rank, full health and shields,
 invincibility, the endless Force, safe falls, the Force catching you in pits,
-flying, noclip, and picking a level with DUCK (13 levels). Cheat mode and the
-CHEAT button work the same way. The catches in Mysteries of the Sith:
+flying, noclip, and picking a level with LEVEL in MENU's tray (13 levels).
+Cheat mode and the CHEAT button work the same way. The catches in Mysteries
+of the Sith:
 
 - Your Force powers stay through the Force screen at the end of each level.
   Normally Mysteries of the Sith takes back powers beyond what your rank

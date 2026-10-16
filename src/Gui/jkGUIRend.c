@@ -2812,6 +2812,12 @@ int jkGuiRend_IsMenuActive()
     return jkGuiRend_activeMenu != NULL;
 }
 
+// Added: the menu up now (NULL if none)
+jkGuiMenu* jkGuiRend_GetActiveMenu()
+{
+    return jkGuiRend_activeMenu;
+}
+
 // Added: controller support
 // TODO: QOL ifdef?
 static jkGuiMenu* jkGuiRend_lastActiveMenu = NULL;

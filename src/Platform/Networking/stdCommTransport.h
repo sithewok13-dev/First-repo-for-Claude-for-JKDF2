@@ -31,7 +31,8 @@ enum stdCommTransportKind
     STDCOMM_TRANSPORT_NONE = -1,
     STDCOMM_TRANSPORT_ENET = 0,
     STDCOMM_TRANSPORT_GNS = 1,
-    STDCOMM_TRANSPORT_NUM = 2,
+    STDCOMM_TRANSPORT_DPLAY = 2, // (experimental: the original game's DirectPlay, Platform/Networking/DPlay)
+    STDCOMM_TRANSPORT_NUM = 3,
 };
 
 // One transport's side of the connection. The address joined or asked about is as typed: a name or
@@ -65,6 +66,9 @@ extern const stdCommTransport stdComm_ENet_transport;
 #ifdef PLATFORM_GNS
 extern const stdCommTransport stdComm_GNS_transport;
 #endif
+#ifdef PLATFORM_DPLAY
+extern const stdCommTransport stdComm_DPlay_transport;
+#endif
 
 // An address as typed, split: its host (a name, an IPv4, or an IPv6 bare or in [brackets]) and its
 // port (after a ':', digits only, 1-65535; defaultPort if none). 0 if it isn't an address. Both
@@ -91,13 +95,17 @@ int stdCommTransport_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int 
 // The password checked over that kind
 int stdCommTransport_CheckPassword(int kind, const char* pAddress, const char16_t* pwPassword, int timeoutMs, volatile int* pbKeepGoing);
 
+// Why the last asking found no game (or the last game ended), if a transport knows (DirectPlay: its
+// ports couldn't be opened on the router, the host stopped answering...); NULL if none says
+const char* stdCommTransport_WhyNoAnswer(void);
+
 // What stdComm_Open joins over next (the kind the host answered on)
 void stdCommTransport_SetJoinKind(int kind);
 int stdCommTransport_GetJoinKind(void);
 
 // The game in progress's transport (STDCOMM_TRANSPORT_NONE if none)
 int stdCommTransport_GetActiveKind(void);
-// Joined over GNS: a classic host's game
+// Joined over GNS (or DirectPlay): a classic host's game
 int stdCommTransport_IsClassic(void);
 // Can that game (found over that kind) be joined? 0 (and why, a GUIEXT_ string key) if not
 int stdCommTransport_CanJoin(int kind, const jkMultiEntry* pEntry, const char** ppWhyKey);
