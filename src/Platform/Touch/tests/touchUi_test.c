@@ -199,6 +199,7 @@ int iosSaber_NumColours(void) { return F_SaberNumColours(); }
 int iosSaber_ColourOnWheel(int id) { return id >= 0 && id < F_SaberNumColours() && !(id == 7 && !F_IsMots() && fg.saberLook == 1); }
 int iosSaber_GetLook(void) { return F_SaberGetLook(); }
 void iosSaber_SetLook(int lk) { F_SaberSetLook(lk); }
+void iosSaber_ToggleLook(void) { F_SaberSetLook(fg.saberLook ? 0 : 1); }
 const char* iosSaber_LookName(int lk) { return F_SaberLookName(lk); }
 int iosSaber_GetShownColour(int st, int b) { const int id = F_SaberGetColour(st, b); return iosSaber_ColourOnWheel(id) ? id : 0; }
 const char* iosSaber_ColourName(int id) { return F_SaberColourName(id); }
@@ -1477,7 +1478,35 @@ static void test_saber_look(void)
     polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
     down(2, px, py); up(2, px, py);
     fg.bMots = 0;
+    g_case = "look: 2 pt inside the ring's inner edge across the top: the slice there, never the switch";
+    fg.saberStyle = 0;
+    down(1, sx, sy); wait(0.1); up(1, sx, sy);
+    if (fg.saberLook != 0) { down(2, lx, ly); up(2, lx, ly); } // (CLASSIC: a slice centred on the top)
+    {
+        int bOk = 1;
+        for (int d = 50; d <= 130; d += 5) {
+            polar(cx, cy, (float)d, r0 - 2.0f, &px, &py);
+            const int k = inputWheel_SliceAt(px, py, -1);
+            if (k < 0) continue;
+            fg.aSaberColour[0][0] = 0;
+            down(2, px, py); up(2, px, py);
+            if (fg.saberLook != 0 || fg.aSaberColour[0][0] != touchUi_GetWheelSliceBin(k) || !touchUi_IsWheelOpen()) bOk = 0;
+        }
+        CHECK(bOk);
+    }
+    g_case = "look: a finger resting on a slice when the look flips points at nothing (the slices are others now)";
+    touchUi_GetWheelSlice(10, &deg);
+    polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
+    down(3, px, py);
+    const int hot0 = touchUi_GetWheelHot();
+    down(2, lx, ly); up(2, lx, ly); // (REFORGED: slice 10 is BLUE now)
+    printf("  resting finger: hot %d -> %d, look %d\n", hot0, touchUi_GetWheelHot(), fg.saberLook);
+    CHECK(hot0 == 10 && fg.saberLook == 1 && touchUi_GetWheelHot() == -1);
+    up(3, px, py);
+    if (touchUi_IsWheelOpen()) { polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py); down(2, px, py); up(2, px, py); }
+    fg.aSaberColour[0][0] = 8;
     g_case = "look: the shared wheel's own call (a pad's L3, the 4 key) switches it, the wheel open";
+    fg.saberLook = 0;
     down(1, sx, sy); wait(0.1); up(1, sx, sy);
     inputWheel_SaberChip(INPUTWHEEL_CHIP_LOOK);
     CHECK(fg.saberLook == 1 && inputWheel_IsOpen() && inputWheel_GetOpenMap()->numSlices == 16);
@@ -1494,9 +1523,32 @@ static void test_saber_look(void)
         down(2, px, py); up(2, px, py);
     }
     g_case = "look: remembered (by name) over a restart";
-    fg.saberLook = 1;
+    {
+        down(1, sx, sy); wait(0.1); up(1, sx, sy);
+        down(2, lx, ly); up(2, lx, ly);
+        const int lk = fg.saberLook;
+        polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+        down(2, px, py); up(2, px, py);
+        fg.saberLook = !lk;
+        touchUi_Init(&fakeGame, g_settings);
+        CHECK(fg.saberLook == lk);
+    }
+    g_case = "a pad's or the keys' picks (look, style, colour) are remembered too, the overlay hidden";
+    touchUi_SetShown(0);
+    fg.bMots = 0; fg.saberStyle = 0; fg.saberLook = 0;
+    tick();
+    inputWheel_SetSaberTarget(INPUTWHEEL_SABER_BOTH);
+    inputWheel_Open(INPUTWHEEL_SABER, 1);
+    inputWheel_SaberChip(INPUTWHEEL_CHIP_LOOK); // (REFORGED)
+    inputWheel_SaberChip(INPUTWHEEL_CHIP_DUAL);
+    inputWheel_Close(inputWheel_GetOpenMap()->numSlices - 1); // (BLACK, to both)
+    inputWheel_Close(-1);
+    tick();
+    printf("  pad picks: look %d style %d colours %d/%d\n", fg.saberLook, fg.saberStyle, fg.aSaberColour[1][0], fg.aSaberColour[1][1]);
+    CHECK(fg.saberLook == 1 && fg.saberStyle == 1 && fg.aSaberColour[1][0] == 16 && fg.aSaberColour[1][1] == 16);
+    fg.saberLook = 0; fg.saberStyle = 0; fg.aSaberColour[1][0] = fg.aSaberColour[1][1] = 0;
     touchUi_Init(&fakeGame, g_settings);
-    CHECK(fg.saberLook == 0);
+    CHECK(fg.saberLook == 1 && fg.saberStyle == 1 && fg.aSaberColour[1][0] == 16 && fg.aSaberColour[1][1] == 16);
 }
 
 static int g_layoutSaber = 1;

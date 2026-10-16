@@ -18,12 +18,13 @@
 // true-colour copy of its texture (std3D_AddToTextureCache's pTrueColour).
 // Made once per level, for the colours in use (2 small textures each).
 //
-// Two looks, a viewing choice of the player's own (the saber wheel's switch):
-// REFORGED (the default), most colours glowing like the film blades; and
-// CLASSIC, every colour as first made. It changes how every blade is drawn,
-// the player's and other players' alike, and nothing else: colours keep
-// their keys and ids (saves, settings and multiplayer are unchanged, and
-// nothing more is sent).
+// Two looks, the player's choice (the saber wheel's switch): REFORGED (the
+// default), most colours glowing like the film blades; and CLASSIC, every
+// colour as first made. It changes how every blade is drawn here, the
+// player's and other players' alike. Colours keep their keys and ids, and
+// nothing new is sent; but what the player sees of their own blade is what
+// other players are sent (iosSaber_GetShownColour): in Jedi Knight a green
+// kept shows, and is sent, as ORIGINAL while REFORGED is on.
 
 #ifndef _PLATFORM_IOS_IOSSABER_H
 #define _PLATFORM_IOS_IOSSABER_H
@@ -51,6 +52,7 @@ void iosSaber_ColourRGB(int id, unsigned char* pR, unsigned char* pG, unsigned c
 enum { IOSSABER_LOOK_CLASSIC = 0, IOSSABER_LOOK_REFORGED, IOSSABER_NUM_LOOKS };
 int iosSaber_GetLook(void);
 void iosSaber_SetLook(int look);
+void iosSaber_ToggleLook(void);            // the other one
 const char* iosSaber_LookName(int look);    // "CLASSIC", "REFORGED": as the switch shows it and it is kept
 int iosSaber_LookByName(const char* name);  // -1 if none
 

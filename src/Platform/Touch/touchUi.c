@@ -309,6 +309,7 @@ static struct {
     double prevTickNow;
     // the saber
     int bShowSaber;
+    int aSaberKept[6]; // (the saber's style, look and colours as last saved: tu_SaberKeptChanged)
 
     // the wheel
     // (opened by a finger: inputWheel.c's then; the pad's and the keys'
@@ -363,8 +364,26 @@ static int tu_SaberTargetToWheel(int t);
 
 // ------------------------------------------------------------ settings
 
+// The saber's choices as they are now (style, look, each blade's colour)
+static void tu_SaberKept(int a[6])
+{
+    a[0] = G(SaberGetStyle) ? tu.game->SaberGetStyle() : 0;
+    a[1] = G(SaberGetLook) ? tu.game->SaberGetLook() : 0;
+    for (int k = 0; k < 4; k++) a[2 + k] = G(SaberGetColour) ? tu.game->SaberGetColour(k >> 1, k & 1) : 0;
+}
+
+// Whether they changed since last saved: a pad or the keys (the shared wheel)
+// set them too, not only this overlay
+static int tu_SaberKeptChanged(void)
+{
+    int a[6];
+    tu_SaberKept(a);
+    return memcmp(a, tu.aSaberKept, sizeof(a)) != 0;
+}
+
 static void tu_SaveSettings(void)
 {
+    tu_SaberKept(tu.aSaberKept);
     if (!tu.settingsPath[0]) return;
     FILE* f = fopen(tu.settingsPath, "w");
     if (!f) return;
@@ -1589,6 +1608,8 @@ static void tu_UseSaberChip(int chip)
         // (a thumb that opened it, still down: lifted, it leaves it open to tap)
         tuSlot* o = &tu.aSlots[i];
         if (o->bUsed && o->role == ROLE_WHEEL && o->bWheelOpener) o->bWheelHeld = 1;
+        // (the look: the slices are others now)
+        if (chip == TOUCHUI_CHIP_LOOK && o->bUsed && o->role == ROLE_WHEEL) o->wheelSlot = -1;
     }
     tu_LayoutWheel();
 }
@@ -2211,9 +2232,13 @@ void touchUi_Reset(void)
 
 void touchUi_Tick(double known, double now)
 {
+    // (the saber's choices picked with a pad or the keys, the overlay up or hidden: remembered)
+    if (tu.game) {
+        tu_SaberTargetFromShared();
+        if (tu_SaberKeptChanged()) tu_SaveSettings();
+    }
     if (!tu.bShown) return;
     if (tu.bWheelOpen && !inputWheel_IsOpen()) tu_WheelClosed(); // (closed from outside: only in case)
-    tu_SaberTargetFromShared(); // (a pad or the keys may have changed it: remembered)
     const double dt = tu.prevTickNow > 0.0 ? now - tu.prevTickNow : 0.0;
     tu.prevTickNow = now;
     tu.lastNow = now;
@@ -2581,6 +2606,7 @@ void touchUi_Init(const touchUiGame* pGame, const char* pSettingsPath)
     snprintf(tu.fpsText, sizeof(tu.fpsText), "-- FPS");
     if (pSettingsPath) snprintf(tu.settingsPath, sizeof(tu.settingsPath), "%s", pSettingsPath);
     tu_LoadSettings();
+    tu_SaberKept(tu.aSaberKept);
     touchUi_ShareSaberTarget();
     if (G(SetCheatShown)) tu.game->SetCheatShown(tu.bShowCheat);
     if (G(SetThirdPerson)) tu.game->SetThirdPerson(tu.bThirdPerson);

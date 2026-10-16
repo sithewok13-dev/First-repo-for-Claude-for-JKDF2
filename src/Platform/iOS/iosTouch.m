@@ -2858,7 +2858,7 @@ static int iosTouch_SaberBlade(void)
     if (chip == IOSTOUCH_CHIP_LOOK) {
         // the other look, remembered: the wheel made again in it at once
         // (which colours, their swatches; the blades are drawn in it), open as it was
-        iosSaber_SetLook(iosSaber_GetLook() == IOSSABER_LOOK_CLASSIC ? IOSSABER_LOOK_REFORGED : IOSSABER_LOOK_CLASSIC);
+        iosSaber_ToggleLook();
         [d setObject:[NSString stringWithUTF8String:iosSaber_LookName(iosSaber_GetLook())] forKey:IOSTOUCH_SABERLOOK_DEFAULTS_KEY];
         iosTouch_SetupSaberWheel();
         iosTouch_ReadWheelSlices(IOSTOUCH_WHEEL_SABER);
@@ -2896,8 +2896,8 @@ static int iosTouch_SaberBlade(void)
     if (!iosTouch_bWheelOpen || iosTouch_wheelKind != IOSTOUCH_WHEEL_SABER) return -1;
     for (int i = 0; i < IOSTOUCH_NUM_CHIPS; i++) {
         if (aSaberChips[i].hidden || !CGRectContainsPoint(CGRectInset(aSaberChips[i].frame, -6.0, -6.0), p)) continue;
-        // (the look's switch: only in the middle, never over a slice)
-        if (i == IOSTOUCH_CHIP_LOOK && hypot(p.x - iosTouch_wheelCentre.x, p.y - iosTouch_wheelCentre.y) > iosTouch_wheelR0 - 1.0) continue;
+        // (the look's switch: only in the middle, stopping short of where a slice takes a touch, R0 - 4)
+        if (i == IOSTOUCH_CHIP_LOOK && hypot(p.x - iosTouch_wheelCentre.x, p.y - iosTouch_wheelCentre.y) > iosTouch_wheelR0 - 5.0) continue;
         return i;
     }
     return -1;

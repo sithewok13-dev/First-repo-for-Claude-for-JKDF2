@@ -181,7 +181,7 @@ static void iosKbMouse_SetWheelPrompt(void)
 {
     char t[256];
     if (iosKbMouse_s.wheelKind == IOSPAD_WHEEL_SABER)
-        snprintf(t, sizeof(t), "Mouse: colour   Click: set   1: one or two sabers   2: which blade   3: take the saber   4: classic/reforged   Esc: close");
+        snprintf(t, sizeof(t), "Mouse: colour   Click: set   1: 1 or 2 sabers   2: blade   3: equip   4: look   Esc: close");
     else if (iosKbMouse_s.wheelState == IOSKBM_WS_HELD)
         snprintf(t, sizeof(t), "Mouse: point   Let go of %s: pick   Right click or Esc: cancel", iosKbMouse_KeyName(iosKbMouse_s.wheelKey));
     else

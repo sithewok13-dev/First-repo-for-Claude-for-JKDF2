@@ -158,8 +158,10 @@ Tick what works, note what doesn't (a photo of the screen helps).
 - [ ] CLASSIC / REFORGED (at the top of the saber wheel's middle): a tap
       switches the colours' look, and the wheel stays open. REFORGED (to
       start): the film-style glow, and in Jedi Knight 16 colours (no green).
-      CLASSIC: the earlier look, 17 colours in both games. The blade in hand
-      changes at once.
+      CLASSIC: the earlier look, 17 colours in both games. It changes how
+      you see every blade, yours and other players', and the blade in hand
+      changes at once. In Jedi Knight a green you kept shows as ORIGINAL
+      while REFORGED is on, and other players see it as ORIGINAL too.
 - [ ] Use a keyboard, mouse or controller: the buttons hide; touch the screen
       and they come back.
 - [ ] Quit and start again: GYRO, SENS, FPS, CHEAT, VIEW, CONTROLS, the

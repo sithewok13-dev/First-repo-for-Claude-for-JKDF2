@@ -124,6 +124,11 @@ void iosSaber_SetLook(int look)
     if (look >= 0 && look < IOSSABER_NUM_LOOKS) iosSaber_look = look;
 }
 
+void iosSaber_ToggleLook(void)
+{
+    iosSaber_look = iosSaber_look == IOSSABER_LOOK_CLASSIC ? IOSSABER_LOOK_REFORGED : IOSSABER_LOOK_CLASSIC;
+}
+
 const char* iosSaber_LookName(int look)
 {
     return (look >= 0 && look < IOSSABER_NUM_LOOKS) ? iosSaber_aLookName[look] : NULL;

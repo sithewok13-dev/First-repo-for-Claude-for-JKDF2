@@ -460,7 +460,7 @@ void inputWheel_SaberChip(int chip)
     else if (chip == INPUTWHEEL_CHIP_LOOK) {
         // the other look: the colours (which slices, their swatches, the
         // blades) in it at once; the wheel open as it was
-        iosSaber_SetLook(iosSaber_GetLook() == IOSSABER_LOOK_CLASSIC ? IOSSABER_LOOK_REFORGED : IOSSABER_LOOK_CLASSIC);
+        iosSaber_ToggleLook();
         inputWheel_ReadSlices();
     }
     else return;
@@ -507,8 +507,8 @@ int inputWheel_ChipAt(float x, float y)
         if (!inputWheel_s.aChipShown[i]) continue;
         if (fabsf(x - inputWheel_s.chipX[i]) > inputWheel_s.chipW[i] * 0.5f + 6.0f || fabsf(y - inputWheel_s.chipY[i]) > inputWheel_s.chipH[i] * 0.5f + 6.0f)
             continue;
-        // (the look's switch: only in the middle, never over a slice)
-        if (i == INPUTWHEEL_CHIP_LOOK && hypotf(x - inputWheel_s.cx, y - inputWheel_s.cy) > inputWheel_s.R0 - 1.0f) continue;
+        // (the look's switch: only in the middle, stopping short of where a slice takes a touch, R0 - 4)
+        if (i == INPUTWHEEL_CHIP_LOOK && hypotf(x - inputWheel_s.cx, y - inputWheel_s.cy) > inputWheel_s.R0 - 5.0f) continue;
         return i;
     }
     return -1;
