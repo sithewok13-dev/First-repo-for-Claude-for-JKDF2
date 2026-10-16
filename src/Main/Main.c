@@ -4,6 +4,9 @@
 #include "stdPlatform.h"
 #include "Cog/jkCog.h"
 #include "Gui/jkGUINetHost.h"
+#ifdef PLATFORM_DPLAY
+#include "Platform/Networking/DPlay/stdComm_DPlay.h" // Added
+#endif
 #include "Gui/jkGUISound.h"
 #include "Gui/jkGUIMultiplayer.h"
 #include "Gui/jkGUISetup.h"
@@ -110,6 +113,7 @@ int32_t Main_bEnhancedCogVerbs = 0;
 char Main_strEpisode[129];
 char Main_strMap[128+4];
 char Main_strJoin[256]; // Added: -join <address[:port]>: join that host's game at start (as the Join screen does)
+static int Main_joinGameIdx = 0; // Added: -joinGame <n>: of the games that address lists, the n-th (from 0)
 char Main_strJoinPassword[64]; // Added: -password, for -join
 #endif
 
@@ -124,6 +128,9 @@ static int Main_StartupJoin(void)
     stdString_CharToWchar(jkGuiMultiplayer_ipText, Main_strJoin, 255);
     jkGuiMultiplayer_ipText[255] = 0;
     stdPlatform_Printf("Joining `%s`\n", Main_strJoin);
+#ifdef PLATFORM_DPLAY
+    stdComm_DPlay_WillJoin(Main_strJoin); // Added: a game to join, not just to list
+#endif
     if (stdComm_OpenConnection(0)) {
         stdPlatform_Printf("Join: no connection\n");
         return 1;
@@ -141,8 +148,21 @@ static int Main_StartupJoin(void)
     stdComm_EnumSessions2();
     if (!bFound) {
         stdPlatform_Printf("Join: no game found at `%s`\n", Main_strJoin);
+#ifdef STDCOMM_TRANSPORTS
+        if (stdCommTransport_WhyNoAnswer()) stdPlatform_Printf("Join: %s\n", stdCommTransport_WhyNoAnswer());
+#endif
         return 1;
     }
+    // (an address listing several games: each told, the one asked for joined)
+    for (int i = 0; i < dplay_dword_55D618 && dplay_dword_55D618 > 1; i++) {
+        char name[64];
+        stdString_WcharToChar(name, jkGuiMultiplayer_aEntries[i].serverName, 63);
+        name[63] = 0;
+        stdPlatform_Printf("Join: game %d: `%s` %s %s, %d of %d players\n", i, name, jkGuiMultiplayer_aEntries[i].episodeGobName,
+                           jkGuiMultiplayer_aEntries[i].mapJklFname, (int)jkGuiMultiplayer_aEntries[i].numPlayers, (int)jkGuiMultiplayer_aEntries[i].maxPlayers);
+    }
+    if (Main_joinGameIdx > 0 && Main_joinGameIdx < dplay_dword_55D618)
+        jkGuiMultiplayer_aEntries[0] = jkGuiMultiplayer_aEntries[Main_joinGameIdx];
 #ifdef STDCOMM_TRANSPORTS
     const char* whyKey = NULL;
     if (!stdCommTransport_CanJoin(stdCommTransport_GetJoinKind(), &jkGuiMultiplayer_aEntries[0], &whyKey)) {
@@ -811,12 +831,25 @@ void Main_ParseCmdLine(char *cmdline)
             Main_bAutostart = 1;
             Main_bAutostartSp = 0;
         }
+        else if (!__strcmpi(pArgTok, "-joinGame") || !__strcmpi(pArgTok, "/joinGame") )
+        {
+            // Added: -joinGame <n>: of the games the -join address lists, the n-th (from 0)
+            char* pArgNext = _strtok(0, " \t");
+            if (pArgNext) Main_joinGameIdx = atoi(pArgNext);
+        }
         else if (!__strcmpi(pArgTok, "-password") || !__strcmpi(pArgTok, "/password") )
         {
             // Added: -password <password>: the game's password, for -join
             char* pArgNext = _strtok(0, " \t");
             if (pArgNext) stdString_SafeStrCopy(Main_strJoinPassword, pArgNext, sizeof(Main_strJoinPassword));
         }
+#ifdef PLATFORM_DPLAY
+        else if (!__strcmpi(pArgTok, "-dplayHost") || !__strcmpi(pArgTok, "/dplayHost") )
+        {
+            // Added: host over DirectPlay (the original game's), for it to join (experimental)
+            stdComm_DPlay_bHostOverDPlay = 1;
+        }
+#endif
         else if (!__strcmpi(pArgTok, "-headless") || !__strcmpi(pArgTok, "/headless") )
         {
             Main_bHeadless = 1;
