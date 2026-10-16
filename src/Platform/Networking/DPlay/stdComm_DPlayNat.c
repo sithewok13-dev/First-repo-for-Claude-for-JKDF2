@@ -58,6 +58,20 @@ static int stdComm_DPlayNat_method = 0; // 1 PCP, 2 NAT-PMP, 3 UPnP
 static uint16_t stdComm_DPlayNat_inTcp, stdComm_DPlayNat_inUdp, stdComm_DPlayNat_exTcp, stdComm_DPlayNat_exUdp;
 static uint32_t stdComm_DPlayNat_gateway = 0;
 static uint32_t stdComm_DPlayNat_mappedMs = 0;
+// (what was forwarded last, kept after it is given back: asked for again, so the host sees the same
+// ports when the app comes back from the background)
+static uint16_t stdComm_DPlayNat_lastInTcp, stdComm_DPlayNat_lastInUdp, stdComm_DPlayNat_lastExTcp, stdComm_DPlayNat_lastExUdp;
+
+// One deadline over a whole Map or Unmap (every exchange with the router stops at it)
+#define DPLAYNAT_MAP_MS 8000
+#define DPLAYNAT_UNMAP_MS 3000
+static uint32_t stdComm_DPlayNat_endMs = 0;
+static int stdComm_DPlayNat_Left(void)
+{
+    if (!stdComm_DPlayNat_endMs) return 1 << 30;
+    const int left = (int)(stdComm_DPlayNat_endMs - stdPlatform_GetTimeMsec());
+    return left > 0 ? left : 0;
+}
 static uint8_t stdComm_DPlayNat_aNonce[2][12];
 static char stdComm_DPlayNat_controlUrl[512];
 static char stdComm_DPlayNat_serviceType[96];
@@ -194,9 +208,11 @@ static int stdComm_DPlayNat_Ask(uint32_t gw, const uint8_t* pReq, int reqLen, ui
     int got = 0;
     if (connect(fd, (struct sockaddr*)&a, sizeof(a)) == 0) {
         for (int t = 0, wait = 250; t < 3 && !got; t++, wait *= 2) {
+            const int left = stdComm_DPlayNat_Left();
+            if (!left) break;
             if (send(fd, pReq, reqLen, 0) != reqLen) break;
             struct pollfd pf = { fd, POLLIN, 0 };
-            if (poll(&pf, 1, wait) > 0) {
+            if (poll(&pf, 1, wait < left ? wait : left) > 0) {
                 const int n = (int)recv(fd, pResp, respMax, 0);
                 if (n > 0) got = n;
                 else if (n < 0 && errno == ECONNREFUSED) break; // (no one listening there)
@@ -303,7 +319,8 @@ static int stdComm_DPlayNat_Http(const char* pUrl, const char* pMethod, const ch
 #endif
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
     const uint32_t start = stdPlatform_GetTimeMsec();
-#define DPLAYNAT_LEFT() ((int)(DPLAYNAT_HTTP_MS - (stdPlatform_GetTimeMsec() - start)))
+#define DPLAYNAT_OWN() ((int)(DPLAYNAT_HTTP_MS - (stdPlatform_GetTimeMsec() - start)))
+#define DPLAYNAT_LEFT() (DPLAYNAT_OWN() < stdComm_DPlayNat_Left() ? DPLAYNAT_OWN() : stdComm_DPlayNat_Left())
     if (connect(fd, (struct sockaddr*)&a, sizeof(a)) != 0) {
         if (errno != EINPROGRESS) { close(fd); return -1; }
         struct pollfd pf = { fd, POLLOUT, 0 };
@@ -339,6 +356,7 @@ static int stdComm_DPlayNat_Http(const char* pUrl, const char* pMethod, const ch
         if (got >= outMax - 1) break;
     }
 #undef DPLAYNAT_LEFT
+#undef DPLAYNAT_OWN
     close(fd);
     pOut[got] = 0;
     return got;
@@ -396,7 +414,7 @@ static int stdComm_DPlayNat_UpnpFind(uint32_t gw)
         }
     }
     const uint32_t start = stdPlatform_GetTimeMsec();
-    while (stdPlatform_GetTimeMsec() - start < 1500 && numLoc < 4) {
+    while (stdPlatform_GetTimeMsec() - start < 1500 && numLoc < 4 && stdComm_DPlayNat_Left() > 0) {
         struct pollfd pf = { fd, POLLIN, 0 };
         if (poll(&pf, 1, 100) <= 0) continue;
         char r[1500];
@@ -466,13 +484,13 @@ static int stdComm_DPlayNat_Soap(const char* pAction, const char* pArgs, char* p
     return stdComm_DPlayNat_Tag(pOut, NULL, "errorCode", code, sizeof(code)) ? atoi(code) : 501;
 }
 
-static int stdComm_DPlayNat_UpnpAdd(uint32_t localIp, const char* pProto, uint16_t port, uint16_t* pExt)
+static int stdComm_DPlayNat_UpnpAdd(uint32_t localIp, const char* pProto, uint16_t port, uint16_t first, int tries, uint16_t* pExt)
 {
     char ip[32], args[768], r[4096];
     inet_ntop(AF_INET, &localIp, ip, sizeof(ip));
     // (the same port outside if free, otherwise one of the next few; a lease the router may not take)
-    for (int k = 0; k < 8; k++) {
-        const uint16_t ext = (uint16_t)(port + k);
+    for (int k = 0; k < tries; k++) {
+        const uint16_t ext = (uint16_t)(first + k);
         {
             snprintf(args, sizeof(args),
                      "<NewRemoteHost></NewRemoteHost><NewExternalPort>%u</NewExternalPort><NewProtocol>%s</NewProtocol>"
@@ -510,20 +528,23 @@ static void stdComm_DPlayNat_Kept(stdCommDPlayNatMapping* pOut, const char* pMet
     pOut->pMethod = pMethod;
 }
 
-int stdComm_DPlayNat_Map(uint16_t tcpPort, uint16_t udpPort, stdCommDPlayNatMapping* pOut)
+static void stdComm_DPlayNat_UnmapIn(void);
+static int stdComm_DPlayNat_MapIn(uint16_t tcpPort, uint16_t udpPort, stdCommDPlayNatMapping* pOut)
 {
     static const char* const aMethod[4] = { NULL, "PCP", "NAT-PMP", "UPnP" };
     memset(pOut, 0, sizeof(*pOut));
     stdComm_DPlayNat_problem[0] = 0;
     // (other ports than those forwarded: those given back first)
-    if (stdComm_DPlayNat_bMapped && (stdComm_DPlayNat_inTcp != tcpPort || stdComm_DPlayNat_inUdp != udpPort)) stdComm_DPlayNat_Unmap();
+    if (stdComm_DPlayNat_bMapped && (stdComm_DPlayNat_inTcp != tcpPort || stdComm_DPlayNat_inUdp != udpPort)) stdComm_DPlayNat_UnmapIn();
     const int bRenew = stdComm_DPlayNat_bMapped;
-    if (bRenew && stdComm_DPlayNat_method == 3) { stdComm_DPlayNat_Kept(pOut, "UPnP"); return 1; } // (its lease runs as it is)
     const uint32_t gw = stdComm_DPlayNat_Gateway();
     const uint32_t localIp = gw ? stdComm_DPlayNat_LocalAddressToward(gw) : 0;
     uint16_t exTcp = 0, exUdp = 0, e;
     uint32_t exIp = 0, ip2 = 0;
     int method = 0, b = 0;
+    // (the ports outside given last time, if it was for the same ones inside: the host knows those)
+    const uint16_t prefTcp = (stdComm_DPlayNat_lastInTcp == tcpPort && stdComm_DPlayNat_lastExTcp) ? stdComm_DPlayNat_lastExTcp : tcpPort;
+    const uint16_t prefUdp = (stdComm_DPlayNat_lastInUdp == udpPort && stdComm_DPlayNat_lastExUdp) ? stdComm_DPlayNat_lastExUdp : udpPort;
 
     // PCP, then NAT-PMP (asking for the ports given before, on a renewal); one of the two ports
     // forwarded alone is given back
@@ -532,7 +553,7 @@ int stdComm_DPlayNat_Map(uint16_t tcpPort, uint16_t udpPort, stdCommDPlayNatMapp
             stdComm_DPlayNat_Random(stdComm_DPlayNat_aNonce[0], 12);
             stdComm_DPlayNat_Random(stdComm_DPlayNat_aNonce[1], 12);
         }
-        const uint16_t wantTcp = bRenew ? stdComm_DPlayNat_exTcp : tcpPort, wantUdp = bRenew ? stdComm_DPlayNat_exUdp : udpPort;
+        const uint16_t wantTcp = bRenew ? stdComm_DPlayNat_exTcp : prefTcp, wantUdp = bRenew ? stdComm_DPlayNat_exUdp : prefUdp;
         if ((!bRenew || stdComm_DPlayNat_method == 1)
             && stdComm_DPlayNat_PcpMap(gw, localIp, 6, tcpPort, wantTcp, DPLAYNAT_LIFETIME, stdComm_DPlayNat_aNonce[0], &exTcp, &exIp, &b)) {
             if (stdComm_DPlayNat_PcpMap(gw, localIp, 17, udpPort, wantUdp, DPLAYNAT_LIFETIME, stdComm_DPlayNat_aNonce[1], &exUdp, &ip2, &b)) method = 1;
@@ -547,17 +568,21 @@ int stdComm_DPlayNat_Map(uint16_t tcpPort, uint16_t udpPort, stdCommDPlayNatMapp
             else if (!bRenew) stdComm_DPlayNat_PmpMap(gw, 2, tcpPort, 0, 0, &e, NULL);
         }
     }
-    // UPnP-IGD
-    if (!method && !bRenew && stdComm_DPlayNat_UpnpFind(gw)) {
+    // UPnP-IGD (a renewal adds the same ports again, which starts their lease over; on a fresh one,
+    // a port that was free but no more moves to one of the next few)
+    const int bUpnpRenew = bRenew && stdComm_DPlayNat_method == 3 && stdComm_DPlayNat_controlUrl[0];
+    if (!method && (bUpnpRenew || (!bRenew && stdComm_DPlayNat_UpnpFind(gw)))) {
         const uint32_t lip = localIp ? localIp : stdComm_DPlayNat_LocalAddressToward(inet_addr("8.8.8.8"));
-        if (stdComm_DPlayNat_UpnpAdd(lip, "TCP", tcpPort, &exTcp)) {
-            if (stdComm_DPlayNat_UpnpAdd(lip, "UDP", udpPort, &exUdp)) {
+        const uint16_t firstTcp = bUpnpRenew ? stdComm_DPlayNat_exTcp : prefTcp, firstUdp = bUpnpRenew ? stdComm_DPlayNat_exUdp : prefUdp;
+        const int tries = bUpnpRenew ? 1 : 8;
+        if (stdComm_DPlayNat_UpnpAdd(lip, "TCP", tcpPort, firstTcp, tries, &exTcp)) {
+            if (stdComm_DPlayNat_UpnpAdd(lip, "UDP", udpPort, firstUdp, tries, &exUdp)) {
                 char r[4096], ipText[32];
                 if (!stdComm_DPlayNat_Soap("GetExternalIPAddress", "", r, sizeof(r)) && stdComm_DPlayNat_Tag(r, NULL, "NewExternalIPAddress", ipText, sizeof(ipText)))
                     inet_pton(AF_INET, ipText, &exIp);
                 method = 3;
             }
-            else stdComm_DPlayNat_UpnpDelete("TCP", exTcp);
+            else if (!bUpnpRenew) stdComm_DPlayNat_UpnpDelete("TCP", exTcp);
         }
     }
     if (!method) {
@@ -579,6 +604,10 @@ int stdComm_DPlayNat_Map(uint16_t tcpPort, uint16_t udpPort, stdCommDPlayNatMapp
     stdComm_DPlayNat_inUdp = udpPort;
     stdComm_DPlayNat_exTcp = exTcp;
     stdComm_DPlayNat_exUdp = exUdp;
+    stdComm_DPlayNat_lastInTcp = tcpPort;
+    stdComm_DPlayNat_lastInUdp = udpPort;
+    stdComm_DPlayNat_lastExTcp = exTcp;
+    stdComm_DPlayNat_lastExUdp = exUdp;
     pOut->extTcpPort = exTcp;
     pOut->extUdpPort = exUdp;
     pOut->extIp = exIp;
@@ -589,7 +618,16 @@ int stdComm_DPlayNat_Map(uint16_t tcpPort, uint16_t udpPort, stdCommDPlayNatMapp
     return 1;
 }
 
-void stdComm_DPlayNat_Unmap(void)
+int stdComm_DPlayNat_Map(uint16_t tcpPort, uint16_t udpPort, stdCommDPlayNatMapping* pOut)
+{
+    stdComm_DPlayNat_endMs = stdPlatform_GetTimeMsec() + DPLAYNAT_MAP_MS;
+    if (!stdComm_DPlayNat_endMs) stdComm_DPlayNat_endMs = 1;
+    const int ok = stdComm_DPlayNat_MapIn(tcpPort, udpPort, pOut);
+    stdComm_DPlayNat_endMs = 0;
+    return ok;
+}
+
+static void stdComm_DPlayNat_UnmapIn(void)
 {
     if (!stdComm_DPlayNat_bMapped) return;
     const uint32_t gw = stdComm_DPlayNat_gateway;
@@ -611,6 +649,15 @@ void stdComm_DPlayNat_Unmap(void)
     }
     stdPlatform_Printf("DPlay: the router's ports given back\n");
     stdComm_DPlayNat_bMapped = 0;
+}
+
+void stdComm_DPlayNat_Unmap(void)
+{
+    if (!stdComm_DPlayNat_bMapped) return;
+    stdComm_DPlayNat_endMs = stdPlatform_GetTimeMsec() + DPLAYNAT_UNMAP_MS;
+    if (!stdComm_DPlayNat_endMs) stdComm_DPlayNat_endMs = 1;
+    stdComm_DPlayNat_UnmapIn();
+    stdComm_DPlayNat_endMs = 0;
 }
 
 #endif // PLATFORM_DPLAY

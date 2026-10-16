@@ -364,7 +364,7 @@ int stdComm_Open(int idx, char16_t* pwPassword)
         stdPlatform_Printf("Join: that DirectPlay game isn't listed any more\n");
         return 0x88770154 + 1;
     }
-    if (kind != STDCOMM_TRANSPORT_DPLAY) stdComm_DPlay_ClearProblem();
+    if (kind != STDCOMM_TRANSPORT_DPLAY) { stdComm_DPlay_ClearProblem(); stdComm_DPlay_NotNow(); }
 #endif
     stdPlatform_Printf("Joining over %s\n", stdCommTransport_Get(kind)->pName);
     const int r = stdCommTransport_Get(kind)->Join(pwPassword);
@@ -441,6 +441,9 @@ static int stdCommTransport_HostKind(void)
 int DirectPlay_OpenHost(jkMultiEntry* pEntry)
 {
     const int kind = stdCommTransport_HostKind();
+#ifdef PLATFORM_DPLAY
+    if (kind != STDCOMM_TRANSPORT_DPLAY) stdComm_DPlay_NotNow(); // (a game of our own: DirectPlay's joining let go)
+#endif
     const int r = stdCommTransport_Get(kind)->OpenHost(pEntry);
     if (!r) stdCommTransport_activeKind = kind;
     return r;

@@ -104,6 +104,9 @@
 // make this device flood it)
 #define DPLAY_UNHEARD_BURST   64
 #define DPLAY_UNHEARD_PER_S   32
+#define DPLAY_UNHEARD_FOR_MS  10000    // (and nothing more after this long: the join's burst is long done)
+#define DPLAY_UNHEARD_ALL_BURST 128    // (and for all of them together)
+#define DPLAY_UNHEARD_ALL_PER_S 64
 #define DPLAY_JOIN_INTENT_MS  30000    // (a game picked: the router's ports opened for probes this long)
 #define DPLAY_UNMAP_STALE_MS  120000   // (ports opened for a join that never came: given back after)
 #define DPLAY_RENEW_EVERY_MS  (45 * 60 * 1000) // (the router's ports renewed while a game goes on)
@@ -153,7 +156,8 @@ typedef struct dpPlayer
     int bUsed;
     int bHeard;              // (a system player: something has come from its address)
     uint32_t budgetMs;       // (and, until then, when its bucket of datagrams was last filled,
-    int budget;              // and what is left in it; DPLAY_UNHEARD_BURST + 1 for a new one)
+    int budget;              // and what is left in it,
+    uint32_t firstTryMs;     // and when we first sent to it)
 } dpPlayer;
 
 // (the network thread's own) A TCP connection: one we made to a peer's listening port (what we
@@ -231,6 +235,7 @@ static int stdComm_DPlay_maxSysPlayers = 32;
 static uint32_t stdComm_DPlay_nextId = 0;
 static uint32_t stdComm_DPlay_reserved1 = 0;
 static int stdComm_DPlay_bHostLost = 0, stdComm_DPlay_bHostLostTold = 0;
+static volatile int stdComm_DPlay_bJoining = 0; // (stdComm_DPlay_Join under way)
 static uint32_t stdComm_DPlay_lastHostMs = 0, stdComm_DPlay_hostClosedMs = 0, stdComm_DPlay_lastPingMs = 0;
 
 static jkMultiEntry stdComm_DPlay_entry;   // the session (hosting), or the one joined
@@ -458,6 +463,7 @@ static void dp_sendUdp(uint32_t ip, uint16_t port, const uint8_t* p, int len)
 
 void stdComm_DPlay_ClearProblem(void);
 static void dp_holdExpired(uint32_t now);
+static void dp_unmapLater(void);
 
 static void dp_setProblem(const char* pText, uint32_t gen)
 {
@@ -555,13 +561,40 @@ static void dp_heardFrom(uint32_t ip)
     if (ip == stdComm_DPlay_hostIp) stdComm_DPlay_lastHostMs = stdPlatform_GetTimeMsec();
 }
 
+// A system player's address set: one that moves isn't heard from at the new one yet
+static void dp_setAddr(dpPlayer* p, uint32_t ip, uint16_t tcp, uint16_t udp)
+{
+    if (p->ip != ip || p->tcpPort != tcp || p->udpPort != udp) {
+        p->bHeard = 0;
+        p->budgetMs = p->firstTryMs = 0;
+        p->budget = 0;
+    }
+    p->ip = ip;
+    p->tcpPort = tcp;
+    p->udpPort = udp;
+}
+
+// (all the peers not heard from yet, together: a bucket of their own)
+static uint32_t stdComm_DPlay_unheardMs = 0;
+static int stdComm_DPlay_unheardBudget = 0;
+
 // A datagram to a system player: freely once heard from; before that, from a bucket (it may not be
-// where it says)
+// where it says), for DPLAY_UNHEARD_FOR_MS at most
 static void dp_sendToSys(dpPlayer* sp, const uint8_t* p, int len)
 {
     if (!sp->udpPort || !sp->ip) return;
     if (!sp->bHeard) {
         const uint32_t now = stdPlatform_GetTimeMsec();
+        if (!sp->firstTryMs) sp->firstTryMs = now | 1;
+        if (now - sp->firstTryMs > DPLAY_UNHEARD_FOR_MS) return; // (still nothing from it: no more)
+        if (!stdComm_DPlay_unheardMs) { stdComm_DPlay_unheardMs = now | 1; stdComm_DPlay_unheardBudget = DPLAY_UNHEARD_ALL_BURST; }
+        const uint32_t refillAll = (now - stdComm_DPlay_unheardMs) * DPLAY_UNHEARD_ALL_PER_S / 1000;
+        if (refillAll) {
+            stdComm_DPlay_unheardBudget += (int)refillAll;
+            if (stdComm_DPlay_unheardBudget > DPLAY_UNHEARD_ALL_BURST) stdComm_DPlay_unheardBudget = DPLAY_UNHEARD_ALL_BURST;
+            stdComm_DPlay_unheardMs = now | 1;
+        }
+        if (stdComm_DPlay_unheardBudget <= 0) return;
         if (!sp->budgetMs) { sp->budgetMs = now; sp->budget = DPLAY_UNHEARD_BURST; }
         const uint32_t refill = (now - sp->budgetMs) * DPLAY_UNHEARD_PER_S / 1000;
         if (refill) {
@@ -573,6 +606,7 @@ static void dp_sendToSys(dpPlayer* sp, const uint8_t* p, int len)
             return;
         }
         sp->budget--;
+        stdComm_DPlay_unheardBudget--;
     }
     dp_sendUdp(sp->ip, sp->udpPort, p, len);
 }
@@ -719,9 +753,7 @@ static void dp_parseSuperEnum(const uint8_t* b, int lenIn, uint32_t srcIp)
         pl->flags = flags & ~DPLAYI_PLAYER_LOCAL;
         pl->sysId = bSys ? id : verOrSys;
         memcpy(pl->name, sn, sizeof(sn));
-        pl->ip = ip;
-        pl->tcpPort = tcp;
-        pl->udpPort = udp;
+        dp_setAddr(pl, ip, tcp, udp);
         if (bSys && ip == stdComm_DPlay_hostIp && tcp == stdComm_DPlay_hostTcpPort) {
             stdComm_DPlay_hostSysId = id; // (the host's system player)
             pl->bHeard = 1;
@@ -796,17 +828,17 @@ static void dp_parseCreatePlayer(const uint8_t* b, int lenIn, uint32_t srcIp)
         if (!pk.bSp || !pk.udpPort) return;
         sp = dp_addPlayer(sysId, 1);
         if (!sp) return;
-        sp->ip = ip;
-        sp->tcpPort = pk.tcpPort;
-        sp->udpPort = pk.udpPort;
+        dp_setAddr(sp, ip, pk.tcpPort, pk.udpPort);
     }
+    dpPlayer* const pKnown = dp_findPlayer(pk.id);
     dpPlayer* pl = dp_addPlayer(pk.id, bSys);
     if (!pl) return;
     pl->flags = pk.flags & ~DPLAYI_PLAYER_LOCAL;
     pl->sysId = sysId;
     memcpy(pl->name, pk.name, sizeof(pk.name));
     if (sp && sp != pl) { pl->ip = sp->ip; pl->tcpPort = sp->tcpPort; pl->udpPort = sp->udpPort; }
-    else { pl->ip = ip; pl->tcpPort = pk.tcpPort; pl->udpPort = pk.udpPort; }
+    // (a system player: moved only by the host's word -- a peer can't send us to someone else)
+    else if (!pKnown || srcIp == stdComm_DPlay_hostIp) dp_setAddr(pl, ip, pk.tcpPort, pk.udpPort);
     if (!bSys) stdComm_DPlay_infoPrintf("DPlay: player %x joined\n", pk.id);
 }
 
@@ -1102,9 +1134,7 @@ static void dp_systemMessage(const uint8_t* m, size_t len, uint32_t srcIp)
         dpPlayer* pl = dp_addPlayer(pk.id, 1);
         if (!pl) break;
         pl->flags = DPLAYI_PLAYER_SYSPLAYER | DPLAYI_PLAYER_INGROUP;
-        pl->ip = ip;
-        pl->tcpPort = pk.tcpPort;
-        pl->udpPort = pk.udpPort;
+        dp_setAddr(pl, ip, pk.tcpPort, pk.udpPort);
         uint8_t r[20 + 12];
         memset(r, 0, sizeof(r));
         dp_putMsgHeader(r + 20, DPCMD_ADDFORWARDACK);
@@ -1347,13 +1377,15 @@ static void dp_poll(int timeoutMs)
 
     static uint8_t buf[DPLAY_MAX_MSG];
     const uint32_t now = stdPlatform_GetTimeMsec();
+    int numUseless = 0; // (sockets poll keeps waking for that give nothing: an error that stays)
     for (int k = 0; k < n; k++) {
+        if (pf[k].revents & POLLNVAL) { numUseless++; continue; }
         if (!(pf[k].revents & (POLLIN | POLLOUT | POLLHUP | POLLERR))) continue;
         if (map[k] == -1) {
             struct sockaddr_in a;
             socklen_t al = sizeof(a);
             const int fd = accept(stdComm_DPlay_tcpListen, (struct sockaddr*)&a, &al);
-            if (fd < 0) continue;
+            if (fd < 0) { if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) numUseless++; continue; }
             dpConn* c = dp_inConnsFrom(a.sin_addr.s_addr) < DPLAY_MAX_IN_PER_IP ? dp_freeConn(0) : NULL;
             if (!c) { close(fd); continue; }
             dp_nonblock(fd);
@@ -1368,7 +1400,7 @@ static void dp_poll(int timeoutMs)
             struct sockaddr_in a;
             socklen_t al = sizeof(a);
             const ssize_t got = recvfrom(pf[k].fd, buf, sizeof(buf), 0, (struct sockaddr*)&a, &al);
-            if (got <= 0) continue;
+            if (got <= 0) { if (got < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR && errno != ECONNREFUSED) numUseless++; continue; }
             SDL_LockMutex(stdComm_DPlay_mutex);
             if (map[k] == -3) dp_enumRequest(buf, (size_t)got, a.sin_addr.s_addr);
             // (system messages come over TCP: one in a datagram is no one's)
@@ -1422,6 +1454,8 @@ static void dp_poll(int timeoutMs)
             }
         }
     }
+    // (an error that stays: a short pause rather than a spin)
+    if (numUseless) SDL_Delay(10);
 }
 
 // (the network thread) Connections that said nothing, or nothing for long, closed; connects that
@@ -1490,7 +1524,11 @@ static int stdComm_DPlay_Thread(void* unused)
     (void)unused;
     while (stdComm_DPlay_bThreadRun) {
         dp_sendQueued();
-        dp_poll(5);
+        // (a game, an asking, or something to send: every few ms; otherwise -- a game found and kept
+        // for joining -- a tenth of a second)
+        int bBusy = stdComm_DPlay_bActive || stdComm_DPlay_bJoining || stdComm_DPlay_pOutHead || stdComm_DPlay_numUnsent;
+        for (int i = 0; i < 8 && !bBusy; i++) bBusy = stdComm_DPlay_aAsk[i].gen != 0;
+        dp_poll(bBusy ? 5 : 100);
         const uint32_t now = stdPlatform_GetTimeMsec();
         dp_reapConns(now);
         SDL_LockMutex(stdComm_DPlay_mutex);
@@ -1592,7 +1630,18 @@ static int dp_unhold(void)
     return bHad;
 }
 
-static int dp_unholdThread(void* p) { (void)p; dp_unhold(); return 0; }
+static void dp_unmap(void);
+static int dp_unholdThread(void* p)
+{
+    (void)p;
+    dp_unhold();
+    // (no game joined after all: the router's ports given back too)
+    SDL_LockMutex(stdComm_DPlay_mutex);
+    const int bGame = stdComm_DPlay_bActive || stdComm_DPlay_bJoining;
+    SDL_UnlockMutex(stdComm_DPlay_mutex);
+    if (!bGame) dp_unmap();
+    return 0;
+}
 
 // (the network thread) A hold waited out: let go from a thread of its own (the network thread can't
 // wait for itself to end)
@@ -1621,7 +1670,11 @@ static void dp_unmap(void)
 // Our ports (as bound now) opened on the router, if joining that host needs it: a host on the
 // internet, and us behind a router (OPENJKDF2_DPLAY_NAT=force: whatever the addresses, for testing;
 // =off: never). Called off the network thread, the main lock not held. 0 if they had to be and couldn't.
-static int dp_mapFor(uint32_t hostIp, uint32_t gen)
+static int dp_mapForGame(uint32_t hostIp, uint32_t gen, int bOnlyIfGame);
+static int dp_mapFor(uint32_t hostIp, uint32_t gen) { return dp_mapForGame(hostIp, gen, 0); }
+
+// (bOnlyIfGame: only if a game is still on when the router's lock is had -- a remap racing Close)
+static int dp_mapForGame(uint32_t hostIp, uint32_t gen, int bOnlyIfGame)
 {
     const char* pEnv = getenv("OPENJKDF2_DPLAY_NAT");
     if (pEnv && !strcmp(pEnv, "off")) return 1;
@@ -1629,6 +1682,12 @@ static int dp_mapFor(uint32_t hostIp, uint32_t gen)
     const uint32_t local = stdComm_DPlayNat_LocalAddressToward(hostIp);
     if (!bForce && (stdComm_DPlayNat_IsPrivate(hostIp) || !local || !stdComm_DPlayNat_IsPrivate(local))) return 1;
     SDL_LockMutex(stdComm_DPlay_natMutex);
+    if (bOnlyIfGame) {
+        SDL_LockMutex(stdComm_DPlay_mutex);
+        const int bGame = stdComm_DPlay_bActive && !stdComm_DPlay_bServer;
+        SDL_UnlockMutex(stdComm_DPlay_mutex);
+        if (!bGame) { SDL_UnlockMutex(stdComm_DPlay_natMutex); return 1; }
+    }
     stdCommDPlayNatMapping mp;
     const int ok = stdComm_DPlayNat_Map(stdComm_DPlay_tcpPort, stdComm_DPlay_udpPort, &mp);
     if (ok) {
@@ -1636,6 +1695,19 @@ static int dp_mapFor(uint32_t hostIp, uint32_t gen)
         stdComm_DPlay_mappedMs = stdPlatform_GetTimeMsec();
         stdComm_DPlay_advTcpPort = mp.extTcpPort;
         stdComm_DPlay_advUdpPort = mp.extUdpPort;
+    }
+    if (ok && bOnlyIfGame) {
+        // (Close while the router was slow: it found nothing forwarded to give back, so it's done here)
+        SDL_LockMutex(stdComm_DPlay_mutex);
+        const int bGame = stdComm_DPlay_bActive && !stdComm_DPlay_bServer;
+        SDL_UnlockMutex(stdComm_DPlay_mutex);
+        if (!bGame) {
+            stdComm_DPlayNat_Unmap();
+            stdComm_DPlay_bMapped = 0;
+            stdComm_DPlay_advTcpPort = stdComm_DPlay_advUdpPort = 0;
+            SDL_UnlockMutex(stdComm_DPlay_natMutex);
+            return 1;
+        }
     }
     SDL_UnlockMutex(stdComm_DPlay_natMutex);
     char t[384];
@@ -1660,6 +1732,16 @@ static int dp_mapFor(uint32_t hostIp, uint32_t gen)
     return 0;
 }
 
+void stdComm_DPlay_NotNow(void)
+{
+    if (!stdComm_DPlay_bInitted) return;
+    dp_unhold();
+    SDL_LockMutex(stdComm_DPlay_mutex);
+    const int bGame = stdComm_DPlay_bActive || stdComm_DPlay_bJoining;
+    SDL_UnlockMutex(stdComm_DPlay_mutex);
+    if (!bGame) dp_unmapLater();
+}
+
 void stdComm_DPlay_WillJoin(const char* pAddress)
 {
     if (!stdComm_DPlay_bInitted) return;
@@ -1681,13 +1763,24 @@ static int dp_remapThread(void* p)
     const int bActive = stdComm_DPlay_bActive && !stdComm_DPlay_bServer;
     const uint32_t hostIp = stdComm_DPlay_hostIp;
     SDL_UnlockMutex(stdComm_DPlay_mutex);
-    if (bActive) dp_mapFor(hostIp, 0);
+    if (bActive) dp_mapForGame(hostIp, 0, 1);
     return 0;
+}
+
+// The router's ports given back on a thread of its own: a slow router doesn't hold up the game
+static void dp_unmapLater(void)
+{
+    if (!stdComm_DPlay_bMapped) return;
+    SDL_Thread* t = SDL_CreateThread(dp_unmapThread, "stdComm_DPlay_unmap", NULL);
+    if (t) SDL_DetachThread(t);
+    else dp_unmap();
 }
 static bool dp_appEvent(void* userdata, SDL_Event* e)
 {
     (void)userdata;
-    if (e->type == SDL_EVENT_WILL_ENTER_BACKGROUND && stdComm_DPlay_bMapped) {
+    // (DID_ENTER_BACKGROUND: SDL sends WILL_ENTER_BACKGROUND already when the app merely stops being
+    // active -- Control Center, a banner -- which isn't a reason to give the ports back)
+    if (e->type == SDL_EVENT_DID_ENTER_BACKGROUND && stdComm_DPlay_bMapped) {
         SDL_Thread* t = SDL_CreateThread(dp_unmapThread, "stdComm_DPlay_unmap", dp_bgThreadArg);
         if (t) SDL_DetachThread(t);
     }
@@ -1833,6 +1926,8 @@ static void dp_resetSession(void)
     dp_queueClear();
 }
 
+static void dp_unmapLater(void);
+
 static void dp_joinFailed(const char* pWhy)
 {
     SDL_LockMutex(stdComm_DPlay_mutex);
@@ -1840,12 +1935,52 @@ static void dp_joinFailed(const char* pWhy)
     dp_resetSession();
     stdComm_DPlay_bActive = 0;
     SDL_UnlockMutex(stdComm_DPlay_mutex);
-    dp_unmap();
+    dp_unmapLater();
     dp_release();
 }
 
+// (joining) A fresh ENUMSESSIONS to the host, and its answer waited for (up to 1.5 s): the host then
+// has a connection to the sockets we have now, which its answers to the join go over -- the probe's
+// may be long closed (the character screen in between)
+static void dp_greetHost(uint32_t hostIp)
+{
+    SDL_LockMutex(stdComm_DPlay_mutex);
+    const uint32_t gen = ++stdComm_DPlay_probeGen;
+    dp_askSet(&hostIp, 1, gen);
+    uint8_t m[20 + 32];
+    memset(m, 0, sizeof(m));
+    dp_putSpHeader(m, sizeof(m));
+    dp_putMsgHeader(m + 20, DPCMD_ENUMSESSIONS);
+    memcpy(m + 28, stdComm_DPlay_appGuid, 16);
+    dp_put32(m + 48, 0x52);
+    dp_sendUdp(hostIp, DPLAY_ENUM_PORT, m, sizeof(m));
+    SDL_UnlockMutex(stdComm_DPlay_mutex);
+    for (int i = 0; i < 75; i++) {
+        SDL_Delay(20);
+        SDL_LockMutex(stdComm_DPlay_mutex);
+        int bAnswered = 0;
+        for (int k = 0; k < DPLAY_MAX_SESSIONS; k++) bAnswered |= stdComm_DPlay_aSessions[k].bUsed && stdComm_DPlay_aSessions[k].probeGen == gen;
+        if (i % 25 == 24 && !bAnswered) dp_sendUdp(hostIp, DPLAY_ENUM_PORT, m, sizeof(m));
+        SDL_UnlockMutex(stdComm_DPlay_mutex);
+        if (bAnswered) break;
+    }
+    SDL_LockMutex(stdComm_DPlay_mutex);
+    dp_askClear(gen);
+    SDL_UnlockMutex(stdComm_DPlay_mutex);
+}
+
+static int dp_join(char16_t* pwPassword);
+
 // Joining the game picked (stdComm_DPlay_SelectSession, or the probe's first answer)
 static int stdComm_DPlay_Join(char16_t* pwPassword)
+{
+    stdComm_DPlay_bJoining = 1;
+    const int r = dp_join(pwPassword);
+    stdComm_DPlay_bJoining = 0;
+    return r;
+}
+
+static int dp_join(char16_t* pwPassword)
 {
     if (!stdComm_DPlay_bInitted) return 0x88770154 + 1;
     SDL_LockMutex(stdComm_DPlay_mutex);
@@ -1866,6 +2001,7 @@ static int stdComm_DPlay_Join(char16_t* pwPassword)
     // (the router's ports, if the host needs them to reach us: opened for the probe already when
     // this game was picked (stdComm_DPlay_WillJoin); again for these sockets otherwise)
     if (!dp_mapFor(hostIp, 0)) { dp_joinFailed(NULL); return 0x88770154 + 1; }
+    dp_greetHost(hostIp);
 
     SDL_LockMutex(stdComm_DPlay_mutex);
     dp_resetSession();
@@ -1977,7 +2113,7 @@ static void stdComm_DPlay_Close(void)
     stdComm_DPlay_bServer = 0;
     dp_resetSession();
     SDL_UnlockMutex(stdComm_DPlay_mutex);
-    dp_unmap(); // (the router's ports given back: the game is over)
+    dp_unmapLater(); // (the router's ports given back: the game is over)
     dp_release();
 }
 
@@ -2100,6 +2236,12 @@ static void dp_useSession(const dpSession* se)
 // pOut; all of them: stdComm_DPlay_GetSessions
 static int stdComm_DPlay_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int timeoutMs, volatile int* pbKeepGoing)
 {
+    // (what was said of an earlier game or asking: old, whatever this address is)
+    if (stdComm_DPlay_bInitted) {
+        SDL_LockMutex(stdComm_DPlay_mutex);
+        if (!stdComm_DPlay_bActive && !stdComm_DPlay_bJoining) stdComm_DPlay_ClearProblem();
+        SDL_UnlockMutex(stdComm_DPlay_mutex);
+    }
     uint32_t aIp[4];
     const int numIp = dp_resolve(pAddress, aIp, 4);
     if (!numIp) return -1;
@@ -2109,7 +2251,6 @@ static int stdComm_DPlay_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, 
     // comes back over them)
     SDL_LockMutex(stdComm_DPlay_mutex);
     const uint32_t gen = ++stdComm_DPlay_probeGen;
-    if (!stdComm_DPlay_bActive) stdComm_DPlay_ClearProblem(); // (what was said of an earlier game or asking: old)
     const int bIntent = stdComm_DPlay_intentHost[0] && !strcmp(stdComm_DPlay_intentHost, pAddress) && stdPlatform_GetTimeMsec() - stdComm_DPlay_intentMs < DPLAY_JOIN_INTENT_MS;
     SDL_UnlockMutex(stdComm_DPlay_mutex);
     if (bIntent) dp_mapFor(aIp[0], gen);
@@ -2145,9 +2286,11 @@ static int stdComm_DPlay_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, 
         if (firstAnswerMs && now - firstAnswerMs > 600) break;
         SDL_Delay(20);
     }
+    // (an asking cut short -- the screen asking left, another transport answered first -- tells nothing:
+    // what was found before is kept, and nothing is given back)
+    const int bCut = (pbKeepGoing && !*pbKeepGoing) || stdComm_DPlay_probeGate.bClosing;
     SDL_LockMutex(stdComm_DPlay_mutex);
     dp_askClear(gen);
-    // (what was found earlier at these addresses and not now, forgotten)
     const dpSession* pFirst = NULL;
     int numFound = 0;
     for (int i = 0; i < DPLAY_MAX_SESSIONS; i++) {
@@ -2156,14 +2299,18 @@ static int stdComm_DPlay_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, 
         int bOurs = 0;
         for (int k = 0; k < numIp; k++) bOurs |= se->ip == aIp[k];
         if (!bOurs) continue;
-        if (se->probeGen != gen) { se->bUsed = 0; continue; }
+        if (se->probeGen != gen) {
+            if (!bCut) se->bUsed = 0; // (found earlier at these addresses and not now: forgotten)
+            continue;
+        }
         numFound++;
         if (!pFirst) pFirst = se;
     }
-    if (pFirst) {
+    if (pFirst && !bCut) {
         dp_parseSessionDesc(pFirst->dpsd, pFirst->name, pOut);
         pOut->field_E0 = 10;
-        dp_useSession(pFirst);
+        // (the one joined next, unless another is picked -- not while a game is being joined or played)
+        if (!stdComm_DPlay_bActive && !stdComm_DPlay_bJoining) dp_useSession(pFirst);
         stdComm_DPlay_lastGoodGen = gen;
         r = 1;
     }
@@ -2172,9 +2319,11 @@ static int stdComm_DPlay_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, 
     dp_release();
     stdCommTransport_GateLeave(&stdComm_DPlay_probeGate);
     if (r) stdComm_DPlay_verbosePrintf("DPlay: %d game(s) at %s\n", numFound, pAddress);
+    if (bCut) return 0;
     // (ports opened for a game picked that wasn't there, or long ago and never joined: given back)
     SDL_LockMutex(stdComm_DPlay_mutex);
-    const int bStale = !stdComm_DPlay_bActive && ((bIntent && !r) || (!bIntent && stdPlatform_GetTimeMsec() - stdComm_DPlay_mappedMs > DPLAY_UNMAP_STALE_MS));
+    const int bStale = !stdComm_DPlay_bActive && !stdComm_DPlay_bJoining
+                       && ((bIntent && !r) || (!bIntent && stdPlatform_GetTimeMsec() - stdComm_DPlay_mappedMs > DPLAY_UNMAP_STALE_MS));
     SDL_UnlockMutex(stdComm_DPlay_mutex);
     if (bStale && stdComm_DPlay_bMapped) dp_unmap();
     return r;
@@ -2205,6 +2354,7 @@ int stdComm_DPlay_SelectSession(const GUID_idk* pGuid)
     if (!stdComm_DPlay_bInitted) return 0;
     SDL_LockMutex(stdComm_DPlay_mutex);
     const int k = dp_sessionIndex(pGuid, 0);
+    if (stdComm_DPlay_bActive || stdComm_DPlay_bJoining) { SDL_UnlockMutex(stdComm_DPlay_mutex); return 0; }
     if (k >= 0) dp_useSession(&stdComm_DPlay_aSessions[k]);
     else {
         stdComm_DPlay_hostIp = 0;

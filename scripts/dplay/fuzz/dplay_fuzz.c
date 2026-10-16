@@ -17,7 +17,7 @@
 typedef struct SDL_Mutex SDL_Mutex;
 typedef struct SDL_Thread SDL_Thread;
 typedef struct SDL_Event { uint32_t type; } SDL_Event;
-enum { SDL_EVENT_WILL_ENTER_BACKGROUND = 0x103, SDL_EVENT_DID_ENTER_FOREGROUND = 0x106 };
+enum { SDL_EVENT_WILL_ENTER_BACKGROUND = 0x103, SDL_EVENT_DID_ENTER_BACKGROUND = 0x104, SDL_EVENT_DID_ENTER_FOREGROUND = 0x106 };
 static SDL_Mutex* SDL_CreateMutex(void) { return (SDL_Mutex*)1; }
 static void SDL_LockMutex(SDL_Mutex* m) { (void)m; }
 static void SDL_UnlockMutex(SDL_Mutex* m) { (void)m; }

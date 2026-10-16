@@ -34,6 +34,10 @@ void stdComm_DPlay_ClearProblem(void);
 // us -- the answer itself comes back over them. Background asking (games played before) never does.
 void stdComm_DPlay_WillJoin(const char* pAddress);
 
+// Another transport's game started: what DirectPlay kept for a join (its thread, the router's
+// ports) let go
+void stdComm_DPlay_NotNow(void);
+
 // (the Join screen, Gui/jkGUIDPlayPick.c) An address listing several sessions: one picked, in
 // *pInOut (which is one of them), and the one joined; 0 if the player went back
 int jkGuiDPlayPick_Pick(jkMultiEntry* pInOut);

@@ -64,7 +64,7 @@ option(OPENJKDF2_NET_GNS "Also join upstream OpenJKDF2 games (GameNetworkingSock
 # Added: and, experimental, DirectPlay over TCP/IP (OPENJKDF2_NET_DPLAY), the original 1997 game's own
 # multiplayer, spoken directly: joining a game the original hosts (the Join screen's typed address is
 # asked over it too), the router's ports opened for it (UPnP, NAT-PMP, PCP). Next to ENet; not on
-# Windows yet, and off for iOS until reviewed (src/Platform/Networking/DPlay).
+# Windows yet. Off by default; on for iOS (cmake_modules/plat_ios.cmake) (src/Platform/Networking/DPlay).
 option(OPENJKDF2_NET_DPLAY "Also join games of the original game over DirectPlay TCP/IP (experimental)" OFF)
 set(OPENJKDF2_GNS_PREBUILT "" CACHE PATH "GameNetworkingSockets built by packaging/ios/build_gns_deps.sh: linked in")
 set(TARGET_USE_LIBSMACKER FALSE)
