@@ -19,6 +19,8 @@ on:
   push:
     branches:
       - 'exp/**'
+      # (not the desktop builds' branch: desktop-exp.yml)
+      - '!exp/desktop'
   workflow_dispatch:
 
 concurrency:

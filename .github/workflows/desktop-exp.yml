@@ -1,0 +1,179 @@
+# Experiment: desktop builds of this fork (Jedi Knight and Mysteries of the
+# Sith, with the enhanced gameplay and ENet multiplayer) for Linux, Windows and
+# macOS, for testing.
+#
+# Runs only for experiment branches (exp/...) and by hand. It publishes
+# nothing: no release, no tag, no ios-latest. Each build is kept as this run's
+# artifact only (Actions > the run > Artifacts). Never any game data: every
+# package is checked (packaging/desktop/check_no_game_data.sh) before upload.
+#
+#   - linux:   x86_64, built on Ubuntu 24.04 (SDL3 from its Git module), .tar.gz
+#   - windows: x86_64, cross-compiled with MinGW on Ubuntu, .zip (the .exe and
+#              OpenAL32.dll)
+#   - macos:   arm64 (Apple silicon), .app bundle, ad-hoc signed, zipped
+
+name: Desktop builds (experiment)
+
+on:
+  push:
+    branches:
+      - 'exp/**'
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-exp-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential cmake make clang python3 python3-pip bison \
+                                  libgtk-3-dev libopenal-dev libglew-dev libssl-dev libpng-dev libcurl4-openssl-dev \
+                                  libavahi-compat-libdnssd-dev \
+                                  libx11-dev libxext-dev libxcursor-dev libxinerama-dev libxi-dev libxrandr-dev \
+                                  libxss-dev libxxf86vm-dev libxtst-dev libxfixes-dev libxkbcommon-dev \
+                                  libwayland-dev wayland-protocols libasound2-dev libpulse-dev libdbus-1-dev libudev-dev
+          sudo pip3 install --break-system-packages cogapp
+      - name: Build
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          export OPENJKDF2_RELEASE_COMMIT=$(git rev-parse HEAD) OPENJKDF2_RELEASE_COMMIT_SHORT=$(git rev-parse --short=8 HEAD)
+          cmake -DCMAKE_BUILD_TYPE=Release -DOPENJKDF2_ENHANCED=ON -DOPENJKDF2_NET_ENET=ON -B build | tee cmake.log
+          grep -q "ENet: games nearby found" cmake.log || { echo "::error::no LAN discovery (Avahi's libdns_sd)"; exit 1; }
+          make -C build -j $(nproc) openjkdf2
+      - name: Package
+        run: |
+          P=OpenJKDF2-linux-x86_64
+          mkdir -p pkg/$P
+          cp build/openjkdf2 pkg/$P/
+          cp docs/desktop/README.md pkg/$P/README.md
+          cp LICENSE.md pkg/$P/
+          ldd build/openjkdf2 | sed 's/ (0x.*//' > pkg/$P/libraries.txt
+          ./packaging/desktop/check_no_game_data.sh pkg/$P
+          tar -C pkg -czf $P.tar.gz $P
+          ./packaging/desktop/check_no_game_data.sh $P.tar.gz
+          ls -l $P.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenJKDF2-linux-x86_64
+          path: OpenJKDF2-linux-x86_64.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+  windows:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends build-essential cmake make python3 python3-pip \
+                                  mingw-w64 clang zip unzip
+          sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
+          sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+          sudo pip3 install --break-system-packages cogapp
+      - name: Build
+        run: |
+          export OPENJKDF2_RELEASE_COMMIT=$(git rev-parse HEAD) OPENJKDF2_RELEASE_COMMIT_SHORT=$(git rev-parse --short=8 HEAD)
+          cmake --toolchain cmake_modules/toolchain_mingw.cmake \
+                -DCMAKE_BUILD_TYPE=Release -DOPENJKDF2_ENHANCED=ON -DOPENJKDF2_NET_ENET=ON -B build
+          make -C build -j $(nproc) openjkdf2-64
+      - name: Package
+        run: |
+          P=OpenJKDF2-windows-x86_64
+          mkdir -p pkg/$P
+          cp build/openjkdf2-64.exe build/OpenAL32.dll pkg/$P/
+          cp docs/desktop/README.md pkg/$P/README.md
+          cp LICENSE.md pkg/$P/
+          # Every DLL the program needs must be Windows' own or shipped next to it
+          for f in pkg/$P/*.exe pkg/$P/*.dll; do
+            x86_64-w64-mingw32-objdump -p "$f" | sed -n 's/^\s*DLL Name: //p'
+          done | sort -u > dlls.txt
+          cat dlls.txt
+          missing=""
+          for d in $(cat dlls.txt); do
+            ls pkg/$P | grep -qix "$d" && continue
+            case "$(echo $d | tr A-Z a-z)" in
+              kernel32.dll|user32.dll|gdi32.dll|advapi32.dll|shell32.dll|ole32.dll|oleaut32.dll|winmm.dll|imm32.dll|\
+              version.dll|setupapi.dll|ws2_32.dll|opengl32.dll|crypt32.dll|shlwapi.dll|msvcrt.dll|bcrypt.dll|\
+              comdlg32.dll|uuid.dll|cfgmgr32.dll|dinput8.dll|dxgi.dll|hid.dll|wldap32.dll|normaliz.dll|iphlpapi.dll|\
+              dwmapi.dll|uxtheme.dll|comctl32.dll|secur32.dll|ntdll.dll|api-ms-win-*) ;;
+              *) missing="$missing $d" ;;
+            esac
+          done
+          [ -z "$missing" ] || { echo "::error::DLLs not shipped:$missing"; exit 1; }
+          ./packaging/desktop/check_no_game_data.sh pkg/$P
+          (cd pkg && zip -qr ../$P.zip $P)
+          ./packaging/desktop/check_no_game_data.sh $P.zip
+          ls -l $P.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenJKDF2-windows-x86_64
+          path: OpenJKDF2-windows-x86_64.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install packages
+        run: |
+          brew install glew libpng dylibbundler
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install cogapp generate-iconset
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+      - name: Build
+        run: |
+          export HOMEBREW_PREFIX=$(brew --prefix)
+          export OPENJKDF2_RELEASE_COMMIT=$(git rev-parse HEAD) OPENJKDF2_RELEASE_COMMIT_SHORT=$(git rev-parse --short=8 HEAD)
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 \
+                -DOPENJKDF2_ENHANCED=ON -DOPENJKDF2_NET_ENET=ON -B build
+          make -C build -j $(sysctl -n hw.ncpu) openjkdf2-64
+      - name: Package
+        run: |
+          P=OpenJKDF2-macos-arm64
+          APP=OpenJKDF2.app
+          # (the debug symbols stay out of the download)
+          rm -rf $APP/Contents/MacOS/*.dsym
+          # Libraries from Homebrew go inside the app
+          dylibbundler -od -b -x $APP/Contents/MacOS/openjkdf2-64 -d $APP/Contents/libs/ -p @executable_path/../libs/
+          if otool -L $APP/Contents/MacOS/openjkdf2-64 $APP/Contents/MacOS/*.dylib $APP/Contents/libs/*.dylib 2>/dev/null \
+               | grep -E '/opt/homebrew|/usr/local|@rpath'; then
+            echo "::error::a library outside the app"; exit 1
+          fi
+          codesign --force --deep --sign - $APP
+          codesign --verify --deep --strict $APP
+          mkdir -p pkg/$P
+          mv $APP pkg/$P/
+          cp docs/desktop/README.md pkg/$P/README.md
+          cp LICENSE.md pkg/$P/
+          ./packaging/desktop/check_no_game_data.sh pkg/$P
+          (cd pkg && ditto -c -k --keepParent $P ../$P.zip)
+          ./packaging/desktop/check_no_game_data.sh $P.zip
+          ls -l $P.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenJKDF2-macos-arm64
+          path: OpenJKDF2-macos-arm64.zip
+          if-no-files-found: error
+          retention-days: 30
