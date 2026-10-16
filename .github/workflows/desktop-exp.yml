@@ -59,7 +59,7 @@ jobs:
         if: failure()
         run: |
           # (the lines just before the first failure; GitHub shows ten notes at most)
-          grep -m1 -B9 -E "\] Error [0-9]|CMake Error|error:" build.log 2>/dev/null | cut -c1-400 \
+          grep -m1 -B9 -E "\] Error [0-9]|CMake Error" build.log 2>/dev/null | cut -c1-400 \
             | while IFS= read -r l; do echo "::error::$l"; done
       - name: Package
         run: |
@@ -106,7 +106,7 @@ jobs:
         if: failure()
         run: |
           # (the lines just before the first failure; GitHub shows ten notes at most)
-          grep -m1 -B9 -E "\] Error [0-9]|CMake Error|error:" build.log 2>/dev/null | cut -c1-400 \
+          grep -m1 -B9 -E "\] Error [0-9]|CMake Error" build.log 2>/dev/null | cut -c1-400 \
             | while IFS= read -r l; do echo "::error::$l"; done
       - name: Package
         run: |
@@ -168,7 +168,7 @@ jobs:
         if: failure()
         run: |
           # (the lines just before the first failure; GitHub shows ten notes at most)
-          grep -m1 -B9 -E "\] Error [0-9]|CMake Error|error:" build.log 2>/dev/null | cut -c1-400 \
+          grep -m1 -B9 -E "\] Error [0-9]|CMake Error" build.log 2>/dev/null | cut -c1-400 \
             | while IFS= read -r l; do echo "::error::$l"; done
       - name: Package
         run: |
