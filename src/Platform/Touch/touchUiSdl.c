@@ -12,6 +12,10 @@
 
 #include "Platform/Touch/touchUi.h"
 #include "Platform/Touch/touchUiRender_gl.h"
+#ifdef ENH_INPUT
+#include "Platform/Input/inputOverlay.h" // (game controllers and the keyboard: they hide the controls)
+#include "Platform/iOS/iosPad.h"
+#endif
 #include "stdPlatform.h"
 
 extern SDL_Window* displayWindow;
@@ -59,6 +63,10 @@ static struct {
     int bGravity;
     double gx, gy, gz;
     double lastAccelT;
+#ifdef ENH_INPUT
+    int bSharedTarget;         // the saber's blade choice handed to the shared wheel
+    long long aPanelFinger[4]; // fingers that went down on the controller options (+1: 0 is none)
+#endif
 } ts;
 
 static double touchUiSdl_Now(void)
@@ -217,6 +225,7 @@ void touchUiSdl_BeforeEvents(void)
     ts.known = touchUiSdl_Now();
 }
 
+#ifndef ENH_INPUT
 static int touchUiSdl_IsOwnKey(SDL_Scancode sc)
 {
     // keys a keyboard sends that aren't someone playing on it
@@ -224,6 +233,7 @@ static int touchUiSdl_IsOwnKey(SDL_Scancode sc)
            || sc == SDL_SCANCODE_MUTE || sc == SDL_SCANCODE_MEDIA_PLAY || sc == SDL_SCANCODE_MEDIA_PAUSE
            || sc == SDL_SCANCODE_MEDIA_PLAY_PAUSE || sc == SDL_SCANCODE_POWER || sc == SDL_SCANCODE_UNKNOWN;
 }
+#endif
 
 int touchUiSdl_HandleEvent(const union SDL_Event* pEvent)
 {
@@ -233,7 +243,14 @@ int touchUiSdl_HandleEvent(const union SDL_Event* pEvent)
     // time, so a finger down in a menu and up in a level always ends): while
     // the controls are up those clicks and moves aren't the game's -- the
     // fingers are the controls'. In menus and cutscenes they are clicks.
-    if (ts.bShown) {
+#ifdef ENH_INPUT
+    // the controller options up (a pad's Start held): a finger works them,
+    // and nothing else sees it, nor the mouse clicks the system makes of it
+    const int bPanel = iosPad_PanelIsOpen();
+#else
+    const int bPanel = 0;
+#endif
+    if (ts.bShown || bPanel) {
         if ((e->type == SDL_EVENT_MOUSE_MOTION && e->motion.which == SDL_TOUCH_MOUSEID)
             || ((e->type == SDL_EVENT_MOUSE_BUTTON_DOWN || e->type == SDL_EVENT_MOUSE_BUTTON_UP) && e->button.which == SDL_TOUCH_MOUSEID)
             || (e->type == SDL_EVENT_MOUSE_WHEEL && e->wheel.which == SDL_TOUCH_MOUSEID))
@@ -251,6 +268,30 @@ int touchUiSdl_HandleEvent(const union SDL_Event* pEvent)
             const float x = e->tfinger.x * (float)ts.pxW / ts.pxPerPt;
             const float y = e->tfinger.y * (float)ts.pxH / ts.pxPerPt;
             const long long id = (long long)e->tfinger.fingerID ^ ((long long)e->tfinger.touchID << 24);
+#ifdef ENH_INPUT
+            {
+                int bOptions = 0;
+                for (int i = 0; i < 4; i++) {
+                    if (ts.aPanelFinger[i] != id + 1) continue;
+                    bOptions = 1;
+                    if (phase == TOUCHUI_PHASE_UP || phase == TOUCHUI_PHASE_CANCEL) ts.aPanelFinger[i] = 0;
+                }
+                if (bOptions) break;
+                if (phase == TOUCHUI_PHASE_DOWN) {
+                    if (inputOverlay_PanelFinger(e->tfinger.x, e->tfinger.y)) {
+                        for (int i = 0; i < 4; i++) {
+                            if (ts.aPanelFinger[i]) continue;
+                            ts.aPanelFinger[i] = id + 1;
+                            break;
+                        }
+                        break;
+                    }
+                    // a finger on the screen: the controls come back if a pad or the keys hid them
+                    // (and this touch does nothing else, touchUi_Finger)
+                    inputOverlay_NoteTouch();
+                }
+            }
+#endif
             const double t = e->tfinger.timestamp ? (double)e->tfinger.timestamp / 1.0e9 : touchUiSdl_Now();
             touchUi_Finger(id, phase, x, y, t);
             break;
@@ -259,6 +300,8 @@ int touchUiSdl_HandleEvent(const union SDL_Event* pEvent)
             touchUiSdl_SensorEvent(&e->sensor);
             break;
         // Another input in use: the touch controls hide until the next touch
+#ifndef ENH_INPUT
+        // (with the enhanced input, iosPad.c and iosKbMouse.c say when they are in use)
         case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
         case SDL_EVENT_JOYSTICK_BUTTON_DOWN:
             touchUi_SetOtherInput(1);
@@ -277,11 +320,15 @@ int touchUiSdl_HandleEvent(const union SDL_Event* pEvent)
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
             if (e->button.which != SDL_TOUCH_MOUSEID && e->button.which != SDL_PEN_MOUSEID) touchUi_SetOtherInput(1);
             break;
+#endif
         case SDL_EVENT_WILL_ENTER_BACKGROUND:
         case SDL_EVENT_DID_ENTER_BACKGROUND:
             // every finger let go, the sensors off
             touchUi_Reset();
             touchUiSdl_RunSensors(0);
+#ifdef ENH_INPUT
+            memset(ts.aPanelFinger, 0, sizeof(ts.aPanelFinger));
+#endif
             break;
         default:
             break;
@@ -320,6 +367,18 @@ void touchUiSdl_AfterEvents(void)
     }
     ts.bShown = 1;
     touchUi_SetScreen(w, h, aInset[0], aInset[1], aInset[2], aInset[3]);
+#ifdef ENH_INPUT
+    // hidden while a game controller or the keyboard and mouse are played
+    // (until a finger goes down: inputOverlay_NoteTouch)
+    touchUi_SetOtherInput(inputOverlay_IsTouchHudHidden());
+    if (!ts.bSharedTarget) {
+        // (now that the input layer has read its settings: the one this
+        // overlay remembers wins -- it is saved as it changes, the cvars
+        // only as the game saves them)
+        touchUi_ShareSaberTarget();
+        ts.bSharedTarget = 1;
+    }
+#endif
 
     int side = 0;
     ts.rotDeg = touchUiSdl_ScreenTurn(&side);

@@ -2,10 +2,16 @@
 // scripted, timed touches and a fake game: one or more cases per rule of the
 // touch controls standard. Plain C, no GL, no SDL.
 //
-//   cc -std=c11 -I src src/Platform/Touch/tests/touchUi_test.c
-//      src/Platform/Touch/touchUi.c src/Platform/Touch/touchUiDraw.c -lm && ./a.out
+//   cc -std=c11 -DTOUCHUI_ENABLED -DJK_ENHANCED -I src src/Platform/Touch/tests/touchUi_test.c
+//      src/Platform/Touch/touchUi.c src/Platform/Touch/touchUiDraw.c
+//      src/Platform/Input/inputWheel.c -lm && ./a.out
+//
+// The wheels are inputWheel.c's, which asks the game itself (iosGame.h,
+// iosSaber.h) and ticks in the hand itself (platServices_Haptic): those are
+// the fake game here too, below.
 
 #include "Platform/Touch/touchUi.h"
+#include "Platform/Input/inputWheel.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -170,6 +176,39 @@ static const touchUiGame fakeGame = {
     F_CinemaStart, F_CinemaStop, F_CinemaIsActive,
 };
 
+// The same fake game as the engine's calls, for the wheels (inputWheel.c)
+int iosGame_IsMots(void) { return F_IsMots(); }
+int iosGame_IsPowerAvailable(int bin) { return F_IsPowerAvailable(bin); }
+int iosGame_GetPowerLevel(int bin) { return F_GetPowerLevel(bin); }
+const char* iosGame_GetPowerName(int bin) { return F_GetPowerName(bin); }
+int iosGame_GetCurPower(void) { return F_GetCurPower(); }
+void iosGame_SelectPower(int bin) { F_SelectPower(bin); }
+const char* iosGame_GetWeaponName(int bin) { return F_GetWeaponName(bin); }
+int iosGame_GetWeapon(int bin, int* pAmmo, int* pSel) { return F_GetWeapon(bin, pAmmo, pSel); }
+int iosGame_GetCurWeapon(void) { return F_GetCurWeapon(); }
+int iosGame_SelectWeapon(int bin) { return F_SelectWeapon(bin); }
+void iosGame_SetHold(int b) { F_SetHold(b); }
+int iosGame_IsSaberButtonShown(void) { return F_IsSaberButtonShown(); }
+int iosSaber_NumColours(void) { return F_SaberNumColours(); }
+const char* iosSaber_ColourName(int id) { return F_SaberColourName(id); }
+void iosSaber_ColourRGB(int id, unsigned char* r, unsigned char* g, unsigned char* b) { F_SaberColourRGB(id, r, g, b); }
+int iosSaber_StyleAvailable(int st) { return F_SaberStyleAvailable(st); }
+int iosSaber_StyleNumBlades(int st) { return F_SaberStyleNumBlades(st); }
+int iosSaber_GetStyle(void) { return F_SaberGetStyle(); }
+void iosSaber_SetStyle(int st) { F_SaberSetStyle(st); }
+int iosSaber_GetColour(int st, int b) { return F_SaberGetColour(st, b); }
+void iosSaber_SetColour(int st, int b, int id) { F_SaberSetColour(st, b, id); }
+static int g_platHaptics = 0;
+void platServices_Haptic(int kind) { g_platHaptics |= kind == 0 ? TOUCHUI_HAPTIC_TICK : TOUCHUI_HAPTIC_TAP; }
+
+// What the hand felt since last asked: the overlay's own, and the wheel's
+static int takeHaptics(void)
+{
+    const int h = touchUi_TakeHaptics() | g_platHaptics;
+    g_platHaptics = 0;
+    return h;
+}
+
 // ------------------------------------------------------------ the harness
 
 static int g_fails = 0, g_checks = 0;
@@ -202,13 +241,14 @@ static void setup(void)
     fg.bFreezeOk = 1;
     fg.zoom = 1.0f;
     remove(g_settings);
+    if (inputWheel_IsOpen()) inputWheel_Close(-1); // (a case that ended with one open)
     touchUi_Init(&fakeGame, g_settings);
     touchUi_SetGyroAvailable(1);
     setup_screen(852, 393, 59, 0, 59, 21); // an iPhone-sized screen, as the standard was made on
     touchUi_SetShown(1);
     T = 100.0;
     touchUi_Tick(T, T);
-    touchUi_TakeHaptics();
+    takeHaptics();
 }
 
 static void bxy(int btn, float* x, float* y)
@@ -285,7 +325,7 @@ static void test_stick(void)
     move(1, 200, 254); // 76 up, straight: on the marker (100 above, run from 70)
     CHECK(touchUi_IsStickRunning());
     CHECK(touchUi_IsKeyHeld(SC_W) && touchUi_IsKeyHeld(SC_LSHIFT));
-    CHECK(touchUi_TakeHaptics() & TOUCHUI_HAPTIC_TICK);
+    CHECK(takeHaptics() & TOUCHUI_HAPTIC_TICK);
     move(1, 200, 268); // 62: still running (stops under 60)
     CHECK(touchUi_IsStickRunning());
     move(1, 200, 272); // 58: walking again
@@ -645,13 +685,13 @@ static void test_wheels(void)
     g_case = "FORCE WHEEL: a haptic tick per slice crossed";
     down(1, wx, wy);
     move(1, wx + 10.0f, wy);
-    touchUi_TakeHaptics();
+    takeHaptics();
     int ticks = 0;
     touchUi_GetWheelGeometry(&cx, &cy, &r0, &r1);
     for (float a = 240.0f; a >= -60.0f; a -= 2.0f) { // round the ring on the wheel itself
         polar(cx, cy, a, (r0 + r1) * 0.5f, &px, &py);
         move(1, px, py);
-        if (touchUi_TakeHaptics() & TOUCHUI_HAPTIC_TICK) ticks++;
+        if (takeHaptics() & TOUCHUI_HAPTIC_TICK) ticks++;
     }
     CHECK(ticks == 14); // Jedi Knight's 14 powers, one tick each
     g_case = "FORCE WHEEL: the gap at the bottom cancels";
@@ -852,9 +892,9 @@ static void test_camera(void)
     down(1, cx, cy); wait(0.2); up(1, cx, cy);
     CHECK(fg.captures == 1 && fg.lastKinds == TOUCHUI_CAPTURE_CLEAN && fg.lastMode == TOUCHUI_CAPTURE_PHOTO);
     CHECK(!touchUi_IsSelfieUp());
-    touchUi_TakeHaptics();
+    takeHaptics();
     touchUi_CameraFeedback(TOUCHUI_CAPTURE_PHOTO);
-    CHECK(touchUi_TakeHaptics() & TOUCHUI_HAPTIC_TAP);
+    CHECK(takeHaptics() & TOUCHUI_HAPTIC_TAP);
     {
         const touchUiDrawList* l = touchUi_Draw(T);
         const touchUiDrawItem* it = &l->aItems[l->numItems - 1];
@@ -1091,10 +1131,10 @@ static void test_saber(void)
     touchUi_GetWheelSlice(5, &deg);
     float px, py;
     polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
-    touchUi_TakeHaptics();
+    takeHaptics();
     down(2, px, py); up(2, px, py);
     CHECK(fg.aSaberColour[0][0] == 5 && touchUi_IsWheelOpen());
-    CHECK(touchUi_TakeHaptics() & TOUCHUI_HAPTIC_TICK);
+    CHECK(takeHaptics() & TOUCHUI_HAPTIC_TICK);
     g_case = "saber wheel: DUAL; LEFT; a colour goes to the left blade only";
     float qx, qy;
     touchUi_GetSaberChip(TOUCHUI_CHIP_DUAL, &qx, &qy);
@@ -1206,6 +1246,84 @@ static void check_layout(const char* name, float W, float H, float l, float t, f
     }
 }
 
+// Wedges in what the overlay draws (a wheel's slices)
+static int drawnWedges(void)
+{
+    const touchUiDrawList* l = touchUi_Draw(T);
+    int n = 0;
+    for (int i = 0; i < l->numItems; i++) n += l->aItems[i].type == TOUCHUI_DRAW_WEDGE;
+    return n;
+}
+
+// The wheels are the shared ones (inputWheel.c): a pad or the keys open
+// them too, one at a time
+static void test_shared_wheel(void)
+{
+    float wx, wy, deg, px, py;
+    setup();
+    bxy(TOUCHUI_BTN_WHEEL, &wx, &wy);
+
+    g_case = "shared wheel: a finger's wheel is the shared one, drawn here once";
+    down(1, wx, wy);
+    move(1, wx + 10.0f, wy);
+    CHECK(touchUi_IsWheelOpen() && inputWheel_IsOpen() && inputWheel_GetKind() == INPUTWHEEL_FORCE);
+    CHECK(fg.bHold == 1);
+    CHECK(drawnWedges() == 14);
+    g_case = "shared wheel: no other wheel opens over it (a pad, the keys)";
+    CHECK(!inputWheel_Open(INPUTWHEEL_WEAPONS, 0));
+    g_case = "shared wheel: the finger's slice is the wheel's; a tick on it";
+    const int slice = touchUi_GetWheelSlice(24, &deg); // (Pull)
+    polar(wx, wy, deg, 40, &px, &py);
+    takeHaptics();
+    move(1, px, py);
+    CHECK(inputWheel_GetHot() == slice && touchUi_GetWheelHot() == slice);
+    CHECK(takeHaptics() & TOUCHUI_HAPTIC_TICK);
+    up(1, px, py);
+    CHECK(!inputWheel_IsOpen() && !touchUi_IsWheelOpen());
+    CHECK(fg.selectedPower == 24 && fg.bHold == 0);
+
+    g_case = "shared wheel: a pad's wheel open: fingers leave it alone, nothing drawn here";
+    CHECK(inputWheel_Open(INPUTWHEEL_WEAPONS, 1));
+    CHECK(fg.bHold == 1);
+    down(2, wx, wy);
+    wait(0.4);
+    move(2, wx + 20.0f, wy);
+    up(2, wx + 20.0f, wy);
+    CHECK(!touchUi_IsWheelOpen());
+    CHECK(inputWheel_IsOpen() && inputWheel_GetKind() == INPUTWHEEL_WEAPONS);
+    CHECK(presses(SC_E, 6) == 0);
+    CHECK(drawnWedges() == 0);
+    inputWheel_Close(-1);
+    CHECK(fg.bHold == 0);
+    g_case = "shared wheel: closed, the button works again";
+    down(3, wx, wy);
+    wait(0.1);
+    up(3, wx, wy);
+    CHECK(presses(SC_E, 6) == 1);
+
+    g_case = "shared wheel: the blade choice is the wheel's (the pad's too), remembered";
+    fg.bSaberBtn = 1;
+    fg.saberStyle = 1;
+    tick();
+    inputWheel_SetSaberTarget(INPUTWHEEL_SABER_LEFT); // (as the pad set it)
+    CHECK(touchUi_GetSaberTarget() == TOUCHUI_CHIP_LEFT);
+    float sx, sy, cx, cy;
+    bxy(TOUCHUI_BTN_SABER, &sx, &sy);
+    down(4, sx, sy);
+    wait(0.1);
+    up(4, sx, sy);
+    CHECK(touchUi_IsWheelOpen() && touchUi_GetWheelKind() == TOUCHUI_WHEEL_SABER);
+    CHECK(touchUi_GetSaberChip(TOUCHUI_CHIP_RIGHT, &cx, &cy));
+    down(5, cx, cy);
+    up(5, cx, cy);
+    CHECK(inputWheel_GetSaberTarget() == INPUTWHEEL_SABER_RIGHT && touchUi_GetSaberTarget() == TOUCHUI_CHIP_RIGHT);
+    CHECK(touchUi_IsWheelOpen());
+    touchUi_SetShown(0);
+    CHECK(!inputWheel_IsOpen() && fg.bHold == 0);
+    touchUi_Init(&fakeGame, g_settings);
+    CHECK(inputWheel_GetSaberTarget() == INPUTWHEEL_SABER_RIGHT);
+}
+
 int main(void)
 {
     test_stick();
@@ -1221,6 +1339,7 @@ int main(void)
     test_swapped();
     test_camera();
     test_saber();
+    test_shared_wheel();
     check_layout("layout: iPhone-sized (852x393, notch insets)", 852, 393, 59, 0, 59, 21);
     check_layout("layout: Android phone (873x393, cutout on the left)", 873, 393, 32, 0, 0, 0);
     check_layout("layout: Android phone (873x393, cutout on the right)", 873, 393, 0, 0, 32, 0);

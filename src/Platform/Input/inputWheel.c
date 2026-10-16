@@ -7,7 +7,9 @@
 
 #include "Platform/Input/inputWheel.h"
 
-#ifdef ENH_INPUT
+// (built for the enhanced input, ENH_INPUT, and for the touch overlay,
+// TOUCHUI_ENABLED, which uses it for its wheels with or without it)
+#if defined(ENH_INPUT) || defined(TOUCHUI_ENABLED)
 
 #include <math.h>
 #include <stdio.h>
@@ -201,6 +203,8 @@ static struct {
     int saberTarget;
     void (*pfnSlice)(void);
     const char* (*pfnHint)(int bPickable, int bCancel);
+    int (*pfnClear)(float x0, float y0, float x1, float y1);
+    float topClear;
     // where it was last laid out
     float cx, cy, R0, R1;
     float chipX[INPUTWHEEL_NUM_CHIPS], chipY[INPUTWHEEL_NUM_CHIPS];
@@ -298,6 +302,12 @@ void inputWheel_SetTapMode(int bTapMode)
 void inputWheel_SetSliceHook(void (*pfn)(void)) { inputWheel_s.pfnSlice = pfn; }
 void inputWheel_SetHintFn(const char* (*pfn)(int bPickable, int bCancel)) { inputWheel_s.pfnHint = pfn; }
 
+void inputWheel_SetKeepClear(int (*pfn)(float x0, float y0, float x1, float y1), float topClear)
+{
+    inputWheel_s.pfnClear = pfn;
+    inputWheel_s.topClear = topClear;
+}
+
 void inputWheel_Point(int slice, int bNeedle, float needleDeg)
 {
     if (!inputWheel_s.bOpen) return;
@@ -377,6 +387,8 @@ int inputWheel_Close(int slice)
     inputWheel_s.bNeedle = 0;
     inputWheel_s.pfnSlice = NULL;
     inputWheel_s.pfnHint = NULL;
+    inputWheel_s.pfnClear = NULL;
+    inputWheel_s.topClear = 0.0f;
     iosGame_SetHold(0);
     return 0;
 }
@@ -461,6 +473,14 @@ int inputWheel_ChipAt(float x, float y)
             return i;
     }
     return -1;
+}
+
+int inputWheel_GetChip(int chip, float* pX, float* pY)
+{
+    if (chip < 0 || chip >= INPUTWHEEL_NUM_CHIPS) return 0;
+    if (pX) *pX = inputWheel_s.chipX[chip];
+    if (pY) *pY = inputWheel_s.chipY[chip];
+    return inputWheel_s.bOpen && inputWheel_s.aChipShown[chip];
 }
 
 // A slice's name, two-word names on two lines
@@ -560,8 +580,11 @@ static void inputWheel_FitLabels(void)
     }
 }
 
-static void inputWheel_Layout(const inputWheelScreen* s)
+static void inputWheel_LayoutChips(const inputWheelScreen* s);
+
+void inputWheel_Layout(const inputWheelScreen* s)
 {
+    if (!inputWheel_s.bOpen || !s) return;
     const float left = INPUTWHEEL_MAX_F(s->inL, 8.0f), right = s->w - INPUTWHEEL_MAX_F(s->inR, 8.0f);
     const float top = INPUTWHEEL_MAX_F(s->inT, 8.0f), bottom = s->h - INPUTWHEEL_MAX_F(s->inB, 8.0f);
     inputWheel_s.cx = (left + right) * 0.5f;
@@ -573,6 +596,75 @@ static void inputWheel_Layout(const inputWheelScreen* s)
         F->map = inputWheel_s.pMap;
         F->R1 = inputWheel_s.R1;
         inputWheel_FitLabels();
+    }
+    inputWheel_LayoutChips(s);
+}
+
+// Whether a box is where the opener lets things go (inputWheel_SetKeepClear)
+static int inputWheel_IsClear(float x0, float y0, float x1, float y1)
+{
+    if (!inputWheel_s.pfnClear) return 1;
+    return y0 >= inputWheel_s.topClear && inputWheel_s.pfnClear(x0, y0, x1, y1);
+}
+
+// The saber wheel's choices: SINGLE and DUAL on the left of the ring, with
+// two blades LEFT, BOTH and RIGHT on its right, EQUIP in the middle under
+// the hint. Kept clear of the opener's buttons (inputWheel_SetKeepClear):
+// each column moved up or down as little as it can be; where the right has
+// no such place, all down the left.
+static void inputWheel_LayoutChips(const inputWheelScreen* s)
+{
+    const int bSaber = inputWheel_s.bOpen && inputWheel_s.kind == INPUTWHEEL_SABER;
+    const int bTwo = iosSaber_StyleNumBlades(iosSaber_GetStyle()) >= 2;
+    const float cx = inputWheel_s.cx, cy = inputWheel_s.cy;
+    const float step = INPUTWHEEL_CHIP_H + INPUTWHEEL_CHIP_GAP;
+    float R = inputWheel_s.R1 + INPUTWHEEL_POP + INPUTWHEEL_CHIP_OUT + INPUTWHEEL_CHIP_W * 0.5f;
+    // (kept on the screen: in toward the ring if it is narrow)
+    const float maxR = INPUTWHEEL_MIN(cx - INPUTWHEEL_MAX_F(s->inL, 8.0f), s->w - INPUTWHEEL_MAX_F(s->inR, 8.0f) - cx) - INPUTWHEEL_CHIP_W * 0.5f;
+    if (R > maxR) R = maxR;
+    float aShift[2] = { 0.0f, 0.0f };
+    int bOneColumn = 0;
+    if (bSaber && inputWheel_s.pfnClear) {
+        const float top = INPUTWHEEL_MAX_F(s->inT, 8.0f), bottom = s->h - INPUTWHEEL_MAX_F(s->inB, 8.0f);
+        for (int col = 0; col < 2; col++) {
+            const int n = col ? 3 : 2;
+            const float x = cx + (col ? R : -R);
+            int bFound = 0;
+            for (int k = 0; k <= 24 && !bFound; k++) {
+                const float dy = ((k & 1) ? 6.0f : -6.0f) * ((k + 1) / 2);
+                const float y0 = cy + dy - (n - 1) * 0.5f * step - INPUTWHEEL_CHIP_H * 0.5f;
+                const float y1 = y0 + (n - 1) * step + INPUTWHEEL_CHIP_H;
+                if (y1 > bottom || !inputWheel_IsClear(x - INPUTWHEEL_CHIP_W * 0.5f, y0, x + INPUTWHEEL_CHIP_W * 0.5f, y1)) continue;
+                aShift[col] = dy;
+                bFound = 1;
+            }
+            if (col == 1 && !bFound) bOneColumn = 1;
+        }
+        if (bOneColumn) {
+            const float half = 2.5f * step + INPUTWHEEL_CHIP_H * 0.5f;
+            aShift[0] = INPUTWHEEL_MIN(INPUTWHEEL_MAX_F(0.0f, INPUTWHEEL_MAX_F(top, inputWheel_s.topClear) + half - cy), bottom - half - cy);
+        }
+    }
+    for (int i = 0; i < INPUTWHEEL_NUM_CHIPS; i++) {
+        if (i == INPUTWHEEL_CHIP_EQUIP) {
+            inputWheel_s.aChipShown[i] = bSaber;
+            inputWheel_s.chipX[i] = cx;
+            inputWheel_s.chipY[i] = cy + 34.0f;
+            continue;
+        }
+        const int bStyle = i <= INPUTWHEEL_CHIP_DUAL;
+        inputWheel_s.aChipShown[i] = bSaber && (bStyle || bTwo) && !(i == INPUTWHEEL_CHIP_DUAL && !iosSaber_StyleAvailable(IOSSABER_STYLE_DUAL));
+        if (!inputWheel_s.aChipShown[i]) continue;
+        const int k = bStyle ? i - INPUTWHEEL_CHIP_SINGLE : i - INPUTWHEEL_CHIP_LEFT;
+        const int n = bStyle ? 2 : 3;
+        if (bOneColumn) {
+            inputWheel_s.chipX[i] = cx - R;
+            inputWheel_s.chipY[i] = cy + aShift[0] + (i + (bStyle ? 0 : 1) - 2.5f) * step;
+        }
+        else {
+            inputWheel_s.chipX[i] = cx + (bStyle ? -R : R);
+            inputWheel_s.chipY[i] = cy + aShift[bStyle ? 0 : 1] + (k - (n - 1) * 0.5f) * step;
+        }
     }
 }
 
@@ -650,40 +742,22 @@ static void inputWheel_DrawStar(float cx, float cy, float k, int bFilled, int bP
     }
 }
 
-// The saber wheel's choices: SINGLE and DUAL on the left of the ring, with
-// two blades LEFT, BOTH and RIGHT on its right (each lit if it is the one
-// set; the blades' in their colours), EQUIP in the middle under the hint
-static void inputWheel_DrawChips(const inputWheelScreen* s)
+// The saber wheel's choices where they were laid out, each lit if it is
+// the one set (the blades' in their colours), EQUIP dim while there is no
+// saber to take
+static void inputWheel_DrawChips(void)
 {
     static const char* const aName[INPUTWHEEL_NUM_CHIPS] = { "SINGLE", "DUAL", "LEFT", "BOTH", "RIGHT", "EQUIP" };
     touchUiDrawList* l = inputWheel_pDraw;
     const int st = iosSaber_GetStyle();
     const int bTwo = iosSaber_StyleNumBlades(st) >= 2;
-    const float cx = inputWheel_s.cx, cy = inputWheel_s.cy;
-    const float step = INPUTWHEEL_CHIP_H + INPUTWHEEL_CHIP_GAP;
-    float R = inputWheel_s.R1 + INPUTWHEEL_POP + INPUTWHEEL_CHIP_OUT + INPUTWHEEL_CHIP_W * 0.5f;
-    // (kept on the screen: in toward the ring if it is narrow)
-    const float maxR = INPUTWHEEL_MIN(cx - INPUTWHEEL_MAX_F(s->inL, 8.0f), s->w - INPUTWHEEL_MAX_F(s->inR, 8.0f) - cx) - INPUTWHEEL_CHIP_W * 0.5f;
-    if (R > maxR) R = maxR;
     for (int i = 0; i < INPUTWHEEL_NUM_CHIPS; i++) {
-        float x, y;
+        if (!inputWheel_s.aChipShown[i]) continue;
+        const float x = inputWheel_s.chipX[i], y = inputWheel_s.chipY[i];
         float alpha;
         int bOn = 0;
-        if (i == INPUTWHEEL_CHIP_EQUIP) {
-            x = cx;
-            y = cy + 34.0f;
-            alpha = inputWheel_CanEquipSaber() ? 1.0f : 0.35f;
-        }
+        if (i == INPUTWHEEL_CHIP_EQUIP) alpha = inputWheel_CanEquipSaber() ? 1.0f : 0.35f;
         else {
-            const int bStyle = i <= INPUTWHEEL_CHIP_DUAL;
-            if ((!bStyle && !bTwo) || (i == INPUTWHEEL_CHIP_DUAL && !iosSaber_StyleAvailable(IOSSABER_STYLE_DUAL))) {
-                inputWheel_s.aChipShown[i] = 0;
-                continue;
-            }
-            const int k = bStyle ? i - INPUTWHEEL_CHIP_SINGLE : i - INPUTWHEEL_CHIP_LEFT;
-            const int n = bStyle ? 2 : 3;
-            x = cx + (bStyle ? -R : R);
-            y = cy + (k - (n - 1) * 0.5f) * step;
             if (i == INPUTWHEEL_CHIP_SINGLE) bOn = !bTwo;
             else if (i == INPUTWHEEL_CHIP_DUAL) bOn = bTwo;
             else bOn = (i == INPUTWHEEL_CHIP_LEFT && inputWheel_s.saberTarget == INPUTWHEEL_SABER_LEFT)
@@ -691,9 +765,6 @@ static void inputWheel_DrawChips(const inputWheelScreen* s)
                        || (i == INPUTWHEEL_CHIP_RIGHT && inputWheel_s.saberTarget == INPUTWHEEL_SABER_RIGHT);
             alpha = bOn ? 1.0f : 0.8f;
         }
-        inputWheel_s.aChipShown[i] = 1;
-        inputWheel_s.chipX[i] = x;
-        inputWheel_s.chipY[i] = y;
         touchUiColor text = touchUi_White(1.0f);
         if (i == INPUTWHEEL_CHIP_LEFT || i == INPUTWHEEL_CHIP_RIGHT) {
             unsigned char r, g, b;
@@ -835,6 +906,7 @@ void inputWheel_Draw(touchUiDrawList* pList, const inputWheelScreen* pScreen)
                 if (sqrtf(ex * ex + ey * ey) >= R1 + 20.0f) break;
             }
             if (posx - tw * 0.5f < left || posx + tw * 0.5f > right || posy - th * 0.5f < top || posy + th * 0.5f > bottom) continue;
+            if (!inputWheel_IsClear(posx - tw * 0.5f, posy - th * 0.5f, posx + tw * 0.5f, posy + th * 0.5f)) continue;
             touchUiDraw_Text(l, grp->title, posx, posy, 12.0f, 1.0f, inputWheel_Colour(grp, 1.0f, 1.0f));
             break;
         }
@@ -925,9 +997,8 @@ void inputWheel_Draw(touchUiDrawList* pList, const inputWheelScreen* pScreen)
     }
     touchUiDraw_Text(l, "cancel", cx, cy + R1 - 22.0f, 9.0f, 1.0f, touchUi_Rgba(0.59f, 0.59f, 0.59f, 1.0f));
 
-    if (bSaber) inputWheel_DrawChips(pScreen);
-    else for (int i = 0; i < INPUTWHEEL_NUM_CHIPS; i++) inputWheel_s.aChipShown[i] = 0;
+    if (bSaber) inputWheel_DrawChips();
     inputWheel_pDraw = NULL;
 }
 
-#endif // ENH_INPUT
+#endif // ENH_INPUT || TOUCHUI_ENABLED

@@ -409,6 +409,16 @@ static int inputOverlay_PanelRowAt(float px, float py)
     return row < IOSPAD_NUM_ROWS ? row : -2;
 }
 
+int inputOverlay_PanelFinger(float fx, float fy)
+{
+    if (!iosPad_PanelIsOpen()) return 0;
+    if (inputOverlay_s.W > 0.0f && inputOverlay_s.H > 0.0f) {
+        const int row = inputOverlay_PanelRowAt(fx * inputOverlay_s.W, fy * inputOverlay_s.H);
+        if (row != -2) iosPad_PanelTap(row);
+    }
+    return 1;
+}
+
 static void inputOverlay_DrawRing(void)
 {
     touchUiDrawList* l = &inputOverlay_draw;
@@ -502,7 +512,8 @@ void inputOverlay_Render(void)
 {
     const double now = inputOverlay_Now();
     const float flash = inputPhoto_FlashAlpha(now);
-    const int bWheel = inputWheel_IsOpen();
+    // (a wheel a finger opened: the touch overlay draws it, with its buttons)
+    const int bWheel = inputOverlay_OutsideWheelIsOpen();
     const int bRing = inputOverlay_s.ringKind != IOSPAD_RING_NONE;
     const int bPrompt = inputOverlay_s.prompt[0] != 0;
     const int bFps = inputOverlay_s.fpsText[0] != 0;

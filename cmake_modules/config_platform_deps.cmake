@@ -270,8 +270,10 @@ if(TARGET_USE_SDL2 AND TARGET_USE_OPENGL AND NOT TARGET_IOS
     message(STATUS "Touch controls overlay: on")
     add_compile_definitions(TOUCHUI_ENABLED)
     file(GLOB TARGET_TOUCHUI_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Touch/*.c)
+    # (its wheels are the shared ones: src/Platform/Input/inputWheel.c)
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_TOUCHUI_SRCS}
-         ${PROJECT_SOURCE_DIR}/src/Platform/iOS/iosSafeArea.c)
+         ${PROJECT_SOURCE_DIR}/src/Platform/iOS/iosSafeArea.c
+         ${PROJECT_SOURCE_DIR}/src/Platform/Input/inputWheel.c)
 endif()
 
 if(TARGET_USE_OPENGL11)

@@ -218,6 +218,11 @@ int touchUi_TakeHaptics(void);
 // Gyro aiming. Available: the device has the sensors. Wanted: the sensors
 // should be running now (shown, on, not hidden for another input).
 void touchUi_SetGyroAvailable(int bAvailable);
+// The saber wheel's blade choice (one of two) is the shared wheel's
+// (Platform/Input/inputWheel.c: a pad and the keys set it too), remembered
+// here: hands it the one remembered (at the start, once the platform's own
+// settings are in, so this one wins); after that it is kept in step
+void touchUi_ShareSaberTarget(void);
 int touchUi_IsGyroWanted(void);
 int touchUi_GetGyroMode(void);
 float touchUi_GetGyroSens(void);

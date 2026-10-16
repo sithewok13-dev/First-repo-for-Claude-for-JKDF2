@@ -4,6 +4,7 @@
 // in, keys, look, game actions, haptic requests and a draw list out.
 
 #include "Platform/Touch/touchUi.h"
+#include "Platform/Input/inputWheel.h" // the wheels: their maps, the pick, the drawing
 
 #include <math.h>
 #include <stdio.h>
@@ -36,28 +37,12 @@
 #define TU_IDLE_ALPHA 0.65f
 #define TU_CLUSTER_GAP 30.0f
 #define TU_TOUCH_SLOP 6.0f
-#define TU_WHEEL_R1_MAX 168.0f
-#define TU_WHEEL_R0_FRAC 0.37f
-#define TU_WHEEL_POP 10.0f
+#define TU_WHEEL_XSCALE 0.82f // (the labels' font: bold, condensed, as the wheels')
+#define TU_WHEEL_POP 10.0f // (as inputWheel.c's: a finger this far past the ring still points)
 #define TU_WHEEL_OPEN_SLIDE 10.0f
 #define TU_WHEEL_HOLD 0.3
 #define TU_WHEEL_DEAD 14.0f
 #define TU_WHEEL_LEASH 60.0f
-#define TU_WHEEL_HYST 4.0f
-#define TU_WHEEL_CANCEL (-2)
-#define TU_WHEEL_STARS 4
-#define TU_WHEEL_STAR_CELL 8.0f
-#define TU_WHEEL_STAR_STEP 9.0f
-#define TU_WHEEL_STAR_GAP 2.0f
-#define TU_WHEEL_STAR_R 4.3f
-#define TU_WHEEL_STAR_INNER 0.45f
-#define TU_WHEEL_STAR_LINE 0.9f
-#define TU_WHEEL_STAR_EDGE 0.2f
-#define TU_WHEEL_STAR_MIN 0.6f
-#define TU_WHEEL_AMMO_FONT 9.0f
-#define TU_WHEEL_AMMO_MIN 0.7f
-#define TU_WHEEL_AMMO_INK 0.705f
-#define TU_WHEEL_TITLE_MIN 0.6f
 #define TU_QUICKSAVE_HOLD 0.3
 #define TU_QUICKLOAD_HOLD 0.3
 #define TU_MENU_HOLD 0.45
@@ -90,13 +75,6 @@
 #define TU_FREEZE_ORBIT 0.3f
 #define TU_FREEZE_SMOOTH 0.03
 #define TU_FREEZE_CLOSE_R 22.0f
-// The saber wheel: a slice of TU_SABER_SLICE_DEG a colour; its choices
-// beside the ring, each TU_SABER_CHIP_W x _H, this far out and apart
-#define TU_SABER_SLICE_DEG 18.0f
-#define TU_SABER_CHIP_W 64.0f
-#define TU_SABER_CHIP_H 28.0f
-#define TU_SABER_CHIP_OUT 22.0f
-#define TU_SABER_CHIP_GAP 8.0f
 #define TU_BACTA_HOLD 0.3
 #define TU_FLY_HOLD 0.5
 #define TU_FLY_TAP 0.25
@@ -224,82 +202,6 @@ static int tu_IsOptButton(int b)
 static int tu_IsRowOpener(int b) { return b == BTN_TRAYGYRO || b == BTN_TRAYCAM; }
 static int tu_IsQuickHold(int b) { return b == BTN_QUICKSAVE || b == BTN_QUICKLOAD; }
 
-// ------------------------------------------------------------ wheel maps (iosTouch.m's)
-
-#define TU_WHEEL_MAX 17
-#define TU_WHEEL_MAX_GROUPS 5
-typedef struct { int bin; int group; float deg; } tuWheelSlice;
-typedef struct { const char* title; float titleDeg; unsigned char r, g, b; } tuWheelGroup;
-typedef struct {
-    const tuWheelSlice* aSlices;
-    int numSlices;
-    const tuWheelGroup* aGroups;
-    int numGroups;
-    float sliceDeg;
-    float gapDeg;
-} tuWheelMap;
-
-static const tuWheelGroup tu_aJkWheelGroups[] = {
-    { "LIGHT\nSIDE", 150.0f, 120, 200, 255 },
-    { NULL,           90.0f, 255, 214, 120 },
-    { "DARK\nSIDE",   30.0f, 255, 105,  90 },
-};
-static const tuWheelSlice tu_aJkWheelSlices[] = {
-    { 29, 0, 239.0f }, { 28, 0, 217.0f }, { 27, 0, 195.0f }, { 26, 0, 173.0f }, { 25, 0, 151.0f },
-    { 21, 1, 123.0f }, { 22, 1, 101.0f }, { 23, 1,  79.0f }, { 24, 1,  57.0f },
-    { 30, 2,  29.0f }, { 31, 2,   7.0f }, { 32, 2, -15.0f }, { 33, 2, -37.0f }, { 34, 2, -59.0f },
-};
-static const tuWheelGroup tu_aMotsWheelGroups[] = {
-    { "TIER I",   207.0f, 255, 214, 120 },
-    { "TIER II",  120.0f, 110, 220, 170 },
-    { "TIER III",  42.0f, 120, 200, 255 },
-    { "TIER IV",  -36.0f, 190, 150, 255 },
-};
-static const tuWheelSlice tu_aMotsWheelSlices[] = {
-    { 38, 0, 243.0f }, { 22, 0, 225.0f }, { 23, 0, 207.0f }, { 36, 0, 189.0f }, { 21, 0, 171.0f },
-    { 24, 1, 147.0f }, { 31, 1, 129.0f }, { 35, 1, 111.0f }, { 37, 1,  93.0f },
-    { 39, 2,  69.0f }, { 25, 2,  51.0f }, { 27, 2,  33.0f }, { 26, 2,  15.0f },
-    { 28, 3,  -9.0f }, { 33, 3, -27.0f }, { 29, 3, -45.0f }, { 34, 3, -63.0f },
-};
-static const tuWheelGroup tu_aWeaponGroups[] = {
-    { NULL, 0.0f, 255, 214, 120 },
-    { NULL, 0.0f, 120, 200, 255 },
-    { NULL, 0.0f, 110, 220, 170 },
-    { NULL, 0.0f, 255, 105,  90 },
-    { NULL, 0.0f, 190, 150, 255 },
-};
-static const tuWheelSlice tu_aJkWeaponSlices[] = {
-    {  1, 0, 234.0f }, {  2, 1, 202.0f }, {  3, 1, 170.0f }, {  4, 3, 138.0f }, {  5, 2, 106.0f },
-    {  6, 2,  74.0f }, {  7, 3,  42.0f }, {  8, 3,  10.0f }, {  9, 2, -22.0f }, { 10, 0, -54.0f },
-};
-static const tuWheelSlice tu_aMotsWeaponSlices[] = {
-    { 121, 0, 242.0f }, { 131, 0, 223.0f }, { 122, 1, 204.0f }, { 132, 1, 185.0f }, { 123, 1, 166.0f }, { 133, 1, 147.0f },
-    { 124, 3, 128.0f }, { 134, 3, 109.0f }, { 135, 2,  90.0f }, { 126, 2,  71.0f }, { 127, 3,  52.0f }, { 137, 3,  33.0f },
-    { 128, 3,  14.0f }, { 138, 3,  -5.0f }, { 129, 2, -24.0f }, { 130, 4, -43.0f }, { 140, 4, -62.0f },
-};
-static const tuWheelMap tu_jkWheel = { tu_aJkWheelSlices, TU_COUNT(tu_aJkWheelSlices), tu_aJkWheelGroups, TU_COUNT(tu_aJkWheelGroups), 22.0f, 6.0f };
-static const tuWheelMap tu_motsWheel = { tu_aMotsWheelSlices, TU_COUNT(tu_aMotsWheelSlices), tu_aMotsWheelGroups, TU_COUNT(tu_aMotsWheelGroups), 18.0f, 6.0f };
-static const tuWheelMap tu_jkWeaponWheel = { tu_aJkWeaponSlices, TU_COUNT(tu_aJkWeaponSlices), tu_aWeaponGroups, TU_COUNT(tu_aWeaponGroups), 32.0f, 0.0f };
-static const tuWheelMap tu_motsWeaponWheel = { tu_aMotsWeaponSlices, TU_COUNT(tu_aMotsWeaponSlices), tu_aWeaponGroups, TU_COUNT(tu_aWeaponGroups), 19.0f, 0.0f };
-
-// The saber wheel: every blade colour in its own slice and colour, the
-// game's own by the gap on the left, round to the last by the gap on the
-// right (made as it opens: the game's own colour is the blade's now)
-static tuWheelSlice tu_aSaberSlices[TU_WHEEL_MAX];
-static tuWheelGroup tu_aSaberGroups[TU_WHEEL_MAX];
-static tuWheelMap tu_saberWheel = { tu_aSaberSlices, 0, tu_aSaberGroups, 0, TU_SABER_SLICE_DEG, 0.0f };
-
-// A wheel's labels fitted to its slices: [0] alone, [1] with the row under
-// it (stars, ammo). Kept for each wheel until its size changes.
-typedef struct {
-    const tuWheelMap* map;
-    float R1;
-    float rowScale;
-    float font[TU_WHEEL_MAX][2];
-    float labelR[TU_WHEEL_MAX][2];
-    float labelW[TU_WHEEL_MAX][2], labelH[TU_WHEEL_MAX][2];
-} tuWheelFit;
-
 // ------------------------------------------------------------ state
 
 typedef struct {
@@ -403,16 +305,13 @@ static struct {
     double prevTickNow;
     // the saber
     int bShowSaber;
-    float aChip[TOUCHUI_NUM_CHIPS][2];
-    int aChipShown[TOUCHUI_NUM_CHIPS];
 
     // the wheel
+    // (opened by a finger: inputWheel.c's then; the pad's and the keys'
+    // are inputOverlay.c's)
     int bWheelOpen, bWheelTapMode, wheelKind, wheelButton;
-    const tuWheelMap* pWheelMap;
-    int aWheelEarned[TU_WHEEL_MAX], aWheelLevel[TU_WHEEL_MAX], aWheelOwned[TU_WHEEL_MAX], aWheelAmmo[TU_WHEEL_MAX];
+    const inputWheelMap* pWheelMap; // (the last one opened)
     float wheelCx, wheelCy, wheelR0, wheelR1;
-    int wheelLastHot;
-    tuWheelFit aWheelFit[3];
 
     // gyro
     int bGyroAvailable;
@@ -436,10 +335,8 @@ static void tu_CloseWheelSelecting(int slice);
 // ------------------------------------------------------------ the game, safely
 
 #define G(fn) (tu.game && tu.game->fn)
-static int tu_IsMots(void) { return G(IsMots) ? tu.game->IsMots() : 0; }
 static int tu_IsChatOpen(void) { return G(IsChatOpen) ? tu.game->IsChatOpen() : 0; }
 static int tu_IsHolding(void) { return G(IsHolding) ? tu.game->IsHolding() : 0; }
-static void tu_SetHold(int b) { if (G(SetHold)) tu.game->SetHold(b); }
 static int tu_IsCheatOn(void) { return G(IsSithEwokOn) ? tu.game->IsSithEwokOn() : 0; }
 
 static void tu_Haptic(int kind) { tu.haptics |= kind; }
@@ -448,7 +345,9 @@ static void tu_EndBurst(void);
 static void tu_EndSelfie(void);
 static void tu_EndFreeze(void);
 static void tu_EndCinema(void);
-static void tu_LayoutSaberChips(void);
+static void tu_LayoutWheel(void);
+static void tu_WheelClosed(void);
+static int tu_SaberTargetToWheel(int t);
 
 // ------------------------------------------------------------ settings
 
@@ -598,13 +497,6 @@ static int tu_WheelKindOf(int button)
     if (button == BTN_NEXTWPN) return TOUCHUI_WHEEL_WEAPONS;
     if (button == BTN_SABER) return TOUCHUI_WHEEL_SABER;
     return TOUCHUI_WHEEL_FORCE;
-}
-
-static const char* tu_WheelSlotName(int bin)
-{
-    if (tu.wheelKind == TOUCHUI_WHEEL_SABER) return G(SaberColourName) ? tu.game->SaberColourName(bin) : NULL;
-    if (tu.wheelKind == TOUCHUI_WHEEL_WEAPONS) return G(GetWeaponName) ? tu.game->GetWeaponName(bin) : NULL;
-    return G(GetPowerName) ? tu.game->GetPowerName(bin) : NULL;
 }
 
 static int tu_GyroAvailable(void) { return tu.bGyroAvailable; }
@@ -1547,53 +1439,26 @@ int touchUi_IsPhotoModeUp(void) { return tu_PhotoModeUp(); }
 static int tu_SaberStyle(void) { return G(SaberGetStyle) ? tu.game->SaberGetStyle() : TOUCHUI_SABER_SINGLE; }
 static int tu_SaberNumBlades(int st) { return G(SaberStyleNumBlades) ? tu.game->SaberStyleNumBlades(st) : 1; }
 
-static void tu_SetupSaberWheel(void)
+// The blade a colour goes to with two: the touch overlay's numbers
+// (TOUCHUI_CHIP_LEFT, _BOTH, _RIGHT) and the wheel's (INPUTWHEEL_SABER_*).
+// The wheel's is the one in use (a pad and the keys set it too); kept here
+// as it changes, to remember.
+static int tu_SaberTargetToWheel(int t)
 {
-    int n = G(SaberNumColours) ? tu.game->SaberNumColours() : 0;
-    n = TU_MIN(n, TU_WHEEL_MAX);
-    for (int i = 0; i < n; i++) {
-        tuWheelGroup* g = &tu_aSaberGroups[i];
-        g->title = NULL;
-        g->titleDeg = 0.0f;
-        g->r = g->g = g->b = 160;
-        if (G(SaberColourRGB)) tu.game->SaberColourRGB(i, &g->r, &g->g, &g->b);
-        tu_aSaberSlices[i].bin = i;
-        tu_aSaberSlices[i].group = i;
-        tu_aSaberSlices[i].deg = 90.0f + TU_SABER_SLICE_DEG * ((n - 1) * 0.5f - i);
-    }
-    tu_saberWheel.numSlices = n;
-    tu_saberWheel.numGroups = n;
+    return t == TOUCHUI_CHIP_LEFT ? INPUTWHEEL_SABER_LEFT : t == TOUCHUI_CHIP_RIGHT ? INPUTWHEEL_SABER_RIGHT : INPUTWHEEL_SABER_BOTH;
 }
 
-// The blade of the style a colour goes to (with BOTH, the right one: the one
-// shown as picked)
-static int tu_SaberBlade(void)
+static int tu_SaberTargetFromWheel(int t)
 {
-    if (tu_SaberNumBlades(tu_SaberStyle()) < 2) return 0;
-    return tu.saberTarget == TOUCHUI_CHIP_LEFT ? 1 : 0;
+    return t == INPUTWHEEL_SABER_LEFT ? TOUCHUI_CHIP_LEFT : t == INPUTWHEEL_SABER_RIGHT ? TOUCHUI_CHIP_RIGHT : TOUCHUI_CHIP_BOTH;
 }
 
-// A colour picked on the saber wheel: for the style's blade (with two: the
-// left, the right or both), remembered
-static void tu_SetSaberColour(int id)
+static void tu_SaberTargetFromShared(void)
 {
-    if (!G(SaberSetColour)) return;
-    const int st = tu_SaberStyle();
-    const int bTwo = tu_SaberNumBlades(st) >= 2;
-    for (int b = 0; b < (bTwo ? 2 : 1); b++) {
-        if (bTwo && tu.saberTarget != TOUCHUI_CHIP_BOTH && b != tu_SaberBlade()) continue;
-        tu.game->SaberSetColour(st, b, id);
-    }
+    const int t = tu_SaberTargetFromWheel(inputWheel_GetSaberTarget());
+    if (t == tu.saberTarget) return;
+    tu.saberTarget = t;
     tu_SaveSettings();
-}
-
-static int tu_SaberWeaponBin(void) { return tu_IsMots() ? 131 : 10; }
-
-// Whether EQUIP can take the saber now: the player has it and can switch to it
-static int tu_CanEquipSaber(void)
-{
-    int ammo = 0, bSelectable = 0;
-    return G(GetWeapon) && tu.game->GetWeapon(tu_SaberWeaponBin(), &ammo, &bSelectable) && bSelectable;
 }
 
 // One of the saber wheel's choices tapped: one saber or two (each keeps its
@@ -1601,17 +1466,14 @@ static int tu_CanEquipSaber(void)
 // to tap a colour; or EQUIP: the saber in hand, the wheel closed
 static void tu_UseSaberChip(int chip)
 {
-    if (chip == TOUCHUI_CHIP_EQUIP) {
-        if (!tu_CanEquipSaber()) return;
-        const int bin = tu_SaberWeaponBin();
-        tu_CloseWheelSelecting(-1);
-        if ((!G(GetCurWeapon) || bin != tu.game->GetCurWeapon()) && G(SelectWeapon)) tu.game->SelectWeapon(bin);
+    if (!tu.bWheelOpen) return;
+    inputWheel_SaberChip(chip);
+    if (!inputWheel_IsOpen()) {
+        tu_WheelClosed(); // (EQUIP: the saber taken)
         return;
     }
-    if (chip == TOUCHUI_CHIP_SINGLE || chip == TOUCHUI_CHIP_DUAL) {
-        if (G(SaberSetStyle)) tu.game->SaberSetStyle(chip == TOUCHUI_CHIP_DUAL ? TOUCHUI_SABER_DUAL : TOUCHUI_SABER_SINGLE);
-    }
-    else tu.saberTarget = chip;
+    if (chip == TOUCHUI_CHIP_EQUIP) return; // (no saber to take)
+    tu_SaberTargetFromShared();
     tu_SaveSettings();
     tu.bWheelTapMode = 1;
     for (int i = 0; i < TU_MAX_TOUCHES; i++) {
@@ -1619,237 +1481,67 @@ static void tu_UseSaberChip(int chip)
         tuSlot* o = &tu.aSlots[i];
         if (o->bUsed && o->role == ROLE_WHEEL && o->bWheelOpener) o->bWheelHeld = 1;
     }
-    tu_Haptic(TOUCHUI_HAPTIC_TICK);
-    tu_LayoutSaberChips();
+    tu_LayoutWheel();
 }
 
 // The saber wheel's choice under (px, py) (a little round each), or -1
 static int tu_SaberChipAt(float px, float py)
 {
-    if (!tu.bWheelOpen || tu.wheelKind != TOUCHUI_WHEEL_SABER) return -1;
-    for (int i = 0; i < TOUCHUI_NUM_CHIPS; i++) {
-        if (!tu.aChipShown[i]) continue;
-        if (fabsf(px - tu.aChip[i][0]) <= TU_SABER_CHIP_W * 0.5f + 6.0f && fabsf(py - tu.aChip[i][1]) <= TU_SABER_CHIP_H * 0.5f + 6.0f) return i;
-    }
-    return -1;
-}
-
-// The saber wheel's choices beside the ring (only on that wheel; the blades'
-// only with two): SINGLE and DUAL on the left, LEFT, BOTH and RIGHT on the
-// right, each column moved up or down as little as it can be to clear every
-// button showing; where the right has no such place, all down the left
-static void tu_LayoutSaberChips(void)
-{
-    const int bSaber = tu.bWheelOpen && tu.wheelKind == TOUCHUI_WHEEL_SABER;
-    const int bTwo = tu_SaberNumBlades(tu_SaberStyle()) >= 2;
-    const float cx = tu.wheelCx, cy = tu.wheelCy;
-    const float R = tu.wheelR1 + TU_WHEEL_POP + TU_SABER_CHIP_OUT + TU_SABER_CHIP_W * 0.5f;
-    const float step = TU_SABER_CHIP_H + TU_SABER_CHIP_GAP;
-    float aShift[2] = { 0.0f, 0.0f };
-    int bOneColumn = 0;
-    const float top = TU_MAX(tu.inT, 8.0f), bottom = tu.H - TU_MAX(tu.inB, 8.0f);
-    if (bSaber) {
-        for (int col = 0; col < 2; col++) {
-            const int n = col ? 3 : 2;
-            const float x = cx + (col ? R : -R);
-            int bFound = 0;
-            for (int k = 0; k <= 24 && !bFound; k++) {
-                const float dy = ((k & 1) ? 6.0f : -6.0f) * ((k + 1) / 2);
-                const float y0 = cy + dy - (n - 1) * 0.5f * step - TU_SABER_CHIP_H * 0.5f;
-                const float y1 = y0 + (n - 1) * step + TU_SABER_CHIP_H;
-                if (y0 < top + 52.0f || y1 > bottom) continue; // (under the top row)
-                int bClear = 1;
-                for (int j = 0; j < BTN_COUNT && bClear; j++) {
-                    const tuButton* bt = &tu_aButtons[j];
-                    if (tu_Hidden(j) || j == tu.wheelButton) continue;
-                    const float ex = TU_MAX(fabsf(bt->x - x) - TU_SABER_CHIP_W * 0.5f, 0.0f);
-                    const float ey = TU_MAX(TU_MAX(y0 - bt->y, bt->y - y1), 0.0f);
-                    bClear = sqrtf(ex * ex + ey * ey) > bt->radius + 4.0f;
-                }
-                if (bClear) {
-                    aShift[col] = dy;
-                    bFound = 1;
-                }
-            }
-            if (col == 1 && !bFound) bOneColumn = 1;
-        }
-        if (bOneColumn) {
-            const float half = 2.5f * step + TU_SABER_CHIP_H * 0.5f;
-            aShift[0] = TU_MIN(TU_MAX(0.0f, top + 52.0f + half - cy), bottom - half - cy);
-        }
-    }
-    for (int i = 0; i < TOUCHUI_NUM_CHIPS; i++) {
-        if (i == TOUCHUI_CHIP_EQUIP) {
-            // in the middle, under the colour's name and the hint
-            tu.aChipShown[i] = bSaber;
-            tu.aChip[i][0] = cx;
-            tu.aChip[i][1] = cy + 34.0f;
-            continue;
-        }
-        const int bStyle = i <= TOUCHUI_CHIP_DUAL;
-        tu.aChipShown[i] = bSaber && (bStyle || bTwo)
-                           && !(i == TOUCHUI_CHIP_DUAL && G(SaberStyleAvailable) && !tu.game->SaberStyleAvailable(TOUCHUI_SABER_DUAL));
-        if (!tu.aChipShown[i]) continue;
-        const int k = bStyle ? i - TOUCHUI_CHIP_SINGLE : i - TOUCHUI_CHIP_LEFT;
-        const int n = bStyle ? 2 : 3;
-        if (bOneColumn) {
-            tu.aChip[i][0] = cx - R;
-            tu.aChip[i][1] = cy + aShift[0] + (i + (bStyle ? 0 : 1) - 2.5f) * step;
-        }
-        else {
-            tu.aChip[i][0] = cx + (bStyle ? -R : R);
-            tu.aChip[i][1] = cy + aShift[bStyle ? 0 : 1] + (k - (n - 1) * 0.5f) * step;
-        }
-    }
+    return tu.bWheelOpen ? inputWheel_ChipAt(px, py) : -1;
 }
 
 // ------------------------------------------------------------ the wheels
+//
+// The wheels are inputWheel.c's, as the pad's and the keyboard's are: their
+// maps, which slice an angle is in, what a pick does, how they look. Here:
+// the fingers (a slide from the button, a hold, taps), each finger's slice
+// handed to the wheel, and the wheel drawn in this overlay's list, under the
+// button that opened it.
+
+// Whether a box (points) is clear of every button showing but the wheel's
+// own: the group names and the saber wheel's choices go only there
+static int tu_WheelBoxClear(float x0, float y0, float x1, float y1)
+{
+    for (int j = 0; j < BTN_COUNT; j++) {
+        const tuButton* bt = &tu_aButtons[j];
+        if (tu_Hidden(j) || j == tu.wheelButton) continue;
+        const float ex = TU_MAX(TU_MAX(x0 - bt->x, bt->x - x1), 0.0f);
+        const float ey = TU_MAX(TU_MAX(y0 - bt->y, bt->y - y1), 0.0f);
+        if (sqrtf(ex * ex + ey * ey) <= bt->radius + 4.0f) return 0;
+    }
+    return 1;
+}
+
+static void tu_WheelScreen(inputWheelScreen* pScreen)
+{
+    pScreen->w = tu.W;
+    pScreen->h = tu.H;
+    pScreen->inL = tu.inL;
+    pScreen->inT = tu.inT;
+    pScreen->inR = tu.inR;
+    pScreen->inB = tu.inB;
+}
+
+// The open wheel laid out on the screen as it is now (under the top row of
+// buttons, clear of the others), and where it is
+static void tu_LayoutWheel(void)
+{
+    if (!tu.bWheelOpen) return;
+    inputWheelScreen sc;
+    tu_WheelScreen(&sc);
+    inputWheel_SetKeepClear(tu_WheelBoxClear, TU_MAX(tu.inT, 8.0f) + 52.0f);
+    inputWheel_Layout(&sc);
+    inputWheel_GetGeometry(&tu.wheelCx, &tu.wheelCy, &tu.wheelR0, &tu.wheelR1);
+}
 
 static int tu_WheelSliceForAngle(float deg, int cur)
 {
-    const tuWheelMap* m = tu.pWheelMap;
-    if (!m) return TU_WHEEL_CANCEL;
-    float half = m->sliceDeg * 0.5f;
-    if (cur >= 0 && cur < m->numSlices && fabsf(tu_AngleDiff(deg, m->aSlices[cur].deg)) <= half + TU_WHEEL_HYST) return cur;
-    int best = TU_WHEEL_CANCEL;
-    float bestDiff = 0.0f;
-    for (int i = 0; i < m->numSlices; i++) {
-        float d = fabsf(tu_AngleDiff(deg, m->aSlices[i].deg));
-        if (d <= half + m->gapDeg * 0.5f && (best < 0 || d < bestDiff)) {
-            best = i;
-            bestDiff = d;
-        }
-    }
-    return best;
+    return inputWheel_SliceForAngle(inputWheel_GetOpenMap(), deg, cur);
 }
 
 static int tu_WheelSliceAt(float px, float py, int cur)
 {
-    float dx = px - tu.wheelCx, dy = tu.wheelCy - py;
-    float r = sqrtf(dx * dx + dy * dy);
-    if (r < tu.wheelR0 - 4.0f || r > tu.wheelR1 + TU_WHEEL_POP + 14.0f) return -1;
-    return tu_WheelSliceForAngle(atan2f(dy, dx) * 180.0f / (float)M_PI, cur);
-}
-
-static int tu_InWheelSlice(float px, float py, float deg, float pad)
-{
-    float dx = px - tu.wheelCx, dy = tu.wheelCy - py;
-    float r = sqrtf(dx * dx + dy * dy);
-    if (r < tu.wheelR0 + pad || r > tu.wheelR1 - pad) return 0;
-    float edge = tu.pWheelMap->sliceDeg * 0.5f - 1.0f - pad / r * 180.0f / (float)M_PI;
-    return fabsf(tu_AngleDiff(atan2f(dy, dx) * 180.0f / (float)M_PI, deg)) <= edge;
-}
-
-// The wheel labels' font: bold, condensed
-#define TU_WHEEL_XSCALE 0.82f
-
-static void tu_WheelLabelText(int i, char* out, int outLen)
-{
-    const char* name = tu_WheelSlotName(tu.pWheelMap->aSlices[i].bin);
-    snprintf(out, outLen, "%s", name ? name : "?");
-    for (char* p = out; *p; p++)
-        if (*p == ' ') *p = '\n';
-}
-
-static void tu_WheelRowSize(float* pW, float* pH)
-{
-    float k = tu.aWheelFit[tu.wheelKind].rowScale;
-    if (tu.wheelKind == TOUCHUI_WHEEL_WEAPONS) {
-        float w;
-        touchUiDraw_MeasureText("000", TU_WHEEL_AMMO_FONT, 1.0f, &w, NULL);
-        *pW = w * k;
-        *pH = TU_WHEEL_AMMO_FONT * TU_WHEEL_AMMO_INK * k;
-        return;
-    }
-    *pW = ((TU_WHEEL_STARS - 1) * TU_WHEEL_STAR_STEP + TU_WHEEL_STAR_CELL) * k;
-    *pH = TU_WHEEL_STAR_CELL * k;
-}
-
-static int tu_WheelSliceHasRow(int i)
-{
-    if (tu.wheelKind == TOUCHUI_WHEEL_SABER) return 0;
-    return tu.wheelKind != TOUCHUI_WHEEL_WEAPONS || tu.pWheelMap->aSlices[i].group != 0;
-}
-
-static int tu_FitWheelLabel(int i, float s11w, float s11h, int bRow)
-{
-    const tuWheelMap* m = tu.pWheelMap;
-    tuWheelFit* F = &tu.aWheelFit[tu.wheelKind];
-    const float cx = tu.wheelCx, cy = tu.wheelCy, R0 = tu.wheelR0, R1 = tu.wheelR1;
-    float rowW, rowH;
-    tu_WheelRowSize(&rowW, &rowH);
-    float a = m->aSlices[i].deg * (float)M_PI / 180.0f;
-    F->font[i][bRow] = bRow ? 0.0f : 7.0f;
-    F->labelR[i][bRow] = R0 + (R1 - R0) * 0.58f;
-    F->labelW[i][bRow] = s11w * 7.0f / 11.0f;
-    F->labelH[i][bRow] = s11h * 7.0f / 11.0f;
-    int bFound = 0;
-    for (float size = 11.0f; size >= 7.0f && !bFound; size -= 0.5f) {
-        float w = s11w * size / 11.0f, h = s11h * size / 11.0f;
-        float bw = bRow ? TU_MAX(w, rowW) : w;
-        float bh = bRow ? h + TU_WHEEL_STAR_GAP + rowH : h;
-        float bestOff = 0.0f;
-        for (int k = 0; k <= 20; k++) {
-            float f = 0.30f + 0.50f * k / 20.0f;
-            float rr = R0 + (R1 - R0) * f;
-            float px = cx + rr * cosf(a), py = cy - rr * sinf(a);
-            int bIn = 1;
-            for (int sx = -1; sx <= 1 && bIn; sx++)
-                for (int sy = -1; sy <= 1 && bIn; sy++)
-                    bIn = tu_InWheelSlice(px + sx * bw * 0.5f, py + sy * bh * 0.5f, m->aSlices[i].deg, 2.0f);
-            if (bIn && (!bFound || fabsf(f - 0.58f) < bestOff)) {
-                bFound = 1;
-                bestOff = fabsf(f - 0.58f);
-                F->font[i][bRow] = size;
-                F->labelR[i][bRow] = rr;
-                F->labelW[i][bRow] = w;
-                F->labelH[i][bRow] = h;
-            }
-        }
-    }
-    return bFound;
-}
-
-static void tu_FitWheelLabels(void)
-{
-    const tuWheelMap* m = tu.pWheelMap;
-    tuWheelFit* F = &tu.aWheelFit[tu.wheelKind];
-    float rowMin = (tu.wheelKind == TOUCHUI_WHEEL_WEAPONS) ? TU_WHEEL_AMMO_MIN : TU_WHEEL_STAR_MIN;
-    float aW[TU_WHEEL_MAX], aH[TU_WHEEL_MAX];
-    for (int i = 0; i < m->numSlices; i++) {
-        char text[64];
-        tu_WheelLabelText(i, text, sizeof(text));
-        touchUiDraw_MeasureText(text, 11.0f, TU_WHEEL_XSCALE, &aW[i], &aH[i]);
-        tu_FitWheelLabel(i, aW[i], aH[i], 0);
-        F->font[i][1] = 0.0f;
-    }
-    for (int n = 0; ; n++) {
-        int bAll = 1;
-        F->rowScale = 1.0f - 0.05f * n;
-        int bLast = F->rowScale <= rowMin + 0.001f;
-        for (int i = 0; i < m->numSlices && (bAll || bLast); i++)
-            if (tu_WheelSliceHasRow(i) && !tu_FitWheelLabel(i, aW[i], aH[i], 1)) bAll = 0;
-        if (bAll || bLast) break;
-    }
-}
-
-static void tu_LayoutWheel(void)
-{
-    const tuWheelMap* m = tu.pWheelMap;
-    if (!m) return;
-    const float left = TU_MAX(tu.inL, 8.0f), right = tu.W - TU_MAX(tu.inR, 8.0f);
-    const float top = TU_MAX(tu.inT, 8.0f), bottom = tu.H - TU_MAX(tu.inB, 8.0f);
-    tu.wheelCx = (left + right) * 0.5f;
-    tu.wheelCy = (top + bottom) * 0.5f + 4.0f;
-    tu.wheelR1 = TU_MIN(TU_WHEEL_R1_MAX, (bottom - top) * 0.5f - TU_WHEEL_POP - 6.0f);
-    tu.wheelR0 = roundf(tu.wheelR1 * TU_WHEEL_R0_FRAC);
-    tuWheelFit* F = &tu.aWheelFit[tu.wheelKind];
-    if (m != F->map || tu.wheelR1 != F->R1) {
-        F->map = m;
-        F->R1 = tu.wheelR1;
-        tu_FitWheelLabels();
-    }
-    tu_LayoutSaberChips();
+    return inputWheel_SliceAt(px, py, cur);
 }
 
 // What the wheel points at: by the opener once it has slid, else by the
@@ -1880,52 +1572,29 @@ static int tu_WheelHot(int* pbCancel, tuSlot** ppSlide)
     return hot;
 }
 
-// A tick each time the thumb moves onto another slice (or the gap)
+// The wheel told what the fingers point at (each new slice, or the gap,
+// ticks in the hand there), the needle where the sliding thumb points, and
+// whether it is open to tap (its hint)
 static void tu_WheelTouched(void)
 {
     if (!tu.bWheelOpen) return;
-    int hot = tu_WheelHot(NULL, NULL);
-    if (hot != tu.wheelLastHot) {
-        if (hot != -1) tu_Haptic(TOUCHUI_HAPTIC_TICK);
-        tu.wheelLastHot = hot;
-    }
+    tuSlot* pSlide = NULL;
+    const int hot = tu_WheelHot(NULL, &pSlide);
+    const int bNeedle = pSlide && pSlide->bArmed;
+    inputWheel_SetTapMode(tu.bWheelTapMode);
+    inputWheel_Point(hot, bNeedle, bNeedle ? pSlide->wheelAim : 0.0f);
 }
 
-static void tu_OpenWheel(int kind, int button, int bTapMode)
+// Opens a wheel from a button: 0 if one is open already (a pad's, the
+// keys') or there is no saber for the saber wheel
+static int tu_OpenWheel(int kind, int button, int bTapMode)
 {
     tu_SetTrayOpen(0);
-    int bMots = tu_IsMots();
+    if (tu.bWheelOpen || !inputWheel_Open(kind, bTapMode)) return 0; // (the game holds still)
     tu.wheelKind = kind;
     tu.wheelButton = button;
-    if (kind == TOUCHUI_WHEEL_SABER) {
-        tu_SetupSaberWheel(); // (the game's own colour, as it is now)
-        tu.pWheelMap = &tu_saberWheel;
-    }
-    else
-        tu.pWheelMap = (kind == TOUCHUI_WHEEL_WEAPONS) ? (bMots ? &tu_motsWeaponWheel : &tu_jkWeaponWheel)
-                                                       : (bMots ? &tu_motsWheel : &tu_jkWheel);
-    for (int i = 0; i < tu.pWheelMap->numSlices; i++) {
-        int bin = tu.pWheelMap->aSlices[i].bin;
-        if (kind == TOUCHUI_WHEEL_SABER) {
-            // (every colour can be picked, saber or not: it is only how it looks)
-            tu.aWheelEarned[i] = tu.aWheelOwned[i] = 1;
-            tu.aWheelAmmo[i] = -1;
-            tu.aWheelLevel[i] = 0;
-        }
-        else if (kind == TOUCHUI_WHEEL_WEAPONS) {
-            int ammo = -1, bSelectable = 0;
-            tu.aWheelOwned[i] = G(GetWeapon) ? tu.game->GetWeapon(bin, &ammo, &bSelectable) != 0 : 0;
-            tu.aWheelEarned[i] = tu.aWheelOwned[i] && bSelectable;
-            tu.aWheelAmmo[i] = tu.aWheelOwned[i] ? ammo : -1;
-            tu.aWheelLevel[i] = 0;
-        }
-        else {
-            tu.aWheelEarned[i] = G(IsPowerAvailable) ? tu.game->IsPowerAvailable(bin) : 0;
-            tu.aWheelLevel[i] = G(GetPowerLevel) ? tu.game->GetPowerLevel(bin) : 0;
-            tu.aWheelOwned[i] = tu.aWheelEarned[i];
-            tu.aWheelAmmo[i] = -1;
-        }
-    }
+    tu.pWheelMap = inputWheel_GetOpenMap();
+    tu_SaberTargetFromShared();
     for (int i = 0; i < TU_MAX_TOUCHES; i++) {
         tuSlot* s = &tu.aSlots[i];
         if (!s->bUsed) continue;
@@ -1941,18 +1610,29 @@ static void tu_OpenWheel(int kind, int button, int bTapMode)
     tu.aPulseQueue[tu_aButtons[BTN_NEXTWPN].scancode] = 0;
     tu.bWheelOpen = 1;
     tu.bWheelTapMode = bTapMode != 0;
-    tu.wheelLastHot = -1;
-    tu_SetHold(1);
     tu_LayoutWheel();
     tu_RecomputeKeys();
+    return 1;
 }
 
-static void tu_OpenWheelFrom(tuSlot* s, int bHeld)
+static int tu_OpenWheelFrom(tuSlot* s, int bHeld)
 {
     int button = s->button;
+    if (tu.bWheelOpen || inputWheel_IsOpen()) {
+        // (a wheel the pad or the keys opened is up: this press does nothing)
+        if (s->role == ROLE_BUTTON && tu.aButtonHeld[button] > 0) tu.aButtonHeld[button]--;
+        tu.aRing[button] = 0.0f;
+        s->role = ROLE_IGNORED;
+        return 0;
+    }
     tu_EndBurst(); // (the game holds still: no more shots)
     if (tu_IsChatOpen() && G(ToggleChat)) tu.game->ToggleChat();
-    tu_OpenWheel(tu_WheelKindOf(button), button, bHeld);
+    if (!tu_OpenWheel(tu_WheelKindOf(button), button, bHeld)) {
+        if (s->role == ROLE_BUTTON && tu.aButtonHeld[button] > 0) tu.aButtonHeld[button]--;
+        tu.aRing[button] = 0.0f;
+        s->role = ROLE_IGNORED;
+        return 0;
+    }
     s->role = ROLE_WHEEL;
     s->button = button;
     s->bWheelOpener = 1;
@@ -1961,16 +1641,27 @@ static void tu_OpenWheelFrom(tuSlot* s, int bHeld)
     s->wheelSlot = -1;
     s->wox = s->ox;
     s->woy = s->oy;
+    return 1;
+}
+
+// The wheel gone (picked, cancelled, EQUIP): its fingers do nothing more
+static void tu_WheelClosed(void)
+{
+    for (int i = 0; i < TU_MAX_TOUCHES; i++)
+        if (tu.aSlots[i].bUsed && tu.aSlots[i].role == ROLE_WHEEL) tu.aSlots[i].role = ROLE_IGNORED;
+    tu.bWheelOpen = 0;
+    tu.bWheelTapMode = 0;
+    tu_RecomputeKeys();
 }
 
 static void tu_CloseWheelSelecting(int slice)
 {
-    const tuWheelMap* m = tu.pWheelMap;
-    if (m && tu.wheelKind == TOUCHUI_WHEEL_SABER && slice >= 0 && slice < m->numSlices) {
+    if (!tu.bWheelOpen) return;
+    if (inputWheel_Close(slice)) {
         // The saber wheel stays open on a colour: set now, and open to tap
         // more (the other blade, another colour) until the gap, a tap off the
         // ring or EQUIP closes it
-        tu_SetSaberColour(m->aSlices[slice].bin);
+        tu_SaveSettings();
         tu.bWheelTapMode = 1;
         for (int i = 0; i < TU_MAX_TOUCHES; i++) {
             tuSlot* o = &tu.aSlots[i];
@@ -1979,26 +1670,10 @@ static void tu_CloseWheelSelecting(int slice)
                 o->wheelSlot = -1;
             }
         }
-        tu_Haptic(TOUCHUI_HAPTIC_TICK);
-        tu_LayoutSaberChips();
+        tu_LayoutWheel();
         return;
     }
-    if (m && slice >= 0 && slice < m->numSlices && tu.aWheelEarned[slice]) {
-        int bin = m->aSlices[slice].bin;
-        if (tu.wheelKind != TOUCHUI_WHEEL_WEAPONS) {
-            if (G(SelectPower)) tu.game->SelectPower(bin);
-        }
-        else if (!G(GetCurWeapon) || bin != tu.game->GetCurWeapon()) {
-            if (G(SelectWeapon)) tu.game->SelectWeapon(bin);
-        }
-    }
-    for (int i = 0; i < TU_MAX_TOUCHES; i++)
-        if (tu.aSlots[i].bUsed && tu.aSlots[i].role == ROLE_WHEEL) tu.aSlots[i].role = ROLE_IGNORED;
-    tu.bWheelOpen = 0;
-    tu.bWheelTapMode = 0;
-    tu_SetHold(0);
-    tu_LayoutSaberChips();
-    tu_RecomputeKeys();
+    tu_WheelClosed();
 }
 
 static void tu_AimWheel(tuSlot* s, float px, float py)
@@ -2073,6 +1748,10 @@ static void tu_TouchDown(long long id, float px, float py, double t)
     }
     if (tu.bSelfie || tu.bCinema) {
         s->role = ROLE_IGNORED; // nothing during a selfie or the cinematic burst
+        return;
+    }
+    if (!tu.bWheelOpen && inputWheel_IsOpen()) {
+        s->role = ROLE_IGNORED; // a wheel the pad or the keys opened: theirs to work
         return;
     }
     if (tu.bFreezing) {
@@ -2256,7 +1935,7 @@ static void tu_TouchUp(tuSlot* s, float px, float py, double t, int bCancelled)
             const tuSlot* o = &tu.aSlots[k];
             if (o != s && o->bUsed && o->role == ROLE_WHEEL && o->bWheelOpener && o->bArmed && !tu.bWheelTapMode) bSliding = 1;
         }
-        if (!(slice == -1 && bSliding) && !(slice >= 0 && !tu.aWheelEarned[slice])) tu_CloseWheelSelecting(slice);
+        if (!(slice == -1 && bSliding) && !(slice >= 0 && !inputWheel_IsPickable(slice))) tu_CloseWheelSelecting(slice);
     }
     else if (tu_IsWheelPress(s)) {
         const tuButton* b = &tu_aButtons[s->button];
@@ -2266,10 +1945,11 @@ static void tu_TouchUp(tuSlot* s, float px, float py, double t, int bCancelled)
         }
         else if (hypotf(px - s->ox, py - s->oy) >= TU_WHEEL_OPEN_SLIDE) {
             // a flick with no move in between: a slide, then its lift
-            tu_OpenWheelFrom(s, 0);
-            tu_AimWheel(s, px, py);
-            if (s->bArmed) tu_CloseWheelSelecting(s->wheelSlot);
-            else tu.bWheelTapMode = 1;
+            if (tu_OpenWheelFrom(s, 0)) {
+                tu_AimWheel(s, px, py);
+                if (s->bArmed) tu_CloseWheelSelecting(s->wheelSlot);
+                else tu.bWheelTapMode = 1;
+            }
         }
         else if (t - s->tDown < TU_WHEEL_HOLD && s->button == BTN_SABER) {
             tu_OpenWheelFrom(s, 1); // SABER has no key: a tap opens its wheel, to tap a colour
@@ -2373,10 +2053,9 @@ static void tu_ResetAll(void)
 {
     if (G(CancelWeaponPick)) tu.game->CancelWeaponPick();
     if (tu.bWheelOpen) {
+        inputWheel_Close(-1); // (nothing picked; the game runs again)
         tu.bWheelOpen = 0;
         tu.bWheelTapMode = 0;
-        tu_SetHold(0);
-        tu_LayoutSaberChips();
     }
     tu_EndSelfie(); // (all put back: the overlay is going, a menu or the background)
     tu_EndFreeze();
@@ -2408,6 +2087,8 @@ void touchUi_Reset(void)
 void touchUi_Tick(double known, double now)
 {
     if (!tu.bShown) return;
+    if (tu.bWheelOpen && !inputWheel_IsOpen()) tu_WheelClosed(); // (closed from outside: only in case)
+    tu_SaberTargetFromShared(); // (a pad or the keys may have changed it: remembered)
     const double dt = tu.prevTickNow > 0.0 ? now - tu.prevTickNow : 0.0;
     tu.prevTickNow = now;
     tu.lastNow = now;
@@ -2760,11 +2441,11 @@ void touchUi_Init(const touchUiGame* pGame, const char* pSettingsPath)
     tu.game = pGame;
     tu.tJumpTapUp = -1.0;
     tu.gyroTurnedRound = -1.0e9;
-    tu.wheelLastHot = -1;
     tu.bAlwaysRun = -1;
     snprintf(tu.fpsText, sizeof(tu.fpsText), "-- FPS");
     if (pSettingsPath) snprintf(tu.settingsPath, sizeof(tu.settingsPath), "%s", pSettingsPath);
     tu_LoadSettings();
+    touchUi_ShareSaberTarget();
     if (G(SetCheatShown)) tu.game->SetCheatShown(tu.bShowCheat);
     if (G(SetThirdPerson)) tu.game->SetThirdPerson(tu.bThirdPerson);
     if (G(SetForceJumpStyle)) tu.game->SetForceJumpStyle(tu.jumpStyle);
@@ -2944,13 +2625,18 @@ int touchUi_GetBurstShots(void) { return tu.bBurst ? tu.burstShots : -1; }
 int touchUi_IsSelfieUp(void) { return tu.bSelfie; }
 int touchUi_IsFreezing(void) { return tu.bFreezing; }
 int touchUi_IsCinemaUp(void) { return tu.bCinema; }
-int touchUi_GetSaberTarget(void) { return tu.saberTarget; }
+void touchUi_ShareSaberTarget(void)
+{
+    inputWheel_SetSaberTarget(tu_SaberTargetToWheel(tu.saberTarget));
+}
+int touchUi_GetSaberTarget(void) { return tu_SaberTargetFromWheel(inputWheel_GetSaberTarget()); }
 int touchUi_GetSaberChip(int chip, float* pX, float* pY)
 {
-    if (chip < 0 || chip >= TOUCHUI_NUM_CHIPS) return 0;
-    if (pX) *pX = tu.aChip[chip][0];
-    if (pY) *pY = tu.aChip[chip][1];
-    return tu.aChipShown[chip];
+    float x = 0.0f, y = 0.0f;
+    const int bShown = tu.bWheelOpen && inputWheel_GetChip(chip, &x, &y);
+    if (pX) *pX = x;
+    if (pY) *pY = y;
+    return bShown;
 }
 void touchUi_GetFreezeClose(float* pX, float* pY)
 {
@@ -3229,276 +2915,16 @@ static void tu_DrawStick(void)
     }
 }
 
-// A wheel group's colour, mixed k of the way to it from the wheel's dark grey
-static touchUiColor tu_WheelColour(const tuWheelGroup* g, float k, float a)
-{
-    return touchUi_Rgba((g->r * k + 32.0f * (1.0f - k)) / 255.0f, (g->g * k + 32.0f * (1.0f - k)) / 255.0f,
-                        (g->b * k + 32.0f * (1.0f - k)) / 255.0f, a);
-}
-
-static void tu_DrawStar(float cx, float cy, float k, int bFilled, int bPop)
-{
-    float R = TU_WHEEL_STAR_R * k, y = cy + R * (1.0f - cosf((float)M_PI / 5.0f)) * 0.5f;
-    float xy[20];
-    for (int j = 0; j < 10; j++) {
-        float r = (j & 1) ? R * TU_WHEEL_STAR_INNER : R;
-        float a = (-90.0f + 36.0f * j) * (float)M_PI / 180.0f;
-        xy[2 * j] = cx + r * cosf(a);
-        xy[2 * j + 1] = y + r * sinf(a);
-    }
-    touchUiColor gold = bPop ? touchUi_Rgba(25.0f / 255.0f, 20.0f / 255.0f, 10.0f / 255.0f, 1.0f)
-                             : touchUi_Rgba(1.0f, 204.0f / 255.0f, 64.0f / 255.0f, 1.0f);
-    if (bFilled) {
-        touchUiDraw_Polygon(&tu_draw, xy, 10, gold);
-        if (!bPop)
-            for (int j = 0; j < 10; j++)
-                touchUiDraw_Line(&tu_draw, xy[2 * j], xy[2 * j + 1], xy[2 * ((j + 1) % 10)], xy[2 * ((j + 1) % 10) + 1],
-                                 TU_WHEEL_STAR_EDGE * k, touchUi_Black(0.78f));
-    }
-    else {
-        gold.a = bPop ? 0.47f : 0.43f;
-        for (int j = 0; j < 10; j++)
-            touchUiDraw_Line(&tu_draw, xy[2 * j], xy[2 * j + 1], xy[2 * ((j + 1) % 10)], xy[2 * ((j + 1) % 10) + 1],
-                             TU_WHEEL_STAR_LINE * k, gold);
-    }
-}
-
+// The open wheel (inputWheel.c's), over the game dimmed, laid out clear of
+// the buttons showing
 static void tu_DrawWheel(void)
 {
-    const tuWheelMap* m = tu.pWheelMap;
-    if (!m) return;
-    const int bWeapons = tu.wheelKind == TOUCHUI_WHEEL_WEAPONS;
-    const float cx = tu.wheelCx, cy = tu.wheelCy, R0 = tu.wheelR0, R1 = tu.wheelR1;
-    tuWheelFit* F = &tu.aWheelFit[tu.wheelKind];
-
-    // the game dimmed; the disc
-    touchUiDraw_RRect(&tu_draw, 0.0f, 0.0f, tu.W, tu.H, 0.0f, touchUi_Black(0.45f), 0.0f, touchUi_Clear());
-    touchUiDraw_Circle(&tu_draw, cx, cy, R1 + 14.0f, touchUi_Black(0.85f), 0.0f, touchUi_Clear());
-
-    int bCancel = 0;
-    tuSlot* pSlide = NULL;
-    int hot = tu_WheelHot(&bCancel, &pSlide);
-    const int bSaber = tu.wheelKind == TOUCHUI_WHEEL_SABER;
-    int cur = bSaber ? (G(SaberGetColour) ? tu.game->SaberGetColour(tu_SaberStyle(), tu_SaberBlade()) : -1)
-            : bWeapons ? (G(GetCurWeapon) ? tu.game->GetCurWeapon() : -1) : (G(GetCurPower) ? tu.game->GetCurPower() : -1);
-    int curSlice = -1, bAnyEarned = 0;
-    for (int i = 0; i < m->numSlices; i++) {
-        if (tu.aWheelEarned[i]) bAnyEarned = 1;
-        if (m->aSlices[i].bin == cur) curSlice = i;
-    }
-
-    touchUiColor aText[TU_WHEEL_MAX];
-    for (int pass = 0; pass < 2; pass++) { // (the popped-out slice on top)
-        for (int i = 0; i < m->numSlices; i++) {
-            const tuWheelSlice* sl = &m->aSlices[i];
-            const tuWheelGroup* g = &m->aGroups[sl->group];
-            const int bEarned = tu.aWheelEarned[i];
-            const int bHot = i == hot;
-            const int bPop = bHot && bEarned;
-            if (bPop != pass) continue;
-            touchUiColor fill, stroke, text;
-            float lw;
-            if (bWeapons && !bEarned && tu.aWheelOwned[i]) {
-                fill = tu_WheelColour(g, 0.22f, 1.0f);
-                stroke = (i == curSlice) ? touchUi_White(1.0f) : tu_WheelColour(g, bHot ? 0.8f : 0.55f, 1.0f);
-                lw = (bHot || i == curSlice) ? 2.5f : 2.0f;
-                text = touchUi_White(0.75f);
-            }
-            else if (!bEarned) {
-                fill = touchUi_Rgba(bHot ? 0.24f : 0.18f, bHot ? 0.24f : 0.18f, bHot ? 0.24f : 0.18f, 0.92f);
-                stroke = tu_WheelColour(g, bHot ? 0.7f : 0.45f, 1.0f);
-                lw = bHot ? 2.5f : 2.0f;
-                text = touchUi_Rgba(bHot ? 0.75f : 0.59f, bHot ? 0.75f : 0.59f, bHot ? 0.75f : 0.59f, 1.0f);
-            }
-            else if (bPop) {
-                fill = tu_WheelColour(g, 1.0f, 1.0f);
-                stroke = touchUi_White(1.0f);
-                lw = 2.5f;
-                text = touchUi_Rgba(0.08f, 0.08f, 0.08f, 1.0f);
-            }
-            else {
-                fill = tu_WheelColour(g, 0.42f, 1.0f);
-                stroke = (i == curSlice) ? touchUi_White(1.0f) : tu_WheelColour(g, 0.8f, 1.0f);
-                lw = (i == curSlice) ? 2.5f : 2.0f;
-                text = touchUi_White(1.0f);
-            }
-            aText[i] = text;
-            const float half = m->sliceDeg * 0.5f - 1.0f;
-            touchUiDraw_Wedge(&tu_draw, cx, cy, sl->deg - half, sl->deg + half, R0, R1 + (bPop ? TU_WHEEL_POP : 0.0f), fill, lw, stroke);
-        }
-    }
-
-    // the needle: which way the sliding thumb points
-    if (pSlide && pSlide->bArmed && hot != -1) {
-        float a = pSlide->wheelAim * (float)M_PI / 180.0f;
-        touchUiColor nc = (hot >= 0 && tu.aWheelEarned[hot]) ? tu_WheelColour(&m->aGroups[m->aSlices[hot].group], 1.0f, 1.0f)
-                                                             : touchUi_Rgba(0.6f, 0.6f, 0.6f, 1.0f);
-        touchUiDraw_Line(&tu_draw, cx + (R0 - 14.0f) * cosf(a), cy - (R0 - 14.0f) * sinf(a), cx + (R0 - 3.0f) * cosf(a),
-                         cy - (R0 - 3.0f) * sinf(a), 3.0f, nc);
-    }
-
-    // each name in its slice, with its stars or its ammo count under it
-    float rowW, rowH;
-    tu_WheelRowSize(&rowW, &rowH);
-    for (int i = 0; i < m->numSlices; i++) {
-        const int bRow = F->font[i][1] > 0.0f && tu_WheelSliceHasRow(i) && (bWeapons ? tu.aWheelAmmo[i] >= 0 : tu.aWheelEarned[i]);
-        const int bPop = i == hot && tu.aWheelEarned[i];
-        float a = m->aSlices[i].deg * (float)M_PI / 180.0f;
-        float px = cx + F->labelR[i][bRow] * cosf(a), py = cy - F->labelR[i][bRow] * sinf(a);
-        char text[64];
-        tu_WheelLabelText(i, text, sizeof(text));
-        float lx = px, ly = bRow ? py - (TU_WHEEL_STAR_GAP + rowH) * 0.5f : py;
-        touchUiDraw_Text(&tu_draw, text, lx, ly, F->font[i][bRow], TU_WHEEL_XSCALE, aText[i]);
-        if (!bRow) continue;
-        float rcy = py + (F->labelH[i][bRow] + TU_WHEEL_STAR_GAP) * 0.5f;
-        if (!bWeapons) {
-            float k = F->rowScale;
-            for (int j = 0; j < TU_WHEEL_STARS; j++) {
-                float x = px + (j - (TU_WHEEL_STARS - 1) * 0.5f) * TU_WHEEL_STAR_STEP * k;
-                tu_DrawStar(x, rcy, k, j < tu.aWheelLevel[i], bPop);
-            }
-        }
-        else {
-            char num[16];
-            snprintf(num, sizeof(num), "%d", TU_MIN(tu.aWheelAmmo[i], 999));
-            touchUiDraw_Text(&tu_draw, num, px, rcy, TU_WHEEL_AMMO_FONT * F->rowScale, 1.0f, aText[i]);
-        }
-    }
-
-    // group names beside the ring
-    const float left = TU_MAX(tu.inL, 8.0f), right = tu.W - TU_MAX(tu.inR, 8.0f);
-    const float top = TU_MAX(tu.inT, 8.0f), bottom = tu.H - TU_MAX(tu.inB, 8.0f);
-    for (int gi = 0; gi < m->numGroups; gi++) {
-        const tuWheelGroup* grp = &m->aGroups[gi];
-        if (!grp->title) continue;
-        float tw, th;
-        touchUiDraw_MeasureText(grp->title, 12.0f, 1.0f, &tw, &th);
-        for (int k = 0; k <= 30; k++) {
-            float a = (grp->titleDeg + ((k & 1) ? 2.0f : -2.0f) * ((k + 1) / 2)) * (float)M_PI / 180.0f;
-            float posx = cx, posy = cy;
-            for (float r = R1 + 20.0f; r < R1 + 140.0f; r += 2.0f) {
-                posx = cx + r * cosf(a);
-                posy = cy - r * sinf(a);
-                float ex = TU_MAX(fabsf(posx - cx) - tw * 0.5f, 0.0f);
-                float ey = TU_MAX(fabsf(posy - cy) - th * 0.5f, 0.0f);
-                if (sqrtf(ex * ex + ey * ey) >= R1 + 20.0f) break;
-            }
-            if (posx - tw * 0.5f < left || posx + tw * 0.5f > right || posy - th * 0.5f < top + 52.0f || posy + th * 0.5f > bottom) continue;
-            int bClear = 1;
-            for (int j = 0; j < BTN_COUNT && bClear; j++) {
-                const tuButton* bt = &tu_aButtons[j];
-                if (tu_Hidden(j) || j == tu.wheelButton) continue;
-                float ex = TU_MAX(fabsf(bt->x - posx) - tw * 0.5f, 0.0f);
-                float ey = TU_MAX(fabsf(bt->y - posy) - th * 0.5f, 0.0f);
-                bClear = sqrtf(ex * ex + ey * ey) > bt->radius + 4.0f;
-            }
-            if (!bClear) continue;
-            touchUiDraw_Text(&tu_draw, grp->title, posx, posy, 12.0f, 1.0f, tu_WheelColour(grp, 1.0f, 1.0f));
-            break;
-        }
-    }
-
-    // the middle: the name, what lifting does, "cancel" in the gap
-    const char* name;
-    touchUiColor tc;
-    const char* hint;
-    const touchUiColor grey = touchUi_Rgba(0.6f, 0.6f, 0.6f, 1.0f);
-    if (hot >= 0) {
-        name = tu_WheelSlotName(m->aSlices[hot].bin);
-        tc = tu.aWheelEarned[hot] ? tu_WheelColour(&m->aGroups[m->aSlices[hot].group], 1.0f, 1.0f) : grey;
-        if (tu.aWheelEarned[hot]) hint = "lift to select";
-        else if (!bWeapons) hint = "not learned yet";
-        else hint = tu.aWheelOwned[hot] ? "no ammo" : "not found yet";
-    }
-    else if (bCancel) {
-        name = "CANCEL";
-        tc = grey;
-        hint = "lift to cancel";
-    }
-    else if (!bAnyEarned && !bWeapons) {
-        name = "NO POWERS";
-        tc = grey;
-        hint = "none learned yet";
-    }
-    else {
-        name = (curSlice >= 0) ? tu_WheelSlotName(cur) : (bSaber ? "SABER" : bWeapons ? "WEAPONS" : "FORCE");
-        tc = (curSlice >= 0) ? tu_WheelColour(&m->aGroups[m->aSlices[curSlice].group], 1.0f, 1.0f) : touchUi_White(1.0f);
-        if (bSaber && tu_SaberNumBlades(tu_SaberStyle()) >= 2)
-            hint = tu.saberTarget == TOUCHUI_CHIP_LEFT ? "colour for the left saber"
-                 : tu.saberTarget == TOUCHUI_CHIP_RIGHT ? "colour for the right saber" : "colour for both sabers";
-        else if (bSaber) hint = tu.bWheelTapMode ? "tap a colour" : "slide toward a colour";
-        else if (bWeapons) hint = tu.bWheelTapMode ? "tap a weapon" : "slide toward a weapon";
-        else hint = tu.bWheelTapMode ? "tap a power" : "slide toward a power";
-    }
-    {
-        // the title: "BOW- CASTER" and "LIGHT- SABER" whole; a weapon's name too
-        // long for one line goes on two
-        char title[64];
-        const char* src = name ? name : "";
-        int o = 0;
-        for (int k = 0; src[k] && o < (int)sizeof(title) - 1; k++) {
-            if (src[k] == '-' && src[k + 1] == ' ') { k++; continue; }
-            title[o++] = src[k];
-        }
-        title[o] = 0;
-        const float Wt = 2.0f * R0 * 0.8f;
-        float w1;
-        touchUiDraw_MeasureText(title, 17.0f, 1.0f, &w1, NULL);
-        if (bWeapons && strchr(title, ' ') && w1 * TU_WHEEL_TITLE_MIN > Wt) {
-            for (char* p = title; *p; p++)
-                if (*p == ' ') *p = '\n';
-            float w2, h2;
-            touchUiDraw_MeasureText(title, 17.0f, 1.0f, &w2, &h2);
-            float k = TU_MIN(1.0f, TU_MIN(Wt / w2, (0.6f * R0 + 5.0f) / h2));
-            float size = floorf(17.0f * k * 2.0f) / 2.0f;
-            float h = ceilf(h2 * size / 17.0f);
-            touchUiDraw_Text(&tu_draw, title, cx, cy + 5.0f - h * 0.5f, size, 1.0f, tc);
-        }
-        else {
-            float size = 17.0f;
-            if (w1 > Wt) size *= TU_MAX(TU_WHEEL_TITLE_MIN, Wt / w1);
-            touchUiDraw_Text(&tu_draw, title, cx, cy - 7.0f, size, 1.0f, tc);
-        }
-    }
-    {
-        float hw, size = 10.0f;
-        touchUiDraw_MeasureText(hint, size, 1.0f, &hw, NULL);
-        if (hw > 2.0f * R0) size *= TU_MAX(0.8f, 2.0f * R0 / hw);
-        touchUiDraw_Text(&tu_draw, hint, cx, cy + 13.0f, size, 1.0f, touchUi_Rgba(0.8f, 0.8f, 0.8f, 1.0f));
-    }
-    touchUiDraw_Text(&tu_draw, "cancel", cx, cy + R1 - 22.0f, 9.0f, 1.0f, touchUi_Rgba(0.59f, 0.59f, 0.59f, 1.0f));
-
-    // the saber wheel's choices, each lit if it is the one set (the blades'
-    // in their colours); EQUIP dim while the player has no saber to take
-    if (bSaber) {
-        static const char* aChipName[TOUCHUI_NUM_CHIPS] = { "SINGLE", "DUAL", "LEFT", "BOTH", "RIGHT", "EQUIP" };
-        const int st = tu_SaberStyle();
-        const int bTwo = tu_SaberNumBlades(st) >= 2;
-        for (int i = 0; i < TOUCHUI_NUM_CHIPS; i++) {
-            if (!tu.aChipShown[i]) continue;
-            int bOn = 0;
-            float a = 0.8f;
-            touchUiColor tcol = touchUi_White(1.0f);
-            if (i == TOUCHUI_CHIP_EQUIP) a = tu_CanEquipSaber() ? 1.0f : 0.35f;
-            else {
-                if (i == TOUCHUI_CHIP_SINGLE) bOn = !bTwo;
-                else if (i == TOUCHUI_CHIP_DUAL) bOn = bTwo;
-                else bOn = tu.saberTarget == i;
-                if (bOn) a = 1.0f;
-                if ((i == TOUCHUI_CHIP_LEFT || i == TOUCHUI_CHIP_RIGHT) && G(SaberColourRGB) && G(SaberGetColour)) {
-                    unsigned char r = 255, g = 255, b = 255;
-                    tu.game->SaberColourRGB(tu.game->SaberGetColour(st, i == TOUCHUI_CHIP_LEFT ? 1 : 0), &r, &g, &b);
-                    tcol = touchUi_Rgba((r * 0.7f + 255 * 0.3f) / 255.0f, (g * 0.7f + 255 * 0.3f) / 255.0f, (b * 0.7f + 255 * 0.3f) / 255.0f, 1.0f);
-                }
-            }
-            tu_draw.alpha = a;
-            touchUiDraw_RRect(&tu_draw, tu.aChip[i][0] - TU_SABER_CHIP_W * 0.5f, tu.aChip[i][1] - TU_SABER_CHIP_H * 0.5f, TU_SABER_CHIP_W,
-                              TU_SABER_CHIP_H, TU_SABER_CHIP_H * 0.5f, touchUi_Black(0.55f), bOn ? 2.0f : 1.5f,
-                              bOn ? TU_GOLD(0.95f) : touchUi_White(0.4f));
-            touchUiDraw_Text(&tu_draw, aChipName[i], tu.aChip[i][0], tu.aChip[i][1], 11.0f, 1.0f, tcol);
-            tu_draw.alpha = 1.0f;
-        }
-    }
+    if (!tu.bWheelOpen) return;
+    tu_WheelTouched();
+    tu_LayoutWheel();
+    inputWheelScreen sc;
+    tu_WheelScreen(&sc);
+    inputWheel_Draw(&tu_draw, &sc);
 }
 
 static void tu_DrawFps(void)
