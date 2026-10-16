@@ -341,6 +341,14 @@ static int tu_IsCheatOn(void) { return G(IsSithEwokOn) ? tu.game->IsSithEwokOn()
 
 static void tu_Haptic(int kind) { tu.haptics |= kind; }
 static int tu_PhotoModeUp(void) { return tu.bSelfie || tu.bFreezing || tu.bCinema; }
+// A photo mode the keyboard or a pad started (inputPhoto.c), not this
+// overlay: theirs to work, the fingers do nothing meanwhile
+static int tu_OtherPhotoModeUp(void)
+{
+    if (tu_PhotoModeUp()) return 0;
+    return (G(SelfieIsActive) && tu.game->SelfieIsActive()) || (G(FreezeIsActive) && tu.game->FreezeIsActive())
+           || (G(CinemaIsActive) && tu.game->CinemaIsActive());
+}
 static void tu_EndBurst(void);
 static void tu_EndSelfie(void);
 static void tu_EndFreeze(void);
@@ -1579,10 +1587,28 @@ static void tu_WheelTouched(void)
 {
     if (!tu.bWheelOpen) return;
     tuSlot* pSlide = NULL;
-    const int hot = tu_WheelHot(NULL, &pSlide);
+    int bCancel = 0;
+    const int hot = tu_WheelHot(&bCancel, &pSlide);
     const int bNeedle = pSlide && pSlide->bArmed;
     inputWheel_SetTapMode(tu.bWheelTapMode);
     inputWheel_Point(hot, bNeedle, bNeedle ? pSlide->wheelAim : 0.0f);
+    inputWheel_SetCancelShown(bCancel); // (a finger off the ring or in the hole: lifting cancels, as it shows)
+}
+
+// Every finger down now does nothing more until lifted (a button let go,
+// the stick gone, no half-filled ring left)
+static void tu_IgnoreFingers(void)
+{
+    for (int i = 0; i < TU_MAX_TOUCHES; i++) {
+        tuSlot* s = &tu.aSlots[i];
+        if (!s->bUsed) continue;
+        if (s->role == ROLE_BUTTON && tu.aButtonHeld[s->button] > 0) tu.aButtonHeld[s->button]--;
+        if (s->role == ROLE_STICK) tu_HideStick();
+        s->role = ROLE_IGNORED;
+    }
+    tu.aRing[BTN_QUICKSAVE] = tu.aRing[BTN_QUICKLOAD] = tu.aRing[BTN_MENU] = tu.aRing[BTN_TRAYCAM] = 0.0f;
+    tu.aRing[BTN_CAMERA] = tu.aRing[BTN_TRAYGYRO] = 0.0f;
+    tu.aRing[BTN_WHEEL] = tu.aRing[BTN_NEXTWPN] = tu.aRing[BTN_SABER] = 0.0f;
 }
 
 // Opens a wheel from a button: 0 if one is open already (a pad's, the
@@ -1595,16 +1621,7 @@ static int tu_OpenWheel(int kind, int button, int bTapMode)
     tu.wheelButton = button;
     tu.pWheelMap = inputWheel_GetOpenMap();
     tu_SaberTargetFromShared();
-    for (int i = 0; i < TU_MAX_TOUCHES; i++) {
-        tuSlot* s = &tu.aSlots[i];
-        if (!s->bUsed) continue;
-        if (s->role == ROLE_BUTTON && tu.aButtonHeld[s->button] > 0) tu.aButtonHeld[s->button]--;
-        if (s->role == ROLE_STICK) tu_HideStick();
-        s->role = ROLE_IGNORED;
-    }
-    tu.aRing[BTN_QUICKSAVE] = tu.aRing[BTN_QUICKLOAD] = tu.aRing[BTN_MENU] = tu.aRing[BTN_TRAYCAM] = 0.0f;
-    tu.aRing[BTN_CAMERA] = tu.aRing[BTN_TRAYGYRO] = 0.0f; // (their fingers are ignored now: no half-filled ring left)
-    tu.aRing[BTN_WHEEL] = tu.aRing[BTN_NEXTWPN] = tu.aRing[BTN_SABER] = 0.0f;
+    tu_IgnoreFingers();
     // a tap on either wheel button not read yet would undo the pick
     tu.aPulseQueue[tu_aButtons[BTN_WHEEL].scancode] = 0;
     tu.aPulseQueue[tu_aButtons[BTN_NEXTWPN].scancode] = 0;
@@ -1618,8 +1635,8 @@ static int tu_OpenWheel(int kind, int button, int bTapMode)
 static int tu_OpenWheelFrom(tuSlot* s, int bHeld)
 {
     int button = s->button;
-    if (tu.bWheelOpen || inputWheel_IsOpen()) {
-        // (a wheel the pad or the keys opened is up: this press does nothing)
+    if (tu.bWheelOpen || inputWheel_IsOpen() || tu_OtherPhotoModeUp()) {
+        // (a wheel, or a photo mode, the pad or the keys opened is up: this press does nothing)
         if (s->role == ROLE_BUTTON && tu.aButtonHeld[button] > 0) tu.aButtonHeld[button]--;
         tu.aRing[button] = 0.0f;
         s->role = ROLE_IGNORED;
@@ -1746,8 +1763,8 @@ static void tu_TouchDown(long long id, float px, float py, double t)
             return;
         }
     }
-    if (tu.bSelfie || tu.bCinema) {
-        s->role = ROLE_IGNORED; // nothing during a selfie or the cinematic burst
+    if (tu.bSelfie || tu.bCinema || tu_OtherPhotoModeUp()) {
+        s->role = ROLE_IGNORED; // nothing during a selfie or the cinematic burst (or a photo mode the keys or a pad started)
         return;
     }
     if (!tu.bWheelOpen && inputWheel_IsOpen()) {
@@ -2123,6 +2140,14 @@ void touchUi_Tick(double known, double now)
         const int level = tu.levelToLoad;
         tu.levelToLoad = 0;
         if (!tu.bWheelOpen && !bChat && !tu_PhotoModeUp() && G(GoToLevel)) tu.game->GoToLevel(level);
+    }
+
+    // A photo mode the keys or a pad started: nothing goes on here, the
+    // fingers already down do nothing more
+    if (tu_OtherPhotoModeUp()) {
+        tu_IgnoreFingers();
+        tu_RecomputeKeys();
+        return;
     }
 
     // During a selfie or the cinematic burst nothing else goes on here (the
@@ -2562,6 +2587,10 @@ void touchUi_SetGyroAvailable(int bAvailable) { tu.bGyroAvailable = bAvailable !
 int touchUi_GetGyroMode(void) { return tu.gyroMode; }
 float touchUi_GetGyroSens(void) { return tu_aGyroSens[tu.gyroSens]; }
 int touchUi_IsFpsShown(void) { return tu.bShowFps; }
+void touchUi_SetFpsShown(int bShow)
+{
+    if ((bShow != 0) != tu.bShowFps) tu_SetShowFps(bShow);
+}
 
 int touchUi_GetTopTextRect(float* pTop, float* pLeft, float* pRight)
 {
@@ -2954,6 +2983,7 @@ const touchUiDrawList* touchUi_Draw(double now)
 {
     touchUiDraw_Begin(&tu_draw);
     if (!tu.bShown || !tu.bLaidOut) return &tu_draw;
+    if (tu_OtherPhotoModeUp()) return &tu_draw; // (the keys' or a pad's: no buttons to touch over it)
     // A selfie and the cinematic burst show nothing but the flash; Action
     // Freeze only CAMERA and its X
     if (tu.bSelfie || tu.bCinema) {

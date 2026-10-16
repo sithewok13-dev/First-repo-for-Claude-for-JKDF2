@@ -462,9 +462,12 @@ static void inputOverlay_DrawFps(void)
     touchUiDraw_Text(&inputOverlay_draw, inputOverlay_s.fpsText, right - w * 0.5f, top + h * 0.5f, 12.0f, 1.0f, touchUi_White(0.9f));
 }
 
+static int inputOverlay_bFpsElsewhere = 0;
+void inputOverlay_SetFpsElsewhere(int bElsewhere) { inputOverlay_bFpsElsewhere = bElsewhere != 0; }
+
 static void inputOverlay_TickFps(double now)
 {
-    if (!inputOverlay_bShowFps || !inputOverlay_s.bGameplay) {
+    if (!inputOverlay_bShowFps || !inputOverlay_s.bGameplay || inputOverlay_bFpsElsewhere) {
         inputOverlay_s.fpsT0 = 0.0;
         inputOverlay_s.fpsText[0] = 0;
         return;

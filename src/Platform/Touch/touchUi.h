@@ -237,6 +237,8 @@ void touchUi_GyroFrame(double now, int* pDx, int* pDy);
 
 // The FPS readout on or off
 int touchUi_IsFpsShown(void);
+// The FPS readout on or off from elsewhere (the controller options' FPS, enh_showFps), remembered
+void touchUi_SetFpsShown(int bShow);
 
 // The frame's drawing, in points
 const touchUiDrawList* touchUi_Draw(double now);

@@ -199,6 +199,7 @@ static struct {
     int aEarned[INPUTWHEEL_MAX], aLevel[INPUTWHEEL_MAX], aOwned[INPUTWHEEL_MAX], aAmmo[INPUTWHEEL_MAX];
     int hot, lastHot;
     int bNeedle;
+    int bCancelShown; // (lifting cancels with nothing pointed at: a finger off the ring, inputWheel_SetCancelShown)
     float needleDeg;
     int saberTarget;
     void (*pfnSlice)(void);
@@ -285,6 +286,7 @@ int inputWheel_Open(int kind, int bTapMode)
     inputWheel_s.bTapMode = bTapMode != 0;
     inputWheel_s.hot = inputWheel_s.lastHot = -1;
     inputWheel_s.bNeedle = 0;
+    inputWheel_s.bCancelShown = 0;
     iosGame_SetHold(1);
     return 1;
 }
@@ -302,6 +304,11 @@ void inputWheel_SetTapMode(int bTapMode)
 void inputWheel_SetSliceHook(void (*pfn)(void)) { inputWheel_s.pfnSlice = pfn; }
 void inputWheel_SetHintFn(const char* (*pfn)(int bPickable, int bCancel)) { inputWheel_s.pfnHint = pfn; }
 
+void inputWheel_SetCancelShown(int bShown)
+{
+    if (inputWheel_s.bOpen) inputWheel_s.bCancelShown = bShown != 0;
+}
+
 void inputWheel_SetKeepClear(int (*pfn)(float x0, float y0, float x1, float y1), float topClear)
 {
     inputWheel_s.pfnClear = pfn;
@@ -316,6 +323,7 @@ void inputWheel_Point(int slice, int bNeedle, float needleDeg)
     inputWheel_s.hot = slice;
     inputWheel_s.bNeedle = bNeedle != 0;
     inputWheel_s.needleDeg = needleDeg;
+    inputWheel_s.bCancelShown = 0;
     inputWheel_HotChanged();
 }
 
@@ -373,6 +381,7 @@ int inputWheel_Close(int slice)
         inputWheel_s.bTapMode = 1;
         inputWheel_s.hot = inputWheel_s.lastHot = -1;
         inputWheel_s.bNeedle = 0;
+        inputWheel_s.bCancelShown = 0;
         inputWheel_Tick();
         return 1;
     }
@@ -385,6 +394,7 @@ int inputWheel_Close(int slice)
     inputWheel_s.bTapMode = 0;
     inputWheel_s.hot = inputWheel_s.lastHot = -1;
     inputWheel_s.bNeedle = 0;
+    inputWheel_s.bCancelShown = 0;
     inputWheel_s.pfnSlice = NULL;
     inputWheel_s.pfnHint = NULL;
     inputWheel_s.pfnClear = NULL;
@@ -432,6 +442,7 @@ void inputWheel_SaberChip(int chip)
     inputWheel_s.bTapMode = 1;
     inputWheel_s.hot = inputWheel_s.lastHot = -1;
     inputWheel_s.bNeedle = 0;
+    inputWheel_s.bCancelShown = 0;
     inputWheel_Tick();
 }
 
@@ -797,7 +808,7 @@ void inputWheel_Draw(touchUiDrawList* pList, const inputWheelScreen* pScreen)
     touchUiDraw_Circle(l, cx, cy, R1 + 14.0f, touchUi_Black(0.85f), 0.0f, touchUi_Clear());
 
     const int hot = inputWheel_s.hot;
-    const int bCancel = hot == INPUTWHEEL_CANCEL;
+    const int bCancel = hot == INPUTWHEEL_CANCEL || (hot == -1 && inputWheel_s.bCancelShown);
     const int cur = bSaber ? iosSaber_GetColour(iosSaber_GetStyle(), inputWheel_SaberBlade())
                   : bWeapons ? iosGame_GetCurWeapon() : iosGame_GetCurPower();
     int curSlice = -1, bAnyEarned = 0;

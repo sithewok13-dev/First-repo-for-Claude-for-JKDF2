@@ -151,6 +151,7 @@ static struct {
     SDL_Gamepad* pGamepad;    // pad 0, as stdControl has it open (NULL: none)...
     SDL_JoystickID padId;     // ...and its SDL id (0: none)
     int bPhoto;               // a photo mode is up: the pad does nothing
+    int bOtherWheel;          // a wheel a finger or the keys opened is up: likewise
     int bRumbleCap;           // it can rumble
     double now, last;         // this frame's time and the last's (seconds)
     int aDown[PB_NUM];        // held this frame
@@ -919,6 +920,26 @@ void iosPad_Update(void)
         k = k < 0.0f ? 0.0f : k > 1.0f ? 1.0f : k;
         iosPad_s.accelMult = 1.0f + IOSPAD_ACCEL_GAIN * k;
     }
+
+    // A wheel a finger or the keyboard opened: the pad does nothing meanwhile
+    // -- no tap of a wheel's button waiting to fire once it closes, no menu
+    // or options over it, no save or load -- and what is held then is
+    // ignored after
+    if (inputUi_IsWheelOpen() && !inputUi_PadWheelIsOpen()) {
+        if (!iosPad_s.bOtherWheel) {
+            iosPad_s.startState = iosPad_s.selState = 0;
+            iosPad_SetRing(IOSPAD_RING_NONE, 0.0f);
+            if (iosPad_s.wheelState == IOSPAD_WS_PENDING) iosPad_WheelReset(); // (no pulse: not a tap)
+            memset(iosPad_s.aPulseQueue, 0, sizeof(iosPad_s.aPulseQueue));
+            iosPad_s.saveQueue = 0;
+        }
+        iosPad_s.bOtherWheel = 1;
+        iosPad_MarkAllStale();
+        memcpy(iosPad_s.aPrev, iosPad_s.aDown, sizeof(iosPad_s.aPrev));
+        iosPad_s.rmPrev = rm;
+        return;
+    }
+    iosPad_s.bOtherWheel = 0;
 
     if (iosPad_s.bPanel) iosPad_PanelInput();
     else if (iosPad_s.wheelState >= IOSPAD_WS_HELD) iosPad_WheelInput();

@@ -113,6 +113,11 @@ void inputWheel_Aim(int bAim, float deg);
 // ...the next slice round (+1 clockwise, -1 the other way)
 void inputWheel_Step(int dir);
 int inputWheel_GetHot(void);
+// With nothing pointed at (-1), whether the middle says lifting cancels
+// ("CANCEL", "lift to cancel"): a finger on the wheel off its ring or in
+// its hole (touchUi.c). Only how it looks: no tick, nothing picked. Reset
+// by inputWheel_Point.
+void inputWheel_SetCancelShown(int bShown);
 // Whether a slice can be picked: a learned power, a weapon the player has
 // and could switch to, any colour
 int inputWheel_IsPickable(int slice);

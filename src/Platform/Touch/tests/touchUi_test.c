@@ -1324,6 +1324,64 @@ static void test_shared_wheel(void)
     CHECK(inputWheel_GetSaberTarget() == INPUTWHEEL_SABER_RIGHT);
 }
 
+// Whether the overlay draws a text
+static int drawnText(const char* t)
+{
+    const touchUiDrawList* l = touchUi_Draw(T);
+    for (int i = 0; i < l->numItems; i++)
+        if (l->aItems[i].type == TOUCHUI_DRAW_TEXT && !strcmp(l->aPool + l->aItems[i].text, t)) return 1;
+    return 0;
+}
+
+// A photo mode the keyboard or a pad started (inputPhoto.c): the fingers
+// leave it alone; and the touch wheel's "lift to cancel"
+static void test_other_photo_and_cancel(void)
+{
+    float wx, wy, fx, fy, cx, cy, r0, r1;
+    setup();
+    bxy(TOUCHUI_BTN_WHEEL, &wx, &wy);
+    bxy(TOUCHUI_BTN_FIRE, &fx, &fy);
+
+    g_case = "a photo mode the keys started: a finger already down lets go of its button";
+    down(1, fx, fy);
+    tick();
+    CHECK(touchUi_IsKeyHeld(SC_LCTRL));
+    fg.bFreeze = 1; // (Action Freeze, from O)
+    tick();
+    CHECK(!touchUi_IsKeyHeld(SC_LCTRL));
+    up(1, fx, fy);
+    g_case = "a photo mode the keys started: no wheel, no next power, no stick, nothing drawn";
+    down(2, wx, wy);
+    move(2, wx + 20.0f, wy);
+    wait(0.4);
+    up(2, wx + 20.0f, wy);
+    CHECK(!touchUi_IsWheelOpen() && !inputWheel_IsOpen());
+    CHECK(presses(SC_E, 6) == 0);
+    down(3, 100, 300);
+    move(3, 130, 300);
+    CHECK(!touchUi_IsStickActive());
+    up(3, 130, 300);
+    CHECK(touchUi_Draw(T)->numItems == 0);
+    g_case = "that photo mode over: the fingers work again";
+    fg.bFreeze = 0;
+    tick();
+    down(4, wx, wy);
+    move(4, wx + 10.0f, wy);
+    CHECK(touchUi_IsWheelOpen());
+
+    g_case = "the touch wheel: a finger in the hole says CANCEL / lift to cancel, no tick for it";
+    up(4, wx + 10.0f, wy); // (not armed: open to tap)
+    CHECK(touchUi_IsWheelOpen() && touchUi_IsWheelTapMode());
+    touchUi_GetWheelGeometry(&cx, &cy, &r0, &r1);
+    takeHaptics();
+    down(5, cx, cy); // (the hole)
+    CHECK(touchUi_GetWheelHot() == -1);
+    CHECK(drawnText("CANCEL") && drawnText("lift to cancel"));
+    CHECK(!(takeHaptics() & TOUCHUI_HAPTIC_TICK));
+    up(5, cx, cy);
+    CHECK(!touchUi_IsWheelOpen() && fg.bHold == 0);
+}
+
 int main(void)
 {
     test_stick();
@@ -1340,6 +1398,7 @@ int main(void)
     test_camera();
     test_saber();
     test_shared_wheel();
+    test_other_photo_and_cancel();
     check_layout("layout: iPhone-sized (852x393, notch insets)", 852, 393, 59, 0, 59, 21);
     check_layout("layout: Android phone (873x393, cutout on the left)", 873, 393, 32, 0, 0, 0);
     check_layout("layout: Android phone (873x393, cutout on the right)", 873, 393, 0, 0, 32, 0);

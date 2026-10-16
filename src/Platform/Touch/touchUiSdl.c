@@ -15,6 +15,7 @@
 #ifdef ENH_INPUT
 #include "Platform/Input/inputOverlay.h" // (game controllers and the keyboard: they hide the controls)
 #include "Platform/iOS/iosPad.h"
+#include "Platform/Input/inputUi.h"
 #endif
 #include "stdPlatform.h"
 
@@ -65,6 +66,7 @@ static struct {
     double lastAccelT;
 #ifdef ENH_INPUT
     int bSharedTarget;         // the saber's blade choice handed to the shared wheel
+    int bFpsWas;               // the FPS readout as last kept in step with enh_showFps
     long long aPanelFinger[4]; // fingers that went down on the controller options (+1: 0 is none)
 #endif
 } ts;
@@ -357,6 +359,9 @@ void touchUiSdl_AfterEvents(void)
     float w, h, aInset[4];
     touchUiSdl_Measure(&w, &h, aInset);
     if (!bWant) {
+#ifdef ENH_INPUT
+        inputOverlay_SetFpsElsewhere(0);
+#endif
         touchUiSdl_RunSensors(0);
         ts.bShown = 0;
         if (ts.bEscWas) {
@@ -376,8 +381,16 @@ void touchUiSdl_AfterEvents(void)
         // overlay remembers wins -- it is saved as it changes, the cvars
         // only as the game saves them)
         touchUi_ShareSaberTarget();
+        inputUi_SetFpsShown(touchUi_IsFpsShown()); // (likewise the FPS readout)
+        ts.bFpsWas = touchUi_IsFpsShown();
         ts.bSharedTarget = 1;
     }
+    // One FPS setting (enh_showFps: MENU's tray here, the controller options),
+    // one readout (this overlay's, while it is up)
+    if (touchUi_IsFpsShown() != ts.bFpsWas) inputUi_SetFpsShown(touchUi_IsFpsShown()); // (the tray)
+    else if (inputUi_IsFpsShown() != ts.bFpsWas) touchUi_SetFpsShown(inputUi_IsFpsShown()); // (the options, the console)
+    ts.bFpsWas = touchUi_IsFpsShown();
+    inputOverlay_SetFpsElsewhere(1);
 #endif
 
     int side = 0;
