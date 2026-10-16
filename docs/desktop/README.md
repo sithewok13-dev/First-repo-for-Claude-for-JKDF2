@@ -98,7 +98,7 @@ or open a terminal in the folder and type `./openjkdf2.sh` (or
 `./openmots.sh`). Both start the game from their own folder, which is
 where it looks for the game files.
 It needs these libraries, which most desktops already have (on Ubuntu or
-Debian): `sudo apt install libopenal1 libgtk-3-0 libcurl4 libavahi-compat-libdnssd1`.
+Debian): `sudo apt install libopenal1 libgtk-3-0 libcurl4 libssl3 libavahi-compat-libdnssd1`.
 `libraries.txt` in the folder lists everything it was built against.
 
 Linux file names are case-sensitive. The folders as GOG and Steam name them
@@ -162,8 +162,16 @@ game files, and the same game (Jedi Knight or Mysteries of the Sith).
 - The game uses UDP port **27020**. If a firewall asks, allow it (Windows
   asks the first time you host).
 
-These builds use ENet, like the iPhone app. They can't join games hosted by
-the original OpenJKDF2 releases, and those can't join them.
+### Games hosted by the official OpenJKDF2
+
+These builds can also **join** games hosted by the official OpenJKDF2
+(the original project's own releases). Use **Join Game** and type the
+host's address, as above. It works for deathmatch-style games only, not
+co-op: the game says so if you try to join an official co-op game.
+
+It doesn't work the other way: a game **hosted** by these builds (or the
+iPhone app) can't be joined by official OpenJKDF2 players. Only these
+builds and the iPhone app can join it.
 
 ## What hasn't been tested
 
@@ -172,6 +180,8 @@ the original OpenJKDF2 releases, and those can't join them.
 - **Linux:** started here on a test machine (no real screen or sound): it
   loads a level. Not tried on a real desktop, with sound, or with a
   controller.
+- **Joining official OpenJKDF2 games:** tested only on Linux, on one
+  test machine. Not on Windows or Mac.
 - **Multiplayer** between a computer and an iPhone, and between two
   computers on a real network.
 - **Games nearby** on Mac and Linux.

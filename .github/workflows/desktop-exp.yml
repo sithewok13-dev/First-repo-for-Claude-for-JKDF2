@@ -38,7 +38,7 @@ jobs:
       - name: Install packages
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y build-essential cmake make clang python3 python3-pip bison \
+          sudo apt-get install -y build-essential cmake make clang python3 python3-pip bison patchelf \
                                   libgtk-3-dev libopenal-dev libglew-dev libssl-dev libpng-dev libcurl4-openssl-dev \
                                   libavahi-compat-libdnssd-dev \
                                   libx11-dev libxext-dev libxcursor-dev libxinerama-dev libxi-dev libxrandr-dev \
@@ -51,7 +51,7 @@ jobs:
           CXX: clang++
         run: |
           export OPENJKDF2_RELEASE_COMMIT=$(git rev-parse HEAD) OPENJKDF2_RELEASE_COMMIT_SHORT=$(git rev-parse --short=8 HEAD)
-          cmake -DCMAKE_BUILD_TYPE=Release -DOPENJKDF2_ENHANCED=ON -DOPENJKDF2_NET_ENET=ON -B build | tee cmake.log
+          cmake -DCMAKE_BUILD_TYPE=Release -DOPENJKDF2_ENHANCED=ON -DOPENJKDF2_NET_ENET=ON -DOPENJKDF2_NET_GNS=ON -B build | tee cmake.log
           grep -q "ENet: games nearby found" cmake.log || { echo "::error::no LAN discovery (Avahi's libdns_sd)"; exit 1; }
           set -o pipefail
           make -C build -j $(nproc) openjkdf2 2>&1 | tee build.log
@@ -65,11 +65,15 @@ jobs:
         run: |
           P=OpenJKDF2-linux-x86_64
           mkdir -p pkg/$P
-          cp build/openjkdf2 pkg/$P/
+          cp build/openjkdf2 build/libGameNetworkingSockets.so pkg/$P/
+          # (the program finds GameNetworkingSockets next to itself)
+          patchelf --set-rpath '$ORIGIN' pkg/$P/openjkdf2 pkg/$P/libGameNetworkingSockets.so
+          ldd pkg/$P/openjkdf2 | grep -q "libGameNetworkingSockets.so => $PWD/pkg/$P/" \
+            || { echo "::error::GameNetworkingSockets not found next to the program"; ldd pkg/$P/openjkdf2; exit 1; }
           cp packaging/desktop/openjkdf2.sh packaging/desktop/openmots.sh pkg/$P/
           cp docs/desktop/README.md pkg/$P/README.md
           cp LICENSE.md pkg/$P/
-          ldd build/openjkdf2 | sed 's/ (0x.*//' > pkg/$P/libraries.txt
+          ldd pkg/$P/openjkdf2 | sed 's/ (0x.*//; s# => .*/pkg/# => ./#' > pkg/$P/libraries.txt
           ./packaging/desktop/check_no_game_data.sh pkg/$P
           tar -C pkg -czf $P.tar.gz $P
           ./packaging/desktop/check_no_game_data.sh $P.tar.gz
@@ -100,7 +104,7 @@ jobs:
         run: |
           export OPENJKDF2_RELEASE_COMMIT=$(git rev-parse HEAD) OPENJKDF2_RELEASE_COMMIT_SHORT=$(git rev-parse --short=8 HEAD)
           cmake --toolchain cmake_modules/toolchain_mingw.cmake \
-                -DCMAKE_BUILD_TYPE=Release -DOPENJKDF2_ENHANCED=ON -DOPENJKDF2_NET_ENET=ON -B build
+                -DCMAKE_BUILD_TYPE=Release -DOPENJKDF2_ENHANCED=ON -DOPENJKDF2_NET_ENET=ON -DOPENJKDF2_NET_GNS=ON -B build
           set -o pipefail
           make -C build -j $(nproc) openjkdf2-64 2>&1 | tee build.log
       - name: Show build errors
@@ -113,7 +117,7 @@ jobs:
         run: |
           P=OpenJKDF2-windows-x86_64
           mkdir -p pkg/$P
-          cp build/openjkdf2-64.exe build/OpenAL32.dll pkg/$P/
+          cp build/openjkdf2-64.exe build/OpenAL32.dll build/libGameNetworkingSockets.dll pkg/$P/
           cp "packaging/desktop/Mysteries of the Sith.bat" pkg/$P/
           cp docs/desktop/README.md pkg/$P/README.md
           cp LICENSE.md pkg/$P/
@@ -154,17 +158,18 @@ jobs:
           submodules: recursive
       - name: Install packages
         run: |
-          brew install glew libpng dylibbundler imagemagick
+          brew install glew libpng dylibbundler imagemagick openssl@3
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install cogapp generate-iconset
           echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
       - name: Build
         run: |
           export HOMEBREW_PREFIX=$(brew --prefix)
+          export OPENSSL_ROOT_DIR=$(brew --prefix openssl@3) # (GameNetworkingSockets' crypto)
           export OPENJKDF2_RELEASE_COMMIT=$(git rev-parse HEAD) OPENJKDF2_RELEASE_COMMIT_SHORT=$(git rev-parse --short=8 HEAD)
           set -o pipefail
           cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 \
-                -DOPENJKDF2_ENHANCED=ON -DOPENJKDF2_NET_ENET=ON -B build 2>&1 | tee build.log
+                -DOPENJKDF2_ENHANCED=ON -DOPENJKDF2_NET_ENET=ON -DOPENJKDF2_NET_GNS=ON -B build 2>&1 | tee build.log
           make -C build -j $(sysctl -n hw.ncpu) openjkdf2-64 2>&1 | tee -a build.log
       - name: Show build errors
         if: failure()
@@ -180,6 +185,9 @@ jobs:
           rm -rf $APP/Contents/MacOS/*.dsym
           # Libraries from Homebrew go inside the app
           dylibbundler -od -b -x $APP/Contents/MacOS/openjkdf2-64 -d $APP/Contents/libs/ -p @executable_path/../libs/
+          for f in libGameNetworkingSockets.dylib libcrypto.dylib; do
+            [ -f $APP/Contents/MacOS/$f ] || { echo "::error::$f not in the app"; exit 1; }
+          done
           # (what each one loads: for a library, past its own name and id)
           deps() { otool -L $APP/Contents/MacOS/openjkdf2-64 | tail -n +2
                    for f in $APP/Contents/MacOS/*.dylib $APP/Contents/libs/*.dylib; do
