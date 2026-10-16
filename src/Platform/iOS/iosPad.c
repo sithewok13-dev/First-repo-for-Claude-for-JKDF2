@@ -378,7 +378,7 @@ static void iosPad_SetWheelPrompt(void)
     const char* a = iosPad_ButtonName(SDL_GAMEPAD_BUTTON_SOUTH, 0);
     const char* bb = iosPad_ButtonName(SDL_GAMEPAD_BUTTON_EAST, 0);
     if (iosPad_s.wheelKind == IOSPAD_WHEEL_SABER) {
-        snprintf(t, sizeof(t), "Right stick: colour   %s: set   %s: one or two sabers   %s: which blade   R3: take the saber   %s: close",
+        snprintf(t, sizeof(t), "Right stick: colour   %s: set   %s: 1 or 2 sabers   %s: blade   L3: look   R3: equip   %s: close",
                  a, iosPad_ButtonName(SDL_GAMEPAD_BUTTON_WEST, 0), iosPad_ButtonName(SDL_GAMEPAD_BUTTON_NORTH, 0), bb);
     }
     else if (iosPad_s.wheelState == IOSPAD_WS_HELD) {
@@ -505,6 +505,7 @@ static void iosPad_WheelInput(void)
     if (bSaber) {
         if (iosPad_Pressed(PB_X)) inputUi_SaberChip(IOSPAD_CHIP_STYLE);
         if (iosPad_Pressed(PB_Y)) inputUi_SaberChip(IOSPAD_CHIP_TARGET);
+        if (iosPad_Pressed(PB_LS)) inputUi_SaberChip(IOSPAD_CHIP_LOOK);
         if (iosPad_Pressed(PB_RS)) {
             inputUi_SaberChip(IOSPAD_CHIP_EQUIP);
             if (!inputUi_PadWheelIsOpen()) {

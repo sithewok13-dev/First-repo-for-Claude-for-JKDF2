@@ -150,15 +150,22 @@ Tick what works, note what doesn't (a photo of the screen helps).
       tap takes: CLEAN, HUD, HUD+BTNS with the touch buttons on), SELFIES
       (1, 3 or 5), FREEZE (whether sliding down/up stops the action).
 - [ ] SABER (once you have the lightsaber, or with the cheat on): a tap opens
-      the saber wheel: tap a colour (17 of them; ORIGINAL is the game's own).
+      the saber wheel: tap a colour (ORIGINAL is the game's own).
       DUAL on the left gives two sabers; then LEFT / BOTH / RIGHT on the right
       choose which blade a colour goes to. EQUIP puts the saber in your hand.
       The gap at the bottom (or a tap off the wheel) closes it. A slide from
       SABER opens it to slide to a colour.
+- [ ] CLASSIC / REFORGED (at the top of the saber wheel's middle): a tap
+      switches the colours' look, and the wheel stays open. REFORGED (to
+      start): the film-style glow, and in Jedi Knight 16 colours (no green).
+      CLASSIC: the earlier look, 17 colours in both games. It changes how
+      you see every blade, yours and other players', and the blade in hand
+      changes at once. In Jedi Knight a green you kept shows as ORIGINAL
+      while REFORGED is on, and other players see it as ORIGINAL too.
 - [ ] Use a keyboard, mouse or controller: the buttons hide; touch the screen
       and they come back.
 - [ ] Quit and start again: GYRO, SENS, FPS, CHEAT, VIEW, CONTROLS, the
-      camera options and the saber's colours and style are kept.
+      camera options and the saber's colours, style and look are kept.
 
 **Start up**
 - [ ] Both icons appear; each starts its own game (Jedi Knight / MotS).

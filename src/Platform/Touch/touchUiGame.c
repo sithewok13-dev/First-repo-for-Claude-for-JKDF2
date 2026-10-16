@@ -95,7 +95,7 @@ const touchUiGame touchUiGame_engine = {
     iosSaber_NumColours,
     iosSaber_ColourName,
     iosSaber_ColourKey,
-    iosSaber_OwnColourByKey, // (the kept colours: one this game's wheel lacks is the game's own)
+    iosSaber_ColourByKey,
     iosSaber_ColourRGB,
     iosSaber_StyleAvailable,
     iosSaber_StyleName,
@@ -104,6 +104,9 @@ const touchUiGame touchUiGame_engine = {
     iosSaber_SetStyle,
     iosSaber_GetColour,
     iosSaber_SetColour,
+    iosSaber_LookName,
+    iosSaber_GetLook,
+    iosSaber_SetLook,
     iosCapture_Request,
     iosCapture_Cancel,
     platServices_SetPhotoBatch,

@@ -14,6 +14,8 @@
 //   - elsewhere as global cvars, kept in openjkdf2_cvars.json and settable
 //     from the console:
 //       enh_saberStyle            SINGLE or DUAL
+//       enh_saberLook             REFORGED (the default) or CLASSIC: how the
+//                                 blades' colours are drawn (iosSaber)
 //       enh_saberColourSingle     a colour key (iosSaber: "red", "lightblue"...),
 //       enh_saberColourDualRight  "game" for the game's own
 //       enh_saberColourDualLeft

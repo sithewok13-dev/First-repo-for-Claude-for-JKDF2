@@ -194,16 +194,23 @@ extern int jkHud_bChatOpen;
 #define IOSTOUCH_SABERSTYLE_DEFAULTS_KEY @"iosTouchSaberStyle"
 #define IOSTOUCH_SABERCOLOUR_DEFAULTS_KEY @"iosTouchSaberColour" // + style name + blade number
 #define IOSTOUCH_SABERTARGET_DEFAULTS_KEY @"iosTouchSaberTarget"
+#define IOSTOUCH_SABERLOOK_DEFAULTS_KEY @"iosTouchSaberLook" // (by its name: CLASSIC, REFORGED)
 // The saber wheel's choices beside the ring: SINGLE and DUAL on its left;
 // with DUAL, which blade a colour goes to (LEFT, BOTH, RIGHT) on its right.
 // Each IOSTOUCH_SABER_CHIP_W by _H, this far out from the ring and apart.
 enum { IOSTOUCH_CHIP_SINGLE = 0, IOSTOUCH_CHIP_DUAL, IOSTOUCH_CHIP_LEFT, IOSTOUCH_CHIP_BOTH, IOSTOUCH_CHIP_RIGHT,
        IOSTOUCH_CHIP_EQUIP, // (in the middle: the saber in hand, as it is set; lit while the player has it)
+       IOSTOUCH_CHIP_LOOK,  // (in the middle, over the colour's name: the colours' look, CLASSIC or REFORGED)
        IOSTOUCH_NUM_CHIPS };
 #define IOSTOUCH_SABER_CHIP_W 64.0
 #define IOSTOUCH_SABER_CHIP_H 28.0
 #define IOSTOUCH_SABER_CHIP_OUT 22.0
 #define IOSTOUCH_SABER_CHIP_GAP 8.0
+// The look's switch: this big at most, its middle this far over the wheel's,
+// smaller to keep it inside the middle on a small wheel (inputWheel.c's the same)
+#define IOSTOUCH_SABER_LOOK_W 76.0
+#define IOSTOUCH_SABER_LOOK_H 24.0
+#define IOSTOUCH_SABER_LOOK_Y 33.0
 // Where the FPS readout (54 pt wide) and the burst's count (30 pt) sit, which
 // SABER keeps clear of
 #define IOSTOUCH_FPS_LABEL_X 216.0     // (its middle, this far in from the right)
@@ -619,6 +626,22 @@ static void iosTouch_SetupSaberWheel(void)
     iosTouch_saberWheel.numGroups = n;
 }
 enum { IOSTOUCH_WHEEL_FORCE = 0, IOSTOUCH_WHEEL_WEAPONS, IOSTOUCH_WHEEL_SABER, IOSTOUCH_WHEEL_NUM_KINDS };
+static void iosTouch_ReadWheelSlices(int kind); // (below)
+
+// The look's switch, at the top of the saber wheel's middle (of radius R0):
+// its size, and how far over the middle its own middle is -- a pill kept
+// wholly inside the middle, clear of the slices (inputWheel.c's the same)
+static void iosTouch_LookChipSize(CGFloat R0, CGSize* pSize, CGFloat* pUp)
+{
+    const CGFloat h = MIN(IOSTOUCH_SABER_LOOK_H, round(R0 * 0.42));
+    const CGFloat up = MIN(IOSTOUCH_SABER_LOOK_Y, round(R0 * 0.62));
+    // (its round ends' middles, a either side and up over the wheel's
+    // middle, no further out than R0 - 1 - h/2: a^2 + up^2 <= that^2)
+    const CGFloat k = R0 - 1.0 - h * 0.5, a2 = k * k - up * up;
+    const CGFloat w = a2 > 0.0 ? 2.0 * (sqrt(a2) + h * 0.5) : h;
+    *pSize = CGSizeMake(MIN(IOSTOUCH_SABER_LOOK_W, floor(w)), h);
+    *pUp = up;
+}
 
 // ------------------------------------------------------------ state
 
@@ -1975,7 +1998,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         wheelCancelLabel.text = @"cancel";
         wheelCancelLabel.layer.zPosition = 2.0;
         [wheelView addSubview:wheelCancelLabel];
-        const char* aChipName[IOSTOUCH_NUM_CHIPS] = { "SINGLE", "DUAL", "LEFT", "BOTH", "RIGHT", "EQUIP" };
+        const char* aChipName[IOSTOUCH_NUM_CHIPS] = { "SINGLE", "DUAL", "LEFT", "BOTH", "RIGHT", "EQUIP", "REFORGED" };
         for (int i = 0; i < IOSTOUCH_NUM_CHIPS; i++) {
             UILabel* l = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, IOSTOUCH_SABER_CHIP_W, IOSTOUCH_SABER_CHIP_H)];
             l.text = [NSString stringWithUTF8String:aChipName[i]];
@@ -2768,10 +2791,13 @@ static void iosTouch_PhotosAsked(void)
         for (int b = 0; b < iosSaber_StyleNumBlades(st); b++) {
             NSString* key = [NSString stringWithFormat:@"%@.%s.%d", IOSTOUCH_SABERCOLOUR_DEFAULTS_KEY, iosSaber_StyleName(st), b];
             NSString* v = [d stringForKey:key];
-            int id = v ? iosSaber_OwnColourByKey([v UTF8String]) : -1;
+            int id = v ? iosSaber_ColourByKey([v UTF8String]) : -1;
             iosSaber_SetColour(st, b, id >= 0 ? id : IOSSABER_COLOUR_GAME);
         }
     }
+    NSString* look = [d stringForKey:IOSTOUCH_SABERLOOK_DEFAULTS_KEY];
+    const int lk = look ? iosSaber_LookByName([look UTF8String]) : -1;
+    iosSaber_SetLook(lk >= 0 ? lk : IOSSABER_LOOK_REFORGED);
     NSString* style = [d stringForKey:IOSTOUCH_SABERSTYLE_DEFAULTS_KEY];
     for (int st = 0; style && st < IOSSABER_NUM_STYLES; st++) {
         if (!strcmp([style UTF8String], iosSaber_StyleName(st))) iosSaber_SetStyle(st);
@@ -2829,7 +2855,22 @@ static int iosTouch_SaberBlade(void)
         return;
     }
     NSUserDefaults* d = [NSUserDefaults standardUserDefaults];
-    if (chip == IOSTOUCH_CHIP_SINGLE || chip == IOSTOUCH_CHIP_DUAL) {
+    if (chip == IOSTOUCH_CHIP_LOOK) {
+        // the other look, remembered: the wheel made again in it at once
+        // (which colours, their swatches; the blades are drawn in it), open as it was
+        iosSaber_ToggleLook();
+        [d setObject:[NSString stringWithUTF8String:iosSaber_LookName(iosSaber_GetLook())] forKey:IOSTOUCH_SABERLOOK_DEFAULTS_KEY];
+        iosTouch_SetupSaberWheel();
+        iosTouch_ReadWheelSlices(IOSTOUCH_WHEEL_SABER);
+        for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++)
+            if (iosTouch_aSlots[i].touch && iosTouch_aSlots[i].role == ROLE_WHEEL) iosTouch_aSlots[i].wheelSlot = -1; // (the slices are others now)
+        iosTouch_padSlot = -1;
+        wheelLastHot = -1;
+        aWheelFit[IOSTOUCH_WHEEL_SABER].map = NULL; // (the names fitted again)
+        [self layoutWheel];
+        [self refreshSaberIcons];
+    }
+    else if (chip == IOSTOUCH_CHIP_SINGLE || chip == IOSTOUCH_CHIP_DUAL) {
         iosSaber_SetStyle(chip == IOSTOUCH_CHIP_DUAL ? IOSSABER_STYLE_DUAL : IOSSABER_STYLE_SINGLE);
         [d setObject:[NSString stringWithUTF8String:iosSaber_StyleName(iosSaber_GetStyle())] forKey:IOSTOUCH_SABERSTYLE_DEFAULTS_KEY];
         [self refreshSaberIcons];
@@ -2854,7 +2895,10 @@ static int iosTouch_SaberBlade(void)
 {
     if (!iosTouch_bWheelOpen || iosTouch_wheelKind != IOSTOUCH_WHEEL_SABER) return -1;
     for (int i = 0; i < IOSTOUCH_NUM_CHIPS; i++) {
-        if (!aSaberChips[i].hidden && CGRectContainsPoint(CGRectInset(aSaberChips[i].frame, -6.0, -6.0), p)) return i;
+        if (aSaberChips[i].hidden || !CGRectContainsPoint(CGRectInset(aSaberChips[i].frame, -6.0, -6.0), p)) continue;
+        // (the look's switch: only in the middle, stopping short of where a slice takes a touch, R0 - 4)
+        if (i == IOSTOUCH_CHIP_LOOK && hypot(p.x - iosTouch_wheelCentre.x, p.y - iosTouch_wheelCentre.y) > iosTouch_wheelR0 - 5.0) continue;
+        return i;
     }
     return -1;
 }
@@ -2924,6 +2968,24 @@ static int iosTouch_SaberBlade(void)
             l.alpha = bCan ? 1.0 : 0.35;
             continue;
         }
+        if (i == IOSTOUCH_CHIP_LOOK) {
+            // at the top of the middle, over the colour's name: the look as it
+            // is now, a tap for the other
+            CGSize sz;
+            CGFloat up;
+            iosTouch_LookChipSize(iosTouch_wheelR0, &sz, &up);
+            l.hidden = !bSaber;
+            l.bounds = CGRectMake(0, 0, sz.width, sz.height);
+            l.center = CGPointMake(c.x, c.y - up);
+            l.layer.cornerRadius = sz.height * 0.5;
+            l.text = [NSString stringWithUTF8String:iosSaber_LookName(iosSaber_GetLook())];
+            l.adjustsFontSizeToFitWidth = YES;
+            l.minimumScaleFactor = 0.7;
+            l.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.4].CGColor;
+            l.layer.borderWidth = 1.5;
+            l.alpha = 1.0;
+            continue;
+        }
         const int bStyle = i <= IOSTOUCH_CHIP_DUAL;
         l.hidden = !bSaber || (!bStyle && !bTwo) || (i == IOSTOUCH_CHIP_DUAL && !iosSaber_StyleAvailable(IOSSABER_STYLE_DUAL));
         if (l.hidden) continue;
@@ -2945,7 +3007,7 @@ static int iosTouch_SaberBlade(void)
         l.alpha = bOn ? 1.0 : 0.8;
         if (i == IOSTOUCH_CHIP_LEFT || i == IOSTOUCH_CHIP_RIGHT) {
             unsigned char r, g, b;
-            iosSaber_ColourRGB(iosSaber_GetColour(st, i == IOSTOUCH_CHIP_LEFT ? 1 : 0), &r, &g, &b);
+            iosSaber_ColourRGB(iosSaber_GetShownColour(st, i == IOSTOUCH_CHIP_LEFT ? 1 : 0), &r, &g, &b);
             l.textColor = [UIColor colorWithRed:(r * 0.7 + 255 * 0.3) / 255.0 green:(g * 0.7 + 255 * 0.3) / 255.0 blue:(b * 0.7 + 255 * 0.3) / 255.0 alpha:1.0];
         }
     }
@@ -2959,8 +3021,8 @@ static int iosTouch_SaberBlade(void)
     const int st = iosSaber_GetStyle();
     const int bTwo = iosSaber_StyleNumBlades(st) >= 2;
     unsigned char r, g, b, r2, g2, b2;
-    iosSaber_ColourRGB(iosSaber_GetColour(st, 0), &r, &g, &b);
-    iosSaber_ColourRGB(iosSaber_GetColour(st, 1), &r2, &g2, &b2);
+    iosSaber_ColourRGB(iosSaber_GetShownColour(st, 0), &r, &g, &b);
+    iosSaber_ColourRGB(iosSaber_GetShownColour(st, 1), &r2, &g2, &b2);
     const int rgb = (r << 16) | (g << 8) | b, rgb2 = bTwo ? ((r2 << 16) | (g2 << 8) | b2) : -1;
     if (rgb == saberIconRGB && rgb2 == saberIconRGB2) return;
     saberIconRGB = rgb;
@@ -3750,7 +3812,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     }
 
     const int bSaber = iosTouch_wheelKind == IOSTOUCH_WHEEL_SABER;
-    int cur = bSaber ? iosSaber_GetColour(iosSaber_GetStyle(), iosTouch_SaberBlade()) : bWeapons ? iosGame_GetCurWeapon() : iosGame_GetCurPower();
+    int cur = bSaber ? iosSaber_GetShownColour(iosSaber_GetStyle(), iosTouch_SaberBlade()) : bWeapons ? iosGame_GetCurWeapon() : iosGame_GetCurPower();
     int curSlice = -1, bAnyEarned = 0;
     for (int i = 0; i < m->numSlices; i++) {
         if (iosTouch_aWheelEarned[i]) bAnyEarned = 1;
@@ -3916,18 +3978,10 @@ static int iosTouch_WheelSliceHasRow(int i)
 // what it was holding and is ignored until it lifts (so a press waiting on
 // the other wheel button is dropped), and the game holds still
 // (iosGame_SetHold) until the wheel closes.
-- (void)openWheel:(int)kind button:(int)button tapMode:(int)bTapMode
+// The open wheel's slices, each as it is now: whether it can be picked, a
+// power's level, a weapon's ammo (the saber wheel's colours all can be)
+static void iosTouch_ReadWheelSlices(int kind)
 {
-    [self setTrayOpen:0];
-    int bMots = iosGame_IsMots();
-    iosTouch_wheelKind = kind;
-    iosTouch_wheelButton = button;
-    if (kind == IOSTOUCH_WHEEL_WEAPONS) iosTouch_pWheelMap = bMots ? &iosTouch_motsWeaponWheel : &iosTouch_jkWeaponWheel;
-    else if (kind == IOSTOUCH_WHEEL_SABER) {
-        iosTouch_SetupSaberWheel(); // (the game's own colour, as it is now)
-        iosTouch_pWheelMap = &iosTouch_saberWheel;
-    }
-    else iosTouch_pWheelMap = bMots ? &iosTouch_motsWheel : &iosTouch_jkWheel;
     for (int i = 0; i < iosTouch_pWheelMap->numSlices; i++) {
         int bin = iosTouch_pWheelMap->aSlices[i].bin;
         if (kind == IOSTOUCH_WHEEL_SABER) {
@@ -3950,6 +4004,21 @@ static int iosTouch_WheelSliceHasRow(int i)
             iosTouch_aWheelAmmo[i] = -1;
         }
     }
+}
+
+- (void)openWheel:(int)kind button:(int)button tapMode:(int)bTapMode
+{
+    [self setTrayOpen:0];
+    int bMots = iosGame_IsMots();
+    iosTouch_wheelKind = kind;
+    iosTouch_wheelButton = button;
+    if (kind == IOSTOUCH_WHEEL_WEAPONS) iosTouch_pWheelMap = bMots ? &iosTouch_motsWeaponWheel : &iosTouch_jkWeaponWheel;
+    else if (kind == IOSTOUCH_WHEEL_SABER) {
+        iosTouch_SetupSaberWheel(); // (the game's own colour, as it is now)
+        iosTouch_pWheelMap = &iosTouch_saberWheel;
+    }
+    else iosTouch_pWheelMap = bMots ? &iosTouch_motsWheel : &iosTouch_jkWheel;
+    iosTouch_ReadWheelSlices(kind);
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
         if (!s->touch) continue;
@@ -5416,6 +5485,9 @@ void iosTouch_PadSaberChip(int chip)
     }
     else if (chip == IOSPAD_CHIP_EQUIP) {
         [iosTouch_pOverlay useSaberChip:IOSTOUCH_CHIP_EQUIP];
+    }
+    else if (chip == IOSPAD_CHIP_LOOK) {
+        [iosTouch_pOverlay useSaberChip:IOSTOUCH_CHIP_LOOK];
     }
     iosTouch_padSlot = -1;
     if (iosTouch_bWheelOpen) [iosTouch_pOverlay refreshWheelLooks];

@@ -451,7 +451,8 @@ switch the controller off and they come back.
   Point at the gap at the bottom, or press B, to cancel. If you open it without
   pointing anywhere, it stays open: point and press A, or step round with the
   D-pad. On the saber wheel, A sets the colour, X picks one saber or two, Y
-  which blade a colour goes to, and R3 takes the saber in hand.
+  which blade a colour goes to, L3 switches CLASSIC and REFORGED ("look" on
+  the screen), and R3 takes the saber in hand ("equip").
 - **Quick save and quick load** need a short hold (a ring fills at the top of
   the screen), so a stray press never saves or loads.
 - **Controller options** (hold Start): look speed across and up and down,
@@ -520,7 +521,8 @@ Turn on FPS in MENU's tray to see what the app gets (below).
   If you let go without pointing anywhere, the wheel stays open: point with
   the mouse or the scroll wheel and click. Right click or Esc cancels. On the
   saber wheel, a click sets the colour, 1 picks one saber or two, 2 which
-  blade a colour goes to, and 3 takes the saber in hand.
+  blade a colour goes to, 3 takes the saber in hand ("equip" on the screen),
+  and 4 switches CLASSIC and REFORGED ("look").
 - **Your own keys and buttons:** Setup > Controls > Keyboard and Setup >
   Controls > Mouse change any of them; the mouse sensitivity is there too.
   Whatever key you put on next/previous power or weapon gets the wheel when
@@ -837,9 +839,20 @@ cancels, and the game holds still while the wheel is open.
 
 - **The colours:** ORIGINAL (the game's own, unchanged: green in Jedi
   Knight, orange in Mysteries of the Sith), red, crimson, orange, amber,
-  yellow, lime, green (Mysteries of the Sith only), teal, cyan, light blue,
-  blue, purple, magenta, pink, white, and black with a bright edge. Most
-  glow like the film blades: a white-hot middle in a haze of colour.
+  yellow, lime, green, teal, cyan, light blue, blue, purple, magenta, pink,
+  white, and black with a bright edge.
+- **CLASSIC or REFORGED**, at the top of the wheel's middle (above the
+  colour's name), picks how every colour looks. Tap it to switch. The wheel
+  stays open and changes at once, and so does the blade in your hand. The
+  app remembers it.
+  - **REFORGED** (the default): most colours glow like the film blades, a
+    white-hot middle in a haze of colour. In Jedi Knight there's no green
+    on the wheel, because ORIGINAL is the game's own green (16 colours).
+  - **CLASSIC:** every colour's earlier look, from before the film-style
+    glow, with green on the wheel in both games (17 colours).
+  - In Jedi Knight, a green you kept (picked in CLASSIC) shows as
+    ORIGINAL while REFORGED is on, and is shown to other players as
+    ORIGINAL too. Switch back to CLASSIC and it's green again.
 - **The wheel stays open** after you pick a colour, so you can change both
   blades in one go. Close it with the gap at the bottom, or by tapping outside
   the wheel.
@@ -1019,7 +1032,10 @@ Things to know:
 ### Your lightsaber in multiplayer
 
 Other players see your saber as you set it on the SABER wheel: its colour,
-and two sabers if you chose them. In multiplayer the second saber is only
+and two sabers if you chose them. CLASSIC or REFORGED changes how you see
+every saber on your screen, yours and theirs. One thing reaches other
+players: in Jedi Knight, a green you kept shows as ORIGINAL while REFORGED
+is on, and other players see it as ORIGINAL too. In multiplayer the second saber is only
 for looks. It doesn't hit, to keep things fair for players on other
 devices.
 

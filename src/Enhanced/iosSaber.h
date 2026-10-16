@@ -17,6 +17,14 @@
 // colour out to the edges), only the colour changed, and drawn from a
 // true-colour copy of its texture (std3D_AddToTextureCache's pTrueColour).
 // Made once per level, for the colours in use (2 small textures each).
+//
+// Two looks, the player's choice (the saber wheel's switch): REFORGED (the
+// default), most colours glowing like the film blades; and CLASSIC, every
+// colour as first made. It changes how every blade is drawn here, the
+// player's and other players' alike. Colours keep their keys and ids, and
+// nothing new is sent; but what the player sees of their own blade is what
+// other players are sent (iosSaber_GetShownColour): in Jedi Knight a green
+// kept shows, and is sent, as ORIGINAL while REFORGED is on.
 
 #ifndef _PLATFORM_IOS_IOSSABER_H
 #define _PLATFORM_IOS_IOSSABER_H
@@ -31,15 +39,22 @@ extern "C" {
 // the gap): keep a choice by its key, which stays the same.
 #define IOSSABER_COLOUR_GAME 0 // the game's own: nothing changed
 int iosSaber_NumColours(void);
-int iosSaber_ColourOnWheel(int id);         // 1: the wheel offers it in this game (all but a few)
-int iosSaber_OwnColourByKey(const char* key); // one's own kept colour: by key, ORIGINAL if this game's wheel lacks it, -1 for none
+int iosSaber_ColourOnWheel(int id);         // 1: the wheel offers it in this game and look (all but a few)
 const char* iosSaber_ColourName(int id);    // as the wheel shows it ("LIGHT BLUE"), NULL for no such id
 const char* iosSaber_ColourKey(int id);     // as it is kept ("lightblue")
 int iosSaber_ColourByKey(const char* key);  // -1 if none
 // The colour to show it in (a swatch on the wheel): its blade's edge colour
 // (the game's own: the game's colour the player's blade has now, if it is one
-// of them; else grey)
+// of them; else grey), in the look
 void iosSaber_ColourRGB(int id, unsigned char* pR, unsigned char* pG, unsigned char* pB);
+
+// ---- the look (see above), remembered by the platform by its name
+enum { IOSSABER_LOOK_CLASSIC = 0, IOSSABER_LOOK_REFORGED, IOSSABER_NUM_LOOKS };
+int iosSaber_GetLook(void);
+void iosSaber_SetLook(int look);
+void iosSaber_ToggleLook(void);            // the other one
+const char* iosSaber_LookName(int look);    // "CLASSIC", "REFORGED": as the switch shows it and it is kept
+int iosSaber_LookByName(const char* name);  // -1 if none
 
 // ---- styles: how many blades, and where. Only the ones that work can be
 // picked (iosSaber_StyleAvailable); each keeps its own blade colours, so
@@ -51,8 +66,12 @@ const char* iosSaber_StyleName(int style);
 int iosSaber_StyleNumBlades(int style);
 int iosSaber_GetStyle(void);
 void iosSaber_SetStyle(int style);
-int iosSaber_GetColour(int style, int blade);
+int iosSaber_GetColour(int style, int blade);  // as picked and kept
 void iosSaber_SetColour(int style, int blade, int id);
+// As it is shown (drawn, thrown, sent to other players): one this game's
+// wheel lacks in the look is the game's own (REFORGED, Jedi Knight: a green
+// kept is ORIGINAL, the game's green; CLASSIC shows it green again)
+int iosSaber_GetShownColour(int style, int blade);
 
 // ---- the engine's side.
 // Round the drawing of one of a thing's blades (blade 0: the right hand's, 1:

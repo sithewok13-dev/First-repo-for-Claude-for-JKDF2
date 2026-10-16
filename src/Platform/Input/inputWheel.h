@@ -67,9 +67,10 @@ typedef struct {
 } inputWheelMap;
 
 // The saber wheel's choices beside the ring: one saber or two, which of two
-// blades a colour goes to, and the saber in hand
+// blades a colour goes to; and in the middle, the saber in hand and the
+// colours' look (CLASSIC / REFORGED, iosSaber_GetLook)
 enum { INPUTWHEEL_CHIP_SINGLE = 0, INPUTWHEEL_CHIP_DUAL, INPUTWHEEL_CHIP_LEFT, INPUTWHEEL_CHIP_BOTH, INPUTWHEEL_CHIP_RIGHT,
-       INPUTWHEEL_CHIP_EQUIP, INPUTWHEEL_NUM_CHIPS };
+       INPUTWHEEL_CHIP_EQUIP, INPUTWHEEL_CHIP_LOOK, INPUTWHEEL_NUM_CHIPS };
 // With two blades, the one a colour goes to
 enum { INPUTWHEEL_SABER_RIGHT = 0, INPUTWHEEL_SABER_LEFT = 1, INPUTWHEEL_SABER_BOTH = 2 };
 
@@ -130,8 +131,10 @@ int inputWheel_IsPickable(int slice);
 int inputWheel_Close(int slice);
 
 // The saber wheel's choices (INPUTWHEEL_CHIP_*): SINGLE / DUAL, the blade a
-// colour goes to, EQUIP (the saber in hand: the wheel closes). Nothing for
-// one that can't be chosen now.
+// colour goes to, EQUIP (the saber in hand: the wheel closes), the look (the
+// other one: the wheel made again in it, still open; remembered by the
+// platform around this, from iosSaber_GetLook). Nothing for one that can't be
+// chosen now.
 void inputWheel_SaberChip(int chip);
 // Whether EQUIP can take the saber now (the player has it and can switch to it)
 int inputWheel_CanEquipSaber(void);
