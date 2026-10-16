@@ -636,9 +636,13 @@ static void stdComm_ENet_StopThread(void)
 }
 
 // Everything closed: the host's listening, or the connection to it (the
-// others told, briefly, when there is time)
+// others told, briefly, when there is time). The service thread stopped first
+// (it runs only while there is a connection; started again by Join / OpenHost),
+// and the goodbyes then sent from here. (Called on the game's thread, never
+// with the mutex held: the thread may be waiting on it.)
 static void stdComm_ENet_CloseHost(void)
 {
+    stdComm_ENet_StopThread();
     SDL_LockMutex(stdComm_ENet_mutex);
     if (stdComm_ENet_pHost) {
         for (size_t k = 0; k < stdComm_ENet_pHost->peerCount; k++) {
@@ -918,9 +922,8 @@ void stdComm_ENet_Shutdown()
     if (!stdComm_ENet_bInitted) return;
     DirectPlay_EnumSessions2();
     stdCommTransport_GateClose(&stdComm_ENet_probeGate, 5000); // (games being asked about: given up first)
-    stdComm_ENet_StopThread();
     stdComm_ENet_StopAdvertising();
-    stdComm_ENet_CloseHost();
+    stdComm_ENet_CloseHost(); // (the thread stopped too)
     stdComm_ENetDiscover_Shutdown();
     enet_deinitialize();
     stdComm_ENet_bInitted = 0;

@@ -446,6 +446,26 @@ static void stdComm_ENetDiscover_EnsureThread(void)
     stdComm_ENetDiscover_thread = SDL_CreateThread(stdComm_ENetDiscover_Thread, "stdComm_ENetDiscover", NULL);
 }
 
+// The thread ended (what it had open closed), and waited for (up to a tenth of a second). Only from
+// the game's side, never under the lock.
+static void stdComm_ENetDiscover_StopThread(void)
+{
+    if (!stdComm_ENetDiscover_thread) return;
+    stdComm_ENetDiscover_bRun = 0;
+    int ret;
+    SDL_WaitThread(stdComm_ENetDiscover_thread, &ret);
+    stdComm_ENetDiscover_thread = NULL;
+}
+
+// Neither advertising nor browsing now: the thread ended (started again when asked for)
+static void stdComm_ENetDiscover_StopIfIdle(void)
+{
+    SDL_LockMutex(stdComm_ENetDiscover_mutex);
+    const int bIdle = !stdComm_ENetDiscover_bWantAdvertise && !stdComm_ENetDiscover_bWantBrowse;
+    SDL_UnlockMutex(stdComm_ENetDiscover_mutex);
+    if (bIdle) stdComm_ENetDiscover_StopThread();
+}
+
 // ------------------------------------------------------------------ the game's side
 
 int stdComm_ENetDiscover_IsAvailable(void)
@@ -478,6 +498,7 @@ void stdComm_ENetDiscover_StopAdvertising(void)
     SDL_LockMutex(stdComm_ENetDiscover_mutex);
     stdComm_ENetDiscover_bWantAdvertise = 0;
     SDL_UnlockMutex(stdComm_ENetDiscover_mutex);
+    stdComm_ENetDiscover_StopIfIdle();
 }
 
 void stdComm_ENetDiscover_StartBrowsing(const char* game)
@@ -495,6 +516,7 @@ void stdComm_ENetDiscover_StopBrowsing(void)
     SDL_LockMutex(stdComm_ENetDiscover_mutex);
     stdComm_ENetDiscover_bWantBrowse = 0;
     SDL_UnlockMutex(stdComm_ENetDiscover_mutex);
+    stdComm_ENetDiscover_StopIfIdle();
 }
 
 int stdComm_ENetDiscover_GetGames(stdCommENetDiscoverGame* aOut, int max)
@@ -518,10 +540,7 @@ int stdComm_ENetDiscover_GetGames(stdCommENetDiscoverGame* aOut, int max)
 void stdComm_ENetDiscover_Shutdown(void)
 {
     if (!stdComm_ENetDiscover_thread) return;
-    stdComm_ENetDiscover_bRun = 0;
-    int ret;
-    SDL_WaitThread(stdComm_ENetDiscover_thread, &ret);
-    stdComm_ENetDiscover_thread = NULL;
+    stdComm_ENetDiscover_StopThread();
     stdComm_ENetDiscover_bWantAdvertise = 0;
     stdComm_ENetDiscover_bWantBrowse = 0;
 }
