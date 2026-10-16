@@ -120,7 +120,8 @@ key on a computer yet; they are set by typing in the game's console.
 
 Photos are saved as PNG files in your **Pictures** folder, in
 **OpenJKDF2** (Windows: `Pictures\OpenJKDF2`; Mac and Linux:
-`~/Pictures/OpenJKDF2`).
+`~/Pictures/OpenJKDF2`). If the system has no Pictures folder set up, they
+go in a `photos` folder next to the game instead.
 
 But there is **no key for the camera on a computer yet**: the photo,
 selfie, Action Freeze and cinematic burst are started from the iPhone's

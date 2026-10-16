@@ -53,7 +53,13 @@ jobs:
           export OPENJKDF2_RELEASE_COMMIT=$(git rev-parse HEAD) OPENJKDF2_RELEASE_COMMIT_SHORT=$(git rev-parse --short=8 HEAD)
           cmake -DCMAKE_BUILD_TYPE=Release -DOPENJKDF2_ENHANCED=ON -DOPENJKDF2_NET_ENET=ON -B build | tee cmake.log
           grep -q "ENet: games nearby found" cmake.log || { echo "::error::no LAN discovery (Avahi's libdns_sd)"; exit 1; }
-          make -C build -j $(nproc) openjkdf2
+          set -o pipefail
+          make -C build -j $(nproc) openjkdf2 2>&1 | tee build.log
+      - name: Show build errors
+        if: failure()
+        run: |
+          grep -E "error|Error [0-9]|undefined|not found|No such file" build.log 2>/dev/null | grep -v "^\s*-- " | head -30 \
+            | while IFS= read -r l; do echo "::error::$l"; done
       - name: Package
         run: |
           P=OpenJKDF2-linux-x86_64
@@ -93,7 +99,13 @@ jobs:
           export OPENJKDF2_RELEASE_COMMIT=$(git rev-parse HEAD) OPENJKDF2_RELEASE_COMMIT_SHORT=$(git rev-parse --short=8 HEAD)
           cmake --toolchain cmake_modules/toolchain_mingw.cmake \
                 -DCMAKE_BUILD_TYPE=Release -DOPENJKDF2_ENHANCED=ON -DOPENJKDF2_NET_ENET=ON -B build
-          make -C build -j $(nproc) openjkdf2-64
+          set -o pipefail
+          make -C build -j $(nproc) openjkdf2-64 2>&1 | tee build.log
+      - name: Show build errors
+        if: failure()
+        run: |
+          grep -E "error|Error [0-9]|undefined|not found|No such file" build.log 2>/dev/null | grep -v "^\s*-- " | head -30 \
+            | while IFS= read -r l; do echo "::error::$l"; done
       - name: Package
         run: |
           P=OpenJKDF2-windows-x86_64
@@ -146,9 +158,15 @@ jobs:
         run: |
           export HOMEBREW_PREFIX=$(brew --prefix)
           export OPENJKDF2_RELEASE_COMMIT=$(git rev-parse HEAD) OPENJKDF2_RELEASE_COMMIT_SHORT=$(git rev-parse --short=8 HEAD)
+          set -o pipefail
           cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 \
-                -DOPENJKDF2_ENHANCED=ON -DOPENJKDF2_NET_ENET=ON -B build
-          make -C build -j $(sysctl -n hw.ncpu) openjkdf2-64
+                -DOPENJKDF2_ENHANCED=ON -DOPENJKDF2_NET_ENET=ON -B build 2>&1 | tee build.log
+          make -C build -j $(sysctl -n hw.ncpu) openjkdf2-64 2>&1 | tee -a build.log
+      - name: Show build errors
+        if: failure()
+        run: |
+          grep -E "error|Error [0-9]|undefined|not found|No such file" build.log 2>/dev/null | grep -v "^\s*-- " | head -30 \
+            | while IFS= read -r l; do echo "::error::$l"; done
       - name: Package
         run: |
           P=OpenJKDF2-macos-arm64
