@@ -36,17 +36,18 @@
 #include "jk.h"
 #include "Win95/Window.h"
 #include "Platform/iOS/iosPad.h" // Added: game controllers' bindings (iOS)
+#include "Platform/iOS/iosKbMouse.h" // Added: the mouse's bindings (iOS)
 #include "General/stdJSON.h"
 #include "Platform/std3D.h"
 #include "Main/sithCvar.h"
-#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
-#include "Platform/iOS/iosGame.h"
+#ifdef JK_ENHANCED
+#include "Enhanced/iosGame.h"
 #endif
-#ifdef TARGET_IOS
-#include "Platform/iOS/iosSelfie.h" // Added
-#include "Platform/iOS/iosPhotoCam.h" // Added
-#include "Platform/iOS/iosSaber.h" // Added
-#include "Platform/iOS/iosStance.h" // Added
+#ifdef JK_ENHANCED
+#include "Enhanced/iosSelfie.h" // Added
+#include "Enhanced/iosPhotoCam.h" // Added
+#include "Enhanced/iosSaber.h" // Added
+#include "Enhanced/iosStance.h" // Added
 // Added: a blade drawn in the colour the player chose for it (iosSaber)
 #define JKPLAYER_DRAW_BLADE(pThing, pLine, pMat, blade) \
     do { iosSaber_BeginBlade((pThing), (pLine), (blade)); rdThing_Draw((pLine), (pMat)); iosSaber_EndBlade(pLine); } while (0)
@@ -636,6 +637,9 @@ void jkPlayer_WriteConf(char16_t *name)
         // Added: the controls just written are this version's (see iosPadBinds_Migrate)
         stdJSON_SaveInt(ext_fpath, IOSPADBINDS_JSON_KEY, IOSPADBINDS_VERSION);
 #endif
+#ifdef IOSKBM_ENABLED
+        stdJSON_SaveInt(ext_fpath, IOSKBMBINDS_JSON_KEY, IOSKBMBINDS_VERSION); // Added: likewise the mouse's (iosKbMouse_MigrateBinds)
+#endif
 
 #ifdef QOL_IMPROVEMENTS
         Window_isHiDpi_tmp = Window_isHiDpi;
@@ -874,11 +878,26 @@ int jkPlayer_ReadConf(char16_t *name)
 #endif
         
         stdConffile_Close();
+#if defined(IOSPAD_ENABLED) || defined(IOSKBM_ENABLED)
+        {
+            // Added: a player's game controller and mouse bindings brought up
+            // to this version's once, and kept (see iosPadBinds_Migrate,
+            // iosKbMouse_MigrateBinds; both versions read before either is
+            // written back)
+            int bWrite = 0;
 #ifdef IOSPAD_ENABLED
-        // Added: a player's game controller bindings brought up to this
-        // version's once, and kept (see iosPadBinds_Migrate)
-        if (iosPadBinds_Migrate(stdJSON_GetInt(ext_fpath, IOSPADBINDS_JSON_KEY, 0)))
-            jkPlayer_WriteConf(name);
+            const int padVersion = stdJSON_GetInt(ext_fpath, IOSPADBINDS_JSON_KEY, 0);
+#endif
+#ifdef IOSKBM_ENABLED
+            const int kbmVersion = stdJSON_GetInt(ext_fpath, IOSKBMBINDS_JSON_KEY, 0);
+            bWrite |= iosKbMouse_MigrateBinds(kbmVersion);
+#endif
+#ifdef IOSPAD_ENABLED
+            bWrite |= iosPadBinds_Migrate(padVersion);
+#endif
+            if (bWrite)
+                jkPlayer_WriteConf(name);
+        }
 #endif
         return 1;
     }
@@ -936,7 +955,7 @@ static rdModel3* jkPlayer_pPovEchoModel = NULL;
 static rdMatrix34 jkPlayer_povMirrorHand;
 static int jkPlayer_bPovMirrorHand = 0;
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 // Added: the two-saber style's resting stances (iosStance): where the right hand was last frame, in the
 // arm model's own space (what its stance turns it round), and whether there is one yet
 static rdVector3 jkPlayer_povStancePivot;
@@ -966,7 +985,7 @@ static int jkPlayer_PovStance(const rdMatrix34* pOrient, rdMatrix34* pOut)
 static void jkPlayer_DrawPovMirrored(rdMatrix34* pOrient, const rdMatrix34* pOrientR)
 {
     jkPlayer_bPovMirrorHand = 0;
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     SithThing* pActor = playerThings[playerThingIdx].actorThing;
     rdThing* pPov = &playerThings[playerThingIdx].povModel;
     if (!pActor || !(pActor->jkFlags & JKFLAG_SABERON) || !iosSaber_HasSecondBlade(pActor) || !pPov->model3 || !pPov->paJointMatrices)
@@ -1062,7 +1081,7 @@ void jkPlayer_DrawPov()
     if (!playerThings[playerThingIdx].povModel.model3)
         return;
 
-#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
+#ifdef JK_ENHANCED
     // Added: while the touch overlay's force wheel holds the game, the weapon
     // in view doesn't animate or sway either
     int bHeld = iosGame_IsHolding();
@@ -1167,7 +1186,7 @@ void jkPlayer_DrawPov()
         
         //printf("pov in\n");
         //jkPlayer_checkPov = 1;
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
         // Added: two sabers: each arm in its resting stance (iosStance)
         rdMatrix34 orientR;
         jkPlayer_PovStance(&orient, &orientR);
@@ -1235,7 +1254,7 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
 
     rdMatrix34* primaryMat = &thing->renderData.paJointMatrices[primary_mesh];
     rdMatrix34* secondaryMat = bDual ? &thing->renderData.paJointMatrices[secondary_mesh] : primaryMat;
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     // Added: the player's second saber (iosSaber) has a hilt of its own
     const int bSecondHilt = bDual && iosSaber_HasSecondBlade(thing);
 #else

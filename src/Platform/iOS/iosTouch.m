@@ -23,8 +23,11 @@
 #include "Platform/iOS/iosFreeze.h"
 #include "Platform/iOS/iosCinema.h"
 #include "Platform/iOS/iosSaber.h"
+#include "Enhanced/enhTick.h"
+#include "Platform/platServices.h"
 #include "Platform/iOS/iosPad.h"
 #include "Platform/iOS/iosPadPanel.h"
+#include "Platform/iOS/iosKbMouse.h"
 
 extern SDL_Window* displayWindow;
 extern int stdControl_bControlsActive;
@@ -685,11 +688,18 @@ static CGFloat iosTouch_wheelR0 = 0.0, iosTouch_wheelR1 = 0.0;
 // points at (a slice, IOSTOUCH_WHEEL_CANCEL, or -1: nothing) and which way
 typedef char iosTouch_assertPadWheels[(IOSPAD_WHEEL_FORCE == IOSTOUCH_WHEEL_FORCE && IOSPAD_WHEEL_WEAPONS == IOSTOUCH_WHEEL_WEAPONS
                                        && IOSPAD_WHEEL_SABER == IOSTOUCH_WHEEL_SABER) ? 1 : -1];
+// A keyboard and mouse (iosKbMouse) hide the touch controls the same way,
+// and open the same wheels, pointing with the mouse: iosTouch_bPadHud is
+// then who hid them (IOSTOUCH_HUD_*), iosTouch_bPadWheel any outside
+// controller's wheel and iosTouch_bKbmWheel the keyboard's.
 static int iosTouch_bPhotosAsking = 0; // (iOS asking for Photos access, the game held)
+#define IOSTOUCH_HUD_PAD 1
+#define IOSTOUCH_HUD_KBM 2
 static int iosTouch_bPadHud = 0;
 static int iosTouch_bPadMasked = 0;
 static CAShapeLayer* iosTouch_pPadMask = nil;
 static int iosTouch_bPadWheel = 0;
+static int iosTouch_bKbmWheel = 0;
 static int iosTouch_padSlot = -1;
 static CGFloat iosTouch_padAim = 0.0;
 // MENU's tray; Escape held down for a MENU tap (iosTouch_Update calls left);
@@ -3024,7 +3034,7 @@ static int iosTouch_SaberBlade(void)
     // selfie up)
     [self endBurst];
     int numPeople = 0;
-    const int r = iosSelfieShots_Start(iosTouch_selfieShots, CACurrentMediaTime(), &numPeople);
+    const int r = iosSelfieShots_Start(iosTouch_selfieShots, enh_Now(), &numPeople);
     if (r != IOSSELFIESHOTS_STARTED) {
         iosGame_ShowMessage(r == IOSSELFIESHOTS_BUSY ? "Still saving the last photo" : "Can't take a selfie here");
         return;
@@ -3161,7 +3171,7 @@ static int iosTouch_SaberBlade(void)
     }
     if (a[IOSTOUCH_FZ_PANX] != 0 || a[IOSTOUCH_FZ_PANY] != 0) iosFreeze_Pan(a[IOSTOUCH_FZ_PANX], a[IOSTOUCH_FZ_PANY]);
     if (a[IOSTOUCH_FZ_ZOOM] != 0) iosFreeze_Zoom(expf(a[IOSTOUCH_FZ_ZOOM]));
-    iosFreeze_Frame();
+    // (then the engine's enh_Tick, this same frame: iosFreeze_Frame)
 }
 
 // The cinematic burst (CAMERA slid up, with FREEZE on): the action frozen,
@@ -3171,7 +3181,7 @@ static int iosTouch_SaberBlade(void)
 {
     if (iosTouch_bCinema || iosTouch_bFreezing || iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE) return;
     [self endBurst]; // (its waiting capture would hold it up)
-    const int r = iosCinema_Start(CACurrentMediaTime());
+    const int r = iosCinema_Start(enh_Now());
     if (r != IOSCINEMA_STARTED) {
         iosGame_ShowMessage(r == IOSCINEMA_BUSY ? "Still saving the last photo" : "Can't freeze here");
         return;
@@ -3204,8 +3214,9 @@ static int iosTouch_SaberBlade(void)
 - (void)tickSelfie:(CFTimeInterval)now
 {
     if (iosTouch_selfieStage == IOSTOUCH_SELFIE_NONE) return;
-    // (all put back by it once the last photo has been shown, or it gave up)
-    if (iosSelfieShots_Tick(now) == IOSSELFIESHOTS_IDLE) [self endSelfie];
+    // (the engine runs it, enh_Tick, just after this, and says when it is
+    // over: iosTouch_PhotoModeEnded; this only if that was missed)
+    if (!iosSelfieShots_IsActive()) [self endSelfie];
 }
 
 // Everything as it was; the game goes on
@@ -3733,10 +3744,11 @@ static int iosTouch_WheelSliceHasRow(int i)
         else wheelHint.text = iosTouch_bWheelTapMode ? @"tap a power" : @"slide toward a power";
     }
     if (bPadPoints) {
-        // what letting go of the pad's button (or A) does, in its words
-        // (why a slice can't be picked stays as it is)
+        // what letting go of the pad's button (or A) does, in its words --
+        // or the keyboard's (why a slice can't be picked stays as it is)
         const int bPickable = hot >= 0 && iosTouch_aWheelEarned[hot];
-        const char* h = (hot >= 0 && !bPickable) ? NULL : iosPad_WheelHint(bPickable, bCancel);
+        const char* h = (hot >= 0 && !bPickable) ? NULL
+                      : iosTouch_bKbmWheel ? iosKbMouse_WheelHint(bPickable, bCancel) : iosPad_WheelHint(bPickable, bCancel);
         if (h) wheelHint.text = [NSString stringWithUTF8String:h];
     }
     if (!bWheelTitleSet || name != wheelTitleName) [self setWheelTitle:name];
@@ -3745,7 +3757,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     // -- and on a pad, a short rumble
     if (hot != wheelLastHot) {
         if (hot != -1) [wheelTick selectionChanged];
-        if (hot != -1 && bPadPoints) iosPad_OnWheelSlice();
+        if (hot != -1 && bPadPoints && !iosTouch_bKbmWheel) iosPad_OnWheelSlice();
         wheelLastHot = hot;
     }
 }
@@ -3924,6 +3936,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     iosTouch_bWheelOpen = 0;
     iosTouch_bWheelTapMode = 0;
     iosTouch_bPadWheel = 0;
+    iosTouch_bKbmWheel = 0;
     iosTouch_padSlot = -1;
     iosGame_SetHold(0);
     wheelView.hidden = YES;
@@ -3943,10 +3956,48 @@ static int iosTouch_WheelSliceHasRow(int i)
     return hypot(p.x - b->x, p.y - b->y) <= b->radius + IOSTOUCH_TOUCH_SLOP;
 }
 
+// A mouse or trackpad's click (a pointer touch: iPadOS, or an iPhone with a
+// mouse through AssistiveTouch) in play is the mouse's button -- SDL has it
+// from the mouse itself (GCMouse) -- not a finger on the touch controls:
+// passed on to SDL's view, the overlay's next responder. Only while the game
+// lets go of the pointer (iosTouch_WantsPointer: a photo mode, MENU's tray)
+// does a click work the touch controls, as a tap.
+static int iosTouch_IsPointerTouch(UITouch* t)
+{
+    return t.type == UITouchTypeIndirectPointer;
+}
+
+// The clicks among these the overlay didn't take, if any
+static NSSet* iosTouch_PointerTouchesPassed(NSSet<UITouch*>* touches)
+{
+    NSMutableSet* pPass = nil;
+    for (UITouch* t in touches) {
+        if (!iosTouch_IsPointerTouch(t)) continue;
+        int bTaken = 0;
+        for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+            if (iosTouch_aSlots[i].touch == t) bTaken = 1;
+        }
+        if (bTaken) continue;
+        if (!pPass) pPass = [NSMutableSet set];
+        [pPass addObject:t];
+    }
+    return pPass;
+}
+
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
 {
     int bPadTouch = 0; // (the touch controls hidden for a game controller: back now)
+    int bFinger = 0;   // (a finger among them, not only clicks)
+    NSMutableSet* pPass = nil;
     for (UITouch* t in touches) {
+        const int bPointer = iosTouch_IsPointerTouch(t);
+        iosKbMouse_NoteTouchKind(bPointer);
+        if (bPointer && !iosTouch_WantsPointer()) {
+            if (!pPass) pPass = [NSMutableSet set];
+            [pPass addObject:t];
+            continue;
+        }
+        if (!bPointer) bFinger = 1;
         int slot = -1;
         for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
             if (iosTouch_aSlots[i].touch == nil) { slot = i; break; }
@@ -3966,10 +4017,12 @@ static int iosTouch_WheelSliceHasRow(int i)
         s->wheelSlot = -1;
 
         if (iosTouch_bPadMasked) {
-            // The touch controls were hidden for a game controller: they come
-            // back, and this touch does nothing else (it couldn't see what it
-            // touched) -- but on a wheel the pad opened it works the wheel
-            bPadTouch = 1;
+            // The touch controls were hidden for a game controller (or the
+            // keyboard and mouse): they come back, and this touch does
+            // nothing else (it couldn't see what it touched) -- but on a
+            // wheel the pad opened it works the wheel. (A click doesn't
+            // bring them back.)
+            if (!bPointer) bPadTouch = 1;
             if (!iosTouch_bWheelOpen) {
                 s->role = ROLE_IGNORED;
                 continue;
@@ -4043,18 +4096,22 @@ static int iosTouch_WheelSliceHasRow(int i)
             s->role = ROLE_LOOK;
         }
     }
-    if (bPadTouch || iosTouch_bPadHud) {
+    if (bPadTouch || (iosTouch_bPadHud && bFinger)) {
         iosTouch_bPadHud = 0;
         iosPad_NoteTouch();
+        iosKbMouse_NoteTouch();
         [self applyPadMask];
     }
     iosTouch_RecomputeKeys();
     [self refreshButtonLooks];
     if (iosTouch_bWheelOpen) [self refreshWheelLooks];
+    if (pPass) [super touchesBegan:pPass withEvent:event];
 }
 
 - (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
 {
+    NSSet* pPass = iosTouch_PointerTouchesPassed(touches);
+    if (pPass) [super touchesMoved:pPass withEvent:event];
     int bLooksChanged = 0;
     for (UITouch* t in touches) {
         for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
@@ -4365,8 +4422,18 @@ static int iosTouch_WheelSliceHasRow(int i)
     if (iosTouch_bWheelOpen) [self refreshWheelLooks];
 }
 
-- (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event { [self endTouches:touches cancelled:0]; }
-- (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event { [self endTouches:touches cancelled:1]; }
+- (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
+{
+    NSSet* pPass = iosTouch_PointerTouchesPassed(touches);
+    if (pPass) [super touchesEnded:pPass withEvent:event];
+    [self endTouches:touches cancelled:0];
+}
+- (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
+{
+    NSSet* pPass = iosTouch_PointerTouchesPassed(touches);
+    if (pPass) [super touchesCancelled:pPass withEvent:event];
+    [self endTouches:touches cancelled:1];
+}
 
 // A full force meter glows, gently pulsing
 - (void)setForceRingGlow:(int)bGlow
@@ -4451,7 +4518,7 @@ static int iosTouch_WheelSliceHasRow(int i)
     }
     // ...or the cinematic burst...
     if (iosTouch_bCinema) {
-        if (iosCinema_Tick(now) == IOSCINEMA_IDLE) [self endCinema];
+        if (!iosCinema_IsActive()) [self endCinema]; // (run by enh_Tick, as a selfie)
         return;
     }
     // ...or Action Freeze (its camera moves with the touches themselves)
@@ -4855,6 +4922,7 @@ static int iosTouch_WheelSliceHasRow(int i)
         wheelView.hidden = YES;
     }
     iosTouch_bPadWheel = 0;
+    iosTouch_bKbmWheel = 0;
     iosTouch_padSlot = -1;
     [self endSelfie]; // (all put back: the overlay is going, a menu or the background)
     [self endFreeze];
@@ -5042,6 +5110,16 @@ static void iosTouch_UpdateInPool(void)
     }
 }
 
+// platServices_PhotoModeEnded: a selfie or the cinematic burst, run by the
+// engine (enh_Tick, just after iosTouch_Update), is over: all put back
+void iosTouch_PhotoModeEnded(int mode)
+{
+    @autoreleasepool {
+        if (mode == PLATSERVICES_MODE_SELFIE) [iosTouch_pOverlay endSelfie];
+        else if (mode == PLATSERVICES_MODE_CINEMA) [iosTouch_pOverlay endCinema];
+    }
+}
+
 void iosTouch_Update(void)
 {
     // This runs in the game's loop, outside any autorelease pool that ever
@@ -5096,14 +5174,20 @@ int iosTouch_GetTopTextRectPt(float* pTop, float* pLeft, float* pRight)
 
 // ---------------------------------------------------------------- game controllers (iosPad)
 
-void iosTouch_SetPadHud(int bHidden)
+static void iosTouch_SetOutsideHud(int who, int bHidden)
 {
-    if (iosTouch_bPadHud == (bHidden != 0)) return;
-    iosTouch_bPadHud = bHidden != 0;
-    if (iosTouch_pOverlay) [iosTouch_pOverlay padHudChanged];
+    const int was = iosTouch_bPadHud;
+    iosTouch_bPadHud = bHidden ? (was | who) : (was & ~who);
+    if ((iosTouch_bPadHud != 0) != (was != 0) && iosTouch_pOverlay) [iosTouch_pOverlay padHudChanged];
 }
 
-int iosTouch_PadWheelOpen(int kind, int bTapMode)
+void iosTouch_SetPadHud(int bHidden)
+{
+    iosTouch_SetOutsideHud(IOSTOUCH_HUD_PAD, bHidden);
+}
+
+// A wheel opened from a pad or (bKbm) the keyboard
+static int iosTouch_OutsideWheelOpen(int kind, int bTapMode, int bKbm)
 {
     static const int aButton[IOSTOUCH_WHEEL_NUM_KINDS] = { BTN_WHEEL, BTN_NEXTWPN, BTN_SABER };
     IOSTouchOverlay* o = iosTouch_pOverlay;
@@ -5113,26 +5197,38 @@ int iosTouch_PadWheelOpen(int kind, int bTapMode)
     [o endBurst];
     if (jkHud_bChatOpen) iosGame_ToggleChat(); // (its keyboard would cover the wheel)
     iosTouch_bPadWheel = 1;
+    iosTouch_bKbmWheel = bKbm != 0;
     iosTouch_padSlot = -1;
     [o openWheel:kind button:aButton[kind] tapMode:bTapMode];
     return 1;
 }
 
-int iosTouch_PadWheelIsOpen(void)
+// Whether the wheel a pad or the keyboard opened is open (the calls below work either)
+static int iosTouch_OutsideWheelIsOpen(void)
 {
     return iosTouch_bWheelOpen && iosTouch_bPadWheel;
 }
 
+int iosTouch_PadWheelOpen(int kind, int bTapMode)
+{
+    return iosTouch_OutsideWheelOpen(kind, bTapMode, 0);
+}
+
+int iosTouch_PadWheelIsOpen(void)
+{
+    return iosTouch_OutsideWheelIsOpen() && !iosTouch_bKbmWheel;
+}
+
 void iosTouch_PadWheelSetTapMode(void)
 {
-    if (!iosTouch_PadWheelIsOpen()) return;
+    if (!iosTouch_OutsideWheelIsOpen()) return;
     iosTouch_bWheelTapMode = 1;
     [iosTouch_pOverlay refreshWheelLooks];
 }
 
 void iosTouch_PadWheelAim(int bAim, float deg)
 {
-    if (!iosTouch_PadWheelIsOpen()) return;
+    if (!iosTouch_OutsideWheelIsOpen()) return;
     const int was = iosTouch_padSlot;
     if (bAim) {
         iosTouch_padAim = deg;
@@ -5145,7 +5241,7 @@ void iosTouch_PadWheelAim(int bAim, float deg)
 void iosTouch_PadWheelStep(int dir)
 {
     const iosTouchWheelMap* m = iosTouch_pWheelMap;
-    if (!iosTouch_PadWheelIsOpen() || !m || m->numSlices <= 0) return;
+    if (!iosTouch_OutsideWheelIsOpen() || !m || m->numSlices <= 0) return;
     // (the slices go round clockwise in their order)
     int i = iosTouch_padSlot >= 0 ? iosTouch_padSlot + (dir > 0 ? 1 : -1) : (dir > 0 ? 0 : m->numSlices - 1);
     i = (i + m->numSlices) % m->numSlices;
@@ -5157,14 +5253,14 @@ void iosTouch_PadWheelStep(int dir)
 int iosTouch_PadWheelHot(int* pbPickable)
 {
     const iosTouchWheelMap* m = iosTouch_pWheelMap;
-    const int bHot = iosTouch_PadWheelIsOpen() && m && iosTouch_padSlot >= 0 && iosTouch_padSlot < m->numSlices;
+    const int bHot = iosTouch_OutsideWheelIsOpen() && m && iosTouch_padSlot >= 0 && iosTouch_padSlot < m->numSlices;
     if (pbPickable) *pbPickable = bHot && iosTouch_aWheelEarned[iosTouch_padSlot];
     return bHot;
 }
 
 int iosTouch_PadWheelClose(int bSelect)
 {
-    if (!iosTouch_PadWheelIsOpen()) return 0;
+    if (!iosTouch_OutsideWheelIsOpen()) return 0;
     const int slice = (bSelect && iosTouch_PadWheelHot(NULL)) ? iosTouch_padSlot : -1;
     if (iosTouch_wheelKind == IOSTOUCH_WHEEL_SABER && slice < 0) {
         // (the saber wheel closes without a colour)
@@ -5172,12 +5268,12 @@ int iosTouch_PadWheelClose(int bSelect)
         return 0;
     }
     [iosTouch_pOverlay closeWheelSelecting:slice];
-    return iosTouch_PadWheelIsOpen();
+    return iosTouch_OutsideWheelIsOpen();
 }
 
 void iosTouch_PadSaberChip(int chip)
 {
-    if (!iosTouch_PadWheelIsOpen() || iosTouch_wheelKind != IOSTOUCH_WHEEL_SABER) return;
+    if (!iosTouch_OutsideWheelIsOpen() || iosTouch_wheelKind != IOSTOUCH_WHEEL_SABER) return;
     if (chip == IOSPAD_CHIP_STYLE) {
         const int bDual = iosSaber_GetStyle() == IOSSABER_STYLE_DUAL;
         if (!iosSaber_StyleAvailable(bDual ? IOSSABER_STYLE_SINGLE : IOSSABER_STYLE_DUAL)) return;
@@ -5200,6 +5296,69 @@ void iosTouch_PadSaberChip(int chip)
 int iosTouch_IsPhotoModeUp(void)
 {
     return iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE || iosTouch_bFreezing || iosTouch_bCinema || iosTouch_bPhotosAsking;
+}
+
+// ---------------------------------------------------------------- keyboard and mouse (iosKbMouse)
+
+void iosTouch_SetKbmHud(int bHidden)
+{
+    iosTouch_SetOutsideHud(IOSTOUCH_HUD_KBM, bHidden);
+}
+
+int iosTouch_KbmWheelOpen(int kind, int bTapMode)
+{
+    return iosTouch_OutsideWheelOpen(kind, bTapMode, 1);
+}
+
+int iosTouch_KbmWheelIsOpen(void)
+{
+    return iosTouch_OutsideWheelIsOpen() && iosTouch_bKbmWheel;
+}
+
+int iosTouch_IsWheelOpen(void)
+{
+    return iosTouch_bWheelOpen;
+}
+
+int iosTouch_WantsPointer(void)
+{
+    if (!iosTouch_pOverlay || iosTouch_pOverlay.hidden) return 0;
+    return iosTouch_IsPhotoModeUp() || iosTouch_bTrayOpen || iosTouch_optRow != IOSTOUCH_ROW_NONE;
+}
+
+int iosTouch_KbmCamera(int action)
+{
+    IOSTouchOverlay* o = iosTouch_pOverlay;
+    if (!o || o.hidden || jkHud_bChatOpen) return 0;
+    switch (action) {
+    case IOSTOUCH_CAM_PHOTO:
+        // (in Action Freeze, its photo, as its CAMERA)
+        if (iosTouch_bFreezing) {
+            [o takeFreezePhoto];
+            return 1;
+        }
+        if (iosTouch_IsPhotoModeUp() || iosTouch_bWheelOpen) return 0;
+        [o takePhotos];
+        return iosTouch_tCameraAsked != 0;
+    case IOSTOUCH_CAM_SELFIE:
+        if (iosTouch_bWheelOpen) return 0;
+        [o startSelfie];
+        return iosTouch_selfieStage != IOSTOUCH_SELFIE_NONE;
+    case IOSTOUCH_CAM_FREEZE:
+        if (iosTouch_bFreezing) {
+            [o endFreeze];
+            return 1;
+        }
+        if (iosTouch_bWheelOpen) return 0;
+        [o startFreeze];
+        return iosTouch_bFreezing;
+    case IOSTOUCH_CAM_FREEZE_END:
+        if (!iosTouch_bFreezing) return 0;
+        [o endFreeze];
+        return 1;
+    default:
+        return 0;
+    }
 }
 
 void iosTouch_SetFpsShown(int bShow)

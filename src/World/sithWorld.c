@@ -30,8 +30,8 @@
 #include "Platform/std3D.h"
 #include "Dw/dwLaser.h"
 #include "jk.h"
-#ifdef TARGET_IOS
-#include "Platform/iOS/iosSaber.h" // Added
+#ifdef JK_ENHANCED
+#include "Enhanced/iosSaber.h" // Added
 #endif
 
 #ifdef TARGET_TWL
@@ -365,7 +365,7 @@ void sithWorld_FreeEntry(SithWorld *pWorld)
     int v2; // ebx
 
     SITH_ASSERTREL(pWorld); // Added: J3D assert
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     iosSaber_FreeWorld(); // Added: the saber colours made from its palette
 #endif
 

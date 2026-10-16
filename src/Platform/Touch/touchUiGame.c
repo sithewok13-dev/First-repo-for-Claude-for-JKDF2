@@ -7,7 +7,7 @@
 #ifdef TOUCHUI_ENABLED
 
 #include "Platform/Touch/touchUiSdl.h"
-#include "Platform/iOS/iosGame.h"
+#include "Enhanced/iosGame.h"
 
 extern int jkHud_bChatOpen;
 extern int jkHud_IosGetRightGaugeRectPt(float* pX0, float* pY0, float* pX1, float* pY1);

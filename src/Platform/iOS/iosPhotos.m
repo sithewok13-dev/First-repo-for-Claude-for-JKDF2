@@ -11,9 +11,9 @@
 #import <QuartzCore/QuartzCore.h>
 #include <mach/mach.h>
 
-#include "Platform/iOS/iosCapture.h"
+#include "Enhanced/iosCapture.h"
 #include "Platform/iOS/iosPhotos.h"
-#include "Platform/iOS/iosGame.h"
+#include "Enhanced/iosGame.h"
 
 // iosTouch.m
 UIView* iosTouch_OverlayView(void);

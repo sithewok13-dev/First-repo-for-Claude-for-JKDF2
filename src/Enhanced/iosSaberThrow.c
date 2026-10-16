@@ -1,9 +1,9 @@
 // Added: entire file (iosSaberThrow.h)
 
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
 
-#include "Platform/iOS/iosSaberThrow.h"
-#include "Platform/iOS/iosSaber.h"
+#include "Enhanced/iosSaberThrow.h"
+#include "Enhanced/iosSaber.h"
 
 #include "Cog/sithCog.h"
 #include "Cog/sithCogParse.h"
@@ -374,4 +374,4 @@ int iosSaberThrow_ThrownColour(SithThing* pThing)
     return -1;
 }
 
-#endif // TARGET_IOS
+#endif // JK_ENHANCED

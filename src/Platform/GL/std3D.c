@@ -21,8 +21,8 @@
 #include "Platform/GL/jkgm.h"
 
 #include "SDL2_helper.h"
-#ifdef TARGET_IOS
-#include "Platform/iOS/iosCapture.h" // Added
+#ifdef JK_ENHANCED
+#include "Enhanced/iosCapture.h" // Added
 #endif
 
 #ifdef WIN32
@@ -1203,7 +1203,7 @@ void std3D_DrawMenu()
     //printf("Draw menu\n");
     std3D_DrawSceneFbo();
     //glFlush();
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     iosCapture_AfterScene(); // Added: the CAMERA button's clean photo
 #endif
 
@@ -1563,7 +1563,7 @@ void std3D_DrawMenu()
 
     std3D_DrawMapOverlay();
     std3D_DrawUIRenderList();
-#ifdef TARGET_IOS
+#ifdef JK_ENHANCED
     iosCapture_AfterHud(); // Added: the CAMERA button's photo with the HUD
 #endif
 

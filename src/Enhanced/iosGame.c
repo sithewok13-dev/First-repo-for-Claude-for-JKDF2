@@ -1,8 +1,8 @@
 // Added: entire file. See iosGame.h.
 
-#include "Platform/iOS/iosGame.h"
+#include "Enhanced/iosGame.h"
 
-#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED) // (TOUCHUI_ENABLED: the Android touch overlay, src/Platform/Touch)
+#ifdef JK_ENHANCED
 
 #include "Dss/sithGamesave.h"
 #include "General/stdString.h"
@@ -49,6 +49,11 @@ static int iosGame_forceJumpStyle = IOSGAME_JUMP_STEPS;
 void iosGame_SetForceJumpStyle(int style)
 {
     if (style >= 0 && style < IOSGAME_JUMP_NUM_STYLES) iosGame_forceJumpStyle = style;
+}
+
+int iosGame_GetForceJumpStyle(void)
+{
+    return iosGame_forceJumpStyle;
 }
 
 int iosGame_GetForceJumpRank(void)
@@ -669,4 +674,4 @@ void iosGame_ViewKeyCycled(void)
     iosGame_bThirdPerson = sithCamera_g_curCycleCamNum ? 1 : 0;
 }
 
-#endif // TARGET_IOS || TOUCHUI_ENABLED
+#endif // JK_ENHANCED

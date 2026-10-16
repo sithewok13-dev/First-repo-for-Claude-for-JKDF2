@@ -5,8 +5,10 @@
 // by their keys ("lightblue"), not their places in a list, so builds with
 // other lists still agree; one this game doesn't have is the game's own.
 //
-// A game with no wheel (a desktop build) sends nothing, and the others draw
-// its player's saber as the game does.
+// Every build with the enhanced gameplay (JK_ENHANCED: iOS, and the desktops
+// by default) sends its player's choice, however it was made (the iOS
+// wheel, the enh_saber* cvars). A build without it sends nothing, and the
+// others draw its player's saber as the game does.
 
 #ifndef _MAIN_JKPLAYERLOOK_H
 #define _MAIN_JKPLAYERLOOK_H
