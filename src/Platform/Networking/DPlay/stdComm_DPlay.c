@@ -1667,9 +1667,15 @@ static void dp_unmap(void)
     SDL_UnlockMutex(stdComm_DPlay_natMutex);
 }
 
+// What to tell the player when the router couldn't open our ports and the host then didn't get
+// through to us (set by dp_mapForGame; read by the same thread that asked)
+static char stdComm_DPlay_routerText[384];
+
 // Our ports (as bound now) opened on the router, if joining that host needs it: a host on the
 // internet, and us behind a router (OPENJKDF2_DPLAY_NAT=force: whatever the addresses, for testing;
-// =off: never). Called off the network thread, the main lock not held. 0 if they had to be and couldn't.
+// =off: never). Called off the network thread, the main lock not held. 0 if they had to be and couldn't:
+// nothing is said yet (the ports may be forwarded by hand, or the address public), only
+// stdComm_DPlay_routerText made ready, for if the host doesn't get through; our own ports advertised.
 static int dp_mapForGame(uint32_t hostIp, uint32_t gen, int bOnlyIfGame);
 static int dp_mapFor(uint32_t hostIp, uint32_t gen) { return dp_mapForGame(hostIp, gen, 0); }
 
@@ -1695,6 +1701,11 @@ static int dp_mapForGame(uint32_t hostIp, uint32_t gen, int bOnlyIfGame)
         stdComm_DPlay_mappedMs = stdPlatform_GetTimeMsec();
         stdComm_DPlay_advTcpPort = mp.extTcpPort;
         stdComm_DPlay_advUdpPort = mp.extUdpPort;
+    }
+    else {
+        // (nothing forwarded now: the host is told our own ports)
+        stdComm_DPlay_bMapped = 0;
+        stdComm_DPlay_advTcpPort = stdComm_DPlay_advUdpPort = 0;
     }
     if (ok && bOnlyIfGame) {
         // (Close while the router was slow: it found nothing forwarded to give back, so it's done here)
@@ -1723,12 +1734,12 @@ static int dp_mapForGame(uint32_t hostIp, uint32_t gen, int bOnlyIfGame)
         }
         return 1;
     }
-    snprintf(t, sizeof(t), "Couldn't open this device's ports on the router (%s). On mobile data this game can't be joined; "
-             "on Wi-Fi, turn on UPnP or NAT-PMP on the router, or forward TCP %d and UDP %d to this device.",
-             stdComm_DPlayNat_Problem(), stdComm_DPlay_tcpPort, stdComm_DPlay_udpPort);
-    SDL_LockMutex(stdComm_DPlay_mutex);
-    dp_setProblem(t, gen);
-    SDL_UnlockMutex(stdComm_DPlay_mutex);
+    (void)gen;
+    stdComm_DPlay_infoPrintf("DPlay: the router didn't open TCP %d and UDP %d (%s): going on with them as they are\n",
+                             stdComm_DPlay_tcpPort, stdComm_DPlay_udpPort, stdComm_DPlayNat_Problem());
+    snprintf(stdComm_DPlay_routerText, sizeof(stdComm_DPlay_routerText),
+             "Couldn't get through to this game. On mobile data that can't work. On Wi-Fi, turn on UPnP or NAT-PMP "
+             "in your router, or forward TCP %d and UDP %d to this device.", stdComm_DPlay_tcpPort, stdComm_DPlay_udpPort);
     return 0;
 }
 
@@ -1939,10 +1950,19 @@ static void dp_joinFailed(const char* pWhy)
     dp_release();
 }
 
+static int dp_greetDone(uint32_t gen, int bAnswered)
+{
+    SDL_LockMutex(stdComm_DPlay_mutex);
+    dp_askClear(gen);
+    SDL_UnlockMutex(stdComm_DPlay_mutex);
+    return bAnswered;
+}
+
 // (joining) A fresh ENUMSESSIONS to the host, and its answer waited for (up to 1.5 s): the host then
 // has a connection to the sockets we have now, which its answers to the join go over -- the probe's
 // may be long closed (the character screen in between)
-static void dp_greetHost(uint32_t hostIp)
+// (1 if it answered)
+static int dp_greetHost(uint32_t hostIp)
 {
     SDL_LockMutex(stdComm_DPlay_mutex);
     const uint32_t gen = ++stdComm_DPlay_probeGen;
@@ -1962,11 +1982,9 @@ static void dp_greetHost(uint32_t hostIp)
         for (int k = 0; k < DPLAY_MAX_SESSIONS; k++) bAnswered |= stdComm_DPlay_aSessions[k].bUsed && stdComm_DPlay_aSessions[k].probeGen == gen;
         if (i % 25 == 24 && !bAnswered) dp_sendUdp(hostIp, DPLAY_ENUM_PORT, m, sizeof(m));
         SDL_UnlockMutex(stdComm_DPlay_mutex);
-        if (bAnswered) break;
+        if (bAnswered) return dp_greetDone(gen, 1);
     }
-    SDL_LockMutex(stdComm_DPlay_mutex);
-    dp_askClear(gen);
-    SDL_UnlockMutex(stdComm_DPlay_mutex);
+    return dp_greetDone(gen, 0);
 }
 
 static int dp_join(char16_t* pwPassword);
@@ -1999,9 +2017,13 @@ static int dp_join(char16_t* pwPassword)
     inet_ntop(AF_INET, &hostIp, hostText, sizeof(hostText));
     stdComm_DPlay_infoPrintf("DPlay: joining the game at %s (TCP %d)\n", hostText, hostPort);
     // (the router's ports, if the host needs them to reach us: opened for the probe already when
-    // this game was picked (stdComm_DPlay_WillJoin); again for these sockets otherwise)
-    if (!dp_mapFor(hostIp, 0)) { dp_joinFailed(NULL); return 0x88770154 + 1; }
-    dp_greetHost(hostIp);
+    // this game was picked (stdComm_DPlay_WillJoin); again for these sockets otherwise. If the router
+    // can't, the host answered the probe all the same, so it reaches us: the ports forwarded by hand,
+    // a router that needn't be asked, a public address. Joined with our own ports; the router's
+    // trouble told only if the host then doesn't get through.)
+    const int bNoRouter = !dp_mapFor(hostIp, 0);
+    if (!dp_greetHost(hostIp) && bNoRouter) stdComm_DPlay_infoPrintf("DPlay: the host didn't answer again: trying all the same\n");
+#define DP_NOT_THROUGH(why) (bNoRouter ? stdComm_DPlay_routerText : (why))
 
     SDL_LockMutex(stdComm_DPlay_mutex);
     dp_resetSession();
@@ -2013,7 +2035,7 @@ static int dp_join(char16_t* pwPassword)
 
     // our system player
     const uint32_t sysId = dp_requestId(0x9);
-    if (!sysId) { dp_joinFailed("the host didn't answer the join (it may not reach this device's ports)"); return 0x88770154 + 1; }
+    if (!sysId) { dp_joinFailed(DP_NOT_THROUGH("the host didn't answer the join (it may not reach this device's ports)")); return 0x88770154 + 1; }
     SDL_LockMutex(stdComm_DPlay_mutex);
     stdComm_DPlay_mySysId = sysId;
     SDL_UnlockMutex(stdComm_DPlay_mutex);
@@ -2036,13 +2058,13 @@ static int dp_join(char16_t* pwPassword)
     for (int i = 0; i < 500 && !stdComm_DPlay_bSuperEnum && !stdComm_DPlay_nackResult; i++) SDL_Delay(10);
     if (!stdComm_DPlay_bSuperEnum) {
         const uint32_t nack = stdComm_DPlay_nackResult;
-        dp_joinFailed(nack ? "the host refused: wrong password?" : "the host didn't answer the join");
+        dp_joinFailed(nack ? "the host refused: wrong password?" : DP_NOT_THROUGH("the host didn't answer the join"));
         return nack ? 0x88770154 : 0x88770154 + 1;
     }
 
     // our player, made and told to each other system player
     const uint32_t id = dp_requestId(0x8);
-    if (!id) { dp_joinFailed("the host gave no player id"); return 0x88770154 + 1; }
+    if (!id) { dp_joinFailed(DP_NOT_THROUGH("the host gave no player id")); return 0x88770154 + 1; }
     SDL_LockMutex(stdComm_DPlay_mutex);
     stdComm_DPlay_myId = id;
     dpPlayer* pSys = dp_addPlayer(sysId, 1);
@@ -2075,6 +2097,7 @@ static int dp_join(char16_t* pwPassword)
     stdComm_DPlay_ResetClients();
     return 0;
 }
+#undef DP_NOT_THROUGH
 
 static void stdComm_DPlay_Close(void)
 {
@@ -2257,7 +2280,7 @@ static int stdComm_DPlay_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, 
     const uint32_t gen = ++stdComm_DPlay_probeGen;
     const int bIntent = stdComm_DPlay_intentHost[0] && !strcmp(stdComm_DPlay_intentHost, pAddress) && stdPlatform_GetTimeMsec() - stdComm_DPlay_intentMs < DPLAY_JOIN_INTENT_MS;
     SDL_UnlockMutex(stdComm_DPlay_mutex);
-    if (bIntent) dp_mapFor(aIp[0], gen);
+    const int bNoRouter = bIntent && !dp_mapFor(aIp[0], gen);
 
     SDL_LockMutex(stdComm_DPlay_mutex);
     const uint32_t start = stdPlatform_GetTimeMsec();
@@ -2324,6 +2347,12 @@ static int stdComm_DPlay_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, 
     stdCommTransport_GateLeave(&stdComm_DPlay_probeGate);
     if (r) stdComm_DPlay_verbosePrintf("DPlay: %d game(s) at %s\n", numFound, pAddress);
     if (bCut) return 0;
+    // (the router couldn't open our ports: said only if the host's answer didn't get through either)
+    if (bNoRouter && !r) {
+        SDL_LockMutex(stdComm_DPlay_mutex);
+        dp_setProblem(stdComm_DPlay_routerText, gen);
+        SDL_UnlockMutex(stdComm_DPlay_mutex);
+    }
     // (ports opened for a game picked that wasn't there, or long ago and never joined: given back)
     SDL_LockMutex(stdComm_DPlay_mutex);
     const int bStale = !stdComm_DPlay_bActive && !stdComm_DPlay_bJoining

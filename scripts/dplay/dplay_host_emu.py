@@ -94,7 +94,14 @@ class Session:
             sk.bind((s.ip, 0)); sk.settimeout(3); sk.connect((ip, port))
             s.out[(ip, port)] = sk
             log('  [%s] connected out to %s:%d' % (s.ip, ip, port))
-        sk.sendall(sp_header(20 + len(body), s.tcpport) + body)
+        try: sk.sendall(sp_header(20 + len(body), s.tcpport) + body)
+        except OSError:
+            s.out.pop((ip, port), None); sk.close()
+            log('  [%s] connection to %s:%d lost: again' % (s.ip, ip, port))
+            try:
+                sk = socket.socket(socket.AF_INET, socket.SOCK_STREAM); sk.bind((s.ip, 0)); sk.settimeout(3); sk.connect((ip, port))
+                s.out[(ip, port)] = sk; sk.sendall(sp_header(20 + len(body), s.tcpport) + body)
+            except OSError: s.out.pop((ip, port), None); log('  (not reached)')
 
     def enum_reply(s, ip, port):
         body = msg_header(1) + s.dpsd() + struct.pack('<I', 8 + 80 + 4) + wstr(s.name)

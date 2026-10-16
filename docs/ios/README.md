@@ -969,9 +969,17 @@ Things to know:
 - **Your home internet, not mobile data.** For a game on the internet, the
   original game's host connects back to you, so the app asks your router to
   let that through (usually TCP 2300 and UDP 2350) while you play, and gives
-  the ports back afterwards. Most home routers allow this. If yours doesn't,
-  the message says so: turn on UPnP or NAT-PMP in the router's settings.
-  On mobile data it can't work, and the message says that too.
+  the ports back afterwards. Most home routers allow this.
+- **If your router can't be asked,** the app still tries to join. It works if
+  you forwarded those ports to your phone yourself, or if your phone has an
+  address of its own on the internet.
+- **To forward the ports by hand,** give your phone a fixed address on your
+  Wi-Fi in the router's settings, then forward TCP 2300 and UDP 2350 to it.
+  The app usually uses those two; if it can't get through, the message names
+  the exact ports it used.
+- **If it can't get through,** the message says so: turn on UPnP or NAT-PMP
+  in the router's settings, or forward the ports as above. On mobile data it
+  can't work.
 - **Jedi Knight only.** OpenMoTS can't join original Mysteries of the Sith
   games yet.
 - **Joining only.** You can't host a game for the original to join.
