@@ -57,11 +57,19 @@
 #ifndef _PLATFORM_IOS_IOSKBMOUSE_H
 #define _PLATFORM_IOS_IOSKBMOUSE_H
 
-// On in the iOS build. IOSKBM_RIG (the Linux test rig only) turns on the
-// engine's hooks; the rig builds iosKbMouse.c itself with TARGET_IOS
-// defined and stands in for the overlay
-#if defined(TARGET_IOS) || defined(IOSKBM_RIG)
+// On in the iOS build, and with the enhanced input (ENH_INPUT: the desktops
+// and Android: the same keys, wheels and shortcuts, the wheels drawn with
+// the game's GL; see Platform/Input/inputUi.h). The iOS mouse bindings
+// (IOSKBM_IOS_BINDS, below) are iOS's only: the desktops keep the game's
+// own mouse defaults (the right button jumps, the wheel looks up and down;
+// the wheel switches weapons there once nothing is bound to it). IOSKBM_RIG
+// (the Linux test rig only) turns on the engine's hooks; the rig builds
+// iosKbMouse.c itself with TARGET_IOS defined and stands in for the overlay
+#if defined(TARGET_IOS) || defined(IOSKBM_RIG) || defined(ENH_INPUT)
 #define IOSKBM_ENABLED 1
+#endif
+#if defined(TARGET_IOS) || defined(IOSKBM_RIG)
+#define IOSKBM_IOS_BINDS 1
 #endif
 
 #ifdef IOSKBM_ENABLED
