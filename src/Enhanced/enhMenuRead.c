@@ -68,8 +68,19 @@ static uint8_t enhMenuRead_aBar[2];
 // Work buffers
 static uint8_t enhMenuRead_aOut[ENHMENUREAD_W * ENHMENUREAD_H];   // what is shown
 static uint8_t enhMenuRead_aLast[ENHMENUREAD_W * ENHMENUREAD_H];  // the menu it was made from
+static uint8_t enhMenuRead_aIn[ENHMENUREAD_W * ENHMENUREAD_H];    // the menu now
 static jkGuiMenu* enhMenuRead_pLastMenu = NULL;
 static const uint8_t* enhMenuRead_pLastArt = NULL;
+static jkGuiElement* enhMenuRead_pLastFocus = NULL;
+static int enhMenuRead_bShown = 0;  // (the last call's result is what is on the screen)
+static jkGuiMenu* enhMenuRead_pLastUp = NULL;  // the last menu seen up, marked or not
+// Parts drawn afresh every frame (ELEMENT_CUSTOM: the character screen's
+// turning model and its saber): shown as they are, and their changing does
+// not make the rest be done again
+#define ENHMENUREAD_MAX_LIVE 8
+typedef struct { int x0, y0, x1, y1; } enhMenuReadBox; // x1, y1 past the end
+static enhMenuReadBox enhMenuRead_aLive[ENHMENUREAD_MAX_LIVE];
+static int enhMenuRead_numLive = 0;
 static uint8_t enhMenuRead_aInk[ENHMENUREAD_W * ENHMENUREAD_H];   // differs from the art
 static uint8_t enhMenuRead_aArea[ENHMENUREAD_W * ENHMENUREAD_H];  // which effects apply
 #define AREA_PANEL 1
@@ -167,8 +178,6 @@ static void enhMenuRead_MakeTables(void)
     }
 }
 
-typedef struct { int x0, y0, x1, y1; } enhMenuReadBox; // x1, y1 past the end
-
 static enhMenuReadBox enhMenuRead_Clip(int x, int y, int w, int h)
 {
     enhMenuReadBox b = { x, y, x + w, y + h };
@@ -254,7 +263,12 @@ static void enhMenuRead_Areas(jkGuiMenu* pMenu, int k)
             }
             enhMenuRead_SetArea(textBox, AREA_TEXT);
             const int px = enhMenuRead_aPadX[k], py = enhMenuRead_aPadY[k];
-            enhMenuRead_SetArea(enhMenuRead_Clip(ink.x0 - px, ink.y0 - py, ink.x1 - ink.x0 + 2 * px, ink.y1 - ink.y0 + 2 * py), AREA_PANEL);
+            // (strong: the button or checkbox in focus -- the mouse's, a pad's
+            // or the keyboard's, which the game shows in another font colour
+            // that the near-white text would hide -- on the bar's colour)
+            const int bFocus = k && pEl == pMenu->lastMouseOverClickable && pEl->type != ELEMENT_TEXT;
+            enhMenuRead_SetArea(enhMenuRead_Clip(ink.x0 - px, ink.y0 - py, ink.x1 - ink.x0 + 2 * px, ink.y1 - ink.y0 + 2 * py),
+                                bFocus ? (AREA_PANEL | AREA_BAR) : AREA_PANEL);
             break;
         }
         default:
@@ -263,11 +277,16 @@ static void enhMenuRead_Areas(jkGuiMenu* pMenu, int k)
     }
 }
 
-const uint8_t* enhMenuRead_Filter(const uint8_t* pSrc, int w, int h, int pitch)
+void enhMenuRead_Invalidate(void)
 {
+    enhMenuRead_bShown = 0;
+}
+
+static const uint8_t* enhMenuRead_Make(jkGuiMenu* pMenu, const uint8_t* pSrc, int w, int h, int pitch, int* pbChanged)
+{
+    *pbChanged = 1;
     if (!pSrc || !enhMenuRead_style || w < ENHMENUREAD_W || h < ENHMENUREAD_H || pitch < w) return NULL;
     if (jkGame_isDDraw || jkCutscene_isRendering) return NULL;
-    jkGuiMenu* pMenu = jkGuiRend_GetActiveMenu();
     if (!pMenu) return NULL;
     const int k = enhMenuRead_Strength(pMenu);
     if (k < 0) return NULL;
@@ -283,18 +302,45 @@ const uint8_t* enhMenuRead_Filter(const uint8_t* pSrc, int w, int h, int pitch)
     const uint8_t* pArt = (const uint8_t*)pBg->sdlSurface->pixels;
     const int artPitch = pBg->format.rowSize;
 
-    // (the same picture as last time: the same result)
-    int bSame = pMenu == enhMenuRead_pLastMenu && pArt == enhMenuRead_pLastArt
-             && !memcmp(enhMenuRead_palette, stdDisplay_masterPalette, sizeof(enhMenuRead_palette));
-    for (int y = 0; y < ENHMENUREAD_H; y++) {
-        const uint8_t* s = pSrc + (size_t)y * pitch;
-        uint8_t* last = enhMenuRead_aLast + y * ENHMENUREAD_W;
-        if (bSame && memcmp(last, s, ENHMENUREAD_W)) bSame = 0;
-        if (!bSame) memcpy(last, s, ENHMENUREAD_W);
+    for (int y = 0; y < ENHMENUREAD_H; y++)
+        memcpy(enhMenuRead_aIn + y * ENHMENUREAD_W, pSrc + (size_t)y * pitch, ENHMENUREAD_W);
+
+    // The parts drawn afresh every frame
+    enhMenuRead_numLive = 0;
+    for (jkGuiElement* pEl = pMenu->paElements; pEl && pEl->type != ELEMENT_END; pEl++) {
+        if (pEl->type != ELEMENT_CUSTOM || !pEl->bIsVisible || enhMenuRead_numLive >= ENHMENUREAD_MAX_LIVE) continue;
+        const enhMenuReadBox b = enhMenuRead_Clip(pEl->rect.x, pEl->rect.y, pEl->rect.width, pEl->rect.height);
+        if (b.x1 > b.x0 && b.y1 > b.y0) enhMenuRead_aLive[enhMenuRead_numLive++] = b;
     }
-    if (bSame) return enhMenuRead_aOut;
+
+    // (the same picture as last time, but for those parts: the same result,
+    // with them as they are now)
+    int bSame = pMenu == enhMenuRead_pLastMenu && pArt == enhMenuRead_pLastArt && pMenu->lastMouseOverClickable == enhMenuRead_pLastFocus
+             && !memcmp(enhMenuRead_palette, stdDisplay_masterPalette, sizeof(enhMenuRead_palette));
+    if (bSame) {
+        int bLiveChanged = 0;
+        for (int i = 0; i < enhMenuRead_numLive; i++) {
+            const enhMenuReadBox b = enhMenuRead_aLive[i];
+            for (int y = b.y0; y < b.y1; y++) {
+                uint8_t* in = enhMenuRead_aIn + y * ENHMENUREAD_W + b.x0;
+                uint8_t* last = enhMenuRead_aLast + y * ENHMENUREAD_W + b.x0;
+                if (memcmp(in, last, b.x1 - b.x0)) { bLiveChanged = 1; memcpy(last, in, b.x1 - b.x0); }
+            }
+        }
+        if (!memcmp(enhMenuRead_aIn, enhMenuRead_aLast, sizeof(enhMenuRead_aIn))) {
+            for (int i = 0; i < enhMenuRead_numLive && bLiveChanged; i++) {
+                const enhMenuReadBox b = enhMenuRead_aLive[i];
+                for (int y = b.y0; y < b.y1; y++)
+                    memcpy(enhMenuRead_aOut + y * ENHMENUREAD_W + b.x0, enhMenuRead_aIn + y * ENHMENUREAD_W + b.x0, b.x1 - b.x0);
+            }
+            *pbChanged = bLiveChanged;
+            return enhMenuRead_aOut;
+        }
+    }
+    memcpy(enhMenuRead_aLast, enhMenuRead_aIn, sizeof(enhMenuRead_aLast));
     enhMenuRead_pLastMenu = pMenu;
     enhMenuRead_pLastArt = pArt;
+    enhMenuRead_pLastFocus = pMenu->lastMouseOverClickable;
     enhMenuRead_MakeTables();
 
     const uint8_t* pIn = enhMenuRead_aLast;
@@ -345,6 +391,36 @@ const uint8_t* enhMenuRead_Filter(const uint8_t* pSrc, int w, int h, int pitch)
         }
     }
     return enhMenuRead_aOut;
+}
+
+const uint8_t* enhMenuRead_Filter(const uint8_t* pSrc, int w, int h, int pitch, int* pbChanged)
+{
+    int bChanged;
+    jkGuiMenu* pMenu = jkGuiRend_GetActiveMenu();
+    if (pMenu) enhMenuRead_pLastUp = pMenu;
+    const uint8_t* pOut = enhMenuRead_Make(pMenu, pSrc, w, h, pitch, &bChanged);
+    if (pbChanged) *pbChanged = bChanged || !enhMenuRead_bShown;
+    enhMenuRead_bShown = pOut != NULL;
+    return pOut;
+}
+
+void enhMenuRead_CopyShown(tVBuffer* pDst, tVBuffer* pMenuBuf)
+{
+    if (!pDst || !pDst->sdlSurface || !pDst->sdlSurface->pixels) return;
+    if (!pMenuBuf || !pMenuBuf->sdlSurface || !pMenuBuf->sdlSurface->pixels) return;
+    if (pDst->format.width < ENHMENUREAD_W || pDst->format.height < ENHMENUREAD_H) return;
+    // (the menu up, or -- a dialog can come between menus, with the last
+    // one still on the screen -- that one, if it was a marked one)
+    jkGuiMenu* pMenu = jkGuiRend_GetActiveMenu();
+    if (!pMenu)
+        pMenu = enhMenuRead_pLastUp;
+    int bChanged;
+    const uint8_t* p = enhMenuRead_Make(pMenu, (const uint8_t*)pMenuBuf->sdlSurface->pixels, pMenuBuf->format.width, pMenuBuf->format.height,
+                                        pMenuBuf->sdlSurface->pitch, &bChanged);
+    if (!p) return;
+    uint8_t* d = (uint8_t*)pDst->sdlSurface->pixels;
+    for (int y = 0; y < ENHMENUREAD_H; y++)
+        memcpy(d + (size_t)y * pDst->format.rowSize, p + y * ENHMENUREAD_W, ENHMENUREAD_W);
 }
 
 #endif // JK_ENHANCED

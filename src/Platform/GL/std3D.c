@@ -1462,16 +1462,20 @@ void std3D_DrawMenu()
     
     glActiveTexture(GL_TEXTURE0 + 0);
     glBindTexture(GL_TEXTURE_2D, Video_menuTexId);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, Video_menuBuffer.format.width, Video_menuBuffer.format.height, GL_RED, GL_UNSIGNED_BYTE, Video_menuBuffer.sdlSurface->pixels);
 #ifdef JK_ENHANCED
-    // Added: a multiplayer screen shown easier to read (Enhanced/enhMenuRead)
-    {
-        const uint8_t* pReadable = enhMenuRead_Filter((const uint8_t*)Video_menuBuffer.sdlSurface->pixels, Video_menuBuffer.format.width,
-                                                      Video_menuBuffer.format.height, Video_menuBuffer.sdlSurface->pitch);
-        if (pReadable)
+    // Added: a multiplayer screen shown easier to read (Enhanced/enhMenuRead):
+    // its readable picture in place of the menu buffer, sent only when it
+    // changes (a menu shows only the part it covers)
+    int bReadableChanged = 0;
+    const uint8_t* pReadable = enhMenuRead_Filter((const uint8_t*)Video_menuBuffer.sdlSurface->pixels, Video_menuBuffer.format.width,
+                                                  Video_menuBuffer.format.height, Video_menuBuffer.sdlSurface->pitch, &bReadableChanged);
+    if (pReadable) {
+        if (bReadableChanged)
             glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ENHMENUREAD_FILTER_W, ENHMENUREAD_FILTER_H, GL_RED, GL_UNSIGNED_BYTE, pReadable);
     }
+    else
 #endif
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, Video_menuBuffer.format.width, Video_menuBuffer.format.height, GL_RED, GL_UNSIGNED_BYTE, Video_menuBuffer.sdlSurface->pixels);
 
     //GLushort data_elements[32 * 3];
     glActiveTexture(GL_TEXTURE0 + 1);

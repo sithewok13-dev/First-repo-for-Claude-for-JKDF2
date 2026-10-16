@@ -26,12 +26,21 @@ void enhMenuRead_Mark(jkGuiMenu* pMenu);
 void enhMenuRead_MarkStrong(jkGuiMenu* pMenu);
 
 // With a marked menu up: its part of the menu buffer (the top left 640x480;
-// rows pitch bytes apart), made readable, to show in its place: 640x480
-// bytes, rows 640 apart, good until the next call. NULL when there is none:
-// the buffer is shown as it is.
+// rows pitch bytes apart), made readable, to show in its place (the menus
+// show only that part): 640x480 bytes, rows 640 apart, good until the next
+// call. *pbChanged: whether it differs from what the last call gave (if
+// that was shown). NULL when there is none: the buffer is shown as it is.
 #define ENHMENUREAD_FILTER_W 640
 #define ENHMENUREAD_FILTER_H 480
-const uint8_t* enhMenuRead_Filter(const uint8_t* pSrc, int w, int h, int pitch);
+const uint8_t* enhMenuRead_Filter(const uint8_t* pSrc, int w, int h, int pitch, int* pbChanged);
+
+// What is shown is no longer what the last enhMenuRead_Filter gave (the
+// texture it went to was made again)
+void enhMenuRead_Invalidate(void);
+
+// A dialog's picture of the screen behind it (pDst, copied from the menu
+// buffer pMenuBuf): the readable one, if a marked menu is up. Else left as it is.
+void enhMenuRead_CopyShown(tVBuffer* pDst, tVBuffer* pMenuBuf);
 
 #ifdef __cplusplus
 }

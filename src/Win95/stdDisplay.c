@@ -1,4 +1,7 @@
 #include "stdDisplay.h"
+#ifdef JK_ENHANCED
+#include "Enhanced/enhMenuRead.h" // Added
+#endif
 
 #include "stdPlatform.h"
 #include "jk.h"
@@ -176,6 +179,9 @@ int stdDisplay_SetMode(unsigned int modeIdx, const void *palette, int paged)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, newW, newH, 0, GL_RED, GL_UNSIGNED_BYTE, Video_menuBuffer.sdlSurface->pixels);
+#ifdef JK_ENHANCED
+    enhMenuRead_Invalidate(); // Added: the readable menus' picture is no longer on it
+#endif
     
     glGenTextures(1, &Video_overlayTexId);
     glBindTexture(GL_TEXTURE_2D, Video_overlayTexId);
