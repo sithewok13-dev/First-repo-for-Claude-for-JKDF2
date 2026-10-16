@@ -178,9 +178,15 @@ jobs:
           rm -rf $APP/Contents/MacOS/*.dsym
           # Libraries from Homebrew go inside the app
           dylibbundler -od -b -x $APP/Contents/MacOS/openjkdf2-64 -d $APP/Contents/libs/ -p @executable_path/../libs/
-          if otool -L $APP/Contents/MacOS/openjkdf2-64 $APP/Contents/MacOS/*.dylib $APP/Contents/libs/*.dylib 2>/dev/null \
-               | grep -E '/opt/homebrew|/usr/local|@rpath'; then
-            echo "::error::a library outside the app"; exit 1
+          # (what each one loads: for a library, past its own name and id)
+          deps() { otool -L $APP/Contents/MacOS/openjkdf2-64 | tail -n +2
+                   for f in $APP/Contents/MacOS/*.dylib $APP/Contents/libs/*.dylib; do
+                     [ -f "$f" ] && otool -L "$f" | tail -n +3; done; }
+          deps | sort -u
+          bad=$(deps | grep -E '/opt/homebrew|/usr/local|@rpath' || true)
+          if [ -n "$bad" ]; then
+            echo "$bad" | head -9 | while IFS= read -r l; do echo "::error::outside the app: $l"; done
+            exit 1
           fi
           codesign --force --deep --sign - $APP
           codesign --verify --deep --strict $APP
