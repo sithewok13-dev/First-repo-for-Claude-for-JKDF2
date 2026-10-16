@@ -231,10 +231,12 @@ enum { IOSTOUCH_CHIP_SINGLE = 0, IOSTOUCH_CHIP_DUAL, IOSTOUCH_CHIP_LEFT, IOSTOUC
 // flying, holding JUMP is how to rise: then it never stops the flight; two
 // quick taps on JUMP (each shorter than IOSTOUCH_FLY_TAP, the second down
 // within IOSTOUCH_FLY_DOUBLE of the first's lift) do.
-// Its level pick (iosGame_GoToLevel): DUCK held as long, and still, shows 1
-// on the button, then one more every IOSTOUCH_LEVEL_STEP up to the last
-// level, then round to 1 again, for as long as it is held; lifted, that
-// level loads. Moved as far, no level.
+// Its level pick (iosGame_GoToLevel): the tray's LEVEL (there while the
+// cheat is on) held as long, and still, shows 1 on the button, then one more
+// every IOSTOUCH_LEVEL_STEP up to the last level, then round to 1 again, for
+// as long as it is held; lifted, that level loads. Moved as far, or the tray
+// closed, no level; a quick tap only says to hold it. (DUCK is only ever a
+// crouch: held still behind cover, it never goes to another level.)
 #define IOSTOUCH_FLY_HOLD 0.5
 #define IOSTOUCH_FLY_TAP 0.25
 #define IOSTOUCH_FLY_DOUBLE 0.35
@@ -339,6 +341,7 @@ enum {
     KIND_CAMSWITCH, // (MENU tray) shows or hides the CAMERA button, when the touch lifts on it
     KIND_CHEAT,    // held still IOSTOUCH_CHEAT_HOLD: the sithewok cheat on or off (a tap does nothing)
     KIND_CHEATSWITCH, // (MENU tray) shows or hides the CHEAT button, when the touch lifts on it
+    KIND_LEVEL,    // (MENU tray, while sithewok is on) held still: counts the levels; lifted, goes to the one on show
     KIND_VIEW,     // tap (on lift): first person or third (iosGame_SetThirdPerson)
     KIND_VIEWSWITCH, // (MENU tray) shows or hides the VIEW button, when the touch lifts on it
     KIND_CONTROLS, // (MENU tray) the controls' sides: NORMAL or SWAPPED
@@ -391,7 +394,7 @@ enum {
     BTN_SABER,  // between CAMERA and QUICK SAVE, once the saber is had (or sithewok is on)
     BTN_CHEAT,  // ...right of SABER, in cheat mode (switched on in the tray)
     BTN_VIEW,   // ...right of CHEAT: first or third person (switched on in the tray)
-    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYCHEAT, BTN_TRAYVIEW, BTN_TRAYJUMP, BTN_TRAYCTRL, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open
+    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYCHEAT, BTN_TRAYLEVEL, BTN_TRAYVIEW, BTN_TRAYJUMP, BTN_TRAYCTRL, BTN_TRAYKEYS, // MENU's tray (left to right), hidden unless it is open (LEVEL only while sithewok is on)
     // Rows under the tray, one at a time (iosTouch_optRow), hidden until opened:
     BTN_GYROOPT_MODE, BTN_GYROOPT_SENS,  // the gyro options (a hold on the tray's GYRO)
     BTN_CAMROW_PHOTO, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE, // the camera options (a hold on the tray's camera switch)
@@ -425,6 +428,7 @@ static iosTouchButton iosTouch_aButtons[] = {
     [BTN_TRAYFPS]   = { "FPS",         KIND_FPS,      -1,                  20.0f, 0 },
     [BTN_TRAYCAM]   = { "",            KIND_CAMSWITCH, -1,                 20.0f, 0 },
     [BTN_TRAYCHEAT] = { "",            KIND_CHEATSWITCH, -1,               20.0f, 0 },
+    [BTN_TRAYLEVEL] = { "LEVEL",       KIND_LEVEL,    -1,                  20.0f, 0 },
     [BTN_TRAYVIEW]  = { "VIEW",        KIND_VIEWSWITCH, -1,                20.0f, 0 },
     [BTN_TRAYJUMP]  = { "JUMP",        KIND_JUMPSTYLE, -1,                 20.0f, 0 },
     [BTN_TRAYCTRL]  = { "CONTROLS",    KIND_CONTROLS, -1,                  20.0f, 0 },
@@ -633,12 +637,12 @@ typedef struct {
     CGPoint wheelOrigin;  // ...where its slide is measured from
     CGFloat wheelAim;     // ...which way it points (degrees, as for slices)
     int bSwipe;           // CAMERA, with FREEZE on: slid up or down, on its way to the cinematic burst or Action Freeze (no tap, no selfie hold)
-    int bFlyDone;         // JUMP, ACT: this press has switched sithewok's flight or noclip, or can't (it moved). DUCK: no level pick on this press (it moved, or sithewok is off)
-    int levelPick;        // DUCK: the level number on show (sithewok's level pick), or 0
+    int bFlyDone;         // JUMP, ACT: this press has switched sithewok's flight or noclip, or can't (it moved). The tray's LEVEL: no level pick on this press (it moved, or no level can be picked)
+    int levelPick;        // the tray's LEVEL: the level number on show (sithewok's level pick), or 0
 } iosTouchSlot;
 
 static iosTouchSlot iosTouch_aSlots[IOSTOUCH_MAX_TOUCHES];
-static int iosTouch_levelToLoad; // DUCK's level pick, lifted: loaded at the next tick (as quick load)
+static int iosTouch_levelToLoad; // the tray's LEVEL pick, lifted: loaded at the next tick (as quick load)
 static double iosTouch_tJumpTapUp = -1.0; // when the last quick tap on JUMP lifted (by the touch's clock), for the double tap that lands
 static int iosTouch_aButtonHeld[IOSTOUCH_NUM_BUTTONS];
 static unsigned char iosTouch_aKeyDown[IOSTOUCH_NUM_SCANCODES];
@@ -663,6 +667,10 @@ static int iosTouch_bLayoutGauge = 0;
 // Where the game's top message text goes, in points: top, left, right
 static int iosTouch_bTopText = 0;
 static float iosTouch_aTopText[3];
+// ...and where it goes while MENU's tray is open (it would be under the
+// tray: the level count, LEVEL's hint): under the tray, or under the row
+// open below it (the gyro options, the camera options, the photo kinds)
+static float iosTouch_aTopTextTray[4][3];
 static float iosTouch_aLayoutGauge[4];
 static int iosTouch_layoutCutoutRight = -1;
 // The wheel: open or not (and whether it is open to tap a slice), which one
@@ -705,6 +713,7 @@ static CGFloat iosTouch_padAim = 0.0;
 // MENU's tray; Escape held down for a MENU tap (iosTouch_Update calls left);
 // the FPS readout
 static int iosTouch_bTrayOpen = 0;
+static int iosTouch_bTrayLevel = 0; // the tray's LEVEL in its row (sithewok on, as the tray last read it)
 static int iosTouch_menuPulse = 0;
 static int iosTouch_bShowFps = 0;
 static int iosTouch_bShowCamera = 0;
@@ -845,6 +854,24 @@ static CGFloat iosTouch_DistToSegment(CGPoint p, CGFloat ax, CGFloat ay, CGFloat
     return sqrt(dx * dx + dy * dy);
 }
 
+// The tray's buttons in its row now: all of them, LEVEL only while sithewok
+// is on (iosTouch_bTrayLevel); and a tray button's place in it, from the
+// right end (the keyboard, 0)
+// Whether a tray button is in its row now: all of them, LEVEL only while
+// sithewok is on (iosTouch_bTrayLevel); and a tray button's place in the
+// row, counted from its right end (the keyboard, 0)
+static int iosTouch_TrayShown(int button)
+{
+    return button != BTN_TRAYLEVEL || iosTouch_bTrayLevel;
+}
+
+static int iosTouch_TrayFromRight(int button)
+{
+    int n = 0;
+    for (int i = button + 1; i <= BTN_TRAY_LAST; i++) n += iosTouch_TrayShown(i);
+    return n;
+}
+
 // Where MENU's tray goes (see layoutSubviews), with FORCE at *pForce: a row
 // of its buttons, IOSTOUCH_TRAY_STEP apart, just under MENU, the keyboard (the
 // right end) right below it, moved left (4 pt at a time, as long as its
@@ -855,10 +882,13 @@ static CGFloat iosTouch_DistToSegment(CGPoint p, CGFloat ax, CGFloat ay, CGFloat
 // the backing is from the nearest of them, *pForceClear how far from FORCE.
 // With pForce NULL, FORCE is left out (FORCE's own search: how clear the tray
 // can be without it).
-static CGPoint iosTouch_TrayKeysAt(CGPoint menu, CGFloat left, const CGPoint* pForce, CGFloat* pClear, CGFloat* pForceClear)
+// bAsShown: the row as it is now, LEVEL in it while sithewok is on (where
+// the tray goes); otherwise the row without LEVEL (FORCE's own search, so
+// FORCE never moves as the cheat goes on and off).
+static CGPoint iosTouch_TrayKeysAt(CGPoint menu, CGFloat left, const CGPoint* pForce, CGFloat* pClear, CGFloat* pForceClear, int bAsShown)
 {
     const CGFloat ty = menu.y + 52;
-    const CGFloat len = IOSTOUCH_TRAY_STEP * (BTN_TRAY_LAST - BTN_TRAY_FIRST);
+    const CGFloat len = IOSTOUCH_TRAY_STEP * (bAsShown ? iosTouch_TrayFromRight(BTN_TRAY_FIRST) : BTN_TRAY_LAST - BTN_TRAYGYRO - 1);
     CGFloat kx = menu.x, bestClear = -1e9, bestForce = 1e9;
     for (CGFloat x = menu.x; ; x -= 4) {
         CGFloat clear = 1e9, forceClear = 1e9;
@@ -1240,7 +1270,7 @@ typedef struct {
     CAShapeLayer* saveRing; // QUICK SAVE's hold progress
     CAShapeLayer* jumpRing; // JUMP's hold progress (sithewok's flight)
     CAShapeLayer* actRing;  // ACT's hold progress (sithewok's noclip)
-    CAShapeLayer* duckRing; // DUCK's hold progress (sithewok's level pick)
+    CAShapeLayer* levelRing; // the tray's LEVEL's hold progress (sithewok's level pick)
     CAShapeLayer* loadRing; // QUICK LOAD's
     CAShapeLayer* menuRing; // MENU's
     CAShapeLayer* wheelRing;  // FORCE WHEEL's (held still, it opens the wheel to tap)
@@ -1249,7 +1279,7 @@ typedef struct {
     CAShapeLayer* cheatRing;  // CHEAT's hold progress
     CAShapeLayer* fjumpRing;  // inside FORCE: how high Force Jump will go (SMOOTH, STEPS)
     CAShapeLayer* bactaRing;  // BACTA's
-    UILabel* aCheatSub[3];    // under JUMP, ACT and DUCK while sithewok is on: FLY, NOCLIP, LVL SEL
+    UILabel* aCheatSub[2];    // under JUMP and ACT while sithewok is on: FLY, NOCLIP
     CAShapeLayer* cheatEmblem; // CHEAT's Sith emblem (red, with its edge, while the cheat is on)
     // The saber's picture, on SABER and on the tray's saber switch: a hilt and
     // its blade, in the blade's colour (refreshSaberIcons)
@@ -1539,8 +1569,6 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         [aButtonViews[BTN_JUMP].layer addSublayer:jumpRing];
         actRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_ACT].radius);
         [aButtonViews[BTN_ACT].layer addSublayer:actRing];
-        duckRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_DUCK].radius);
-        [aButtonViews[BTN_DUCK].layer addSublayer:duckRing];
         loadRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_QUICKLOAD].radius);
         [aButtonViews[BTN_QUICKLOAD].layer addSublayer:loadRing];
         menuRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_MENU].radius);
@@ -1578,12 +1606,12 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         // BACTA's hold ring
         bactaRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_BACTA].radius);
         [aButtonViews[BTN_BACTA].layer addSublayer:bactaRing];
-        // sithewok's own uses of JUMP, ACT and DUCK (held), named small under
+        // sithewok's own uses of JUMP and ACT (held), named small under
         // their labels while it is on
         {
-            const int aSubBtn[3] = { BTN_JUMP, BTN_ACT, BTN_DUCK };
-            NSString* aSubText[3] = { @"FLY", @"NOCLIP", @"LVL SEL" };
-            for (int k = 0; k < 3; k++) {
+            const int aSubBtn[2] = { BTN_JUMP, BTN_ACT };
+            NSString* aSubText[2] = { @"FLY", @"NOCLIP" };
+            for (int k = 0; k < 2; k++) {
                 const CGFloat r = iosTouch_aButtons[aSubBtn[k]].radius;
                 UILabel* l = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 2.0 * r, 10.0)];
                 l.center = CGPointMake(r, r + r * 0.5);
@@ -1732,6 +1760,10 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         }
         gyroOptRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_TRAYGYRO].radius);
         [aButtonViews[BTN_TRAYGYRO].layer addSublayer:gyroOptRing];
+        // the tray's LEVEL: its hold ring, and the count on a second line
+        levelRing = IOSTouch_MakeHoldRing(iosTouch_aButtons[BTN_TRAYLEVEL].radius);
+        [aButtonViews[BTN_TRAYLEVEL].layer addSublayer:levelRing];
+        aButtonViews[BTN_TRAYLEVEL].font = IOSTouch_WheelFont(IOSTouch_FontSize("GYRO\nALWAYS", iosTouch_aButtons[BTN_TRAYLEVEL].radius));
         if ([[NSUserDefaults standardUserDefaults] objectForKey:IOSTOUCH_SELFIES_DEFAULTS_KEY]) {
             NSInteger n = [[NSUserDefaults standardUserDefaults] integerForKey:IOSTOUCH_SELFIES_DEFAULTS_KEY];
             iosTouch_selfieShots = (n == 1 || n == 5) ? (int)n : 3;
@@ -2176,7 +2208,7 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
         // FIRE as it could without FORCE (IOSTOUCH_TRAY_CLEAR, unless they
         // leave it less), and that clear of FORCE
         CGFloat trayFree;
-        iosTouch_TrayKeysAt(menu, left, NULL, &trayFree, NULL);
+        iosTouch_TrayKeysAt(menu, left, NULL, &trayFree, NULL, 0);
         const CGFloat trayNeed = MIN((CGFloat)IOSTOUCH_TRAY_CLEAR, trayFree);
         // If nothing fits (a very short screen at a large HUD scale, e.g. with
         // Display Zoom): just outside the arc, IOSTOUCH_CLUSTER_GAP from both
@@ -2216,7 +2248,7 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
                 if (bNearTop) continue;
                 if (!iosTouch_bSwapped) {                                              // MENU's tray (swapped: FORCE is on the other side)
                     CGFloat trayClear, trayForce;
-                    iosTouch_TrayKeysAt(menu, left, &p, &trayClear, &trayForce);
+                    iosTouch_TrayKeysAt(menu, left, &p, &trayClear, &trayForce, 0);
                     if (trayClear < trayNeed || trayForce < IOSTOUCH_TRAY_CLEAR) continue;
                 }
                 best = p;
@@ -2245,10 +2277,12 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
         iosTouchButton* m = &iosTouch_aButtons[BTN_MENU];
         iosTouchButton* f = &iosTouch_aButtons[BTN_FORCE];
         const CGPoint force = CGPointMake(f->x, f->y);
-        CGPoint k = iosTouch_TrayKeysAt(CGPointMake(m->x, m->y), left, &force, NULL, NULL);
-        const CGFloat len = IOSTOUCH_TRAY_STEP * (BTN_TRAY_LAST - BTN_TRAY_FIRST);
+        CGPoint k = iosTouch_TrayKeysAt(CGPointMake(m->x, m->y), left, &force, NULL, NULL, 1);
+        // (LEVEL, while sithewok is on, right of the cheat switch; otherwise
+        // the row closes up, from the keyboard leftwards, as it always was)
+        const CGFloat len = IOSTOUCH_TRAY_STEP * iosTouch_TrayFromRight(BTN_TRAY_FIRST);
         for (int i = BTN_TRAY_FIRST; i <= BTN_TRAY_LAST; i++) {
-            iosTouch_aButtons[i].x = k.x - IOSTOUCH_TRAY_STEP * (BTN_TRAY_LAST - i);
+            iosTouch_aButtons[i].x = k.x - IOSTOUCH_TRAY_STEP * iosTouch_TrayFromRight(i);
             iosTouch_aButtons[i].y = k.y;
         }
         trayBack.frame = CGRectMake(k.x - len - 26, k.y - 26, len + 52, 52);
@@ -2293,8 +2327,13 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
     // The game's top message text and typing line (iosTouch_GetTopTextRectPt):
     // just under the top row, centred on the screen, and only as wide as keeps
     // it clear of any other button up near it (FORCE or ALT, on smaller screens)
-    {
-        const CGFloat textTop = top + 26 + iosTouch_aButtons[BTN_MENU].radius + IOSTOUCH_TOPTEXT_GAP;
+    // -- and, for while MENU's tray is open, the same just under the tray (or
+    // the row open under it), where the tray doesn't cover it
+    for (int k = 0; k < 5; k++) {
+        // (k 1..4: just under the tray's backing, or the row's)
+        UIView* aUnder[4] = { trayBack, gyroOptBack, camRowBack, camOptBack };
+        const CGFloat textTop = k == 0 ? top + 26 + iosTouch_aButtons[BTN_MENU].radius + IOSTOUCH_TOPTEXT_GAP
+                                       : CGRectGetMaxY(aUnder[k - 1].frame) + IOSTOUCH_TOPTEXT_GAP;
         CGFloat half = MIN(W * 0.5 - (left + IOSTOUCH_TOPTEXT_SIDE), (right - IOSTOUCH_TOPTEXT_SIDE) - W * 0.5);
         for (int i = 0; i < IOSTOUCH_NUM_BUTTONS; i++) {
             if (iosTouch_IsTrayButton(i) || iosTouch_IsOptButton(i)) continue; // only over the text while open
@@ -2308,9 +2347,10 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
             half = MIN(half, fabs(q->x - W * 0.5) - q->radius - IOSTOUCH_TOUCH_SLOP);
         }
         half = MAX(half, 60.0);
-        iosTouch_aTopText[0] = textTop;
-        iosTouch_aTopText[1] = W * 0.5 - half;
-        iosTouch_aTopText[2] = W * 0.5 + half;
+        float* pText = k == 0 ? iosTouch_aTopText : iosTouch_aTopTextTray[k - 1];
+        pText[0] = textTop;
+        pText[1] = W * 0.5 - half;
+        pText[2] = W * 0.5 + half;
         iosTouch_bTopText = 1;
     }
 
@@ -2339,6 +2379,7 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
     iosTouchButton* r = &iosTouch_aButtons[BTN_TRAY_LAST];
     if (iosTouch_bTrayOpen && iosTouch_DistToSegment(p, l->x, l->y, r->x, r->y) <= 26) {
         for (int i = BTN_TRAY_FIRST; i <= BTN_TRAY_LAST; i++) {
+            if (!iosTouch_TrayShown(i)) continue;
             CGFloat d = fabs(p.x - iosTouch_aButtons[i].x);
             if (best < 0 || d < bestDist) {
                 best = i;
@@ -2423,6 +2464,7 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
         CGFloat alpha = (bHeld || bOn || bWheel || bTray) ? 1.0 : IOSTOUCH_IDLE_ALPHA;
         if (i == BTN_FORCE && bForceLabelSet && !forceLabelName) alpha *= 0.45; // no power to use yet
         if (i == BTN_TRAYGYRO && !bGyro) alpha *= 0.45;                           // no gyro here
+        if (i == BTN_TRAYLEVEL && iosGame_NumPickableLevels() <= 0) alpha *= 0.45; // no level can be picked now (multiplayer, not the host)
         if ((i == BTN_GYROOPT_MODE || i == BTN_GYROOPT_SENS) && (!bGyro || iosTouch_gyroMode == IOSTOUCH_GYRO_OFF))
             alpha *= 0.45; // ...or it's off (still set: they apply once it's on)
         // (a selfie shows no buttons; Action Freeze only CAMERA)
@@ -2436,7 +2478,7 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     forceRing.opacity = bForceRingFull ? 1.0 : (iosTouch_aButtonHeld[BTN_FORCE] ? 1.0 : IOSTOUCH_IDLE_ALPHA);
-    for (int k = 0; k < 3; k++) aCheatSub[k].hidden = !iosTouch_bCheatOn;
+    for (int k = 0; k < 2; k++) aCheatSub[k].hidden = !iosTouch_bCheatOn;
     // CHEAT's emblem and edge in a quiet red while the cheat is on: only
     // their colour changes (the edge as wide as every other button's)
     cheatEmblem.fillColor = iosTouch_bCheatOn ? [UIColor colorWithRed:0.9 green:0.32 blue:0.28 alpha:0.95].CGColor
@@ -2445,8 +2487,9 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
     [CATransaction commit];
 }
 
-// DUCK's level pick over for this finger: DUCK's own label back (unless
-// another finger on it is still counting), and the message line saying so
+// The tray's LEVEL pick over for this finger: LEVEL's own label back
+// (unless another finger on it is still counting), and the message line
+// saying so
 - (void)endLevelPick:(iosTouchSlot*)s
 {
     // (the count on the message line: the level going, or none)
@@ -2461,7 +2504,31 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
         const iosTouchSlot* o = &iosTouch_aSlots[i];
         if (o != s && o->touch && o->role == ROLE_BUTTON && o->levelPick > 0) return;
     }
-    aButtonViews[BTN_DUCK].text = @"DUCK";
+    aButtonViews[BTN_TRAYLEVEL].text = @"LEVEL";
+}
+
+// The tray's LEVEL in its row or not, as the cheat is now (read as the tray
+// opens, and while it is open): the row laid out again to close up or make
+// room; a count going on it dropped if it goes
+- (void)refreshTrayLevel
+{
+    const int bLevel = iosGame_IsSithEwokOn() ? 1 : 0;
+    if (bLevel != iosTouch_bTrayLevel) {
+        iosTouch_bTrayLevel = bLevel;
+        if (!bLevel) {
+            for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
+                iosTouchSlot* s = &iosTouch_aSlots[i];
+                if (!s->touch || s->role != ROLE_BUTTON || s->button != BTN_TRAYLEVEL) continue;
+                [self endLevelPick:s];
+                if (iosTouch_aButtonHeld[BTN_TRAYLEVEL] > 0) iosTouch_aButtonHeld[BTN_TRAYLEVEL]--;
+                s->role = ROLE_IGNORED;
+            }
+            [self setRing:levelRing progress:0.0];
+        }
+        [self setNeedsLayout];
+        [self layoutIfNeeded]; // (at once: the backing and the row with it)
+    }
+    aButtonViews[BTN_TRAYLEVEL].hidden = !(iosTouch_bTrayOpen && iosTouch_bTrayLevel);
 }
 
 - (void)setRing:(CAShapeLayer*)ring progress:(CGFloat)progress
@@ -2579,12 +2646,17 @@ static int iosTouch_LayoutGaugeRect(CGFloat W, float g[4])
     if (!bOpen) [self setOptRow:IOSTOUCH_ROW_NONE];
     trayBack.hidden = !bOpen;
     for (int i = BTN_TRAY_FIRST; i <= BTN_TRAY_LAST; i++) aButtonViews[i].hidden = !bOpen;
+    [self refreshTrayLevel]; // (LEVEL only while sithewok is on)
     if (!bOpen) {
         for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
             iosTouchSlot* s = &iosTouch_aSlots[i];
             if (!s->touch || s->role != ROLE_BUTTON) continue;
             if (s->button == BTN_TRAYCAM) [self setRing:camOptRing progress:0.0];
             if (s->button == BTN_TRAYGYRO) [self setRing:gyroOptRing progress:0.0];
+            if (s->button == BTN_TRAYLEVEL) {
+                [self endLevelPick:s]; // (closing the tray: no level)
+                [self setRing:levelRing progress:0.0];
+            }
             if (iosTouch_IsTrayButton(s->button)) {
                 if (iosTouch_aButtonHeld[s->button] > 0) iosTouch_aButtonHeld[s->button]--;
                 s->role = ROLE_IGNORED;
@@ -3303,13 +3375,18 @@ static int iosTouch_SaberBlade(void)
         [self setNeedsLayout];
         [self layoutIfNeeded]; // (at once: the tray stays, laid out with the rest)
     }
+    else if (kind == KIND_LEVEL) {
+        // (a tap, or MENU's thumb lifted on it: nothing goes, it only says
+        // how; the count is a hold of its own, -tick)
+        iosGame_ShowMessageInPlace(iosGame_NumPickableLevels() > 0 ? "Hold LEVEL to count levels" : "No level to pick here");
+    }
     else if (kind == KIND_JUMPSTYLE) {
         iosTouch_jumpStyle = (iosTouch_jumpStyle + 1) % IOSGAME_JUMP_NUM_STYLES;
         iosGame_SetForceJumpStyle(iosTouch_jumpStyle);
         [[NSUserDefaults standardUserDefaults] setInteger:iosTouch_jumpStyle forKey:IOSTOUCH_JUMPSTYLE_DEFAULTS_KEY];
         [self refreshGyroLabels];
     }
-    if (kind == KIND_GYRO || kind == KIND_JUMPSTYLE || kind == KIND_CONTROLS) [self refreshButtonLooks]; // (the tray stays, for another tap)
+    if (kind == KIND_GYRO || kind == KIND_JUMPSTYLE || kind == KIND_CONTROLS || kind == KIND_LEVEL) [self refreshButtonLooks]; // (the tray stays, for another tap)
     else [self setTrayOpen:0];
 }
 
@@ -4350,11 +4427,18 @@ static NSSet* iosTouch_PointerTouchesPassed(NSSet<UITouch*>* touches)
                     }
                     else iosTouch_tJumpTapUp = t.timestamp;
                 }
-                // DUCK lifted with a level on show: that level (at the next tick)
-                if (s->button == BTN_DUCK && s->levelPick > 0) {
+                // The tray's LEVEL lifted with a level on show: that level (at
+                // the next tick), and the tray closes; lifted before the count
+                // began (not moved): a tap, which only says how (useTrayButton)
+                int bNoTap = 0;
+                if (s->button == BTN_TRAYLEVEL) [self setRing:levelRing progress:0.0];
+                if (s->button == BTN_TRAYLEVEL && s->levelPick > 0) {
                     if (!bCancelled) iosTouch_levelToLoad = s->levelPick;
                     [self endLevelPick:s];
+                    if (!bCancelled) [self setTrayOpen:0];
+                    bNoTap = 1;
                 }
+                else if (s->button == BTN_TRAYLEVEL && s->bFlyDone) bNoTap = 1; // (slid, or the count dropped: no tap either)
                 // A tap so quick that it began and ended between two reads of
                 // the controls (a slow frame) still counts as one press
                 if (!bCancelled && !jkHud_bChatOpen && b->kind == KIND_KEY && b->scancode >= 0 && !s->bSeen) {
@@ -4366,7 +4450,7 @@ static NSSet* iosTouch_PointerTouchesPassed(NSSet<UITouch*>* touches)
                 // the game isn't reading the controls then, so the rest would
                 // only go off later.
                 int bWhileTyping = b->kind == KIND_MENU || iosTouch_IsTrayButton(s->button) || iosTouch_IsOptButton(s->button);
-                if (!bCancelled && [self isPoint:p onButton:s->button] && (!jkHud_bChatOpen || bWhileTyping)) {
+                if (!bCancelled && !bNoTap && [self isPoint:p onButton:s->button] && (!jkHud_bChatOpen || bWhileTyping)) {
                     if (b->kind == KIND_ITEM && s->button != BTN_BACTA && !aButtonViews[s->button].hidden
                              // one item at a time: the use key acts on whichever item is selected when it is read
                              && !iosTouch_aPulseQueue[b->scancode] && !iosTouch_aPulseReads[b->scancode]
@@ -4493,17 +4577,20 @@ static NSSet* iosTouch_PointerTouchesPassed(NSSet<UITouch*>* touches)
     if (iosTouch_bShowSaber) [self refreshSaberIcons];
     // VIEW: the view picked by a keyboard's camera key, shown and remembered
     if (iosGame_IsThirdPerson() != iosTouch_bThirdPerson) [self setThirdPerson:iosGame_IsThirdPerson()];
-    // DUCK's level pick: dropped (DUCK's label back) once its finger is no
-    // longer a button press -- a wheel, Action Freeze, the burst or a selfie
-    // took every touch; and a level lifted for loads only when none of those
-    // is going on
+    // The tray's LEVEL there while sithewok is on (gone if it goes off
+    // while the tray is open, or back)
+    if (iosTouch_bTrayOpen && (iosGame_IsSithEwokOn() ? 1 : 0) != iosTouch_bTrayLevel) [self refreshTrayLevel];
+    // The tray's level pick: dropped (LEVEL's label back) once its finger is
+    // no longer a button press -- the tray closed, a wheel, Action Freeze,
+    // the burst or a selfie took every touch; and a level lifted for loads
+    // only when none of those is going on
     int bPicking = 0;
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
         if (s->levelPick > 0 && s->touch && s->role == ROLE_BUTTON) bPicking = 1;
         else s->levelPick = 0;
     }
-    if (!bPicking && ![aButtonViews[BTN_DUCK].text isEqualToString:@"DUCK"]) aButtonViews[BTN_DUCK].text = @"DUCK";
+    if (!bPicking && ![aButtonViews[BTN_TRAYLEVEL].text isEqualToString:@"LEVEL"]) aButtonViews[BTN_TRAYLEVEL].text = @"LEVEL";
     if (iosTouch_levelToLoad > 0) {
         const int level = iosTouch_levelToLoad;
         iosTouch_levelToLoad = 0;
@@ -4559,20 +4646,21 @@ static NSSet* iosTouch_PointerTouchesPassed(NSSet<UITouch*>* touches)
     // ever): with sithewok on, IOSTOUCH_FLY_HOLD switches its flight (JUMP)
     // or noclip (ACT) on or off, once per press; the ring fills meanwhile
     // (the furthest along of its holds)
-    // DUCK the same, for its level pick: from IOSTOUCH_FLY_HOLD the number
-    // on show counts up (a tick each); lifted, that level (endTouches)
-    CGFloat jumpProgress = 0.0, actProgress = 0.0, duckProgress = 0.0;
+    // The tray's LEVEL the same, for the level pick: from IOSTOUCH_FLY_HOLD
+    // the number on show counts up (a tick each); lifted, that level
+    // (endTouches). (DUCK has no hold: only ever a crouch.)
+    CGFloat jumpProgress = 0.0, actProgress = 0.0, levelProgress = 0.0;
     for (int i = 0; i < IOSTOUCH_MAX_TOUCHES; i++) {
         iosTouchSlot* s = &iosTouch_aSlots[i];
-        if (!s->touch || s->role != ROLE_BUTTON || (s->button != BTN_JUMP && s->button != BTN_ACT && s->button != BTN_DUCK) || s->bFlyDone) continue;
+        if (!s->touch || s->role != ROLE_BUTTON || (s->button != BTN_JUMP && s->button != BTN_ACT && s->button != BTN_TRAYLEVEL) || s->bFlyDone) continue;
         CGPoint q = [s->touch locationInView:self];
         if (hypot(q.x - s->origin.x, q.y - s->origin.y) >= IOSTOUCH_FLY_STILL) {
             s->bFlyDone = 1; // (a drag, turning the view)
             [self endLevelPick:s];
             continue;
         }
-        if (s->button == BTN_DUCK) {
-            const int numLevels = jkHud_bChatOpen ? 0 : iosGame_NumPickableLevels();
+        if (s->button == BTN_TRAYLEVEL) {
+            const int numLevels = (jkHud_bChatOpen || !iosTouch_bTrayOpen || !iosTouch_bTrayLevel) ? 0 : iosGame_NumPickableLevels();
             if (numLevels <= 0) {
                 if (s->levelPick) {
                     s->bFlyDone = 1; // (sithewok went off, or typing: no pick)
@@ -4586,7 +4674,7 @@ static NSSet* iosTouch_PointerTouchesPassed(NSSet<UITouch*>* touches)
                 int n = 1 + (int)((held - IOSTOUCH_FLY_HOLD) / IOSTOUCH_LEVEL_STEP) % numLevels;
                 if (n != s->levelPick) {
                     s->levelPick = n;
-                    aButtonViews[BTN_DUCK].text = [NSString stringWithFormat:@"%d", n];
+                    aButtonViews[BTN_TRAYLEVEL].text = [NSString stringWithFormat:@"LEVEL\n%d", n];
                     // (and on the message line, where the thumb isn't)
                     char msg[48];
                     snprintf(msg, sizeof(msg), "Level %d of %d", n, numLevels);
@@ -4595,7 +4683,7 @@ static NSSet* iosTouch_PointerTouchesPassed(NSSet<UITouch*>* touches)
                 }
                 continue;
             }
-            duckProgress = MAX(duckProgress, MIN((CGFloat)((now - s->tDown) / IOSTOUCH_FLY_HOLD), 1.0));
+            levelProgress = MAX(levelProgress, MIN((CGFloat)((now - s->tDown) / IOSTOUCH_FLY_HOLD), 1.0));
             continue;
         }
         const int bJump = s->button == BTN_JUMP;
@@ -4615,7 +4703,7 @@ static NSSet* iosTouch_PointerTouchesPassed(NSSet<UITouch*>* touches)
     }
     [self setRing:jumpRing progress:jumpProgress];
     [self setRing:actRing progress:actProgress];
-    [self setRing:duckRing progress:duckProgress];
+    [self setRing:levelRing progress:levelProgress];
 
     // CHEAT held still IOSTOUCH_CHEAT_HOLD: the cheat on or off, once per
     // press (the ring fills meanwhile; moved IOSTOUCH_FLY_STILL, no); and its
@@ -4945,9 +5033,9 @@ static NSSet* iosTouch_PointerTouchesPassed(NSSet<UITouch*>* touches)
     [self setRing:saveRing progress:0.0];
     [self setRing:jumpRing progress:0.0];
     [self setRing:actRing progress:0.0];
-    [self setRing:duckRing progress:0.0];
+    [self setRing:levelRing progress:0.0];
     [self setRing:cheatRing progress:0.0];
-    aButtonViews[BTN_DUCK].text = @"DUCK"; // (a level pick on show, dropped)
+    aButtonViews[BTN_TRAYLEVEL].text = @"LEVEL"; // (a level pick on show, dropped)
     iosTouch_levelToLoad = 0;
     [self setRing:loadRing progress:0.0];
     [self setRing:menuRing progress:0.0];
@@ -5166,9 +5254,14 @@ void iosTouch_CameraFeedback(int mode)
 int iosTouch_GetTopTextRectPt(float* pTop, float* pLeft, float* pRight)
 {
     if (!iosTouch_bTopText) return 0;
-    *pTop = iosTouch_aTopText[0];
-    *pLeft = iosTouch_aTopText[1];
-    *pRight = iosTouch_aTopText[2];
+    const float* pText = iosTouch_aTopText;
+    if (iosTouch_bTrayOpen && iosTouch_pOverlay && !iosTouch_pOverlay.hidden) {
+        const int k = iosTouch_optRow == IOSTOUCH_ROW_CAMERA ? (iosTouch_bKindsOpen ? 3 : 2) : iosTouch_optRow == IOSTOUCH_ROW_GYRO ? 1 : 0;
+        pText = iosTouch_aTopTextTray[k];
+    }
+    *pTop = pText[0];
+    *pLeft = pText[1];
+    *pRight = pText[2];
     return 1;
 }
 

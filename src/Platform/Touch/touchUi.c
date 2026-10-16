@@ -119,6 +119,7 @@ enum {
     KIND_KEY = 0, KIND_MENU, KIND_HOLDSAVE, KIND_HOLDLOAD, KIND_WHEEL, KIND_ITEM, KIND_CHAT, KIND_FPS, KIND_GYRO,
     KIND_GYROMODE, KIND_GYROSENS, KIND_CAMSWITCH, KIND_CHEAT, KIND_CHEATSWITCH, KIND_VIEW, KIND_VIEWSWITCH,
     KIND_CONTROLS, KIND_JUMPSTYLE, KIND_CAMERA, KIND_CAMPHOTO, KIND_SELFIES, KIND_FREEZEOPT, KIND_CAMKIND,
+    KIND_LEVEL, // (MENU tray, while sithewok is on) held still: counts the levels; lifted, goes to the one on show
 };
 
 #define BIN_BACTATANK 40
@@ -130,7 +131,7 @@ enum {
     BTN_NEXTWPN, BTN_WHEEL, BTN_LIGHT, BTN_IR, BTN_BACTA,
     BTN_QUICKSAVE, BTN_QUICKLOAD, BTN_MENU,
     BTN_CAMERA, BTN_SABER, BTN_CHEAT, BTN_VIEW,
-    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYCHEAT, BTN_TRAYVIEW, BTN_TRAYJUMP, BTN_TRAYCTRL, BTN_TRAYKEYS,
+    BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYCHEAT, BTN_TRAYLEVEL, BTN_TRAYVIEW, BTN_TRAYJUMP, BTN_TRAYCTRL, BTN_TRAYKEYS,
     BTN_GYROOPT_MODE, BTN_GYROOPT_SENS,
     BTN_CAMROW_PHOTO, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE,
     BTN_CAMOPT_CLEAN, BTN_CAMOPT_HUD, BTN_CAMOPT_BTNS,
@@ -175,6 +176,7 @@ static tuButton tu_aButtons[BTN_COUNT] = {
     [BTN_TRAYFPS]   = { "FPS",          KIND_FPS,      -1,           20.0f, 0, 0 },
     [BTN_TRAYCAM]   = { "",             KIND_CAMSWITCH, -1,          20.0f, 0, 0 },
     [BTN_TRAYCHEAT] = { "CHEAT",        KIND_CHEATSWITCH, -1,        20.0f, 0, 0 },
+    [BTN_TRAYLEVEL] = { "LEVEL",        KIND_LEVEL,    -1,           20.0f, 0, 0 },
     [BTN_TRAYVIEW]  = { "VIEW",         KIND_VIEWSWITCH, -1,         20.0f, 0, 0 },
     [BTN_TRAYJUMP]  = { "JUMP",         KIND_JUMPSTYLE, -1,          20.0f, 0, 0 },
     [BTN_TRAYCTRL]  = { "CONTROLS",     KIND_CONTROLS, -1,           20.0f, 0, 0 },
@@ -258,6 +260,7 @@ static struct {
     float aLayoutGauge[4];
     int bTopText;
     float aTopText[3];
+    float aTopTextTray[4][3]; // (while MENU's tray is open: under it, or under the row open below it)
     int bFpsBottom;
     float fpsX, fpsY;
     float trayBack[4], aRowBack[3][4]; // (the rows: the gyro options, the camera options, the photo kinds)
@@ -265,6 +268,7 @@ static struct {
     float freezeX, freezeY;
     // MENU's tray and the rows under it
     int bTrayOpen;
+    int bTrayLevel; // the tray's LEVEL in its row (sithewok on, as the tray last read it)
     int bGyroRow; // (the gyro options' row is open: optRow == TU_ROW_GYRO)
     int optRow;
     int bKindsOpen;
@@ -486,6 +490,7 @@ static int tu_Hidden(int i)
     if (i == BTN_CAMERA) return !tu.bShowCamera;
     if (i == BTN_SABER) return !tu.bShowSaber;
     if (b->kind == KIND_ITEM) return !tu.aItemHave[i];
+    if (i == BTN_TRAYLEVEL) return !tu.bTrayOpen || !tu.bTrayLevel;
     if (tu_IsTrayButton(i)) return !tu.bTrayOpen;
     if (i >= BTN_GYROOPT_FIRST && i <= BTN_GYROOPT_LAST) return tu.optRow != TU_ROW_GYRO;
     if (i >= BTN_CAMROW_FIRST && i <= BTN_CAMROW_LAST) return tu.optRow != TU_ROW_CAMERA;
@@ -542,11 +547,24 @@ static int tu_LayoutGaugeRect(float W, float g[4])
     return 1;
 }
 
-// iosTouch_TrayKeysAt: where MENU's tray goes, clear of the buttons round FIRE
-static void tu_TrayKeysAt(float mx, float my, float left, const float* pForce, float* pKx, float* pKy, float* pClear, float* pForceClear)
+// Whether a tray button is in its row now (LEVEL only while sithewok is on),
+// and its place in the row counted from the right end (the keyboard, 0)
+static int tu_TrayShown(int b) { return b != BTN_TRAYLEVEL || tu.bTrayLevel; }
+static int tu_TrayFromRight(int b)
+{
+    int n = 0;
+    for (int i = b + 1; i <= BTN_TRAY_LAST; i++) n += tu_TrayShown(i);
+    return n;
+}
+
+// iosTouch_TrayKeysAt: where MENU's tray goes, clear of the buttons round
+// FIRE. bAsShown: the row as it is now, with LEVEL while sithewok is on (the
+// tray's own place); otherwise without it (FORCE's search: FORCE never moves
+// with the cheat)
+static void tu_TrayKeysAt(float mx, float my, float left, const float* pForce, float* pKx, float* pKy, float* pClear, float* pForceClear, int bAsShown)
 {
     const float ty = my + 52;
-    const float len = TU_TRAY_STEP * (BTN_TRAY_LAST - BTN_TRAY_FIRST);
+    const float len = TU_TRAY_STEP * (bAsShown ? tu_TrayFromRight(BTN_TRAY_FIRST) : BTN_TRAY_LAST - BTN_TRAYGYRO - 1);
     float kx = mx, bestClear = -1e9f, bestForce = 1e9f;
     for (float x = mx; ; x -= 4) {
         float clear = 1e9f, forceClear = 1e9f;
@@ -710,7 +728,7 @@ static void tu_Layout(void)
         const float topGap = TU_TOUCH_SLOP + TU_TOUCH_SLOP + 10.0f;
         const float mx = tu_aButtons[BTN_MENU].x, my = tu_aButtons[BTN_MENU].y;
         float trayFree, kx, ky;
-        tu_TrayKeysAt(mx, my, left, NULL, &kx, &ky, &trayFree, NULL);
+        tu_TrayKeysAt(mx, my, left, NULL, &kx, &ky, &trayFree, NULL, 0);
         const float trayNeed = TU_MIN(TU_TRAY_CLEAR, trayFree);
         tuButton* d = &tu_aButtons[BTN_DUCK];
         float dist = d->radius + R + TU_CLUSTER_GAP;
@@ -747,7 +765,7 @@ static void tu_Layout(void)
                 if (!tu.bSwapped) {
                     float trayClear, trayForce, kx2, ky2;
                     const float pf[2] = { qx, qy };
-                    tu_TrayKeysAt(mx, my, left, pf, &kx2, &ky2, &trayClear, &trayForce);
+                    tu_TrayKeysAt(mx, my, left, pf, &kx2, &ky2, &trayClear, &trayForce, 0);
                     if (trayClear < trayNeed || trayForce < TU_TRAY_CLEAR) continue;
                 }
                 bestX = qx;
@@ -767,10 +785,12 @@ static void tu_Layout(void)
     {
         const float force[2] = { tu_aButtons[BTN_FORCE].x, tu_aButtons[BTN_FORCE].y };
         float kx, ky;
-        tu_TrayKeysAt(tu_aButtons[BTN_MENU].x, tu_aButtons[BTN_MENU].y, left, force, &kx, &ky, NULL, NULL);
-        const float len = TU_TRAY_STEP * (BTN_TRAY_LAST - BTN_TRAY_FIRST);
+        tu_TrayKeysAt(tu_aButtons[BTN_MENU].x, tu_aButtons[BTN_MENU].y, left, force, &kx, &ky, NULL, NULL, 1);
+        // (LEVEL, while sithewok is on, right of the cheat switch; otherwise
+        // the row closes up from the keyboard leftwards)
+        const float len = TU_TRAY_STEP * tu_TrayFromRight(BTN_TRAY_FIRST);
         for (int i = BTN_TRAY_FIRST; i <= BTN_TRAY_LAST; i++) {
-            tu_aButtons[i].x = kx - TU_TRAY_STEP * (BTN_TRAY_LAST - i);
+            tu_aButtons[i].x = kx - TU_TRAY_STEP * tu_TrayFromRight(i);
             tu_aButtons[i].y = ky;
         }
         tu.trayBack[0] = kx - len - 26; tu.trayBack[1] = ky - 26; tu.trayBack[2] = len + 52; tu.trayBack[3] = 52;
@@ -805,9 +825,12 @@ static void tu_Layout(void)
     tu.fpsX = tu.bFpsBottom ? W * 0.5f : right - TU_FPS_LABEL_X;
     tu.fpsY = tu.bFpsBottom ? bottom - 9.0f : top + 26;
 
-    // The game's top message text
-    {
-        const float textTop = top + 26 + tu_aButtons[BTN_MENU].radius + TU_TOPTEXT_GAP;
+    // The game's top message text; and, for while MENU's tray is open, the
+    // same just under the tray or the row open under it (not covered by it)
+    for (int k = 0; k < 5; k++) {
+        const float* aUnder[4] = { tu.trayBack, tu.aRowBack[0], tu.aRowBack[1], tu.aRowBack[2] };
+        const float textTop = k == 0 ? top + 26 + tu_aButtons[BTN_MENU].radius + TU_TOPTEXT_GAP
+                                     : aUnder[k - 1][1] + aUnder[k - 1][3] + TU_TOPTEXT_GAP;
         float half = TU_MIN(W * 0.5f - (left + TU_TOPTEXT_SIDE), (right - TU_TOPTEXT_SIDE) - W * 0.5f);
         for (int i = 0; i < BTN_COUNT; i++) {
             if (tu_IsTrayButton(i) || tu_IsOptButton(i)) continue;
@@ -820,9 +843,10 @@ static void tu_Layout(void)
             half = TU_MIN(half, fabsf(q->x - W * 0.5f) - q->radius - TU_TOUCH_SLOP);
         }
         half = TU_MAX(half, 60.0f);
-        tu.aTopText[0] = textTop;
-        tu.aTopText[1] = W * 0.5f - half;
-        tu.aTopText[2] = W * 0.5f + half;
+        float* pText = k == 0 ? tu.aTopText : tu.aTopTextTray[k - 1];
+        pText[0] = textTop;
+        pText[1] = W * 0.5f - half;
+        pText[2] = W * 0.5f + half;
         tu.bTopText = 1;
     }
     tu.bLaidOut = 1;
@@ -838,6 +862,7 @@ static int tu_ButtonAt(float px, float py)
     const tuButton* r = &tu_aButtons[BTN_TRAY_LAST];
     if (tu.bTrayOpen && tu_DistToSegment(px, py, l->x, l->y, r->x, r->y) <= 26) {
         for (int i = BTN_TRAY_FIRST; i <= BTN_TRAY_LAST; i++) {
+            if (!tu_TrayShown(i)) continue;
             float d = fabsf(px - tu_aButtons[i].x);
             if (best < 0 || d < bestDist) { best = i; bestDist = d; }
         }
@@ -1084,17 +1109,44 @@ static void tu_SetKindsOpen(int bOpen)
     tu_ReleaseOptTouches();
 }
 
+static void tu_EndLevelPick(tuSlot* s);
+
+// The tray's LEVEL in its row or not, as the cheat is now (as the tray opens,
+// and while it is open): the row laid out again; a count on it dropped if it goes
+static void tu_RefreshTrayLevel(void)
+{
+    const int bLevel = tu_IsCheatOn() ? 1 : 0;
+    if (bLevel == tu.bTrayLevel) return;
+    tu.bTrayLevel = bLevel;
+    if (!bLevel) {
+        for (int i = 0; i < TU_MAX_TOUCHES; i++) {
+            tuSlot* s = &tu.aSlots[i];
+            if (!s->bUsed || s->role != ROLE_BUTTON || s->button != BTN_TRAYLEVEL) continue;
+            tu_EndLevelPick(s);
+            if (tu.aButtonHeld[BTN_TRAYLEVEL] > 0) tu.aButtonHeld[BTN_TRAYLEVEL]--;
+            s->role = ROLE_IGNORED;
+        }
+        tu.aRing[BTN_TRAYLEVEL] = 0.0f;
+    }
+    if (tu.bLaidOut) tu_Layout();
+}
+
 static void tu_SetTrayOpen(int bOpen)
 {
     bOpen = bOpen != 0;
     if (tu.bTrayOpen == bOpen) return;
     tu.bTrayOpen = bOpen;
+    tu_RefreshTrayLevel(); // (LEVEL only while sithewok is on)
     if (!bOpen) {
         tu_SetOptRow(TU_ROW_NONE);
         for (int i = 0; i < TU_MAX_TOUCHES; i++) {
             tuSlot* s = &tu.aSlots[i];
             if (!s->bUsed || s->role != ROLE_BUTTON) continue;
             if (tu_IsRowOpener(s->button)) tu.aRing[s->button] = 0.0f;
+            if (s->button == BTN_TRAYLEVEL) {
+                tu_EndLevelPick(s); // (closing the tray: no level)
+                tu.aRing[BTN_TRAYLEVEL] = 0.0f;
+            }
             if (tu_IsTrayButton(s->button)) {
                 if (tu.aButtonHeld[s->button] > 0) tu.aButtonHeld[s->button]--;
                 s->role = ROLE_IGNORED;
@@ -1175,12 +1227,17 @@ static void tu_UseTrayButton(int button)
         tu_SaveSettings();
         tu_Layout();
     }
+    else if (kind == KIND_LEVEL) {
+        // (a tap, or MENU's thumb lifted on it: nothing goes, it only says how)
+        if (G(ShowMessageInPlace))
+            tu.game->ShowMessageInPlace((G(NumPickableLevels) && tu.game->NumPickableLevels() > 0) ? "Hold LEVEL to count levels" : "No level to pick here");
+    }
     else if (kind == KIND_JUMPSTYLE) {
         tu.jumpStyle = (tu.jumpStyle + 1) % TU_JUMP_NUM_STYLES;
         if (G(SetForceJumpStyle)) tu.game->SetForceJumpStyle(tu.jumpStyle);
         tu_SaveSettings();
     }
-    if (kind == KIND_GYRO || kind == KIND_JUMPSTYLE || kind == KIND_CONTROLS) {
+    if (kind == KIND_GYRO || kind == KIND_JUMPSTYLE || kind == KIND_CONTROLS || kind == KIND_LEVEL) {
         // (the tray stays, for another tap)
     }
     else {
@@ -1993,14 +2050,21 @@ static void tu_TouchUp(tuSlot* s, float px, float py, double t, int bCancelled)
             }
             else tu.tJumpTapUp = t;
         }
-        if (s->button == BTN_DUCK && s->levelPick > 0) {
+        // the tray's LEVEL lifted with a level on show: that level (next
+        // frame), the tray closes; slid or dropped: no tap either
+        int bNoTap = 0;
+        if (s->button == BTN_TRAYLEVEL) tu.aRing[BTN_TRAYLEVEL] = 0.0f;
+        if (s->button == BTN_TRAYLEVEL && s->levelPick > 0) {
             if (!bCancelled) tu.levelToLoad = s->levelPick;
             tu_EndLevelPick(s);
+            if (!bCancelled) tu_SetTrayOpen(0);
+            bNoTap = 1;
         }
+        else if (s->button == BTN_TRAYLEVEL && s->bFlyDone) bNoTap = 1;
         // a tap so quick the game never read it held still counts as one press
         if (!bCancelled && !bChat && b->kind == KIND_KEY && b->scancode >= 0 && !s->bSeen) tu_QueuePress(b->scancode);
         int bWhileTyping = b->kind == KIND_MENU || tu_IsTrayButton(s->button) || tu_IsOptButton(s->button);
-        if (!bCancelled && tu_IsPointOnButton(px, py, s->button) && (!bChat || bWhileTyping)) {
+        if (!bCancelled && !bNoTap && tu_IsPointOnButton(px, py, s->button) && (!bChat || bWhileTyping)) {
             if (b->kind == KIND_ITEM && s->button != BTN_BACTA && !tu_Hidden(s->button)
                 && !tu.aPulseQueue[b->scancode] && !tu.aPulseReads[b->scancode] && !tu.aPulseGap[b->scancode]) {
                 if (G(SelectItem)) tu.game->SelectItem(b->bin);
@@ -2131,7 +2195,9 @@ void touchUi_Tick(double known, double now)
         tu_SaveSettings();
     }
 
-    // DUCK's level pick
+    // The tray's LEVEL there while sithewok is on (gone if it goes off with
+    // the tray open, or back); its level pick
+    if (tu.bTrayOpen && (tu_IsCheatOn() ? 1 : 0) != tu.bTrayLevel) tu_RefreshTrayLevel();
     for (int i = 0; i < TU_MAX_TOUCHES; i++) {
         tuSlot* s = &tu.aSlots[i];
         if (!(s->levelPick > 0 && s->bUsed && s->role == ROLE_BUTTON)) s->levelPick = 0;
@@ -2189,19 +2255,20 @@ void touchUi_Tick(double known, double now)
         tu.aRing[BTN_SABER] = saberProgress;
     }
 
-    // JUMP, ACT (sithewok's flight, noclip) and DUCK (its level pick) held still
-    float jumpProgress = 0.0f, actProgress = 0.0f, duckProgress = 0.0f;
+    // JUMP, ACT (sithewok's flight, noclip) and the tray's LEVEL (its level
+    // pick) held still. (DUCK has no hold: only ever a crouch.)
+    float jumpProgress = 0.0f, actProgress = 0.0f, levelProgress = 0.0f;
     for (int i = 0; i < TU_MAX_TOUCHES; i++) {
         tuSlot* s = &tu.aSlots[i];
-        if (!s->bUsed || s->role != ROLE_BUTTON || (s->button != BTN_JUMP && s->button != BTN_ACT && s->button != BTN_DUCK) || s->bFlyDone)
+        if (!s->bUsed || s->role != ROLE_BUTTON || (s->button != BTN_JUMP && s->button != BTN_ACT && s->button != BTN_TRAYLEVEL) || s->bFlyDone)
             continue;
         if (hypotf(s->lx - s->ox, s->ly - s->oy) >= TU_FLY_STILL) {
             s->bFlyDone = 1;
             tu_EndLevelPick(s);
             continue;
         }
-        if (s->button == BTN_DUCK) {
-            const int numLevels = (bChat || !G(NumPickableLevels)) ? 0 : tu.game->NumPickableLevels();
+        if (s->button == BTN_TRAYLEVEL) {
+            const int numLevels = (bChat || !tu.bTrayOpen || !tu.bTrayLevel || !G(NumPickableLevels)) ? 0 : tu.game->NumPickableLevels();
             if (numLevels <= 0) {
                 if (s->levelPick) {
                     s->bFlyDone = 1;
@@ -2223,7 +2290,7 @@ void touchUi_Tick(double known, double now)
                 }
                 continue;
             }
-            duckProgress = TU_MAX(duckProgress, (float)TU_MIN((now - s->tDown) / TU_FLY_HOLD, 1.0));
+            levelProgress = TU_MAX(levelProgress, (float)TU_MIN((now - s->tDown) / TU_FLY_HOLD, 1.0));
             continue;
         }
         const int bJump = s->button == BTN_JUMP;
@@ -2244,7 +2311,7 @@ void touchUi_Tick(double known, double now)
     }
     tu.aRing[BTN_JUMP] = jumpProgress;
     tu.aRing[BTN_ACT] = actProgress;
-    tu.aRing[BTN_DUCK] = duckProgress;
+    tu.aRing[BTN_TRAYLEVEL] = levelProgress;
 
     // CHEAT held still 0.5 s: the cheat on or off
     float cheatProgress = 0.0f;
@@ -2595,9 +2662,11 @@ void touchUi_SetFpsShown(int bShow)
 int touchUi_GetTopTextRect(float* pTop, float* pLeft, float* pRight)
 {
     if (!tu.bTopText) return 0;
-    *pTop = tu.aTopText[0];
-    *pLeft = tu.aTopText[1];
-    *pRight = tu.aTopText[2];
+    const float* pText = tu.aTopText;
+    if (tu.bTrayOpen) pText = tu.aTopTextTray[tu.optRow == TU_ROW_CAMERA ? (tu.bKindsOpen ? 3 : 2) : tu.optRow == TU_ROW_GYRO ? 1 : 0];
+    *pTop = pText[0];
+    *pLeft = pText[1];
+    *pRight = pText[2];
     return 1;
 }
 
@@ -2804,6 +2873,7 @@ static void tu_DrawButton(int i)
     float alpha = (bHeld || bOn || bWheel || bTray) ? 1.0f : TU_IDLE_ALPHA;
     if (i == BTN_FORCE && tu.bForceNameSet && !tu.forceName) alpha *= 0.45f;
     if (i == BTN_TRAYGYRO && !bGyro) alpha *= 0.45f;
+    if (i == BTN_TRAYLEVEL && !(G(NumPickableLevels) && tu.game->NumPickableLevels() > 0)) alpha *= 0.45f; // (no level can be picked now)
     if ((i == BTN_GYROOPT_MODE || i == BTN_GYROOPT_SENS) && (!bGyro || tu.gyroMode == TOUCHUI_GYRO_OFF)) alpha *= 0.45f;
     tu_draw.alpha = alpha;
 
@@ -2832,14 +2902,17 @@ static void tu_DrawButton(int i)
         label = buf;
         size = 9.0f;
     }
-    else if (i == BTN_DUCK) {
+    else if (i == BTN_TRAYLEVEL) {
+        // (the count on a second line while LEVEL is held)
         for (int t = 0; t < TU_MAX_TOUCHES; t++) {
             const tuSlot* s = &tu.aSlots[t];
-            if (s->bUsed && s->role == ROLE_BUTTON && s->levelPick > 0) {
-                snprintf(buf, sizeof(buf), "%d", s->levelPick);
+            if (s->bUsed && s->role == ROLE_BUTTON && s->button == BTN_TRAYLEVEL && s->levelPick > 0) {
+                snprintf(buf, sizeof(buf), "LEVEL\n%d", s->levelPick);
                 label = buf;
             }
         }
+        size = tu_FontSize("GYRO\nALWAYS", b->radius);
+        xscale = TU_WHEEL_XSCALE;
     }
     else if (i == BTN_VIEW) label = tu.bThirdPerson ? "3P" : "1P";
     else if (i == BTN_TRAYGYRO || i == BTN_TRAYJUMP || i == BTN_TRAYCTRL || i == BTN_GYROOPT_MODE || i == BTN_GYROOPT_SENS) {
@@ -2878,14 +2951,14 @@ static void tu_DrawButton(int i)
     }
     else if (label[0]) tu_DrawLabel(label, b->x, b->y, size, xscale, 2.0f * b->radius, text);
 
-    // sithewok's own uses of JUMP, ACT and DUCK, named under their labels
-    if (tu.bCheatOn && (i == BTN_JUMP || i == BTN_ACT || i == BTN_DUCK)) {
-        const char* sub = i == BTN_JUMP ? "FLY" : (i == BTN_ACT ? "NOCLIP" : "LVL SEL");
+    // sithewok's own uses of JUMP and ACT, named under their labels
+    if (tu.bCheatOn && (i == BTN_JUMP || i == BTN_ACT)) {
+        const char* sub = i == BTN_JUMP ? "FLY" : "NOCLIP";
         touchUiDraw_Text(&tu_draw, sub, b->x, b->y + b->radius * 0.5f, 7.5f, 1.0f, touchUi_Rgba(1.0f, 0.58f, 0.52f, 0.95f));
     }
     // the hold rings
     if (i == BTN_QUICKSAVE || i == BTN_QUICKLOAD || i == BTN_MENU || i == BTN_WHEEL || i == BTN_NEXTWPN || i == BTN_JUMP
-        || i == BTN_ACT || i == BTN_DUCK || i == BTN_CHEAT || i == BTN_BACTA || i == BTN_TRAYGYRO || i == BTN_TRAYCAM
+        || i == BTN_ACT || i == BTN_TRAYLEVEL || i == BTN_CHEAT || i == BTN_BACTA || i == BTN_TRAYGYRO || i == BTN_TRAYCAM
         || i == BTN_CAMERA || i == BTN_SABER)
         tu_DrawHoldRing(b, tu.aRing[i], 2.5f, TU_BLUE(0.95f));
     if (i == BTN_FORCE) tu_DrawHoldRing(b, tu.fjumpRing, 7.5f, touchUi_Rgba(1.0f, 0.82f, 0.3f, 0.95f));
@@ -3016,7 +3089,7 @@ const touchUiDrawList* touchUi_Draw(double now)
     if (tu.bTrayOpen) {
         touchUiDraw_RRect(&tu_draw, tu.trayBack[0], tu.trayBack[1], tu.trayBack[2], tu.trayBack[3], 26.0f, touchUi_Black(0.55f), 1.5f,
                           touchUi_White(0.4f));
-        for (int i = BTN_TRAY_FIRST; i <= BTN_TRAY_LAST; i++) tu_DrawButton(i);
+        for (int i = BTN_TRAY_FIRST; i <= BTN_TRAY_LAST; i++) if (!tu_Hidden(i)) tu_DrawButton(i);
     }
     {
         const int aFirst[3] = { BTN_GYROOPT_FIRST, BTN_CAMROW_FIRST, BTN_CAMOPT_FIRST };

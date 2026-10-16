@@ -118,15 +118,20 @@ Tick what works, note what doesn't (a photo of the screen helps).
 - [ ] QUICK SAVE / QUICK LOAD: only a hold saves or loads (a ring fills, about
       a third of a second). Slide off before it fills: nothing.
 - [ ] MENU: a tap opens the game menu. Hold it: the tray opens under it:
-      GYRO (tap: on/off; hold: MODE and SENS), FPS, CHEAT, VIEW, JUMP style,
-      CONTROLS (swap sides), the camera switch and the keyboard (for cheats).
+      GYRO (tap: on/off; hold: MODE and SENS), FPS, CHEAT, LEVEL (only while
+      the cheat is on), VIEW, JUMP style, CONTROLS (swap sides), the camera
+      switch and the keyboard (for cheats).
 - [ ] GYRO: off to start. Switch it on (TOUCH): tilting the tablet aims while
       a thumb is on the screen; lift both thumbs and the view stays put. Try
       ALWAYS too, and the SENS steps (1.0x, 1.5x, 2.0x, 3.0x). Both ways round
       in landscape. If it says NO GYRO, the tablet has no gyroscope.
 - [ ] CHEAT (switch it on in the tray): hold it half a second to turn the
-      cheat on/off; with it on, holding JUMP flies, ACT is noclip, DUCK picks
-      a level.
+      cheat on/off; with it on, holding JUMP flies and ACT is noclip. DUCK
+      only ever crouches.
+- [ ] LEVEL (in the tray while the cheat is on): hold it; after half a second
+      it counts 1, 2, 3 (a buzz each, "Level 3 of 21" at the top). Lift to go
+      there. Slide off, or touch elsewhere to close the tray: no level. A quick
+      tap only says "Hold LEVEL to count levels".
 - [ ] CAMERA (the camera at the top, on unless switched off in the tray):
       - a tap takes a photo (a white flash and a tap felt); "1 photo saved to
         Pictures/OpenJKDF2" shows at the top. Check the photo is in the
