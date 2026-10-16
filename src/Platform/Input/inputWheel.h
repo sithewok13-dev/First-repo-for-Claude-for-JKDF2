@@ -12,9 +12,9 @@
 // made one, for every input that opens a wheel:
 //   - a game controller and a keyboard and mouse (iosPad.c, iosKbMouse.c),
 //     through inputOverlay.c (inputUi.h) everywhere but iOS;
-//   - fingers (touchUi.c), which can take it over: the maps, the angles and
-//     the pick from here, the finger's own gestures (slide, hold, tap) kept,
-//     each finger's slice handed in with inputWheel_Point.
+//   - fingers (touchUi.c, Android): the maps, the angles, the pick and the
+//     drawing from here, the finger's own gestures (slide, hold, tap) kept
+//     there, each finger's slice handed in with inputWheel_Point.
 // One wheel is open at a time, and the game holds still while it is
 // (iosGame_SetHold: single player).
 //
@@ -113,6 +113,11 @@ void inputWheel_Aim(int bAim, float deg);
 // ...the next slice round (+1 clockwise, -1 the other way)
 void inputWheel_Step(int dir);
 int inputWheel_GetHot(void);
+// With nothing pointed at (-1), whether the middle says lifting cancels
+// ("CANCEL", "lift to cancel"): a finger on the wheel off its ring or in
+// its hole (touchUi.c). Only how it looks: no tick, nothing picked. Reset
+// by inputWheel_Point.
+void inputWheel_SetCancelShown(int bShown);
 // Whether a slice can be picked: a learned power, a weapon the player has
 // and could switch to, any colour
 int inputWheel_IsPickable(int slice);
@@ -138,6 +143,14 @@ void inputWheel_SetSaberTarget(int target);
 // Called for each new slice pointed at, after the tick (a pad's rumble);
 // NULL for none. Set by whoever opens the wheel, kept until it closes.
 void inputWheel_SetSliceHook(void (*pfn)(void));
+// For an opener whose own buttons stay on the screen around the wheel (the
+// touch overlay, touchUi.c): whether a box (points: left, top, right,
+// bottom) is clear of them. The group names and the saber wheel's choices
+// go only where it is, and never above topClear (points from the top); a
+// column of choices that finds no such place goes down the left with the
+// other. NULL: anywhere on the screen. Set by whoever opens the wheel, kept
+// until it closes.
+void inputWheel_SetKeepClear(int (*pfn)(float x0, float y0, float x1, float y1), float topClear);
 // What the middle says to do, in the opener's words, given what is pointed
 // at (bPickable: a slice that can be picked; bCancel: the gap); NULL from it
 // keeps the touch wording ("lift to select"). NULL for the touch wording.
@@ -150,6 +163,11 @@ typedef struct {
     float inL, inT, inR, inB;     // the safe area's insets
 } inputWheelScreen;
 
+// Lays the open wheel out on a screen without drawing it (drawing does
+// this too): where it is, and its slices and choices, for pointing at with
+// inputWheel_SliceAt and inputWheel_ChipAt before the first frame is drawn
+void inputWheel_Layout(const inputWheelScreen* pScreen);
+
 // The open wheel, over the game dimmed: its slices (the one pointed at
 // popped out), each name with its stars or ammo, the needle, the group
 // names, the middle's name and hint, "cancel" in the gap; on the saber
@@ -161,7 +179,7 @@ void inputWheel_Draw(touchUiDrawList* pList, const inputWheelScreen* pScreen);
 // D-pad's arrows, dashes) in words, any other as '?'
 void inputWheel_Ascii(const char* in, char* out, int outSize);
 
-// Where it was last drawn (points), for the tests and for pointing with a
+// Where it was last laid out or drawn (points), for the tests and for pointing with a
 // finger or a pointer
 void inputWheel_GetGeometry(float* pX, float* pY, float* pR0, float* pR1);
 // The slice under a point on the ring (cur as for SliceForAngle),
@@ -169,6 +187,8 @@ void inputWheel_GetGeometry(float* pX, float* pY, float* pR0, float* pR1);
 int inputWheel_SliceAt(float x, float y, int cur);
 // The saber wheel's choice under a point, or -1
 int inputWheel_ChipAt(float x, float y);
+// Where one of the saber wheel's choices is (its middle), and whether it is shown
+int inputWheel_GetChip(int chip, float* pX, float* pY);
 
 #ifdef __cplusplus
 }

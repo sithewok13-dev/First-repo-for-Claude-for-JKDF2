@@ -166,6 +166,12 @@ if(TARGET_USE_ENET)
     endif()
     include_directories(${ENET_DIR}/include)
     file(GLOB TARGET_ENET_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Networking/ENet/*.c)
+    # Android's C library defines htonl and friends in its <sys/endian.h>, which its socket headers
+    # reach through <endian.h> -- and libsmusher's own endian.h (src/external/libsmusher/src, on
+    # the include path of every file) is found first. So ENet's files include the real one first.
+    if(TARGET_ANDROID)
+        set_property(SOURCE ${TARGET_ENET_LIB_SRCS} ${TARGET_ENET_SRCS} APPEND PROPERTY COMPILE_OPTIONS "-includesys/endian.h") # (clang: -include, joined)
+    endif()
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_ENET_SRCS} ${TARGET_ENET_LIB_SRCS})
 
     # Games with a password are encrypted (stdComm_ENetCrypto.c): ChaCha20-Poly1305 and SHA-256 from
@@ -247,6 +253,27 @@ if(TARGET_USE_OPENGL)
 
     file(GLOB TARGET_GL_CPP_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/GL/*.cpp)
     list(APPEND ENGINE_SOURCE_FILES ${TARGET_GL_CPP_SRCS})
+endif()
+
+# Added: the touch controls overlay in plain C (src/Platform/Touch), drawn
+# with the game's own GL: on for Android (AUTO); ON for the Linux test rig.
+# Never on iOS, which has its UIKit overlay (src/Platform/iOS/iosTouch.m).
+# It needs the enhanced gameplay (src/Enhanced, JK_ENHANCED: the game helpers
+# in iosGame.c, the sabers, the photo modes) and shares the iOS HUD safe-area
+# margins (iosSafeArea.c), which are plain C.
+set(OPENJKDF2_TOUCHUI "AUTO" CACHE STRING "Touch controls overlay: AUTO (Android), ON or OFF")
+if(TARGET_USE_SDL2 AND TARGET_USE_OPENGL AND NOT TARGET_IOS
+   AND (OPENJKDF2_TOUCHUI STREQUAL "ON" OR (OPENJKDF2_TOUCHUI STREQUAL "AUTO" AND TARGET_ANDROID)))
+    if(NOT OPENJKDF2_ENHANCED)
+        message(FATAL_ERROR "The touch controls overlay needs OPENJKDF2_ENHANCED=ON")
+    endif()
+    message(STATUS "Touch controls overlay: on")
+    add_compile_definitions(TOUCHUI_ENABLED)
+    file(GLOB TARGET_TOUCHUI_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Touch/*.c)
+    # (its wheels are the shared ones: src/Platform/Input/inputWheel.c)
+    list(APPEND ENGINE_SOURCE_FILES ${TARGET_TOUCHUI_SRCS}
+         ${PROJECT_SOURCE_DIR}/src/Platform/iOS/iosSafeArea.c
+         ${PROJECT_SOURCE_DIR}/src/Platform/Input/inputWheel.c)
 endif()
 
 if(TARGET_USE_OPENGL11)

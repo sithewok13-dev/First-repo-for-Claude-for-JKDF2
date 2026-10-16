@@ -10,7 +10,7 @@
 #ifndef _PLATFORM_IOS_IOSSAFEAREA_H
 #define _PLATFORM_IOS_IOSSAFEAREA_H
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED) // (TOUCHUI_ENABLED: the Android touch overlay, src/Platform/Touch)
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,6 +29,6 @@ void iosSafeArea_GetTopTextRect(int videoW, int videoH, int* pX, int* pY, int* p
 }
 #endif
 
-#endif // TARGET_IOS
+#endif // TARGET_IOS || TOUCHUI_ENABLED
 
 #endif // _PLATFORM_IOS_IOSSAFEAREA_H

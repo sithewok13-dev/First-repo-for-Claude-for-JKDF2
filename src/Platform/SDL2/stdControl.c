@@ -10,6 +10,9 @@
 #ifdef TARGET_IOS
 #include "Platform/iOS/iosTouch.h" // Added
 #endif
+#ifdef TOUCHUI_ENABLED
+#include "Platform/Touch/touchUiSdl.h" // Added: on-screen touch controls (Android)
+#endif
 #include "Platform/iOS/iosPad.h" // Added: game controllers (iOS)
 #include "Platform/iOS/iosKbMouse.h" // Added: keyboard and mouse (iOS)
 
@@ -883,6 +886,9 @@ void stdControl_ReadControls()
 #ifdef TARGET_IOS
             s |= iosTouch_IsScancodeDown(i); // Added: on-screen touch buttons
 #endif
+#ifdef TOUCHUI_ENABLED
+            s |= touchUiSdl_IsScancodeDown(i); // Added: on-screen touch buttons (Android)
+#endif
 #ifdef IOSPAD_ENABLED
             s |= iosPad_IsScancodeDown(i); // Added: a key a game controller presses (quick save)
 #endif
@@ -1109,7 +1115,7 @@ void stdControl_ShowSystemKeyboard() {
     if (stdControl_bKeyboardBeingShown) {
         return;
     }
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
     // Added: SDL3 turns on autocorrect and sentence capitalization by default,
     // and autocorrect rewrites cheat codes and console commands (e.g.
     // "whiteflag on" -> "White flag on") before they reach the game

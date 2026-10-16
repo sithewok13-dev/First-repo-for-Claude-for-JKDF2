@@ -937,11 +937,20 @@ void stdComm_ENet_GetLocalAddresses(char* pOut, int outLen)
         if (!a->ifa_addr || a->ifa_addr->sa_family != AF_INET) continue;
         if (a->ifa_flags & IFF_LOOPBACK) continue;
         if (!(a->ifa_flags & IFF_UP)) continue;
-        const uint32_t h = ntohl(((struct sockaddr_in*)a->ifa_addr)->sin_addr.s_addr);
+        // (read from its bytes, network order: Android's headers have no ntohl under -std=c11)
+        const uint8_t* pB = (const uint8_t*)&((struct sockaddr_in*)a->ifa_addr)->sin_addr.s_addr;
+        const uint32_t h = ((uint32_t)pB[0] << 24) | ((uint32_t)pB[1] << 16) | ((uint32_t)pB[2] << 8) | pB[3];
         const char* nm = a->ifa_name ? a->ifa_name : "";
         // (not the phone's mobile data, nor iOS's own links; a VPN only if it
         // is Tailscale's, 100.64.0.0/10, which friends elsewhere can reach)
         if (!strncmp(nm, "pdp_ip", 6) || !strncmp(nm, "awdl", 4) || !strncmp(nm, "llw", 3) || !strncmp(nm, "ipsec", 5)) continue;
+#ifdef TARGET_ANDROID
+        // (Android names its mobile data links many ways -- rmnet, v4-rmnet for 464XLAT,
+        // ccmni, seth... -- so only what a friend nearby can reach: Wi-Fi, ethernet, the
+        // device's own hotspot, and a VPN only if it is Tailscale's, as above)
+        if (!(!strncmp(nm, "wlan", 4) || !strncmp(nm, "eth", 3) || !strncmp(nm, "ap", 2) || !strncmp(nm, "swlan", 5)
+              || (!strncmp(nm, "tun", 3) && (h & 0xFFC00000u) == 0x64400000u))) continue;
+#endif
         if (!strncmp(nm, "utun", 4) && (h & 0xFFC00000u) != 0x64400000u) continue;
         if ((h & 0xFFFF0000u) == 0xA9FE0000u) continue; // (169.254: no network yet)
         char ip[64];

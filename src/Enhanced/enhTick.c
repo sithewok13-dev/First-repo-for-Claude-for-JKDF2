@@ -33,8 +33,8 @@ void enh_Tick(void)
         iosFreeze_Frame();
     }
     platServices_Tick();
-#ifndef TARGET_IOS
-    enhSettings_Sync(); // (the choices kept as cvars; on iOS, by the touch overlay)
+#if !defined(TARGET_IOS) && !defined(TOUCHUI_ENABLED)
+    enhSettings_Sync(); // (the choices kept as cvars; on iOS and Android, by the touch overlay)
 #endif
 }
 

@@ -62,6 +62,14 @@ void inputOverlay_ContextLost(void);
 // for another input, and a finger going down on it (they come back)
 int inputOverlay_IsTouchHudHidden(void);
 void inputOverlay_NoteTouch(void);
+// ...and a finger going down while the controller options are up (fx, fy:
+// 0-1 across and down the window): on a row it changes it, as a click does;
+// off the card they close. 1 if the options took it (nothing else is to
+// see that finger until it lifts), 0 if they aren't up.
+int inputOverlay_PanelFinger(float fx, float fy);
+// ...and whether it shows the FPS readout itself (its own place, its own
+// tray switch, the same enh_showFps): then this one doesn't, one readout
+void inputOverlay_SetFpsElsewhere(int bElsewhere);
 
 #ifdef __cplusplus
 }

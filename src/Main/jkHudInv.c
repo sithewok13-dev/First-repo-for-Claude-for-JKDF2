@@ -14,13 +14,13 @@
 #include "World/jkPlayer.h"
 #include "jk.h"
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
 #include "Platform/iOS/iosSafeArea.h" // Added
 #endif
 
 void jkHudInv_DrawGPU();
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
 static int jkHudInv_iosTopMargin = 0; // Added: see jkHudInv_LoadItemRes
 #endif
 
@@ -477,7 +477,7 @@ void jkHudInv_DrawGPU()
     v1 = 0;
     v2 = 0;
     i = 8;
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
     i += jkHudInv_iosTopMargin; // Added: below the rounded top-right corner
 #endif
     for ( ; v2 < jkHudInv_numItems; ++v2 )
@@ -932,7 +932,7 @@ void jkHudInv_LoadItemRes()
     _memset(&jkHudInv_info, 0, sizeof(jkHudInvInfo));
     v7 = Video_format.height;
     _memset(&jkHudInv_scroll, 0, sizeof(jkHudInvScroll));
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
     // Added: lift the item/force strip above the home indicator, and pull the
     // active-items column in from the rounded right edge (see iosSafeArea.h)
     int marginLeft, marginRight, marginBottom;
@@ -977,7 +977,7 @@ void jkHudInv_LoadItemRes()
     }
     jkHudInv_info.field_3C = v9 + v8;
     jkHudInv_scroll.blitX = v6 - HUD_SCALED(32);
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TOUCHUI_ENABLED)
     jkHudInv_scroll.blitX -= marginRight;
     // The landscape top inset is 0, but the column starts in the rounded
     // top-right corner; drop it by the corner margin used at the bottom.

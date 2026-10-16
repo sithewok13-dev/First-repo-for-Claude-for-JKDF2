@@ -21,6 +21,8 @@ on:
       - 'exp/**'
       # (not the desktop builds' branch: desktop-exp.yml)
       - '!exp/desktop'
+      # The Android experiment has a workflow of its own (android-exp.yml)
+      - '!exp/android'
   workflow_dispatch:
 
 concurrency:
