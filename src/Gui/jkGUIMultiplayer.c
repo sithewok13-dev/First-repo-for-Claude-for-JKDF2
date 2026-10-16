@@ -22,6 +22,10 @@
 #include "Devices/sithComm.h"
 #include "Main/jkCoop.h" // Added
 #include "Gui/jkGUIMultiLobby.h" // Added
+#ifdef PLATFORM_DPLAY
+#include "Platform/Networking/stdCommTransport.h" // Added
+#include "Platform/Networking/DPlay/stdComm_DPlay.h" // Added
+#endif
 
 static int jkGuiMultiplayer_bInitted = 0;
 static int32_t jkGuiMultiplayer_aElements2_aIdk[2] = {0xd, 0xe};
@@ -455,6 +459,15 @@ LABEL_29:
             {
                 v27 = jkStrings_GetUniStringWithFallback("GUINET_NOGAMECONNECT");
                 v11 = jkStrings_GetUniStringWithFallback("GUINET_JOINERROR");
+#ifdef PLATFORM_DPLAY
+                // Added: an original game the router couldn't open the way to: what to do about it
+                static char16_t wWhy[384];
+                if (stdCommTransport_GetJoinKind() == STDCOMM_TRANSPORT_DPLAY && stdComm_DPlay_JoinFailReason()) {
+                    stdString_CharToWchar(wWhy, stdComm_DPlay_JoinFailReason(), 383);
+                    wWhy[383] = 0;
+                    v27 = wWhy;
+                }
+#endif
             }
             jkGuiDialog_ErrorDialog(v11, v27);
             goto LABEL_28;

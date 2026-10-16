@@ -1670,6 +1670,7 @@ static void dp_unmap(void)
 // What to tell the player when the router couldn't open our ports and the host then didn't get
 // through to us (set by dp_mapForGame; read by the same thread that asked)
 static char stdComm_DPlay_routerText[384];
+static int stdComm_DPlay_bJoinNotThrough = 0; // (the last join failed that way: the character screen says so)
 
 // Our ports (as bound now) opened on the router, if joining that host needs it: a host on the
 // internet, and us behind a router (OPENJKDF2_DPLAY_NAT=force: whatever the addresses, for testing;
@@ -2011,6 +2012,7 @@ static int dp_join(char16_t* pwPassword)
         SDL_UnlockMutex(stdComm_DPlay_mutex);
         return 0x88770154 + 1;
     }
+    stdComm_DPlay_bJoinNotThrough = 0;
     if (!dp_acquire()) return 0x88770154 + 1;
     dp_unhold(); // (the probe's sockets, kept for this join: ours now)
     char hostText[32];
@@ -2023,7 +2025,7 @@ static int dp_join(char16_t* pwPassword)
     // trouble told only if the host then doesn't get through.)
     const int bNoRouter = !dp_mapFor(hostIp, 0);
     if (!dp_greetHost(hostIp) && bNoRouter) stdComm_DPlay_infoPrintf("DPlay: the host didn't answer again: trying all the same\n");
-#define DP_NOT_THROUGH(why) (bNoRouter ? stdComm_DPlay_routerText : (why))
+#define DP_NOT_THROUGH(why) ((stdComm_DPlay_bJoinNotThrough = bNoRouter) ? stdComm_DPlay_routerText : (why))
 
     SDL_LockMutex(stdComm_DPlay_mutex);
     dp_resetSession();
@@ -2404,6 +2406,11 @@ const char* stdComm_DPlay_Problem(void)
     // (only a problem of the last asking, or of the game now)
     if (stdComm_DPlay_problemGen && stdComm_DPlay_problemGen != stdComm_DPlay_probeGen) return "";
     return stdComm_DPlay_problem;
+}
+
+const char* stdComm_DPlay_JoinFailReason(void)
+{
+    return stdComm_DPlay_bJoinNotThrough ? stdComm_DPlay_routerText : NULL;
 }
 
 void stdComm_DPlay_ClearProblem(void)

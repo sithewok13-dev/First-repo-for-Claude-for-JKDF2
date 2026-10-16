@@ -91,7 +91,9 @@ class Session:
         sk = s.out.get((ip, port))
         if sk is None:
             sk = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sk.bind((s.ip, 0)); sk.settimeout(3); sk.connect((ip, port))
+            try: sk.bind((s.ip, 0)); sk.settimeout(3); sk.connect((ip, port))
+            except OSError:  # (the player gone, or not reachable: nothing sent)
+                sk.close(); log('  [%s] %s:%d not reached' % (s.ip, ip, port)); return
             s.out[(ip, port)] = sk
             log('  [%s] connected out to %s:%d' % (s.ip, ip, port))
         try: sk.sendall(sp_header(20 + len(body), s.tcpport) + body)
