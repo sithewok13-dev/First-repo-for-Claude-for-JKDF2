@@ -98,7 +98,12 @@
 #define DPLAY_HOST_TIMEOUT_MS 25000    // (no word from the host this long: it is gone)
 #define DPLAY_HOST_CLOSED_MS  5000     // (its connection closed, and no word since, this long: gone)
 #define DPLAY_PING_EVERY_MS   4000
-#define DPLAY_UNHEARD_PER_S   4        // (datagrams a second to a peer not heard from yet)
+// (datagrams to a peer not heard from yet: a bucket of this many, refilled at this many a second.
+// Big enough for what the game sends a player who has just joined, all at once -- the original game
+// may well not send to it first -- and small enough that a host naming someone else's address can't
+// make this device flood it)
+#define DPLAY_UNHEARD_BURST   64
+#define DPLAY_UNHEARD_PER_S   32
 #define DPLAY_JOIN_INTENT_MS  30000    // (a game picked: the router's ports opened for probes this long)
 #define DPLAY_UNMAP_STALE_MS  120000   // (ports opened for a join that never came: given back after)
 #define DPLAY_RENEW_EVERY_MS  (45 * 60 * 1000) // (the router's ports renewed while a game goes on)
@@ -147,8 +152,8 @@ typedef struct dpPlayer
     uint16_t tcpPort, udpPort;
     int bUsed;
     int bHeard;              // (a system player: something has come from its address)
-    uint32_t budgetMs;       // (and, until then, the second its trickle of datagrams is counted in,
-    int budget;              // and how many are left of it)
+    uint32_t budgetMs;       // (and, until then, when its bucket of datagrams was last filled,
+    int budget;              // and what is left in it; DPLAY_UNHEARD_BURST + 1 for a new one)
 } dpPlayer;
 
 // (the network thread's own) A TCP connection: one we made to a peer's listening port (what we
@@ -452,6 +457,7 @@ static void dp_sendUdp(uint32_t ip, uint16_t port, const uint8_t* p, int len)
 }
 
 void stdComm_DPlay_ClearProblem(void);
+static void dp_holdExpired(uint32_t now);
 
 static void dp_setProblem(const char* pText, uint32_t gen)
 {
@@ -549,14 +555,23 @@ static void dp_heardFrom(uint32_t ip)
     if (ip == stdComm_DPlay_hostIp) stdComm_DPlay_lastHostMs = stdPlatform_GetTimeMsec();
 }
 
-// A datagram to a system player: freely once heard from, a trickle before (it may not be what it says)
+// A datagram to a system player: freely once heard from; before that, from a bucket (it may not be
+// where it says)
 static void dp_sendToSys(dpPlayer* sp, const uint8_t* p, int len)
 {
     if (!sp->udpPort || !sp->ip) return;
     if (!sp->bHeard) {
         const uint32_t now = stdPlatform_GetTimeMsec();
-        if (now - sp->budgetMs >= 1000) { sp->budgetMs = now; sp->budget = DPLAY_UNHEARD_PER_S; }
-        if (sp->budget <= 0) return;
+        if (!sp->budgetMs) { sp->budgetMs = now; sp->budget = DPLAY_UNHEARD_BURST; }
+        const uint32_t refill = (now - sp->budgetMs) * DPLAY_UNHEARD_PER_S / 1000;
+        if (refill) {
+            sp->budget = sp->budget + (int)refill > DPLAY_UNHEARD_BURST ? DPLAY_UNHEARD_BURST : sp->budget + (int)refill;
+            sp->budgetMs = now;
+        }
+        if (sp->budget <= 0) {
+            stdComm_DPlay_verbosePrintf("DPlay: a datagram to %x not sent: not heard from yet\n", sp->id);
+            return;
+        }
         sp->budget--;
     }
     dp_sendUdp(sp->ip, sp->udpPort, p, len);
@@ -1482,6 +1497,7 @@ static int stdComm_DPlay_Thread(void* unused)
         dp_keepAlive(now);
         dp_renew(now);
         SDL_UnlockMutex(stdComm_DPlay_mutex);
+        dp_holdExpired(now);
     }
     // (the last of what was queued, sent: the goodbyes)
     dp_sendQueued();
@@ -1541,6 +1557,52 @@ static void dp_release(void)
         SDL_UnlockMutex(stdComm_DPlay_mutex);
     }
     SDL_UnlockMutex(stdComm_DPlay_lifeMutex);
+}
+
+// A game found: the thread and sockets kept until it is joined (or DPLAY_HOLD_MS after the last
+// probe that found one), as they are -- the host keeps the connection it answered on, to our listening port,
+// and answers the join over it; a new listening socket, even on the same port, wouldn't get that.
+// Under lifeMutex.
+#define DPLAY_HOLD_MS 60000
+static int stdComm_DPlay_bHold = 0;
+static uint32_t stdComm_DPlay_holdMs = 0;
+
+static void dp_hold(void)
+{
+    SDL_LockMutex(stdComm_DPlay_lifeMutex);
+    const int bHad = stdComm_DPlay_bHold;
+    stdComm_DPlay_bHold = 1;
+    stdComm_DPlay_holdMs = stdPlatform_GetTimeMsec();
+    SDL_UnlockMutex(stdComm_DPlay_lifeMutex);
+    if (!bHad && !dp_acquire()) {
+        SDL_LockMutex(stdComm_DPlay_lifeMutex);
+        stdComm_DPlay_bHold = 0;
+        SDL_UnlockMutex(stdComm_DPlay_lifeMutex);
+    }
+}
+
+// The hold let go (joined, or given up waiting): 1 if there was one
+static int dp_unhold(void)
+{
+    SDL_LockMutex(stdComm_DPlay_lifeMutex);
+    const int bHad = stdComm_DPlay_bHold;
+    stdComm_DPlay_bHold = 0;
+    SDL_UnlockMutex(stdComm_DPlay_lifeMutex);
+    if (bHad) dp_release();
+    return bHad;
+}
+
+static int dp_unholdThread(void* p) { (void)p; dp_unhold(); return 0; }
+
+// (the network thread) A hold waited out: let go from a thread of its own (the network thread can't
+// wait for itself to end)
+static void dp_holdExpired(uint32_t now)
+{
+    static uint32_t lastToldMs = 0;
+    if (!stdComm_DPlay_bHold || now - stdComm_DPlay_holdMs < DPLAY_HOLD_MS || stdComm_DPlay_bActive || now - lastToldMs < 5000) return;
+    lastToldMs = now;
+    SDL_Thread* t = SDL_CreateThread(dp_unholdThread, "stdComm_DPlay_unhold", NULL);
+    if (t) SDL_DetachThread(t);
 }
 
 // ------------------------------------------------------------------ the router's ports
@@ -1797,6 +1859,7 @@ static int stdComm_DPlay_Join(char16_t* pwPassword)
         return 0x88770154 + 1;
     }
     if (!dp_acquire()) return 0x88770154 + 1;
+    dp_unhold(); // (the probe's sockets, kept for this join: ours now)
     char hostText[32];
     inet_ntop(AF_INET, &hostIp, hostText, sizeof(hostText));
     stdComm_DPlay_infoPrintf("DPlay: joining the game at %s (TCP %d)\n", hostText, hostPort);
@@ -2105,6 +2168,7 @@ static int stdComm_DPlay_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, 
         r = 1;
     }
     SDL_UnlockMutex(stdComm_DPlay_mutex);
+    if (r) dp_hold(); // (for joining it: the sockets the host answered kept a while)
     dp_release();
     stdCommTransport_GateLeave(&stdComm_DPlay_probeGate);
     if (r) stdComm_DPlay_verbosePrintf("DPlay: %d game(s) at %s\n", numFound, pAddress);
@@ -2194,6 +2258,7 @@ void stdComm_DPlay_Shutdown(void)
     SDL_RemoveEventWatch(dp_appEvent, NULL);
     stdCommTransport_GateClose(&stdComm_DPlay_probeGate, 5000);
     stdComm_DPlay_Close();
+    dp_unhold();
     dp_unmap();
     // (anything still holding the thread: let go)
     SDL_LockMutex(stdComm_DPlay_lifeMutex);
