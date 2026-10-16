@@ -1,201 +1,253 @@
 #!/usr/bin/env python3
 # A minimal DirectPlay 4 host (the TCP/IP service provider's messages), for testing a join by the
 # original Jedi Knight (under Wine) or by this port's DirectPlay transport
-# (src/Platform/Networking/DPlay). It answers ENUMSESSIONS (UDP 47624) with a session described as
-# the original game describes its own, then REQUESTPLAYERID, ADDFORWARDREQUEST (with
-# SUPERENUMPLAYERSREPLY) and PING, and logs everything, the game's messages decoded as the game's
-# DSS messages (u16 message id, u16 sequence number, then the message). It plays no game: a joining
-# player gets as far as sending its join request. Wire format: Microsoft's [MS-DPDX] and [MS-DPSP],
-# and Wine's dplayx tests.
+# (src/Platform/Networking/DPlay). It plays no game: a player who joins gets as far as sending the
+# game's join request; what the game sends is logged, decoded as the game's DSS messages (u16
+# message id, u16 sequence number, then the message). Wire format: Microsoft's [MS-DPDX] and
+# [MS-DPSP], and Wine's dplayx tests.
 #
-#   python3 dplay_host_emu.py --episode JK1MP --map m2.jkl [--log file]
+# It can stand in for what a real game night has:
+#   --session NAME:EPISODE:MAP[@IP]   (again for more) several sessions answering one ENUMSESSIONS,
+#                                     as a computer hosting several games does; one with @IP
+#                                     answers from that address (127.0.0.2 ... on Linux)
+#   --fake N                          N other players already in the (first) session; each sends
+#                                     the game's DSS_PING to whoever joins, every 3 s, from its own
+#                                     UDP port (so what is sent back to it is seen)
+#   --join-at S / --leave-at S        S s after a player joins: another one joins (ADDFORWARD,
+#                                     CREATEPLAYER), the first fake one leaves (DELETEPLAYER)
+#   --die-at S                        S s after a player joins: no answer to anything any more (the
+#                                     connections kept open), as a host whose computer froze
+#
+#   python3 dplay_host_emu.py --session "Game A:JK1MP:m2.jkl" --fake 2 --log emu.log
 import socket, struct, select, sys, time, uuid, argparse
 
 MAGIC = 0x79616c70  # 'play'
-CMDS = {1:'ENUMSESSIONSREPLY',2:'ENUMSESSIONS',3:'ENUMPLAYERSREPLY',5:'REQUESTPLAYERID',7:'REQUESTPLAYERREPLY',
-        8:'CREATEPLAYER',9:'CREATEGROUP',10:'PLAYERMESSAGE',11:'DELETEPLAYER',12:'DELETEGROUP',13:'ADDPLAYERTOGROUP',
-        14:'DELETEPLAYERFROMGROUP',15:'PLAYERDATACHANGED',16:'PLAYERNAMECHANGED',17:'GROUPDATACHANGED',
-        19:'ADDFORWARDREQUEST',21:'PACKET',22:'PING',23:'PINGREPLY',24:'YOUAREDEAD',
-        36:'ADDFORWARDREPLY',41:'SUPERENUMPLAYERSREPLY',46:'ADDFORWARD',47:'ADDFORWARDACK',48:'PACKET2_DATA',
-        49:'PACKET2_ACK',53:'IAMNAMESERVER',56:'CREATEPLAYERVERIFY'}
-DSS = {1:'THINGPOS',2:'CHAT',4:'FIREPROJECTILE',5:'DEATH',6:'DAMAGE',11:'SYNCTHING',12:'THINGFULLDESC',13:'SYNCCOG',
-       32:'LEAVEJOIN',33:'WELCOME',34:'JOINREQUEST',35:'DESTROYTHING',36:'JOINING',38:'PING',39:'PINGREPLY',
-       40:'RESET',41:'ENUMPLAYERS',42:'QUIT'}
-
+CMDS = {1: 'ENUMSESSIONSREPLY', 2: 'ENUMSESSIONS', 5: 'REQUESTPLAYERID', 7: 'REQUESTPLAYERREPLY',
+        8: 'CREATEPLAYER', 11: 'DELETEPLAYER', 19: 'ADDFORWARDREQUEST', 22: 'PING', 23: 'PINGREPLY',
+        36: 'ADDFORWARDREPLY', 41: 'SUPERENUMPLAYERSREPLY', 46: 'ADDFORWARD', 47: 'ADDFORWARDACK'}
+DSS = {1: 'THINGPOS', 2: 'CHAT', 11: 'SYNCTHING', 32: 'LEAVEJOIN', 33: 'WELCOME', 34: 'JOINREQUEST', 36: 'JOINING',
+       38: 'PING', 39: 'PINGREPLY', 40: 'RESET', 41: 'ENUMPLAYERS', 42: 'QUIT'}
 JK_APP_GUID = uuid.UUID('bf0613c0-de79-11d0-99c9-00a02476ad4b')
-HOST_SYS_ID = 0x00051573
-HOST_PLAYER_ID = 0x00001337
 VERSION = 14
 log_f = None
+T0 = time.time()
 
 def log(*a):
-    s = time.strftime('%H:%M:%S ') + ' '.join(str(x) for x in a)
+    s = '%7.2f ' % (time.time() - T0) + ' '.join(str(x) for x in a)
     print(s, flush=True)
     if log_f: log_f.write(s + '\n'); log_f.flush()
 
-def sockaddr(port, ip=0):
-    return struct.pack('<H', socket.AF_INET) + struct.pack('>HI', port, ip) + b'\0' * 8
+def sockaddr(port, ip='0.0.0.0'):
+    return struct.pack('<H', socket.AF_INET) + struct.pack('>H', port) + socket.inet_aton(ip) + b'\0' * 8
 
-def sp_header(size, port, token=0xfab):
-    return struct.pack('<I', (token << 20) | size) + sockaddr(port)
+def sp_header(size, port):
+    return struct.pack('<I', (0xfab << 20) | size) + sockaddr(port)
 
 def msg_header(cmd):
     return struct.pack('<IHH', MAGIC, cmd, VERSION)
 
 def wstr(s):
-    return s.encode('utf-16le') + b'\0\0' if s is not None else b''
+    return s.encode('utf-16le') + b'\0\0'
 
-def sessiondesc(a):
-    # DPSESSIONDESC2: dwSize, dwFlags, guidInstance, guidApplication, dwMaxPlayers, dwCurrentPlayers,
-    # lpszSessionName, lpszPassword, dwReserved1, dwReserved2, dwUser1..4
-    return struct.pack('<II16s16sIIIIIIIIII', 80, a.flags, a.instance.bytes_le, JK_APP_GUID.bytes_le,
-                       a.maxplayers, a.curplayers, 0, 0, a.reserved1, 0,
-                       a.seed, a.modeflags, (a.maxrank << 16) | (a.field_e0 & 0xffff), a.tickrate)
+def packed_player(flags, pid, sysid, name, tcp, udp, ip):
+    sn = wstr(name) if name else b''
+    return (struct.pack('<12I', 48 + len(sn) + 32, flags, pid, len(sn), 0, 32, 0, 0, sysid, 48, VERSION, 0)
+            + sn + sockaddr(tcp, ip) + sockaddr(udp, ip))
 
-class Host:
-    def __init__(s, a):
-        s.a = a
-        s.udp_enum = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.udp_enum.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.udp_enum.bind(('0.0.0.0', 47624))
-        s.tcp_listen = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.tcp_listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.tcp_listen.bind(('0.0.0.0', a.tcpport)); s.tcp_listen.listen(8)
-        s.udp_game = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.udp_game.bind(('0.0.0.0', a.udpport))
-        s.inconns = {}   # sock -> bytearray
-        s.out = {}       # (ip, port) -> sock
-        s.next_id = 0x00010001
-        s.clients = {}   # player id -> dict(ip, tcp, udp)
-        s.name = '%s:%s:%s' % (a.name, a.episode, a.map)
-        log('host: session %r tcp %d udp %d' % (s.name, a.tcpport, a.udpport))
+class Fake:
+    def __init__(f, ses, k, name):
+        f.sys = ses.host.next_id(); f.app = ses.host.next_id(); f.name = name
+        f.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        f.udp.bind((ses.ip, 0)); f.udpport = f.udp.getsockname()[1]
+        f.ses = ses; f.last = 0
 
-    def send_tcp(s, ip, port, payload):
-        key = (ip, port)
-        sk = s.out.get(key)
+class Session:
+    def __init__(s, host, spec, k):
+        s.host = host
+        spec, _, ip = spec.partition('@')
+        s.ip = ip or '127.0.0.1'
+        parts = spec.split(':')
+        s.name = '%s:%s:%s' % (parts[0], parts[1] if len(parts) > 1 else 'JK1MP', parts[2] if len(parts) > 2 else 'm2.jkl')
+        s.guid = uuid.uuid4()
+        s.tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.tcp.bind((s.ip, 2349 - k)); s.tcp.listen(8); s.tcpport = 2349 - k
+        s.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.udp.bind((s.ip, 2399 - k)); s.udpport = 2399 - k
+        s.sys = host.next_id(); s.app = host.next_id()
+        s.fakes = []
+        s.out = {}
+        s.client = None   # (ip, tcp, udp, sys, app)
+        s.joined_at = None
+        log('session %r at %s tcp %d udp %d' % (s.name, s.ip, s.tcpport, s.udpport))
+
+    def dpsd(s):
+        a = s.host.a
+        n = 1 + len(s.fakes) + (1 if s.client and s.client.get('app') else 0)
+        return struct.pack('<II16s16sIIIIIIIIII', 80, 0xc0, s.guid.bytes_le, JK_APP_GUID.bytes_le, a.maxplayers, n, 0, 0,
+                           0xaabbccdd, 0, a.seed, a.modeflags, (4 << 16) | 10, 180)
+
+    def send_tcp(s, ip, port, body):
+        sk = s.out.get((ip, port))
         if sk is None:
-            sk = socket.create_connection(key, timeout=3)
-            s.out[key] = sk
-            log('  -> connected out to %s:%d' % key)
-        sk.sendall(payload)
+            sk = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sk.bind((s.ip, 0)); sk.settimeout(3); sk.connect((ip, port))
+            s.out[(ip, port)] = sk
+            log('  [%s] connected out to %s:%d' % (s.ip, ip, port))
+        sk.sendall(sp_header(20 + len(body), s.tcpport) + body)
 
     def enum_reply(s, ip, port):
-        body = msg_header(1) + sessiondesc(s.a) + struct.pack('<I', 8 + 80 + 4) + wstr(s.name)
-        s.send_tcp(ip, port, sp_header(20 + len(body), s.a.tcpport) + body)
-        log('  -> ENUMSESSIONSREPLY to %s:%d' % (ip, port))
+        body = msg_header(1) + s.dpsd() + struct.pack('<I', 8 + 80 + 4) + wstr(s.name)
+        s.send_tcp(ip, port, body)
+        log('  -> ENUMSESSIONSREPLY %r to %s:%d' % (s.name, ip, port))
 
-    def superenum(s, ip, port, client_sys, cl):
-        def spdata(tcp, udp): return sockaddr(tcp) + sockaddr(udp)
-        players = b''
-        # client's system player
-        players += struct.pack('<IIIII', 16, 0x5, client_sys, 0x4, VERSION) + bytes([32]) + spdata(cl['tcp'], cl['udp'])
-        # host system player (name server)
-        players += struct.pack('<IIIII', 16, 0xf, HOST_SYS_ID, 0x4, VERSION) + bytes([32]) + spdata(s.a.tcpport, s.a.udpport)
-        # host app player
-        players += (struct.pack('<IIIII', 16, 0x8, HOST_PLAYER_ID, 0x7, HOST_SYS_ID) + wstr(s.a.player)
-                    + wstr(s.a.player) + bytes([32]) + spdata(s.a.tcpport, s.a.udpport))
-        nplayers = 3
+    def superenum(s, ip, port):
+        c = s.client
+        def sp(tcp, udp, ipx='0.0.0.0'): return bytes([32]) + sockaddr(tcp, ipx) + sockaddr(udp, ipx)
+        pl = struct.pack('<IIIII', 16, 0x5, c['sys'], 0x4, VERSION) + sp(c['tcp'], c['udp'])
+        pl += struct.pack('<IIIII', 16, 0xf, s.sys, 0x4, VERSION) + sp(s.tcpport, s.udpport)
+        pl += struct.pack('<IIIII', 16, 0x8, s.app, 0x7, s.sys) + wstr('EmuHost') + wstr('EmuHost') + sp(s.tcpport, s.udpport)
+        n = 3
+        for f in s.fakes:
+            pl += struct.pack('<IIIII', 16, 0x5, f.sys, 0x4, VERSION) + sp(s.tcpport, f.udpport, s.ip)
+            pl += struct.pack('<IIIII', 16, 0x0, f.app, 0x7, f.sys) + wstr(f.name) + wstr(f.name) + sp(s.tcpport, f.udpport, s.ip)
+            n += 2
         name = wstr(s.name)
-        hdr_len = 8 + 7 * 4
-        body = (msg_header(41) + struct.pack('<IIIIIII', nplayers, 0, hdr_len + 80 + len(name), 0, hdr_len,
-                                             hdr_len + 80, 0) + sessiondesc(s.a) + name + players)
-        s.send_tcp(ip, port, sp_header(20 + len(body), s.a.tcpport) + body)
-        log('  -> SUPERENUMPLAYERSREPLY (%d players) to %s:%d' % (nplayers, ip, port))
+        fixed = 8 + 28
+        body = msg_header(41) + struct.pack('<7I', n, 0, fixed + 80 + len(name), 0, fixed, fixed + 80, 0) + s.dpsd() + name + pl
+        s.send_tcp(ip, port, body)
+        log('  -> SUPERENUMPLAYERSREPLY (%d players, %d of them others) to %s:%d' % (n, len(s.fakes), ip, port))
 
-    def game(s, src, data, via):
+    def fake_join(s):
+        f = Fake(s, len(s.fakes), 'Latecomer')
+        s.fakes.append(f)
+        c = s.client
+        body = msg_header(46) + struct.pack('<5I', 0, f.sys, 0, 28, 0) + packed_player(0x5, f.sys, f.sys, None, s.tcpport, f.udpport, s.ip)
+        s.send_tcp(c['ip'], c['tcp'], body)
+        body = msg_header(8) + struct.pack('<5I', 0, f.app, 0, 28, 0) + packed_player(0x0, f.app, f.sys, f.name, s.tcpport, f.udpport, s.ip) + b'\0' * 6
+        s.send_tcp(c['ip'], c['tcp'], body)
+        log('  -> another player joined: sys %#x player %#x (UDP %d)' % (f.sys, f.app, f.udpport))
+
+    def fake_leave(s):
+        if not s.fakes: return
+        f = s.fakes.pop(0)
+        c = s.client
+        for pid in (f.app, f.sys):
+            s.send_tcp(c['ip'], c['tcp'], msg_header(11) + struct.pack('<5I', 0, pid, 0, 0, 0))
+        log('  -> player %#x (%s) left' % (f.app, f.name))
+
+class Host:
+    def __init__(h, a):
+        h.a = a; h.id = 0x00050000; h.dead = False
+        h.enum = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        h.enum.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        h.enum.bind(('0.0.0.0', 47624))
+        h.sessions = [Session(h, spec, k) for k, spec in enumerate(a.session or ['EmuHost:JK1MP:m2.jkl'])]
+        for i in range(a.fake):
+            h.sessions[0].fakes.append(Fake(h.sessions[0], i, 'Fake%d' % (i + 1)))
+        h.inconns = {}
+
+    def next_id(h):
+        h.id += 0x101
+        return h.id
+
+    def game(h, where, data, via):
         frm, to = struct.unpack_from('<II', data, 0)
         p = data[8:]
-        if len(p) >= 4:
-            cid, mid = struct.unpack_from('<HH', p, 0)
-            log('  GAME %s from %#x to %#x: DSS %d %s msgId %d len %d: %s' % (via, frm, to, cid, DSS.get(cid, '?'),
-                mid, len(p) - 4, p[4:4 + 96].hex() + (' ... tail ' + p[-8:].hex() if len(p) > 100 else '')))
-        else:
-            log('  GAME %s from %#x to %#x: %s' % (via, frm, to, p.hex()))
+        cid = struct.unpack_from('<H', p, 0)[0] if len(p) >= 2 else -1
+        log('  GAME %s to %s: from %#x to %#x: DSS %d %s, %d bytes' % (via, where, frm, to, cid, DSS.get(cid, '?'), len(p)))
 
-    def handle(s, ip, msg):
-        mixed, = struct.unpack_from('<I', msg, 0)
-        fam, port = struct.unpack_from('<H', msg, 4)[0], struct.unpack_from('>H', msg, 6)[0]
+    def handle(h, ses, ip, msg):
+        port = struct.unpack_from('>H', msg, 6)[0]
         body = msg[20:]
-        if len(body) >= 8 and struct.unpack_from('<I', body, 0)[0] == MAGIC:
-            cmd, ver = struct.unpack_from('<HH', body, 4)
-            log('<- %s (%d) v%d from %s port %d, %d bytes: %s' % (CMDS.get(cmd, '?'), cmd, ver, ip, port, len(msg),
-                                                                body[8:8 + 64].hex()))
-            if cmd == 5:   # REQUESTPLAYERID
-                flags, = struct.unpack_from('<I', body, 8)
-                pid = s.next_id; s.next_id += 1
-                reply = msg_header(7) + struct.pack('<I', pid) + b'\0' * 24 + struct.pack('<III', 0, 0, 0) + b'\0' * 64
-                s.send_tcp(ip, port, sp_header(20 + len(reply), s.a.tcpport) + reply)
-                log('  -> REQUESTPLAYERREPLY id %#x (flags %#x)' % (pid, flags))
-            elif cmd == 19:  # ADDFORWARDREQUEST
-                toId, pid, gid, co, po = struct.unpack_from('<IIIII', body, 8)
-                pp = body[28:28 + 48]
-                spd = body[28 + 48:28 + 48 + 32]
-                tcp = struct.unpack_from('>H', spd, 2)[0]; udp = struct.unpack_from('>H', spd, 18)[0]
-                cl = {'ip': ip, 'tcp': tcp, 'udp': udp}
-                s.clients[pid] = cl
-                log('  client sys player %#x tcp %d udp %d' % (pid, tcp, udp))
-                s.superenum(ip, port, pid, cl)
-            elif cmd == 8:  # CREATEPLAYER
-                toId, pid, gid, co, po = struct.unpack_from('<IIIII', body, 8)
-                size, flags, id_, sl, ll, sps, pds = struct.unpack_from('<7I', body, 28)
-                off = 28 + 48
-                sn = body[off:off + sl].decode('utf-16le', 'replace').rstrip('\0'); off += sl
-                log('  client app player %#x flags %#x name %r' % (pid, flags, sn))
-                for c in s.clients.values():
-                    if c['ip'] == ip: c['app'] = pid
-            elif cmd == 22:  # PING
-                frm, tick = struct.unpack_from('<II', body, 8)
-                reply = msg_header(23) + struct.pack('<II', HOST_SYS_ID, tick)
-                s.send_tcp(ip, port, sp_header(20 + len(reply), s.a.tcpport) + reply)
-        else:
-            s.game((ip, port), body, 'tcp')
+        if len(body) < 8 or struct.unpack_from('<I', body, 0)[0] != MAGIC:
+            h.game('host %s' % ses.ip, body, 'tcp'); return
+        cmd, ver = struct.unpack_from('<HH', body, 4)
+        log('<- %s (%d) v%d from %s port %d' % (CMDS.get(cmd, '?'), cmd, ver, ip, port))
+        if h.dead: return
+        if cmd == 5:
+            pid = h.next_id()
+            ses.send_tcp(ip, port, msg_header(7) + struct.pack('<I', pid) + b'\0' * 24 + b'\0' * 12 + b'\0' * 64)
+            log('  -> REQUESTPLAYERREPLY id %#x' % pid)
+        elif cmd == 19:
+            pid = struct.unpack_from('<I', body, 12)[0]
+            spd = body[28 + 48:28 + 48 + 32]
+            ses.client = {'ip': ip, 'tcp': struct.unpack_from('>H', spd, 2)[0], 'udp': struct.unpack_from('>H', spd, 18)[0], 'sys': pid}
+            log('  joining: sys %#x, its ports TCP %d UDP %d (as it says)' % (pid, ses.client['tcp'], ses.client['udp']))
+            ses.superenum(ip, port)
+        elif cmd == 8:
+            pid = struct.unpack_from('<I', body, 12)[0]
+            if ses.client: ses.client['app'] = pid
+            ses.joined_at = time.time()
+            log('  joined: player %#x' % pid)
+        elif cmd == 22:
+            frm, tick = struct.unpack_from('<II', body, 8)
+            ses.send_tcp(ip, port, msg_header(23) + struct.pack('<II', ses.sys, tick))
 
-    def run(s, secs):
+    def run(h, secs):
         end = time.time() + secs
+        lastping = 0
         while time.time() < end:
-            rl = [s.udp_enum, s.tcp_listen, s.udp_game] + list(s.inconns)
-            r, _, _ = select.select(rl, [], [], 0.5)
+            socks = [h.enum] + [x for s in h.sessions for x in [s.tcp, s.udp] + [f.udp for f in s.fakes]] + list(h.inconns)
+            r, _, _ = select.select(socks, [], [], 0.2)
             for sk in r:
-                if sk is s.udp_enum:
+                if sk is h.enum:
                     d, (ip, _) = sk.recvfrom(4096)
                     port = struct.unpack_from('>H', d, 6)[0]
-                    body = d[20:]
-                    cmd, = struct.unpack_from('<H', body, 4)
-                    guid = uuid.UUID(bytes_le=bytes(body[8:24]))
-                    pwo, flags = struct.unpack_from('<II', body, 24)
-                    log('<- UDP ENUMSESSIONS from %s port %d app %s flags %#x pwoff %d' % (ip, port, guid, flags, pwo))
-                    if guid == JK_APP_GUID or guid.int == 0:
-                        s.enum_reply(ip, port)
-                elif sk is s.tcp_listen:
-                    c, addr = sk.accept()
-                    s.inconns[c] = bytearray()
-                    log('accepted in-conn from %s:%d' % addr)
-                elif sk is s.udp_game:
-                    d, addr = sk.recvfrom(4096)
-                    s.game(addr, d, 'udp')
-                else:
-                    d = sk.recv(65536)
-                    if not d:
-                        log('in-conn closed'); del s.inconns[sk]; continue
-                    buf = s.inconns[sk]; buf += d
-                    while len(buf) >= 4:
-                        size = struct.unpack_from('<I', buf, 0)[0] & 0xfffff
-                        if len(buf) < size: break
-                        msg = bytes(buf[:size]); del buf[:size]
-                        s.handle(sk.getpeername()[0], msg)
+                    guid = uuid.UUID(bytes_le=bytes(d[28:44]))
+                    log('<- ENUMSESSIONS from %s port %d' % (ip, port))
+                    if not h.dead and guid in (JK_APP_GUID, uuid.UUID(int=0)):
+                        for s in h.sessions: s.enum_reply(ip, port)
+                    continue
+                ses = next((s for s in h.sessions if sk is s.tcp), None)
+                if ses:
+                    c, addr = sk.accept(); h.inconns[c] = (ses, bytearray())
+                    log('[%s] accepted from %s:%d' % (ses.ip, addr[0], addr[1])); continue
+                ses = next((s for s in h.sessions if sk is s.udp), None)
+                if ses:
+                    d, addr = sk.recvfrom(4096); h.game('host %s' % ses.ip, d, 'udp'); continue
+                fk = next((f for s in h.sessions for f in s.fakes if sk is f.udp), None)
+                if fk:
+                    d, addr = sk.recvfrom(4096); h.game('other player %s' % fk.name, d, 'udp'); continue
+                ses, buf = h.inconns[sk]
+                d = sk.recv(65536)
+                if not d:
+                    log('[%s] in-connection closed' % ses.ip); del h.inconns[sk]; continue
+                buf += d
+                while len(buf) >= 4:
+                    size = struct.unpack_from('<I', buf, 0)[0] & 0xfffff
+                    if len(buf) < size: break
+                    m = bytes(buf[:size]); del buf[:size]
+                    h.handle(ses, sk.getpeername()[0], m)
+            now = time.time()
+            for s in h.sessions:
+                if not s.joined_at or h.dead: continue
+                t = now - s.joined_at
+                if h.a.die_at and t > h.a.die_at:
+                    h.dead = True; log('-- the host stops answering'); break
+                if h.a.join_at and t > h.a.join_at and not getattr(s, 'did_join', 0):
+                    s.did_join = 1; s.fake_join()
+                if h.a.leave_at and t > h.a.leave_at and not getattr(s, 'did_leave', 0):
+                    s.did_leave = 1; s.fake_leave()
+                c = s.client
+                for f in s.fakes:
+                    if now - f.last > 3 and c and c.get('app'):
+                        f.last = now
+                        f.udp.sendto(struct.pack('<IIHH', f.app, c['app'], 38, 0) + struct.pack('<I', int(now * 1000) & 0xffffffff), (c['ip'], c['udp']))
+                if now - lastping > 5 and c:
+                    lastping = now
+                    s.send_tcp(c['ip'], c['tcp'], msg_header(22) + struct.pack('<II', s.sys, int(now * 1000) & 0xffffffff))
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('--name', default='EmuHost'); ap.add_argument('--episode', default='JK1MP.GOB')
-    ap.add_argument('--map', default='m2.jkl'); ap.add_argument('--player', default='EmuPlayer')
-    ap.add_argument('--tcpport', type=int, default=2349); ap.add_argument('--udpport', type=int, default=2399)
-    ap.add_argument('--maxplayers', type=int, default=4); ap.add_argument('--curplayers', type=int, default=1)
-    ap.add_argument('--flags', type=lambda x: int(x, 0), default=0xc0)
+    ap.add_argument('--session', action='append')
+    ap.add_argument('--fake', type=int, default=0)
+    ap.add_argument('--join-at', type=float, default=0); ap.add_argument('--leave-at', type=float, default=0)
+    ap.add_argument('--die-at', type=float, default=0)
+    ap.add_argument('--maxplayers', type=int, default=8)
     ap.add_argument('--seed', type=lambda x: int(x, 0), default=0x12345678)
     ap.add_argument('--modeflags', type=lambda x: int(x, 0), default=0x10)
-    ap.add_argument('--maxrank', type=int, default=4); ap.add_argument('--field_e0', type=int, default=10)
-    ap.add_argument('--tickrate', type=int, default=180); ap.add_argument('--reserved1', type=lambda x: int(x, 0), default=0xaabbccdd)
     ap.add_argument('--secs', type=int, default=600); ap.add_argument('--log')
-    a = ap.parse_args(); a.instance = uuid.uuid4()
+    a = ap.parse_args()
     if a.log: log_f = open(a.log, 'w')
     Host(a).run(a.secs)

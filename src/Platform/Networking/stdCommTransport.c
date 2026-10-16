@@ -295,6 +295,15 @@ int stdCommTransport_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int 
     return result;
 }
 
+const char* stdCommTransport_WhyNoAnswer(void)
+{
+#ifdef PLATFORM_DPLAY
+    const char* p = stdComm_DPlay_Problem();
+    if (p && p[0]) return p;
+#endif
+    return NULL;
+}
+
 int stdCommTransport_CheckPassword(int kind, const char* pAddress, const char16_t* pwPassword, int timeoutMs, volatile int* pbKeepGoing)
 {
     return stdCommTransport_Get(kind)->CheckPassword(pAddress, pwPassword, timeoutMs, pbKeepGoing);
@@ -336,6 +345,10 @@ int stdComm_Open(int idx, char16_t* pwPassword)
     jkGuiMultiplayer_checksumSeed = jkGuiMultiplayer_aEntries[idx].checksumSeed;
 
     const int kind = stdCommTransport_apAll[stdCommTransport_joinKind] ? stdCommTransport_joinKind : STDCOMM_TRANSPORT_DEFAULT;
+#ifdef PLATFORM_DPLAY
+    // (an address with several DirectPlay sessions: the one picked)
+    if (kind == STDCOMM_TRANSPORT_DPLAY) stdComm_DPlay_SelectSession(&jkGuiMultiplayer_aEntries[idx].guidInstance);
+#endif
     stdPlatform_Printf("Joining over %s\n", stdCommTransport_Get(kind)->pName);
     const int r = stdCommTransport_Get(kind)->Join(pwPassword);
     if (!r) stdCommTransport_activeKind = kind;
@@ -454,6 +467,7 @@ static SDL_Thread* stdCommTransport_enumThread = NULL;
 static SDL_Mutex* stdCommTransport_enumMutex = NULL;
 static char stdCommTransport_enumLastAddr[256];
 static jkMultiEntry stdCommTransport_enumEntry;
+static jkMultiEntry stdCommTransport_aEnumEntries[32]; // (all of them, when the address had several: DirectPlay)
 static int stdCommTransport_enumNum = 0;
 static int stdCommTransport_enumKind = STDCOMM_TRANSPORT_NONE;
 
@@ -480,7 +494,14 @@ static int stdCommTransport_EnumThread(void* unused)
                 stdCommTransport_enumKind = kind;
                 sithMulti_multiModeFlags = entry.multiModeFlags;
                 sithNet_MultiModeFlags = entry.multiModeFlags;
+                stdCommTransport_aEnumEntries[0] = entry;
                 stdCommTransport_enumNum = 1;
+#ifdef PLATFORM_DPLAY
+                if (kind == STDCOMM_TRANSPORT_DPLAY) {
+                    const int n = stdComm_DPlay_GetSessions(&entry.guidInstance, stdCommTransport_aEnumEntries, 32);
+                    if (n > 0) stdCommTransport_enumNum = n;
+                }
+#endif
             }
             else {
                 stdCommTransport_enumNum = 0;
@@ -513,6 +534,7 @@ int stdComm_EnumSessions(int a, void* b)
     SDL_LockMutex(stdCommTransport_enumMutex);
     stdCommTransport_enumForce = 1;
     jkGuiMultiplayer_aEntries[0] = stdCommTransport_enumEntry;
+    for (int i = 0; i < stdCommTransport_enumNum && i < 32; i++) jkGuiMultiplayer_aEntries[i] = stdCommTransport_aEnumEntries[i];
     dplay_dword_55D618 = stdCommTransport_enumNum;
     // (what joining it goes over)
     if (stdCommTransport_enumNum) stdCommTransport_SetJoinKind(stdCommTransport_enumKind);

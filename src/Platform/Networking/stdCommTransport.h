@@ -95,6 +95,10 @@ int stdCommTransport_ProbeAddress(const char* pAddress, jkMultiEntry* pOut, int 
 // The password checked over that kind
 int stdCommTransport_CheckPassword(int kind, const char* pAddress, const char16_t* pwPassword, int timeoutMs, volatile int* pbKeepGoing);
 
+// Why the last asking found no game (or the last game ended), if a transport knows (DirectPlay: its
+// ports couldn't be opened on the router, the host stopped answering...); NULL if none says
+const char* stdCommTransport_WhyNoAnswer(void);
+
 // What stdComm_Open joins over next (the kind the host answered on)
 void stdCommTransport_SetJoinKind(int kind);
 int stdCommTransport_GetJoinKind(void);

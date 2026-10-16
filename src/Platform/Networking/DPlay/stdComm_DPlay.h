@@ -17,8 +17,20 @@ extern "C" {
 void stdComm_DPlay_Startup(void);
 void stdComm_DPlay_Shutdown(void);
 
-// Host over DirectPlay rather than ENet (the -dplayHost command line switch)
+// Host over DirectPlay rather than ENet (the -dplayHost command line switch; for testing)
 extern int stdComm_DPlay_bHostOverDPlay;
+
+// Every session the address last asked about answered with, that one among them (by its
+// guidInstance, as stdCommTransport_ProbeAddress gave it): up to max in aOut, how many
+int stdComm_DPlay_GetSessions(const GUID_idk* pOne, jkMultiEntry* aOut, int max);
+// That session (one of them) the one joined next: 0 if it isn't known
+int stdComm_DPlay_SelectSession(const GUID_idk* pGuid);
+// Why the last asking found nothing or the last game ended, for the player ("" if nothing to say)
+const char* stdComm_DPlay_Problem(void);
+
+// (the Join screen, Gui/jkGUIDPlayPick.c) An address listing several sessions: one picked, in
+// *pInOut (which is one of them), and the one joined; 0 if the player went back
+int jkGuiDPlayPick_Pick(jkMultiEntry* pInOut);
 
 #endif // PLATFORM_DPLAY
 
