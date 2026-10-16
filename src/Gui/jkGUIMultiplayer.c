@@ -352,6 +352,7 @@ LABEL_1:
                     }
                     while ( jkGuiNetHost_Show(&v34) == 1 );
 LABEL_51:
+                    stdComm_Close(); // Added: a host that failed to load stops listening and its network thread
                     stdComm_CloseConnection();
                     continue;
                 case 102:
@@ -457,7 +458,10 @@ LABEL_29:
         jkGuiRend_DarrayFree(&jkGuiMultiplayer_stru_5564A8);
         sithMulti_InitTick(v35.tickRateMs);
         if ( !jkMain_loadFile2(v35.episodeGobName, v35.mapJklFname) )
+        {
+            stdComm_Close(); // Added: leave the host and stop the network thread
             continue;
+        }
         return 1;
     }
 }

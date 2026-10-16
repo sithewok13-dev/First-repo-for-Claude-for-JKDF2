@@ -10,7 +10,9 @@
 // even when its address has changed.
 //
 // Everything here runs on a thread of its own; what was found is read with
-// stdComm_ENetDiscover_GetGames at any time.
+// stdComm_ENetDiscover_GetGames at any time. That thread runs only while a game is advertised or
+// the Join screen is browsing. Call these functions from the game's thread only: starting and
+// stopping that thread is not locked against another caller.
 
 #ifndef _PLATFORM_NETWORKING_ENET_STDCOMM_ENETDISCOVER_H
 #define _PLATFORM_NETWORKING_ENET_STDCOMM_ENETDISCOVER_H
