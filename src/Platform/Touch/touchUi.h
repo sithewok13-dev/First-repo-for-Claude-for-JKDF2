@@ -22,9 +22,17 @@
 //   - gyro aiming OFF / TOUCH / ALWAYS, SENS 1.0 / 1.5 / 2.0 / 3.0;
 //   - the sithewok cheat's CHEAT (a 0.5 s hold), and JUMP / ACT / DUCK held
 //     0.5 s while it is on (flight, noclip, level pick).
-// Not in this round (the camera's photo modes and the saber colours live in
-// iOS-only engine code for now): CAMERA and SABER. The tray's camera switch
-// shows, dimmed.
+//   - CAMERA (switched on in the tray; on by default): a tap takes the photos
+//     ticked in its options (CLEAN, HUD, HUD+BTNS), a slide is a burst for as
+//     long as the finger stays down, a 0.5 s hold the selfie; with FREEZE on,
+//     slid down Action Freeze (one finger turns the camera round, two move it
+//     and pinch to zoom, CAMERA takes a photo, the X goes back) and slid up the
+//     cinematic burst. Its options: the tray's camera switch held 0.45 s
+//     (PHOTO, SELFIES 1/3/5, FREEZE ON/OFF); none of it in multiplayer (the
+//     engine says no, as on iOS);
+//   - SABER (once the saber is had, or with sithewok on): the saber wheel, every
+//     blade colour, SINGLE or DUAL, which blade a colour goes to (LEFT, BOTH,
+//     RIGHT) and EQUIP; a tap or a hold opens it to tap, a slide to slide.
 //
 // Units: "points" throughout -- on Android, density-independent pixels
 // (dp), times a size factor for large tablets (touchUiSdl.c). Times are
@@ -92,7 +100,53 @@ typedef struct touchUiGame {
     // The HUD's corner gauge (bLeft: the health one, else ammo/force) in
     // points, or 0 while there is no HUD
     int (*GetGaugeRect)(int bLeft, float* pX0, float* pY0, float* pX1, float* pY1);
+
+    // The saber (Enhanced/iosSaber.c, iosGame_IsSaberButtonShown): SABER
+    // shown, the colours (ids 0..n-1, kept by their keys), the styles
+    int (*IsSaberButtonShown)(void);
+    int (*SaberNumColours)(void);
+    const char* (*SaberColourName)(int id);
+    const char* (*SaberColourKey)(int id);
+    int (*SaberColourByKey)(const char* key);
+    void (*SaberColourRGB)(int id, unsigned char* pR, unsigned char* pG, unsigned char* pB);
+    int (*SaberStyleAvailable)(int style);
+    const char* (*SaberStyleName)(int style);
+    int (*SaberStyleNumBlades)(int style);
+    int (*SaberGetStyle)(void);
+    void (*SaberSetStyle)(int style);
+    int (*SaberGetColour)(int style, int blade);
+    void (*SaberSetColour)(int style, int blade, int id);
+
+    // The camera (Enhanced/iosCapture, iosSelfieShots, iosFreeze, iosCinema
+    // and platServices): their answers as theirs (TOUCHUI_CAPTURE_*,
+    // TOUCHUI_PHOTOMODE_*)
+    int (*CaptureRequest)(int kinds, int mode);
+    void (*CaptureCancel)(void);
+    void (*SetPhotoBatch)(int bOn);
+    int (*SelfieStart)(int numShots);
+    void (*SelfieStop)(void);
+    int (*SelfieIsActive)(void);
+    int (*FreezeBegin)(void);
+    void (*FreezeEnd)(void);
+    int (*FreezeIsActive)(void);
+    void (*FreezeSetSmooth)(int bSmooth);
+    int (*FreezeOrbit)(float yawDeg, float pitchDeg);
+    void (*FreezePan)(float right, float down);
+    void (*FreezeZoom)(float factor);
+    int (*CinemaStart)(void);
+    void (*CinemaStop)(void);
+    int (*CinemaIsActive)(void);
 } touchUiGame;
+
+// The photos a capture takes, and what for (iosCapture.h's numbers)
+enum { TOUCHUI_CAPTURE_CLEAN = 1, TOUCHUI_CAPTURE_HUD = 2, TOUCHUI_CAPTURE_HUDBTNS = 4 };
+enum { TOUCHUI_CAPTURE_PHOTO = 0, TOUCHUI_CAPTURE_BURST = 1, TOUCHUI_CAPTURE_SELFIE = 2 };
+// SelfieStart's and CinemaStart's answers (iosSelfieShots' and iosCinema's)
+enum { TOUCHUI_PHOTOMODE_BUSY = -1, TOUCHUI_PHOTOMODE_CANT = 0, TOUCHUI_PHOTOMODE_STARTED = 1 };
+// The photo modes that end by themselves (platServices_PhotoModeEnded's)
+enum { TOUCHUI_MODE_SELFIE = 1, TOUCHUI_MODE_CINEMA = 2 };
+// The saber's styles (iosSaber's)
+enum { TOUCHUI_SABER_SINGLE = 0, TOUCHUI_SABER_DUAL = 1 };
 
 // The buttons (for the tests, and the engine's queries)
 enum {
@@ -103,12 +157,17 @@ enum {
     TOUCHUI_BTN_TRAYGYRO, TOUCHUI_BTN_TRAYFPS, TOUCHUI_BTN_TRAYCAM, TOUCHUI_BTN_TRAYCHEAT, TOUCHUI_BTN_TRAYVIEW,
     TOUCHUI_BTN_TRAYJUMP, TOUCHUI_BTN_TRAYCTRL, TOUCHUI_BTN_TRAYKEYS,
     TOUCHUI_BTN_GYROOPT_MODE, TOUCHUI_BTN_GYROOPT_SENS,
+    TOUCHUI_BTN_CAMROW_PHOTO, TOUCHUI_BTN_CAMROW_SELFIES, TOUCHUI_BTN_CAMROW_FREEZE,
+    TOUCHUI_BTN_CAMOPT_CLEAN, TOUCHUI_BTN_CAMOPT_HUD, TOUCHUI_BTN_CAMOPT_BTNS,
     TOUCHUI_BTN_COUNT
 };
 
 enum { TOUCHUI_GYRO_OFF = 0, TOUCHUI_GYRO_TOUCH, TOUCHUI_GYRO_ALWAYS };
 enum { TOUCHUI_HAPTIC_TICK = 1, TOUCHUI_HAPTIC_TAP = 2 };
-enum { TOUCHUI_WHEEL_FORCE = 0, TOUCHUI_WHEEL_WEAPONS };
+enum { TOUCHUI_WHEEL_FORCE = 0, TOUCHUI_WHEEL_WEAPONS, TOUCHUI_WHEEL_SABER };
+// The saber wheel's choices beside the ring
+enum { TOUCHUI_CHIP_SINGLE = 0, TOUCHUI_CHIP_DUAL, TOUCHUI_CHIP_LEFT, TOUCHUI_CHIP_BOTH, TOUCHUI_CHIP_RIGHT, TOUCHUI_CHIP_EQUIP,
+       TOUCHUI_NUM_CHIPS };
 
 // Once, before anything else. The settings file (key=value lines) is read
 // now, if there is one, and written whenever a remembered setting changes.
@@ -177,6 +236,16 @@ int touchUi_IsFpsShown(void);
 // The frame's drawing, in points
 const touchUiDrawList* touchUi_Draw(double now);
 
+// The camera's photos were just taken (platServices_SavePhotos, the frame
+// they are of drawn): the flash and the tap (TOUCHUI_CAPTURE_* mode)
+void touchUi_CameraFeedback(int mode);
+// A selfie or the cinematic burst, run by the engine (enh_Tick), is over
+// (platServices_PhotoModeEnded: TOUCHUI_MODE_*): everything put back
+void touchUi_PhotoModeEnded(int mode);
+// Whether a selfie, Action Freeze or the cinematic burst is up (the
+// controls for other inputs don't hide the overlay meanwhile)
+int touchUi_IsPhotoModeUp(void);
+
 // Where the game's top message text goes, in points: under the top row,
 // clear of the buttons. 0 until laid out.
 int touchUi_GetTopTextRect(float* pTop, float* pLeft, float* pRight);
@@ -199,6 +268,20 @@ int touchUi_IsCheatShown(void);
 int touchUi_IsViewShown(void);
 int touchUi_IsSwapped(void);
 int touchUi_GetJumpStyle(void);
+int touchUi_IsCameraShown(void);
+int touchUi_IsSaberShown(void);
+int touchUi_GetOptRow(void); // 0: none, 1: the gyro options, 2: the camera options
+int touchUi_IsKindsRowOpen(void);
+int touchUi_GetCameraKinds(void);
+int touchUi_GetSelfieShots(void);
+int touchUi_IsFreezeOn(void);
+int touchUi_GetBurstShots(void); // -1: no burst going
+int touchUi_IsSelfieUp(void);
+int touchUi_IsFreezing(void);
+int touchUi_IsCinemaUp(void);
+int touchUi_GetSaberTarget(void); // TOUCHUI_CHIP_LEFT, _BOTH or _RIGHT
+int touchUi_GetSaberChip(int chip, float* pX, float* pY); // its middle (0 if not shown)
+void touchUi_GetFreezeClose(float* pX, float* pY);
 
 #ifdef __cplusplus
 }

@@ -38,6 +38,11 @@ int touchUiSdl_GetTopTextRectWin(float* pTop, float* pLeft, float* pRight);
 // Window units (SDL_GetWindowSize's) to the overlay's points
 float touchUiSdl_WinToPt(void);
 
+// The platform services (platServices_sdl.c), each frame the overlay could
+// be drawn (bDrawn: it was, into std3D_windowFbo): a HUD+BTNS photo waiting
+// for the buttons is read back now
+void platServicesTouch_OverlayDrawn(int bDrawn);
+
 // The platform's haptics (touchUi_android.c; elsewhere none): TOUCHUI_HAPTIC_* bits
 void touchUiPlat_Haptic(int kinds);
 

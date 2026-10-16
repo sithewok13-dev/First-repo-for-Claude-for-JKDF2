@@ -346,8 +346,12 @@ void touchUiSdl_AfterEvents(void)
 
 void touchUiSdl_Render(void)
 {
-    if (!ts.bShown || !touchUi_IsShown() || ts.pxW <= 0) return;
+    if (!ts.bShown || !touchUi_IsShown() || ts.pxW <= 0) {
+        platServicesTouch_OverlayDrawn(0);
+        return;
+    }
     touchUiRender_Draw(touchUi_Draw(touchUiSdl_Now()), (unsigned int)std3D_windowFbo, ts.pxW, ts.pxH, ts.pxPerPt);
+    platServicesTouch_OverlayDrawn(1);
 }
 
 void touchUiSdl_ContextLost(void)

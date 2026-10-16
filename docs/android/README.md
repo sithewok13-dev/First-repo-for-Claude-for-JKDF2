@@ -119,8 +119,7 @@ Tick what works, note what doesn't (a photo of the screen helps).
       a third of a second). Slide off before it fills: nothing.
 - [ ] MENU: a tap opens the game menu. Hold it: the tray opens under it:
       GYRO (tap: on/off; hold: MODE and SENS), FPS, CHEAT, VIEW, JUMP style,
-      CONTROLS (swap sides), and the keyboard (for cheats). The camera button
-      is there but greyed: not on Android yet.
+      CONTROLS (swap sides), the camera switch and the keyboard (for cheats).
 - [ ] GYRO: off to start. Switch it on (TOUCH): tilting the tablet aims while
       a thumb is on the screen; lift both thumbs and the view stays put. Try
       ALWAYS too, and the SENS steps (1.0x, 1.5x, 2.0x, 3.0x). Both ways round
@@ -128,9 +127,33 @@ Tick what works, note what doesn't (a photo of the screen helps).
 - [ ] CHEAT (switch it on in the tray): hold it half a second to turn the
       cheat on/off; with it on, holding JUMP flies, ACT is noclip, DUCK picks
       a level.
+- [ ] CAMERA (the camera at the top, on unless switched off in the tray):
+      - a tap takes a photo (a white flash and a tap felt); "1 photo saved to
+        Pictures/OpenJKDF2" shows at the top. Check the photo is in the
+        tablet's Gallery / Photos app, in an OpenJKDF2 album;
+      - touch and slide sideways: a burst, a photo every 0.2 s while your
+        finger stays down (up to 10), the count beside the button;
+      - touch and hold still half a second: the selfie (3 photos, the camera
+        at arm's length; everyone near poses);
+      - slide down: Action Freeze, the game stops; one finger turns the camera
+        round, two fingers move it and pinch to zoom, CAMERA takes a photo,
+        the X (top right) goes back to the game exactly where it was;
+      - slide up: the cinematic burst, 5 photos round the frozen action, then
+        the game goes on.
+      None of the photo modes work in multiplayer (a message says so).
+- [ ] The camera options: hold the tray's camera switch: PHOTO (which photos a
+      tap takes: CLEAN, HUD, HUD+BTNS with the touch buttons on), SELFIES
+      (1, 3 or 5), FREEZE (whether sliding down/up stops the action).
+- [ ] SABER (once you have the lightsaber, or with the cheat on): a tap opens
+      the saber wheel: tap a colour (17 of them; ORIGINAL is the game's own).
+      DUAL on the left gives two sabers; then LEFT / BOTH / RIGHT on the right
+      choose which blade a colour goes to. EQUIP puts the saber in your hand.
+      The gap at the bottom (or a tap off the wheel) closes it. A slide from
+      SABER opens it to slide to a colour.
 - [ ] Use a keyboard, mouse or controller: the buttons hide; touch the screen
       and they come back.
-- [ ] Quit and start again: GYRO, SENS, FPS, CHEAT, VIEW, CONTROLS are kept.
+- [ ] Quit and start again: GYRO, SENS, FPS, CHEAT, VIEW, CONTROLS, the
+      camera options and the saber's colours and style are kept.
 
 **Start up**
 - [ ] Both icons appear; each starts its own game (Jedi Knight / MotS).
@@ -168,9 +191,11 @@ another Android)
 
 ## Known gaps
 
-- Touch controls not in yet: the CAMERA button (photos, selfies, Action
-  Freeze) and the SABER button with its colour wheel. They need engine code
-  that is only on iOS for now; they come next.
+- Photos: on Android 10 and newer they go to the gallery (Pictures/
+  OpenJKDF2). On Android 9 and older, or if that fails, they go to the app's
+  own folder instead (Android/data/<app>/files/Pictures/OpenJKDF2, seen with a
+  file manager or a computer), and the message says "the app's
+  Pictures/OpenJKDF2". The camera has no shutter sound on Android.
 - The touch controls were tested on a Linux test setup with the real game and
   simulated touches, not on an Android device: sizes, the gyro's direction
   and the haptics need a check on the tablet.

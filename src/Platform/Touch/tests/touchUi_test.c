@@ -32,6 +32,14 @@ static struct {
     int jumpStyle;
     char lastMsg[128];
     int bGauge;
+    // the saber
+    int bSaberBtn, saberStyle, aSaberColour[2][2], bDualOk;
+    // the camera
+    int bCaptureFull, captures, lastKinds, lastMode, captureCancels, batch, batchSets;
+    int selfieResult, selfieShots, bSelfie, selfieStops;
+    int bFreezeOk, bFreeze, freezeEnds, bSmooth;
+    float orbitYaw, orbitPitch, panX, panY, zoom;
+    int cinemaResult, bCinema, cinemaStops;
 } fg;
 
 static int F_IsMots(void) { return fg.bMots; }
@@ -99,6 +107,55 @@ static int F_GetGaugeRect(int bLeft, float* x0, float* y0, float* x1, float* y1)
     return 1;
 }
 
+static int F_IsSaberButtonShown(void) { return fg.bSaberBtn; }
+static int F_SaberNumColours(void) { return 17; }
+static const char* F_SaberColourName(int id)
+{
+    static char b[17][16];
+    if (id < 0 || id >= 17) return NULL;
+    snprintf(b[id], 16, id ? "COLOUR %d" : "GAME", id);
+    return b[id];
+}
+static const char* F_SaberColourKey(int id)
+{
+    static char b[17][8];
+    if (id < 0 || id >= 17) return NULL;
+    snprintf(b[id], 8, "c%d", id);
+    return b[id];
+}
+static int F_SaberColourByKey(const char* k) { int n = -1; return (k[0] == 'c' && sscanf(k + 1, "%d", &n) == 1 && n >= 0 && n < 17) ? n : -1; }
+static void F_SaberColourRGB(int id, unsigned char* r, unsigned char* g, unsigned char* b) { *r = (unsigned char)(id * 15); *g = 100; *b = 200; }
+static int F_SaberStyleAvailable(int st) { return st == 0 || fg.bDualOk; }
+static const char* F_SaberStyleName(int st) { return st ? "DUAL" : "SINGLE"; }
+static int F_SaberStyleNumBlades(int st) { return st ? 2 : 1; }
+static int F_SaberGetStyle(void) { return fg.saberStyle; }
+static void F_SaberSetStyle(int st) { fg.saberStyle = st; }
+static int F_SaberGetColour(int st, int b) { return fg.aSaberColour[st & 1][b & 1]; }
+static void F_SaberSetColour(int st, int b, int id) { fg.aSaberColour[st & 1][b & 1] = id; }
+static int F_CaptureRequest(int kinds, int mode)
+{
+    if (fg.bCaptureFull) return 0;
+    fg.captures++;
+    fg.lastKinds = kinds;
+    fg.lastMode = mode;
+    return 1;
+}
+static void F_CaptureCancel(void) { fg.captureCancels++; }
+static void F_SetPhotoBatch(int b) { fg.batch = b; fg.batchSets++; }
+static int F_SelfieStart(int n) { fg.selfieShots = n; if (fg.selfieResult == 1) fg.bSelfie = 1; return fg.selfieResult; }
+static void F_SelfieStop(void) { fg.bSelfie = 0; fg.selfieStops++; }
+static int F_SelfieIsActive(void) { return fg.bSelfie; }
+static int F_FreezeBegin(void) { if (fg.bFreezeOk) fg.bFreeze = 1; return fg.bFreezeOk; }
+static void F_FreezeEnd(void) { fg.bFreeze = 0; fg.freezeEnds++; }
+static int F_FreezeIsActive(void) { return fg.bFreeze; }
+static void F_FreezeSetSmooth(int b) { fg.bSmooth = b; }
+static int F_FreezeOrbit(float y, float p) { fg.orbitYaw += y; fg.orbitPitch += p; return 1; }
+static void F_FreezePan(float x, float y) { fg.panX += x; fg.panY += y; }
+static void F_FreezeZoom(float f) { fg.zoom *= f; }
+static int F_CinemaStart(void) { if (fg.cinemaResult == 1) fg.bCinema = 1; return fg.cinemaResult; }
+static void F_CinemaStop(void) { fg.bCinema = 0; fg.cinemaStops++; }
+static int F_CinemaIsActive(void) { return fg.bCinema; }
+
 static const touchUiGame fakeGame = {
     F_IsMots, F_GetForcePowerName, F_IsPowerAvailable, F_GetPowerLevel, F_GetPowerName, F_GetCurPower, F_SelectPower,
     F_GetWeaponName, F_GetWeapon, F_GetCurWeapon, F_SelectWeapon, F_CancelWeaponPick, F_GetItem, F_SelectItem,
@@ -106,6 +163,11 @@ static const touchUiGame fakeGame = {
     F_GetMouseLookDegrees, F_CanFly, F_ToggleFlight, F_IsFlying, F_CanNoclip, F_ToggleNoclip, F_NumPickableLevels,
     F_GoToLevel, F_IsSithEwokOn, F_ToggleSithEwok, F_TakeSithEwokTypedOff, F_SetCheatShown, F_SetThirdPerson,
     F_IsThirdPerson, F_SetForceJumpStyle, F_GetForceJumpRank, F_ShowMessage, F_ShowMessage, F_GetGaugeRect,
+    F_IsSaberButtonShown, F_SaberNumColours, F_SaberColourName, F_SaberColourKey, F_SaberColourByKey, F_SaberColourRGB,
+    F_SaberStyleAvailable, F_SaberStyleName, F_SaberStyleNumBlades, F_SaberGetStyle, F_SaberSetStyle, F_SaberGetColour,
+    F_SaberSetColour, F_CaptureRequest, F_CaptureCancel, F_SetPhotoBatch, F_SelfieStart, F_SelfieStop, F_SelfieIsActive,
+    F_FreezeBegin, F_FreezeEnd, F_FreezeIsActive, F_FreezeSetSmooth, F_FreezeOrbit, F_FreezePan, F_FreezeZoom,
+    F_CinemaStart, F_CinemaStop, F_CinemaIsActive,
 };
 
 // ------------------------------------------------------------ the harness
@@ -135,6 +197,10 @@ static void setup(void)
     fg.aWeaponOwned[1] = fg.aWeaponSel[1] = 1; fg.aWeaponAmmo[1] = -1;
     fg.aWeaponOwned[2] = fg.aWeaponSel[2] = 1; fg.aWeaponAmmo[2] = 120;
     fg.aWeaponOwned[3] = 1; fg.aWeaponSel[3] = 0; fg.aWeaponAmmo[3] = 0; // no ammo
+    fg.bDualOk = 1;
+    fg.selfieResult = fg.cinemaResult = 1;
+    fg.bFreezeOk = 1;
+    fg.zoom = 1.0f;
     remove(g_settings);
     touchUi_Init(&fakeGame, g_settings);
     touchUi_SetGyroAvailable(1);
@@ -763,12 +829,336 @@ static void test_swapped(void)
 }
 
 // Every button showing inside the safe area, none on another
+// ------------------------------------------------------------ CAMERA and SABER
+
+static void openTray(void)
+{
+    float mx, my;
+    bxy(TOUCHUI_BTN_MENU, &mx, &my);
+    down(9, mx, my); wait(0.5); up(9, mx, my);
+}
+
+static void test_camera(void)
+{
+    float cx, cy;
+    setup();
+    bxy(TOUCHUI_BTN_CAMERA, &cx, &cy);
+
+    g_case = "CAMERA: shown by default, in the top row";
+    CHECK(touchUi_IsCameraShown());
+    CHECK(touchUi_GetButton(TOUCHUI_BTN_CAMERA, NULL, NULL, NULL));
+
+    g_case = "CAMERA: a tap takes the ticked photos (CLEAN), then the flash and a tap felt";
+    down(1, cx, cy); wait(0.2); up(1, cx, cy);
+    CHECK(fg.captures == 1 && fg.lastKinds == TOUCHUI_CAPTURE_CLEAN && fg.lastMode == TOUCHUI_CAPTURE_PHOTO);
+    CHECK(!touchUi_IsSelfieUp());
+    touchUi_TakeHaptics();
+    touchUi_CameraFeedback(TOUCHUI_CAPTURE_PHOTO);
+    CHECK(touchUi_TakeHaptics() & TOUCHUI_HAPTIC_TAP);
+    {
+        const touchUiDrawList* l = touchUi_Draw(T);
+        const touchUiDrawItem* it = &l->aItems[l->numItems - 1];
+        CHECK(it->type == TOUCHUI_DRAW_RRECT && it->x0 == 0.0f && it->fill.r == 1.0f && it->fill.a > 0.5f); // (the flash, over everything)
+        l = touchUi_Draw(T + 0.31);
+        it = &l->aItems[l->numItems - 1];
+        CHECK(!(it->type == TOUCHUI_DRAW_RRECT && it->x0 == 0.0f && it->fill.r == 1.0f && it->fill.g == 1.0f)); // (gone after 0.3 s)
+    }
+
+    g_case = "CAMERA: a photo no frame takes in 0.5 s is dropped";
+    down(1, cx, cy); wait(0.1); up(1, cx, cy);
+    CHECK(fg.captures == 2);
+    wait(0.45);
+    CHECK(fg.captureCancels == 0);
+    wait(0.1);
+    CHECK(fg.captureCancels == 1);
+
+    g_case = "CAMERA: the last photos still being saved: a tap takes none";
+    fg.bCaptureFull = 1;
+    down(1, cx, cy); wait(0.1); up(1, cx, cy);
+    CHECK(fg.captures == 2);
+    fg.bCaptureFull = 0;
+
+    g_case = "CAMERA: held 0.49 s, lifted: a photo, no selfie";
+    down(1, cx, cy); T += 0.49; up(1, cx, cy); tick();
+    CHECK(fg.captures == 3 && !touchUi_IsSelfieUp());
+
+    g_case = "CAMERA: held still 0.5 s: the selfie (SELFIES: 3); the lift takes no photo";
+    down(1, cx, cy);
+    wait(0.25);
+    CHECK(touchUi_GetRingProgress(TOUCHUI_BTN_CAMERA) > 0.4f && !touchUi_IsSelfieUp());
+    wait(0.26);
+    CHECK(touchUi_IsSelfieUp() && fg.bSelfie && fg.selfieShots == 3);
+    up(1, cx, cy);
+    CHECK(fg.captures == 3);
+
+    g_case = "selfie: every touch ignored, nothing drawn but the flash";
+    {
+        float fx, fy;
+        bxy(TOUCHUI_BTN_FIRE, &fx, &fy);
+        down(2, fx, fy); tick();
+        CHECK(!touchUi_IsKeyHeld(SC_LCTRL));
+        up(2, fx, fy);
+        const touchUiDrawList* l = touchUi_Draw(T);
+        CHECK(l->numItems == 0);
+    }
+    g_case = "selfie: over (the engine says so): all back";
+    touchUi_PhotoModeEnded(TOUCHUI_MODE_SELFIE);
+    CHECK(!touchUi_IsSelfieUp());
+    CHECK(touchUi_Draw(T)->numItems > 10);
+    g_case = "selfie: ended by the engine without saying: put back at the next frame";
+    down(1, cx, cy); wait(0.55); up(1, cx, cy);
+    CHECK(touchUi_IsSelfieUp());
+    fg.bSelfie = 0;
+    tick();
+    CHECK(!touchUi_IsSelfieUp());
+
+    g_case = "selfie: can't (multiplayer, a cutscene): a message, nothing hidden";
+    fg.selfieResult = TOUCHUI_PHOTOMODE_CANT;
+    down(1, cx, cy); wait(0.55); up(1, cx, cy);
+    CHECK(!touchUi_IsSelfieUp() && !strcmp(fg.lastMsg, "Can't take a selfie here"));
+    fg.selfieResult = TOUCHUI_PHOTOMODE_BUSY;
+    down(1, cx, cy); wait(0.55); up(1, cx, cy);
+    CHECK(!touchUi_IsSelfieUp() && !strcmp(fg.lastMsg, "Still saving the last photo"));
+    fg.selfieResult = 1;
+
+    g_case = "CAMERA: slid 10 pt sideways: a burst, a clean shot every 0.2 s while the finger stays";
+    int c0 = fg.captures;
+    down(1, cx, cy);
+    move(1, cx + 9.5f, cy);
+    CHECK(touchUi_GetBurstShots() < 0);
+    move(1, cx + 10.5f, cy);
+    CHECK(touchUi_GetBurstShots() == 0 && fg.batch == 1);
+    wait(1.0 / 60.0);
+    CHECK(fg.captures == c0 + 1 && fg.lastMode == TOUCHUI_CAPTURE_BURST && fg.lastKinds == TOUCHUI_CAPTURE_CLEAN);
+    wait(0.5);
+    CHECK(fg.captures == c0 + 3);
+    wait(1.0);
+    CHECK(!touchUi_IsSelfieUp()); // (a slide is never a hold)
+    CHECK(touchUi_GetBurstShots() == 8);
+    wait(2.0);
+    CHECK(fg.captures == c0 + 10); // (at most 10)
+    up(1, cx + 10.5f, cy);
+    CHECK(touchUi_GetBurstShots() < 0 && fg.batch == 0);
+    CHECK(fg.captures == c0 + 10); // (the lift takes none)
+
+    g_case = "CAMERA: slid down 20 pt (FREEZE on): on its way, no burst, no photo";
+    c0 = fg.captures;
+    down(1, cx, cy); move(1, cx, cy + 20.0f); wait(0.1);
+    CHECK(touchUi_GetBurstShots() < 0 && !touchUi_IsFreezing());
+    up(1, cx, cy + 20.0f);
+    CHECK(fg.captures == c0);
+
+    g_case = "CAMERA: slid down 36 pt: Action Freeze; only CAMERA and the X";
+    down(1, cx, cy); move(1, cx + 5.0f, cy + 20.0f); move(1, cx + 5.0f, cy + 36.0f);
+    CHECK(touchUi_IsFreezing() && fg.bFreeze && fg.bSmooth);
+    up(1, cx + 5.0f, cy + 36.0f);
+    CHECK(touchUi_IsFreezing());
+    g_case = "Action Freeze: one finger turns the camera round, 0.3 degrees a point, smoothly";
+    down(2, 300, 200);
+    move(2, 400, 200);
+    wait(1.0 / 60.0);
+    CHECK(fg.orbitYaw < 0.0f && fg.orbitYaw > -30.0f);
+    wait(1.0);
+    CHECKF(fg.orbitYaw, -30.0, 0.05);
+    CHECKF(fg.orbitPitch, 0.0, 0.001);
+    g_case = "Action Freeze: a second finger: the two pinch to zoom and move it";
+    down(3, 500, 200);
+    move(3, 600, 200); // (spread from 100 to 200: twice as close)
+    wait(1.0);
+    CHECKF(fg.zoom, 2.0, 0.02);
+    CHECK(fg.panX > 0.0f);
+    up(2, 400, 200); up(3, 600, 200);
+    g_case = "Action Freeze: CAMERA tapped: one clean photo";
+    c0 = fg.captures;
+    down(4, cx, cy); wait(0.1); up(4, cx, cy);
+    CHECK(fg.captures == c0 + 1 && fg.lastKinds == TOUCHUI_CAPTURE_CLEAN && fg.lastMode == TOUCHUI_CAPTURE_PHOTO);
+    CHECK(touchUi_IsFreezing());
+    g_case = "Action Freeze: the X: back to the game, as it was";
+    {
+        float xx, xy;
+        touchUi_GetFreezeClose(&xx, &xy);
+        down(5, xx, xy); wait(0.05);
+        CHECK(touchUi_IsFreezing());
+        up(5, xx, xy);
+        CHECK(!touchUi_IsFreezing() && !fg.bFreeze && fg.freezeEnds == 1);
+    }
+
+    g_case = "CAMERA: slid up (to near the top edge): the cinematic burst; over: all back";
+    down(1, cx, cy); move(1, cx, 4.0f);
+    CHECK(touchUi_IsCinemaUp() && fg.bCinema);
+    up(1, cx, 4.0f);
+    CHECK(touchUi_Draw(T)->numItems == 0);
+    touchUi_PhotoModeEnded(TOUCHUI_MODE_CINEMA);
+    CHECK(!touchUi_IsCinemaUp());
+
+    g_case = "Action Freeze can't (multiplayer): a message";
+    fg.bFreezeOk = 0;
+    down(1, cx, cy); move(1, cx, cy + 40.0f);
+    CHECK(!touchUi_IsFreezing() && !strcmp(fg.lastMsg, "Can't freeze here"));
+    up(1, cx, cy + 40.0f);
+    fg.bFreezeOk = 1;
+
+    g_case = "the overlay going (a menu) ends Action Freeze";
+    down(1, cx, cy); move(1, cx, cy + 40.0f); up(1, cx, cy + 40.0f);
+    CHECK(touchUi_IsFreezing());
+    touchUi_SetShown(0);
+    CHECK(!touchUi_IsFreezing() && !fg.bFreeze);
+    touchUi_SetShown(1);
+    tick();
+
+    g_case = "tray: the camera switch held 0.45 s: the camera options";
+    openTray();
+    CHECK(touchUi_IsTrayOpen());
+    downOn(2, TOUCHUI_BTN_TRAYCAM); wait(0.44);
+    CHECK(touchUi_GetOptRow() == 0);
+    wait(0.02);
+    CHECK(touchUi_GetOptRow() == 2);
+    upOn(2, TOUCHUI_BTN_TRAYCAM);
+    CHECK(touchUi_IsCameraShown()); // (the lift doesn't switch it)
+    g_case = "camera options: SELFIES 3, 5, 1; FREEZE off; PHOTO opens the kinds";
+    downOn(2, TOUCHUI_BTN_CAMROW_SELFIES); upOn(2, TOUCHUI_BTN_CAMROW_SELFIES);
+    CHECK(touchUi_GetSelfieShots() == 5);
+    downOn(2, TOUCHUI_BTN_CAMROW_SELFIES); upOn(2, TOUCHUI_BTN_CAMROW_SELFIES);
+    CHECK(touchUi_GetSelfieShots() == 1);
+    downOn(2, TOUCHUI_BTN_CAMROW_FREEZE); upOn(2, TOUCHUI_BTN_CAMROW_FREEZE);
+    CHECK(!touchUi_IsFreezeOn());
+    downOn(2, TOUCHUI_BTN_CAMROW_PHOTO); upOn(2, TOUCHUI_BTN_CAMROW_PHOTO);
+    CHECK(touchUi_IsKindsRowOpen() && touchUi_GetOptRow() == 2);
+    g_case = "photo kinds: HUD and HUD+BTNS ticked, CLEAN off; the last one stays";
+    downOn(2, TOUCHUI_BTN_CAMOPT_HUD); upOn(2, TOUCHUI_BTN_CAMOPT_HUD);
+    downOn(2, TOUCHUI_BTN_CAMOPT_BTNS); upOn(2, TOUCHUI_BTN_CAMOPT_BTNS);
+    downOn(2, TOUCHUI_BTN_CAMOPT_CLEAN); upOn(2, TOUCHUI_BTN_CAMOPT_CLEAN);
+    CHECK(touchUi_GetCameraKinds() == (TOUCHUI_CAPTURE_HUD | TOUCHUI_CAPTURE_HUDBTNS));
+    downOn(2, TOUCHUI_BTN_CAMOPT_HUD); upOn(2, TOUCHUI_BTN_CAMOPT_HUD);
+    downOn(2, TOUCHUI_BTN_CAMOPT_BTNS); upOn(2, TOUCHUI_BTN_CAMOPT_BTNS);
+    CHECK(touchUi_GetCameraKinds() == TOUCHUI_CAPTURE_HUDBTNS);
+    downOn(2, TOUCHUI_BTN_CAMOPT_HUD); upOn(2, TOUCHUI_BTN_CAMOPT_HUD);
+    g_case = "camera options: a touch elsewhere closes them";
+    down(3, 400, 300); up(3, 400, 300);
+    CHECK(touchUi_GetOptRow() == 0 && !touchUi_IsKindsRowOpen());
+    g_case = "CAMERA: a tap takes the kinds ticked";
+    down(1, cx, cy); wait(0.1); up(1, cx, cy);
+    CHECK(fg.lastKinds == (TOUCHUI_CAPTURE_HUD | TOUCHUI_CAPTURE_HUDBTNS) && fg.lastMode == TOUCHUI_CAPTURE_PHOTO);
+    g_case = "FREEZE off: slid down is a burst";
+    down(1, cx, cy); move(1, cx, cy + 40.0f);
+    CHECK(!touchUi_IsFreezing() && touchUi_GetBurstShots() == 0);
+    up(1, cx, cy + 40.0f);
+    g_case = "tray: the camera switch tapped hides CAMERA";
+    openTray();
+    downOn(2, TOUCHUI_BTN_TRAYCAM); wait(0.1); upOn(2, TOUCHUI_BTN_TRAYCAM);
+    CHECK(!touchUi_IsCameraShown() && !touchUi_GetButton(TOUCHUI_BTN_CAMERA, NULL, NULL, NULL) && !touchUi_IsTrayOpen());
+    g_case = "camera settings remembered";
+    touchUi_Init(&fakeGame, g_settings);
+    CHECK(!touchUi_IsCameraShown() && touchUi_GetSelfieShots() == 1 && !touchUi_IsFreezeOn()
+          && touchUi_GetCameraKinds() == (TOUCHUI_CAPTURE_HUD | TOUCHUI_CAPTURE_HUDBTNS));
+}
+
+static void test_saber(void)
+{
+    float sx, sy, cx, cy, r0, r1, deg;
+    setup();
+    g_case = "SABER: hidden until the saber is had (or sithewok is on)";
+    CHECK(!touchUi_IsSaberShown());
+    fg.bSaberBtn = 1;
+    tick();
+    CHECK(touchUi_IsSaberShown() && touchUi_GetButton(TOUCHUI_BTN_SABER, &sx, &sy, NULL));
+
+    g_case = "SABER: a tap opens its wheel to tap a colour; the game holds still";
+    down(1, sx, sy); wait(0.1); up(1, sx, sy);
+    CHECK(touchUi_IsWheelOpen() && touchUi_GetWheelKind() == TOUCHUI_WHEEL_SABER && touchUi_IsWheelTapMode() && fg.bHold);
+    CHECK(touchUi_GetWheelSliceBin(16) == 16 && touchUi_GetWheelSliceBin(17) == -1);
+    CHECK(touchUi_GetSaberChip(TOUCHUI_CHIP_SINGLE, NULL, NULL) && touchUi_GetSaberChip(TOUCHUI_CHIP_DUAL, NULL, NULL)
+          && touchUi_GetSaberChip(TOUCHUI_CHIP_EQUIP, NULL, NULL) && !touchUi_GetSaberChip(TOUCHUI_CHIP_LEFT, NULL, NULL));
+    g_case = "saber wheel: a colour tapped is set, the wheel stays open, a tick felt";
+    touchUi_GetWheelGeometry(&cx, &cy, &r0, &r1);
+    touchUi_GetWheelSlice(5, &deg);
+    float px, py;
+    polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
+    touchUi_TakeHaptics();
+    down(2, px, py); up(2, px, py);
+    CHECK(fg.aSaberColour[0][0] == 5 && touchUi_IsWheelOpen());
+    CHECK(touchUi_TakeHaptics() & TOUCHUI_HAPTIC_TICK);
+    g_case = "saber wheel: DUAL; LEFT; a colour goes to the left blade only";
+    float qx, qy;
+    touchUi_GetSaberChip(TOUCHUI_CHIP_DUAL, &qx, &qy);
+    down(2, qx, qy); up(2, qx, qy);
+    CHECK(fg.saberStyle == TOUCHUI_SABER_DUAL && touchUi_IsWheelOpen());
+    CHECK(touchUi_GetSaberChip(TOUCHUI_CHIP_LEFT, &qx, &qy) && touchUi_GetSaberChip(TOUCHUI_CHIP_RIGHT, NULL, NULL));
+    down(2, qx, qy); up(2, qx, qy);
+    CHECK(touchUi_GetSaberTarget() == TOUCHUI_CHIP_LEFT);
+    touchUi_GetWheelSlice(7, &deg);
+    polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    CHECK(fg.aSaberColour[1][1] == 7 && fg.aSaberColour[1][0] == 0);
+    g_case = "saber wheel: BOTH: a colour goes to both blades";
+    touchUi_GetSaberChip(TOUCHUI_CHIP_BOTH, &qx, &qy);
+    down(2, qx, qy); up(2, qx, qy);
+    touchUi_GetWheelSlice(12, &deg);
+    polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    CHECK(fg.aSaberColour[1][1] == 12 && fg.aSaberColour[1][0] == 12);
+    CHECK(fg.aSaberColour[0][0] == 5); // (one blade's own colour kept)
+    g_case = "saber wheel: a tap in the gap closes it; the game goes on";
+    polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    CHECK(!touchUi_IsWheelOpen() && !fg.bHold);
+
+    g_case = "SABER: a 10 pt slide opens it to slide; lifted on a colour: set, and open to tap";
+    down(1, sx, sy);
+    move(1, sx, sy + 10.5f);
+    CHECK(touchUi_IsWheelOpen() && !touchUi_IsWheelTapMode());
+    touchUi_GetWheelSlice(3, &deg);
+    polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
+    move(1, px, py);
+    CHECK(touchUi_GetWheelHot() == 3);
+    up(1, px, py);
+    CHECK(fg.aSaberColour[1][0] == 3 && fg.aSaberColour[1][1] == 3 && touchUi_IsWheelOpen() && touchUi_IsWheelTapMode());
+    g_case = "saber wheel: EQUIP without a saber does nothing";
+    touchUi_GetSaberChip(TOUCHUI_CHIP_EQUIP, &qx, &qy);
+    down(2, qx, qy); up(2, qx, qy);
+    CHECK(touchUi_IsWheelOpen());
+    g_case = "saber wheel: EQUIP with the saber: in hand, the wheel closed";
+    fg.aWeaponOwned[10] = fg.aWeaponSel[10] = 1;
+    down(2, qx, qy); up(2, qx, qy);
+    CHECK(!touchUi_IsWheelOpen() && fg.selectedWeapon == 10);
+
+    g_case = "SABER: held still 0.3 s: open to tap";
+    down(1, sx, sy); wait(0.29);
+    CHECK(!touchUi_IsWheelOpen() && touchUi_GetRingProgress(TOUCHUI_BTN_SABER) > 0.8f);
+    wait(0.02);
+    CHECK(touchUi_IsWheelOpen() && touchUi_IsWheelTapMode());
+    up(1, sx, sy);
+    CHECK(touchUi_IsWheelOpen());
+    touchUi_GetSaberChip(TOUCHUI_CHIP_RIGHT, &qx, &qy);
+    down(2, qx, qy); up(2, qx, qy);
+    polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    CHECK(!touchUi_IsWheelOpen());
+
+    g_case = "saber choices remembered (by key and name)";
+    memset(fg.aSaberColour, 0, sizeof(fg.aSaberColour));
+    fg.saberStyle = 0;
+    touchUi_Init(&fakeGame, g_settings);
+    CHECK(fg.saberStyle == TOUCHUI_SABER_DUAL && fg.aSaberColour[0][0] == 5 && fg.aSaberColour[1][0] == 3 && fg.aSaberColour[1][1] == 3);
+    CHECK(touchUi_GetSaberTarget() == TOUCHUI_CHIP_RIGHT);
+
+    g_case = "DUAL not offered where the style can't be had";
+    setup();
+    fg.bSaberBtn = 1; fg.bDualOk = 0;
+    tick();
+    bxy(TOUCHUI_BTN_SABER, &sx, &sy);
+    down(1, sx, sy); wait(0.1); up(1, sx, sy);
+    CHECK(touchUi_IsWheelOpen() && !touchUi_GetSaberChip(TOUCHUI_CHIP_DUAL, NULL, NULL));
+}
+
+static int g_layoutSaber = 1;
 static void check_layout(const char* name, float W, float H, float l, float t, float r, float b)
 {
     g_case = name;
     setup();
     fg.aItem[40] = fg.aItem[41] = fg.aItem[42] = 1;
     fg.bCheat = 1;
+    fg.bSaberBtn = g_layoutSaber; // (CAMERA, SABER, CHEAT and VIEW all on the top row)
     tick();
     touchUi_SetScreen(W, H, l, t, r, b);
     float mx, my;
@@ -812,11 +1202,17 @@ int main(void)
     test_items_cheats();
     test_other_input();
     test_swapped();
+    test_camera();
+    test_saber();
     check_layout("layout: iPhone-sized (852x393, notch insets)", 852, 393, 59, 0, 59, 21);
     check_layout("layout: Android phone (873x393, cutout on the left)", 873, 393, 32, 0, 0, 0);
     check_layout("layout: Android phone (873x393, cutout on the right)", 873, 393, 0, 0, 32, 0);
     check_layout("layout: tablet (1067x667 at x1.2, nav bar)", 1067, 667, 0, 0, 0, 40);
-    check_layout("layout: small phone (640x360)", 640, 360, 0, 0, 0, 0);
+    check_layout("layout: Android phone (732x360), everything on", 732, 360, 0, 0, 0, 0);
+    // (narrower than any iPhone: all three items, CAMERA, SABER, CHEAT and VIEW
+    // don't fit in one row there, on iOS either; without SABER they do)
+    g_layoutSaber = 0;
+    check_layout("layout: small phone (640x360), no saber yet", 640, 360, 0, 0, 0, 0);
     remove(g_settings);
     printf("%d checks, %d failed\n", g_checks, g_fails);
     return g_fails ? 1 : 0;

@@ -72,6 +72,31 @@
 #define TU_FPS_LABEL_HALF 27.0f
 #define TU_BURST_LABEL_HALF 15.0f
 #define TU_CHEAT_HOLD 0.5
+// The camera: a tap shorter than TU_SELFIE_HOLD takes the photos, held still
+// that long the selfie, slid TU_WHEEL_OPEN_SLIDE a burst (a clean shot every
+// TU_BURST_GAP, at most TU_BURST_MAX); a request no frame takes in
+// TU_CAMERA_TIMEOUT is dropped. With FREEZE on, slid mostly down
+// TU_FREEZE_SWIPE Action Freeze, up as far (or to TU_FREEZE_EDGE from the
+// top, never less than TU_FREEZE_SWIPE_MIN) the cinematic burst. In Action
+// Freeze one finger turns the camera TU_FREEZE_ORBIT degrees a point, the
+// moves smoothed over TU_FREEZE_SMOOTH twice; its X is TU_FREEZE_CLOSE_R.
+#define TU_SELFIE_HOLD 0.5
+#define TU_CAMERA_TIMEOUT 0.5
+#define TU_BURST_GAP 0.2
+#define TU_BURST_MAX 10
+#define TU_FREEZE_SWIPE 36.0f
+#define TU_FREEZE_EDGE 6.0f
+#define TU_FREEZE_SWIPE_MIN 16.0f
+#define TU_FREEZE_ORBIT 0.3f
+#define TU_FREEZE_SMOOTH 0.03
+#define TU_FREEZE_CLOSE_R 22.0f
+// The saber wheel: a slice of TU_SABER_SLICE_DEG a colour; its choices
+// beside the ring, each TU_SABER_CHIP_W x _H, this far out and apart
+#define TU_SABER_SLICE_DEG 18.0f
+#define TU_SABER_CHIP_W 64.0f
+#define TU_SABER_CHIP_H 28.0f
+#define TU_SABER_CHIP_OUT 22.0f
+#define TU_SABER_CHIP_GAP 8.0f
 #define TU_BACTA_HOLD 0.3
 #define TU_FLY_HOLD 0.5
 #define TU_FLY_TAP 0.25
@@ -106,12 +131,16 @@ enum {
     TU_SC_X = 27, TU_SC_Z = 29, TU_SC_RETURN = 40, TU_SC_SPACE = 44, TU_SC_F9 = 66, TU_SC_LCTRL = 224, TU_SC_LSHIFT = 225
 };
 
-enum { ROLE_NONE = 0, ROLE_STICK, ROLE_LOOK, ROLE_BUTTON, ROLE_WHEEL, ROLE_IGNORED };
+enum { ROLE_NONE = 0, ROLE_STICK, ROLE_LOOK, ROLE_BUTTON, ROLE_WHEEL, ROLE_IGNORED,
+       ROLE_FREEZE,      // Action Freeze: moving the camera (one finger turns it, two move and zoom it)
+       ROLE_FREEZESHOT,  // Action Freeze: on CAMERA (a tap takes a photo)
+       ROLE_FREEZECLOSE  // Action Freeze: on its X (a tap goes back to the game)
+};
 
 enum {
     KIND_KEY = 0, KIND_MENU, KIND_HOLDSAVE, KIND_HOLDLOAD, KIND_WHEEL, KIND_ITEM, KIND_CHAT, KIND_FPS, KIND_GYRO,
     KIND_GYROMODE, KIND_GYROSENS, KIND_CAMSWITCH, KIND_CHEAT, KIND_CHEATSWITCH, KIND_VIEW, KIND_VIEWSWITCH,
-    KIND_CONTROLS, KIND_JUMPSTYLE, KIND_CAMERA,
+    KIND_CONTROLS, KIND_JUMPSTYLE, KIND_CAMERA, KIND_CAMPHOTO, KIND_SELFIES, KIND_FREEZEOPT, KIND_CAMKIND,
 };
 
 #define BIN_BACTATANK 40
@@ -125,9 +154,13 @@ enum {
     BTN_CAMERA, BTN_SABER, BTN_CHEAT, BTN_VIEW,
     BTN_TRAYGYRO, BTN_TRAYFPS, BTN_TRAYCAM, BTN_TRAYCHEAT, BTN_TRAYVIEW, BTN_TRAYJUMP, BTN_TRAYCTRL, BTN_TRAYKEYS,
     BTN_GYROOPT_MODE, BTN_GYROOPT_SENS,
+    BTN_CAMROW_PHOTO, BTN_CAMROW_SELFIES, BTN_CAMROW_FREEZE,
+    BTN_CAMOPT_CLEAN, BTN_CAMOPT_HUD, BTN_CAMOPT_BTNS,
     BTN_COUNT,
     BTN_TRAY_FIRST = BTN_TRAYGYRO, BTN_TRAY_LAST = BTN_TRAYKEYS,
-    BTN_GYROOPT_FIRST = BTN_GYROOPT_MODE, BTN_GYROOPT_LAST = BTN_GYROOPT_SENS
+    BTN_GYROOPT_FIRST = BTN_GYROOPT_MODE, BTN_GYROOPT_LAST = BTN_GYROOPT_SENS,
+    BTN_CAMROW_FIRST = BTN_CAMROW_PHOTO, BTN_CAMROW_LAST = BTN_CAMROW_FREEZE,
+    BTN_CAMOPT_FIRST = BTN_CAMOPT_CLEAN, BTN_CAMOPT_LAST = BTN_CAMOPT_BTNS
 };
 typedef char tu_assertBtnCount[((int)BTN_COUNT == (int)TOUCHUI_BTN_COUNT) ? 1 : -1];
 
@@ -170,10 +203,25 @@ static tuButton tu_aButtons[BTN_COUNT] = {
     [BTN_TRAYKEYS]  = { "",             KIND_CHAT,     -1,           20.0f, 0, 0 },
     [BTN_GYROOPT_MODE] = { "MODE",      KIND_GYROMODE, -1,           20.0f, 0, 0 },
     [BTN_GYROOPT_SENS] = { "SENS",      KIND_GYROSENS, -1,           20.0f, 0, 0 },
+    [BTN_CAMROW_PHOTO] = { "PHOTO",     KIND_CAMPHOTO, -1,           20.0f, 0, 0 },
+    [BTN_CAMROW_SELFIES] = { "SELFIES", KIND_SELFIES,  -1,           20.0f, 0, 0 },
+    [BTN_CAMROW_FREEZE] = { "FREEZE",   KIND_FREEZEOPT, -1,          20.0f, 0, 0 },
+    [BTN_CAMOPT_CLEAN] = { "CLEAN",     KIND_CAMKIND,  -1,           20.0f, 0, TOUCHUI_CAPTURE_CLEAN },
+    [BTN_CAMOPT_HUD]   = { "HUD",       KIND_CAMKIND,  -1,           20.0f, 0, TOUCHUI_CAPTURE_HUD },
+    [BTN_CAMOPT_BTNS]  = { "HUD+\nBTNS", KIND_CAMKIND, -1,          20.0f, 0, TOUCHUI_CAPTURE_HUDBTNS },
 };
 
 static int tu_IsTrayButton(int b) { return b >= BTN_TRAY_FIRST && b <= BTN_TRAY_LAST; }
-static int tu_IsOptButton(int b) { return b >= BTN_GYROOPT_FIRST && b <= BTN_GYROOPT_LAST; }
+static int tu_IsCamOptButton(int b) { return b >= BTN_CAMOPT_FIRST && b <= BTN_CAMOPT_LAST; }
+// The rows under the tray (one at a time): the gyro options, the camera
+// options; and the photo kinds under the camera options
+enum { TU_ROW_NONE = 0, TU_ROW_GYRO, TU_ROW_CAMERA };
+static int tu_IsOptButton(int b)
+{
+    return (b >= BTN_GYROOPT_FIRST && b <= BTN_GYROOPT_LAST) || (b >= BTN_CAMROW_FIRST && b <= BTN_CAMROW_LAST) || tu_IsCamOptButton(b);
+}
+// A tray button held still opens its row (GYRO, the camera switch)
+static int tu_IsRowOpener(int b) { return b == BTN_TRAYGYRO || b == BTN_TRAYCAM; }
 static int tu_IsQuickHold(int b) { return b == BTN_QUICKSAVE || b == BTN_QUICKLOAD; }
 
 // ------------------------------------------------------------ wheel maps (iosTouch.m's)
@@ -234,6 +282,13 @@ static const tuWheelMap tu_motsWheel = { tu_aMotsWheelSlices, TU_COUNT(tu_aMotsW
 static const tuWheelMap tu_jkWeaponWheel = { tu_aJkWeaponSlices, TU_COUNT(tu_aJkWeaponSlices), tu_aWeaponGroups, TU_COUNT(tu_aWeaponGroups), 32.0f, 0.0f };
 static const tuWheelMap tu_motsWeaponWheel = { tu_aMotsWeaponSlices, TU_COUNT(tu_aMotsWeaponSlices), tu_aWeaponGroups, TU_COUNT(tu_aWeaponGroups), 19.0f, 0.0f };
 
+// The saber wheel: every blade colour in its own slice and colour, the
+// game's own by the gap on the left, round to the last by the gap on the
+// right (made as it opens: the game's own colour is the blade's now)
+static tuWheelSlice tu_aSaberSlices[TU_WHEEL_MAX];
+static tuWheelGroup tu_aSaberGroups[TU_WHEEL_MAX];
+static tuWheelMap tu_saberWheel = { tu_aSaberSlices, 0, tu_aSaberGroups, 0, TU_SABER_SLICE_DEG, 0.0f };
+
 // A wheel's labels fitted to its slices: [0] alone, [1] with the row under
 // it (stars, ammo). Kept for each wheel until its size changes.
 typedef struct {
@@ -266,6 +321,7 @@ typedef struct {
     float wheelAim;
     int bFlyDone;
     int levelPick;
+    int bSwipe;         // CAMERA slid on its way to Action Freeze or the cinematic burst: not a tap, nor a hold
 } tuSlot;
 
 static struct {
@@ -302,12 +358,17 @@ static struct {
     float aTopText[3];
     int bFpsBottom;
     float fpsX, fpsY;
-    float trayBack[4], gyroRowBack[4];
-    // MENU's tray and its gyro row
+    float trayBack[4], aRowBack[3][4]; // (the rows: the gyro options, the camera options, the photo kinds)
+    int bBurstUnder;
+    float freezeX, freezeY;
+    // MENU's tray and the rows under it
     int bTrayOpen;
-    int bGyroRow;
+    int bGyroRow; // (the gyro options' row is open: optRow == TU_ROW_GYRO)
+    int optRow;
+    int bKindsOpen;
     // settings
     int bShowFps, bShowCheat, bShowView, bThirdPerson, bSwapped, jumpStyle;
+    int bShowCamera, cameraKinds, selfieShots, bFreezeOn, saberTarget;
     int gyroMode, gyroLastMode, gyroSens;
     // what the buttons show
     int bCheatOn;
@@ -328,13 +389,30 @@ static struct {
     char fpsText[16];
     double lastNow;
 
+    // the camera: a photo asked for, the burst, the photo modes, the flash
+    double tCameraAsked;
+    int bBurst;
+    long long burstId;
+    int burstShots;
+    double tBurstNext;
+    int bSelfie, bFreezing, bCinema;
+    float aFreezeMove[5], aFreezeMid[5];
+    double tFlash;
+    int bFlashLight;
+    int selfieFlashes;
+    double prevTickNow;
+    // the saber
+    int bShowSaber;
+    float aChip[TOUCHUI_NUM_CHIPS][2];
+    int aChipShown[TOUCHUI_NUM_CHIPS];
+
     // the wheel
     int bWheelOpen, bWheelTapMode, wheelKind, wheelButton;
     const tuWheelMap* pWheelMap;
     int aWheelEarned[TU_WHEEL_MAX], aWheelLevel[TU_WHEEL_MAX], aWheelOwned[TU_WHEEL_MAX], aWheelAmmo[TU_WHEEL_MAX];
     float wheelCx, wheelCy, wheelR0, wheelR1;
     int wheelLastHot;
-    tuWheelFit aWheelFit[2];
+    tuWheelFit aWheelFit[3];
 
     // gyro
     int bGyroAvailable;
@@ -365,6 +443,12 @@ static void tu_SetHold(int b) { if (G(SetHold)) tu.game->SetHold(b); }
 static int tu_IsCheatOn(void) { return G(IsSithEwokOn) ? tu.game->IsSithEwokOn() : 0; }
 
 static void tu_Haptic(int kind) { tu.haptics |= kind; }
+static int tu_PhotoModeUp(void) { return tu.bSelfie || tu.bFreezing || tu.bCinema; }
+static void tu_EndBurst(void);
+static void tu_EndSelfie(void);
+static void tu_EndFreeze(void);
+static void tu_EndCinema(void);
+static void tu_LayoutSaberChips(void);
 
 // ------------------------------------------------------------ settings
 
@@ -376,6 +460,22 @@ static void tu_SaveSettings(void)
     fprintf(f, "gyroMode=%d\ngyroLastMode=%d\ngyroSens=%.1f\nshowFps=%d\nshowCheat=%d\nshowView=%d\nthirdPerson=%d\njumpStyle=%d\nswapped=%d\n",
             tu.gyroMode, tu.gyroLastMode, (double)tu_aGyroSens[tu.gyroSens], tu.bShowFps, tu.bShowCheat, tu.bShowView,
             tu.bThirdPerson, tu.jumpStyle, tu.bSwapped);
+    fprintf(f, "showCamera=%d\ncameraKinds=%d\nselfieShots=%d\nfreeze=%d\nsaberTarget=%d\n", tu.bShowCamera, tu.cameraKinds,
+            tu.selfieShots, tu.bFreezeOn, tu.saberTarget);
+    // the saber: the style by its name, each blade's colour of each style by its key
+    if (G(SaberGetStyle) && G(SaberStyleName)) {
+        const char* name = tu.game->SaberStyleName(tu.game->SaberGetStyle());
+        if (name) fprintf(f, "saberStyle=%s\n", name);
+    }
+    if (G(SaberStyleName) && G(SaberStyleNumBlades) && G(SaberGetColour) && G(SaberColourKey)) {
+        for (int st = TOUCHUI_SABER_SINGLE; st <= TOUCHUI_SABER_DUAL; st++) {
+            const char* name = tu.game->SaberStyleName(st);
+            for (int b = 0; name && b < tu.game->SaberStyleNumBlades(st); b++) {
+                const char* key = tu.game->SaberColourKey(tu.game->SaberGetColour(st, b));
+                if (key) fprintf(f, "saberColour.%s.%d=%s\n", name, b, key);
+            }
+        }
+    }
     fclose(f);
 }
 
@@ -386,6 +486,11 @@ static void tu_LoadSettings(void)
     tu.gyroSens = TU_GYRO_DEFAULT_SENS;
     tu.bShowFps = tu.bShowCheat = tu.bShowView = tu.bThirdPerson = tu.bSwapped = 0;
     tu.jumpStyle = TU_JUMP_STEPS;
+    tu.bShowCamera = 1; // (shown unless switched off, as on iOS)
+    tu.cameraKinds = TOUCHUI_CAPTURE_CLEAN;
+    tu.selfieShots = 3;
+    tu.bFreezeOn = 1;
+    tu.saberTarget = TOUCHUI_CHIP_BOTH;
     if (!tu.settingsPath[0]) return;
     FILE* f = fopen(tu.settingsPath, "r");
     if (!f) return;
@@ -409,6 +514,32 @@ static void tu_LoadSettings(void)
         else if (!strcmp(k, "thirdPerson")) tu.bThirdPerson = n != 0;
         else if (!strcmp(k, "jumpStyle")) tu.jumpStyle = (n >= 0 && n < TU_JUMP_NUM_STYLES) ? n : TU_JUMP_STEPS;
         else if (!strcmp(k, "swapped")) tu.bSwapped = n != 0;
+        else if (!strcmp(k, "showCamera")) tu.bShowCamera = n != 0;
+        else if (!strcmp(k, "cameraKinds")) tu.cameraKinds = (n & 7) ? (n & 7) : TOUCHUI_CAPTURE_CLEAN;
+        else if (!strcmp(k, "selfieShots")) tu.selfieShots = (n == 1 || n == 5) ? n : 3;
+        else if (!strcmp(k, "freeze")) tu.bFreezeOn = n != 0;
+        else if (!strcmp(k, "saberTarget"))
+            tu.saberTarget = (n == TOUCHUI_CHIP_LEFT || n == TOUCHUI_CHIP_RIGHT) ? n : TOUCHUI_CHIP_BOTH;
+        else if (!strncmp(k, "saber", 5)) {
+            // the saber's: a key or a name, the line's end trimmed
+            char* v = eq + 1;
+            v[strcspn(v, "\r\n")] = 0;
+            if (!strcmp(k, "saberStyle") && G(SaberStyleName) && G(SaberSetStyle)) {
+                for (int st = TOUCHUI_SABER_SINGLE; st <= TOUCHUI_SABER_DUAL; st++) {
+                    const char* name = tu.game->SaberStyleName(st);
+                    if (name && !strcmp(name, v)) tu.game->SaberSetStyle(st);
+                }
+            }
+            else if (!strncmp(k, "saberColour.", 12) && G(SaberStyleName) && G(SaberSetColour) && G(SaberColourByKey)) {
+                const char* dot = strrchr(k, '.');
+                for (int st = TOUCHUI_SABER_SINGLE; dot && st <= TOUCHUI_SABER_DUAL; st++) {
+                    const char* name = tu.game->SaberStyleName(st);
+                    if (!name || strlen(name) != (size_t)(dot - (k + 12)) || strncmp(k + 12, name, dot - (k + 12))) continue;
+                    const int id = tu.game->SaberColourByKey(v);
+                    tu.game->SaberSetColour(st, atoi(dot + 1), id >= 0 ? id : 0); // (a colour no more: the game's own)
+                }
+            }
+        }
     }
     fclose(f);
     if (tu.gyroMode != TOUCHUI_GYRO_OFF) tu.gyroLastMode = tu.gyroMode;
@@ -445,10 +576,13 @@ static void tu_QueuePress(int scancode)
 static int tu_Hidden(int i)
 {
     const tuButton* b = &tu_aButtons[i];
-    if (i == BTN_CAMERA || i == BTN_SABER) return 1; // (not in this round)
+    if (i == BTN_CAMERA) return !tu.bShowCamera;
+    if (i == BTN_SABER) return !tu.bShowSaber;
     if (b->kind == KIND_ITEM) return !tu.aItemHave[i];
     if (tu_IsTrayButton(i)) return !tu.bTrayOpen;
-    if (tu_IsOptButton(i)) return !tu.bGyroRow;
+    if (i >= BTN_GYROOPT_FIRST && i <= BTN_GYROOPT_LAST) return tu.optRow != TU_ROW_GYRO;
+    if (i >= BTN_CAMROW_FIRST && i <= BTN_CAMROW_LAST) return tu.optRow != TU_ROW_CAMERA;
+    if (tu_IsCamOptButton(i)) return !tu.bKindsOpen;
     if (i == BTN_CHEAT) return !tu.bShowCheat;
     if (i == BTN_VIEW) return !tu.bShowView;
     return 0;
@@ -461,11 +595,14 @@ static int tu_IsWheelPress(const tuSlot* s)
 
 static int tu_WheelKindOf(int button)
 {
-    return button == BTN_NEXTWPN ? TOUCHUI_WHEEL_WEAPONS : TOUCHUI_WHEEL_FORCE;
+    if (button == BTN_NEXTWPN) return TOUCHUI_WHEEL_WEAPONS;
+    if (button == BTN_SABER) return TOUCHUI_WHEEL_SABER;
+    return TOUCHUI_WHEEL_FORCE;
 }
 
 static const char* tu_WheelSlotName(int bin)
 {
+    if (tu.wheelKind == TOUCHUI_WHEEL_SABER) return G(SaberColourName) ? tu.game->SaberColourName(bin) : NULL;
     if (tu.wheelKind == TOUCHUI_WHEEL_WEAPONS) return G(GetWeaponName) ? tu.game->GetWeaponName(bin) : NULL;
     return G(GetPowerName) ? tu.game->GetPowerName(bin) : NULL;
 }
@@ -626,7 +763,7 @@ static void tu_Layout(void)
     {
         tuButton* cam = &tu_aButtons[BTN_CAMERA];
         tuButton* aMid[3] = { &tu_aButtons[BTN_SABER], &tu_aButtons[BTN_CHEAT], &tu_aButtons[BTN_VIEW] };
-        const int aShow[3] = { 0, tu.bShowCheat, tu.bShowView };
+        const int aShow[3] = { tu.bShowSaber, tu.bShowCheat, tu.bShowView };
         const int n = TU_MAX(aShow[0] + aShow[1] + aShow[2], 1);
         const float R = aMid[0]->radius, minGap = (n > 1) ? 8.0f : 4.0f;
         const float qsLeft = tu_aButtons[BTN_QUICKSAVE].x - tu_aButtons[BTN_QUICKSAVE].radius;
@@ -648,6 +785,7 @@ static void tu_Layout(void)
         int k = 0;
         while (k < 3 && (aHi[k] - aLo[k] - n * 2.0f * R) / (n + 1) < minGap) k++;
         const int bAny = aShow[0] || aShow[1] || aShow[2];
+        tu.bBurstUnder = bAny && (k & 1);
         tu.bFpsBottom = bAny && k >= 2;
         const float Gp = (aHi[k] - aLo[k] - n * 2.0f * R) / (n + 1);
         int slot = 0;
@@ -737,21 +875,32 @@ static void tu_Layout(void)
         }
         tu.trayBack[0] = kx - len - 26; tu.trayBack[1] = ky - 26; tu.trayBack[2] = len + 52; tu.trayBack[3] = 52;
     }
-    // The gyro options under GYRO
+    // The rows under the tray, each centred under the button that opens it
+    // (kept on screen): the gyro options under GYRO and the camera options
+    // under the camera switch, a row down; the photo kinds under PHOTO, a
+    // row further
     {
-        const tuButton* c = &tu_aButtons[BTN_TRAYGYRO];
-        const int num = BTN_GYROOPT_LAST - BTN_GYROOPT_FIRST + 1;
-        const float len = TU_TRAY_STEP * (num - 1);
-        float x0 = c->x - len * 0.5f;
-        x0 = TU_MIN(x0, right - 26 - len);
-        x0 = TU_MAX(x0, left + 26);
-        const float y = c->y + 52;
-        for (int i = BTN_GYROOPT_FIRST; i <= BTN_GYROOPT_LAST; i++) {
-            tu_aButtons[i].x = x0 + TU_TRAY_STEP * (i - BTN_GYROOPT_FIRST);
-            tu_aButtons[i].y = y;
+        const int aFirst[3] = { BTN_GYROOPT_FIRST, BTN_CAMROW_FIRST, BTN_CAMOPT_FIRST };
+        const int aLast[3] = { BTN_GYROOPT_LAST, BTN_CAMROW_LAST, BTN_CAMOPT_LAST };
+        const int aUnder[3] = { BTN_TRAYGYRO, BTN_TRAYCAM, BTN_CAMROW_PHOTO };
+        for (int k = 0; k < 3; k++) {
+            const tuButton* c = &tu_aButtons[aUnder[k]]; // (PHOTO is laid out by the time its row is)
+            const int num = aLast[k] - aFirst[k] + 1;
+            const float len = TU_TRAY_STEP * (num - 1);
+            float x0 = c->x - len * 0.5f;
+            x0 = TU_MIN(x0, right - 26 - len);
+            x0 = TU_MAX(x0, left + 26);
+            const float y = c->y + 52;
+            for (int i = aFirst[k]; i <= aLast[k]; i++) {
+                tu_aButtons[i].x = x0 + TU_TRAY_STEP * (i - aFirst[k]);
+                tu_aButtons[i].y = y;
+            }
+            tu.aRowBack[k][0] = x0 - 26; tu.aRowBack[k][1] = y - 26; tu.aRowBack[k][2] = len + 52; tu.aRowBack[k][3] = 52;
         }
-        tu.gyroRowBack[0] = x0 - 26; tu.gyroRowBack[1] = y - 26; tu.gyroRowBack[2] = len + 52; tu.gyroRowBack[3] = 52;
     }
+    // Action Freeze's X: top right, inside the safe area
+    tu.freezeX = right - TU_FREEZE_CLOSE_R - 4;
+    tu.freezeY = top + TU_FREEZE_CLOSE_R + 4;
 
     tu.fpsX = tu.bFpsBottom ? W * 0.5f : right - TU_FPS_LABEL_X;
     tu.fpsY = tu.bFpsBottom ? bottom - 9.0f : top + 26;
@@ -793,10 +942,15 @@ static int tu_ButtonAt(float px, float py)
             if (best < 0 || d < bestDist) { best = i; bestDist = d; }
         }
     }
-    l = &tu_aButtons[BTN_GYROOPT_FIRST];
-    r = &tu_aButtons[BTN_GYROOPT_LAST];
-    if (best < 0 && tu.bGyroRow && tu_DistToSegment(px, py, l->x, l->y, r->x, r->y) <= 26) {
-        for (int i = BTN_GYROOPT_FIRST; i <= BTN_GYROOPT_LAST; i++) {
+    // (then the rows under it, each likewise)
+    const int aFirst[3] = { BTN_GYROOPT_FIRST, BTN_CAMROW_FIRST, BTN_CAMOPT_FIRST };
+    const int aLast[3] = { BTN_GYROOPT_LAST, BTN_CAMROW_LAST, BTN_CAMOPT_LAST };
+    for (int k = 0; k < 3 && best < 0; k++) {
+        if (tu_Hidden(aFirst[k])) continue;
+        l = &tu_aButtons[aFirst[k]];
+        r = &tu_aButtons[aLast[k]];
+        if (tu_DistToSegment(px, py, l->x, l->y, r->x, r->y) > 26) continue;
+        for (int i = aFirst[k]; i <= aLast[k]; i++) {
             float d = fabsf(px - tu_aButtons[i].x);
             if (best < 0 || d < bestDist) { best = i; bestDist = d; }
         }
@@ -998,20 +1152,36 @@ void touchUi_GyroFrame(double now, int* pDx, int* pDy)
 
 // ------------------------------------------------------------ MENU's tray
 
-static void tu_SetGyroRow(int bOpen)
+// Lets go of any touch on a row's buttons that went away
+static void tu_ReleaseOptTouches(void)
 {
-    bOpen = bOpen != 0;
-    if (tu.bGyroRow == bOpen) return;
-    tu.bGyroRow = bOpen;
-    if (!bOpen) {
-        for (int i = 0; i < TU_MAX_TOUCHES; i++) {
-            tuSlot* s = &tu.aSlots[i];
-            if (s->bUsed && s->role == ROLE_BUTTON && tu_IsOptButton(s->button)) {
-                if (tu.aButtonHeld[s->button] > 0) tu.aButtonHeld[s->button]--;
-                s->role = ROLE_IGNORED;
-            }
+    for (int i = 0; i < TU_MAX_TOUCHES; i++) {
+        tuSlot* s = &tu.aSlots[i];
+        if (s->bUsed && s->role == ROLE_BUTTON && tu_IsOptButton(s->button) && tu_Hidden(s->button)) {
+            if (tu.aButtonHeld[s->button] > 0) tu.aButtonHeld[s->button]--;
+            s->role = ROLE_IGNORED;
         }
     }
+}
+
+// Opens a row under the tray (TU_ROW_*), closing any other: one at a time
+// (the photo kinds go with the camera options)
+static void tu_SetOptRow(int row)
+{
+    if (tu.optRow == row) return;
+    tu.optRow = row;
+    tu.bGyroRow = row == TU_ROW_GYRO;
+    if (row != TU_ROW_CAMERA) tu.bKindsOpen = 0;
+    tu_ReleaseOptTouches();
+}
+
+// Opens or closes the photo kinds' row, under the camera options
+static void tu_SetKindsOpen(int bOpen)
+{
+    bOpen = bOpen != 0 && tu.optRow == TU_ROW_CAMERA;
+    if (tu.bKindsOpen == bOpen) return;
+    tu.bKindsOpen = bOpen;
+    tu_ReleaseOptTouches();
 }
 
 static void tu_SetTrayOpen(int bOpen)
@@ -1020,11 +1190,11 @@ static void tu_SetTrayOpen(int bOpen)
     if (tu.bTrayOpen == bOpen) return;
     tu.bTrayOpen = bOpen;
     if (!bOpen) {
-        tu_SetGyroRow(0);
+        tu_SetOptRow(TU_ROW_NONE);
         for (int i = 0; i < TU_MAX_TOUCHES; i++) {
             tuSlot* s = &tu.aSlots[i];
             if (!s->bUsed || s->role != ROLE_BUTTON) continue;
-            if (s->button == BTN_TRAYGYRO) tu.aRing[BTN_TRAYGYRO] = 0.0f;
+            if (tu_IsRowOpener(s->button)) tu.aRing[s->button] = 0.0f;
             if (tu_IsTrayButton(s->button)) {
                 if (tu.aButtonHeld[s->button] > 0) tu.aButtonHeld[s->button]--;
                 s->role = ROLE_IGNORED;
@@ -1080,8 +1250,10 @@ static void tu_UseTrayButton(int button)
         tu_SetShowFps(!tu.bShowFps);
     }
     else if (kind == KIND_CAMSWITCH) {
-        // (the camera's photos aren't in the Android app yet)
-        if (G(ShowMessage)) tu.game->ShowMessage("The camera isn't on Android yet");
+        // CAMERA shown or hidden, and remembered (Android's gallery needs no
+        // question asked first, unlike iOS's Photos)
+        tu.bShowCamera = !tu.bShowCamera;
+        tu_SaveSettings();
     }
     else if (kind == KIND_CHEATSWITCH) {
         if (tu.bShowCheat) {
@@ -1116,10 +1288,419 @@ static void tu_UseTrayButton(int button)
     }
 }
 
+// A row's button tapped; the row stays open for another tap (a touch
+// anywhere else closes it)
 static void tu_UseOptButton(int button)
 {
-    if (tu_aButtons[button].kind == KIND_GYROMODE && tu_GyroAvailable()) tu_GyroNextMode();
-    if (tu_aButtons[button].kind == KIND_GYROSENS && tu_GyroAvailable()) tu_GyroNextSens();
+    switch (tu_aButtons[button].kind) {
+        case KIND_GYROMODE:
+            if (tu_GyroAvailable()) tu_GyroNextMode();
+            break;
+        case KIND_GYROSENS:
+            if (tu_GyroAvailable()) tu_GyroNextSens();
+            break;
+        case KIND_CAMPHOTO:
+            tu_SetKindsOpen(!tu.bKindsOpen);
+            break;
+        case KIND_SELFIES:
+            tu.selfieShots = tu.selfieShots == 1 ? 3 : (tu.selfieShots == 3 ? 5 : 1);
+            tu_SaveSettings();
+            break;
+        case KIND_FREEZEOPT:
+            tu.bFreezeOn = !tu.bFreezeOn;
+            tu_SaveSettings();
+            break;
+        case KIND_CAMKIND: {
+            // a kind of photo ticked or unticked (the last one stays: a tap
+            // always takes something)
+            const int bit = tu_aButtons[button].bin;
+            if ((tu.cameraKinds & bit) && !(tu.cameraKinds & ~bit)) break;
+            tu.cameraKinds ^= bit;
+            tu_SaveSettings();
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+// ------------------------------------------------------------ the camera (iosTouch.m's)
+
+static void tu_Message(const char* m)
+{
+    if (G(ShowMessage)) tu.game->ShowMessage(m);
+}
+
+// CAMERA tapped: the ticked photos, at the next frame drawn
+static void tu_TakePhotos(void)
+{
+    if (!G(CaptureRequest) || !tu.game->CaptureRequest(tu.cameraKinds, TOUCHUI_CAPTURE_PHOTO)) return; // (the last ones still being saved)
+    tu.tCameraAsked = tu.lastNow;
+}
+
+// A burst: a finger slid off CAMERA, then a clean shot every TU_BURST_GAP (or
+// as soon after as the saving keeps up) until it lifts, up to TU_BURST_MAX
+static void tu_StartBurst(long long id)
+{
+    tu.bBurst = 1;
+    tu.burstId = id;
+    tu.burstShots = 0;
+    tu.tBurstNext = 0.0;
+    if (G(SetPhotoBatch)) tu.game->SetPhotoBatch(1);
+}
+
+static void tu_TickBurst(double now)
+{
+    if (!tu.bBurst || tu.burstShots >= TU_BURST_MAX || now < tu.tBurstNext) return;
+    if (!G(CaptureRequest) || !tu.game->CaptureRequest(TOUCHUI_CAPTURE_CLEAN, TOUCHUI_CAPTURE_BURST)) return; // (next frame)
+    tu.tCameraAsked = now;
+    tu.burstShots++;
+    tu.tBurstNext = now + TU_BURST_GAP;
+}
+
+static void tu_EndBurst(void)
+{
+    if (!tu.bBurst) return;
+    tu.bBurst = 0;
+    if (G(SetPhotoBatch)) tu.game->SetPhotoBatch(0);
+}
+
+// A selfie or Action Freeze starting: every touch now down let go (the game
+// sees no buttons held, no stick), the tray closed; the buttons hide
+static void tu_HideForPhotos(void)
+{
+    tu_SetTrayOpen(0);
+    for (int i = 0; i < TU_MAX_TOUCHES; i++)
+        if (tu.aSlots[i].bUsed) tu.aSlots[i].role = ROLE_IGNORED;
+    memset(tu.aButtonHeld, 0, sizeof(tu.aButtonHeld));
+    memset(tu.aRing, 0, sizeof(tu.aRing));
+    tu_HideStick();
+    tu_RecomputeKeys();
+}
+
+static void tu_ShowAfterPhotos(void)
+{
+    tu.lookX = tu.lookY = 0.0f; // (nothing moved meanwhile turns the view afterwards)
+}
+
+// The selfie: CAMERA held still TU_SELFIE_HOLD. The game holds still and
+// everyone near poses for a camera held out at arm's length, for one photo
+// or several (SELFIES), the engine running it (iosSelfieShots, enh_Tick);
+// nothing shows and every touch is ignored meanwhile
+static void tu_StartSelfie(void)
+{
+    if (tu_PhotoModeUp()) return;
+    tu_EndBurst(); // (its end would take the selfie's photos out of their batch)
+    const int r = G(SelfieStart) ? tu.game->SelfieStart(tu.selfieShots) : TOUCHUI_PHOTOMODE_CANT;
+    if (r != TOUCHUI_PHOTOMODE_STARTED) {
+        tu_Message(r == TOUCHUI_PHOTOMODE_BUSY ? "Still saving the last photo" : "Can't take a selfie here");
+        return;
+    }
+    tu.selfieFlashes = 0;
+    tu.bSelfie = 1;
+    tu_HideForPhotos();
+}
+
+static void tu_EndSelfie(void)
+{
+    if (!tu.bSelfie) return;
+    tu.bSelfie = 0;
+    if (G(SelfieStop)) tu.game->SelfieStop(); // (ended early: the overlay going...)
+    tu_ShowAfterPhotos();
+}
+
+// Action Freeze (CAMERA slid down, FREEZE on): the game stops just as it is
+// and the camera moves round it for photos; only CAMERA and the X show
+static void tu_StartFreeze(void)
+{
+    if (tu_PhotoModeUp()) return;
+    tu_EndBurst();
+    if (!G(FreezeBegin) || !tu.game->FreezeBegin()) {
+        tu_Message("Can't freeze here");
+        return;
+    }
+    tu.bFreezing = 1;
+    memset(tu.aFreezeMove, 0, sizeof(tu.aFreezeMove));
+    memset(tu.aFreezeMid, 0, sizeof(tu.aFreezeMid));
+    if (G(FreezeSetSmooth)) tu.game->FreezeSetSmooth(1);
+    tu_HideForPhotos();
+}
+
+static void tu_EndFreeze(void)
+{
+    if (!tu.bFreezing) return;
+    tu.bFreezing = 0;
+    // (a photo asked for and not taken yet would be of the game's own view)
+    if (tu.tCameraAsked > 0.0) {
+        if (G(CaptureCancel)) tu.game->CaptureCancel();
+        tu.tCameraAsked = 0.0;
+    }
+    if (G(FreezeEnd)) tu.game->FreezeEnd(); // (the game goes on from the same moment)
+    for (int i = 0; i < TU_MAX_TOUCHES; i++)
+        if (tu.aSlots[i].bUsed) tu.aSlots[i].role = ROLE_IGNORED; // (still down, they only lift)
+    tu_ShowAfterPhotos();
+}
+
+enum { TU_FZ_YAW = 0, TU_FZ_PITCH, TU_FZ_PANX, TU_FZ_PANY, TU_FZ_ZOOM, TU_FZ_NUM };
+
+// A finger moving the Action Freeze camera: alone, it turns it round what it
+// looks at (what is on screen follows the finger); with a second, the two
+// move it across (by their middle) and zoom (by their spread)
+static void tu_MoveFreeze(tuSlot* s, float px, float py)
+{
+    tuSlot* other = NULL;
+    for (int i = 0; i < TU_MAX_TOUCHES && !other; i++) {
+        tuSlot* o = &tu.aSlots[i];
+        if (o != s && o->bUsed && o->role == ROLE_FREEZE) other = o;
+    }
+    if (!other) {
+        tu.aFreezeMove[TU_FZ_YAW] -= (px - s->lx) * TU_FREEZE_ORBIT;
+        tu.aFreezeMove[TU_FZ_PITCH] -= (py - s->ly) * TU_FREEZE_ORBIT;
+        return;
+    }
+    const float h = tu.H > 1.0f ? tu.H : 1.0f;
+    const float oldDist = hypotf(s->lx - other->lx, s->ly - other->ly), newDist = hypotf(px - other->lx, py - other->ly);
+    tu.aFreezeMove[TU_FZ_PANX] += (px - s->lx) * 0.5f / h; // (the middle moves by half of this finger's move)
+    tu.aFreezeMove[TU_FZ_PANY] += (py - s->ly) * 0.5f / h;
+    if (oldDist > 8.0f && newDist > 8.0f) tu.aFreezeMove[TU_FZ_ZOOM] += logf(newDist / oldDist);
+}
+
+// Once a frame in Action Freeze: the camera follows the fingers' moves so
+// far, part of the way (two smoothing steps), and glides to a stop after
+// they lift; the engine's iosFreeze_Frame (enh_Tick) carries it on
+static void tu_TickFreeze(double dt)
+{
+    if (dt > 0.1) dt = 0.1;
+    const float k = (float)(1.0 - exp(-(dt > 0.0 ? dt : 0.0) / TU_FREEZE_SMOOTH));
+    float a[TU_FZ_NUM];
+    for (int i = 0; i < TU_FZ_NUM; i++) {
+        const float m = tu.aFreezeMove[i] * k;
+        tu.aFreezeMove[i] -= m;
+        tu.aFreezeMid[i] += m;
+        a[i] = tu.aFreezeMid[i] * k;
+        tu.aFreezeMid[i] -= a[i];
+        if (fabsf(tu.aFreezeMove[i]) + fabsf(tu.aFreezeMid[i]) < 1e-5f) tu.aFreezeMove[i] = tu.aFreezeMid[i] = 0.0f;
+    }
+    if ((a[TU_FZ_YAW] != 0.0f || a[TU_FZ_PITCH] != 0.0f) && G(FreezeOrbit) && !tu.game->FreezeOrbit(a[TU_FZ_YAW], a[TU_FZ_PITCH])) {
+        // (a wall that way: the rest is dropped)
+        tu.aFreezeMove[TU_FZ_YAW] = tu.aFreezeMid[TU_FZ_YAW] = 0.0f;
+        tu.aFreezeMove[TU_FZ_PITCH] = tu.aFreezeMid[TU_FZ_PITCH] = 0.0f;
+    }
+    if ((a[TU_FZ_PANX] != 0.0f || a[TU_FZ_PANY] != 0.0f) && G(FreezePan)) tu.game->FreezePan(a[TU_FZ_PANX], a[TU_FZ_PANY]);
+    if (a[TU_FZ_ZOOM] != 0.0f && G(FreezeZoom)) tu.game->FreezeZoom(expf(a[TU_FZ_ZOOM]));
+}
+
+// CAMERA tapped in Action Freeze: one clean photo of the frozen moment
+static void tu_TakeFreezePhoto(void)
+{
+    if (!G(CaptureRequest) || !tu.game->CaptureRequest(TOUCHUI_CAPTURE_CLEAN, TOUCHUI_CAPTURE_PHOTO)) {
+        tu_Message("Still saving the last photo");
+        return;
+    }
+    tu.tCameraAsked = tu.lastNow;
+}
+
+// The cinematic burst (CAMERA slid up, FREEZE on): the action frozen, five
+// photos round it (the engine's iosCinema), then the game goes on; nothing
+// shows and every touch is ignored meanwhile, as for a selfie
+static void tu_StartCinema(void)
+{
+    if (tu_PhotoModeUp()) return;
+    tu_EndBurst(); // (its waiting capture would hold it up)
+    const int r = G(CinemaStart) ? tu.game->CinemaStart() : TOUCHUI_PHOTOMODE_CANT;
+    if (r != TOUCHUI_PHOTOMODE_STARTED) {
+        tu_Message(r == TOUCHUI_PHOTOMODE_BUSY ? "Still saving the last photo" : "Can't freeze here");
+        return;
+    }
+    tu.bCinema = 1;
+    tu_HideForPhotos();
+}
+
+static void tu_EndCinema(void)
+{
+    if (!tu.bCinema) return;
+    tu.bCinema = 0;
+    if (G(CinemaStop)) tu.game->CinemaStop(); // (ended early)
+    tu_ShowAfterPhotos();
+}
+
+void touchUi_CameraFeedback(int mode)
+{
+    // (a selfie's photos come a frame apart: after its first, a burst's
+    // lighter flash)
+    tu.bFlashLight = mode == TOUCHUI_CAPTURE_BURST || (mode == TOUCHUI_CAPTURE_SELFIE && tu.selfieFlashes++ > 0);
+    tu.tCameraAsked = 0.0;
+    tu.tFlash = tu.lastNow > 0.0 ? tu.lastNow : 1e-9;
+    tu_Haptic(TOUCHUI_HAPTIC_TAP);
+}
+
+void touchUi_PhotoModeEnded(int mode)
+{
+    if (mode == TOUCHUI_MODE_SELFIE) tu_EndSelfie();
+    else if (mode == TOUCHUI_MODE_CINEMA) tu_EndCinema();
+}
+
+int touchUi_IsPhotoModeUp(void) { return tu_PhotoModeUp(); }
+
+// ------------------------------------------------------------ the saber (iosTouch.m's)
+
+static int tu_SaberStyle(void) { return G(SaberGetStyle) ? tu.game->SaberGetStyle() : TOUCHUI_SABER_SINGLE; }
+static int tu_SaberNumBlades(int st) { return G(SaberStyleNumBlades) ? tu.game->SaberStyleNumBlades(st) : 1; }
+
+static void tu_SetupSaberWheel(void)
+{
+    int n = G(SaberNumColours) ? tu.game->SaberNumColours() : 0;
+    n = TU_MIN(n, TU_WHEEL_MAX);
+    for (int i = 0; i < n; i++) {
+        tuWheelGroup* g = &tu_aSaberGroups[i];
+        g->title = NULL;
+        g->titleDeg = 0.0f;
+        g->r = g->g = g->b = 160;
+        if (G(SaberColourRGB)) tu.game->SaberColourRGB(i, &g->r, &g->g, &g->b);
+        tu_aSaberSlices[i].bin = i;
+        tu_aSaberSlices[i].group = i;
+        tu_aSaberSlices[i].deg = 90.0f + TU_SABER_SLICE_DEG * ((n - 1) * 0.5f - i);
+    }
+    tu_saberWheel.numSlices = n;
+    tu_saberWheel.numGroups = n;
+}
+
+// The blade of the style a colour goes to (with BOTH, the right one: the one
+// shown as picked)
+static int tu_SaberBlade(void)
+{
+    if (tu_SaberNumBlades(tu_SaberStyle()) < 2) return 0;
+    return tu.saberTarget == TOUCHUI_CHIP_LEFT ? 1 : 0;
+}
+
+// A colour picked on the saber wheel: for the style's blade (with two: the
+// left, the right or both), remembered
+static void tu_SetSaberColour(int id)
+{
+    if (!G(SaberSetColour)) return;
+    const int st = tu_SaberStyle();
+    const int bTwo = tu_SaberNumBlades(st) >= 2;
+    for (int b = 0; b < (bTwo ? 2 : 1); b++) {
+        if (bTwo && tu.saberTarget != TOUCHUI_CHIP_BOTH && b != tu_SaberBlade()) continue;
+        tu.game->SaberSetColour(st, b, id);
+    }
+    tu_SaveSettings();
+}
+
+static int tu_SaberWeaponBin(void) { return tu_IsMots() ? 131 : 10; }
+
+// Whether EQUIP can take the saber now: the player has it and can switch to it
+static int tu_CanEquipSaber(void)
+{
+    int ammo = 0, bSelectable = 0;
+    return G(GetWeapon) && tu.game->GetWeapon(tu_SaberWeaponBin(), &ammo, &bSelectable) && bSelectable;
+}
+
+// One of the saber wheel's choices tapped: one saber or two (each keeps its
+// own colours), or which of the two a colour goes to -- the wheel stays open
+// to tap a colour; or EQUIP: the saber in hand, the wheel closed
+static void tu_UseSaberChip(int chip)
+{
+    if (chip == TOUCHUI_CHIP_EQUIP) {
+        if (!tu_CanEquipSaber()) return;
+        const int bin = tu_SaberWeaponBin();
+        tu_CloseWheelSelecting(-1);
+        if ((!G(GetCurWeapon) || bin != tu.game->GetCurWeapon()) && G(SelectWeapon)) tu.game->SelectWeapon(bin);
+        return;
+    }
+    if (chip == TOUCHUI_CHIP_SINGLE || chip == TOUCHUI_CHIP_DUAL) {
+        if (G(SaberSetStyle)) tu.game->SaberSetStyle(chip == TOUCHUI_CHIP_DUAL ? TOUCHUI_SABER_DUAL : TOUCHUI_SABER_SINGLE);
+    }
+    else tu.saberTarget = chip;
+    tu_SaveSettings();
+    tu.bWheelTapMode = 1;
+    for (int i = 0; i < TU_MAX_TOUCHES; i++) {
+        // (a thumb that opened it, still down: lifted, it leaves it open to tap)
+        tuSlot* o = &tu.aSlots[i];
+        if (o->bUsed && o->role == ROLE_WHEEL && o->bWheelOpener) o->bWheelHeld = 1;
+    }
+    tu_Haptic(TOUCHUI_HAPTIC_TICK);
+    tu_LayoutSaberChips();
+}
+
+// The saber wheel's choice under (px, py) (a little round each), or -1
+static int tu_SaberChipAt(float px, float py)
+{
+    if (!tu.bWheelOpen || tu.wheelKind != TOUCHUI_WHEEL_SABER) return -1;
+    for (int i = 0; i < TOUCHUI_NUM_CHIPS; i++) {
+        if (!tu.aChipShown[i]) continue;
+        if (fabsf(px - tu.aChip[i][0]) <= TU_SABER_CHIP_W * 0.5f + 6.0f && fabsf(py - tu.aChip[i][1]) <= TU_SABER_CHIP_H * 0.5f + 6.0f) return i;
+    }
+    return -1;
+}
+
+// The saber wheel's choices beside the ring (only on that wheel; the blades'
+// only with two): SINGLE and DUAL on the left, LEFT, BOTH and RIGHT on the
+// right, each column moved up or down as little as it can be to clear every
+// button showing; where the right has no such place, all down the left
+static void tu_LayoutSaberChips(void)
+{
+    const int bSaber = tu.bWheelOpen && tu.wheelKind == TOUCHUI_WHEEL_SABER;
+    const int bTwo = tu_SaberNumBlades(tu_SaberStyle()) >= 2;
+    const float cx = tu.wheelCx, cy = tu.wheelCy;
+    const float R = tu.wheelR1 + TU_WHEEL_POP + TU_SABER_CHIP_OUT + TU_SABER_CHIP_W * 0.5f;
+    const float step = TU_SABER_CHIP_H + TU_SABER_CHIP_GAP;
+    float aShift[2] = { 0.0f, 0.0f };
+    int bOneColumn = 0;
+    const float top = TU_MAX(tu.inT, 8.0f), bottom = tu.H - TU_MAX(tu.inB, 8.0f);
+    if (bSaber) {
+        for (int col = 0; col < 2; col++) {
+            const int n = col ? 3 : 2;
+            const float x = cx + (col ? R : -R);
+            int bFound = 0;
+            for (int k = 0; k <= 24 && !bFound; k++) {
+                const float dy = ((k & 1) ? 6.0f : -6.0f) * ((k + 1) / 2);
+                const float y0 = cy + dy - (n - 1) * 0.5f * step - TU_SABER_CHIP_H * 0.5f;
+                const float y1 = y0 + (n - 1) * step + TU_SABER_CHIP_H;
+                if (y0 < top + 52.0f || y1 > bottom) continue; // (under the top row)
+                int bClear = 1;
+                for (int j = 0; j < BTN_COUNT && bClear; j++) {
+                    const tuButton* bt = &tu_aButtons[j];
+                    if (tu_Hidden(j) || j == tu.wheelButton) continue;
+                    const float ex = TU_MAX(fabsf(bt->x - x) - TU_SABER_CHIP_W * 0.5f, 0.0f);
+                    const float ey = TU_MAX(TU_MAX(y0 - bt->y, bt->y - y1), 0.0f);
+                    bClear = sqrtf(ex * ex + ey * ey) > bt->radius + 4.0f;
+                }
+                if (bClear) {
+                    aShift[col] = dy;
+                    bFound = 1;
+                }
+            }
+            if (col == 1 && !bFound) bOneColumn = 1;
+        }
+        if (bOneColumn) {
+            const float half = 2.5f * step + TU_SABER_CHIP_H * 0.5f;
+            aShift[0] = TU_MIN(TU_MAX(0.0f, top + 52.0f + half - cy), bottom - half - cy);
+        }
+    }
+    for (int i = 0; i < TOUCHUI_NUM_CHIPS; i++) {
+        if (i == TOUCHUI_CHIP_EQUIP) {
+            // in the middle, under the colour's name and the hint
+            tu.aChipShown[i] = bSaber;
+            tu.aChip[i][0] = cx;
+            tu.aChip[i][1] = cy + 34.0f;
+            continue;
+        }
+        const int bStyle = i <= TOUCHUI_CHIP_DUAL;
+        tu.aChipShown[i] = bSaber && (bStyle || bTwo)
+                           && !(i == TOUCHUI_CHIP_DUAL && G(SaberStyleAvailable) && !tu.game->SaberStyleAvailable(TOUCHUI_SABER_DUAL));
+        if (!tu.aChipShown[i]) continue;
+        const int k = bStyle ? i - TOUCHUI_CHIP_SINGLE : i - TOUCHUI_CHIP_LEFT;
+        const int n = bStyle ? 2 : 3;
+        if (bOneColumn) {
+            tu.aChip[i][0] = cx - R;
+            tu.aChip[i][1] = cy + aShift[0] + (i + (bStyle ? 0 : 1) - 2.5f) * step;
+        }
+        else {
+            tu.aChip[i][0] = cx + (bStyle ? -R : R);
+            tu.aChip[i][1] = cy + aShift[bStyle ? 0 : 1] + (k - (n - 1) * 0.5f) * step;
+        }
+    }
 }
 
 // ------------------------------------------------------------ the wheels
@@ -1186,6 +1767,7 @@ static void tu_WheelRowSize(float* pW, float* pH)
 
 static int tu_WheelSliceHasRow(int i)
 {
+    if (tu.wheelKind == TOUCHUI_WHEEL_SABER) return 0;
     return tu.wheelKind != TOUCHUI_WHEEL_WEAPONS || tu.pWheelMap->aSlices[i].group != 0;
 }
 
@@ -1267,6 +1849,7 @@ static void tu_LayoutWheel(void)
         F->R1 = tu.wheelR1;
         tu_FitWheelLabels();
     }
+    tu_LayoutSaberChips();
 }
 
 // What the wheel points at: by the opener once it has slid, else by the
@@ -1279,6 +1862,7 @@ static int tu_WheelHot(int* pbCancel, tuSlot** ppSlide)
         tuSlot* s = &tu.aSlots[i];
         if (!s->bUsed || s->role != ROLE_WHEEL) continue;
         if (s->bWheelOpener && s->bWheelHeld) continue;
+        if (!s->bWheelOpener && tu_SaberChipAt(s->lx, s->ly) >= 0) continue; // (on a choice beside the saber wheel: not cancelling)
         if (s->bWheelOpener && !tu.bWheelTapMode) pSlide = s;
         else pFinger = s;
     }
@@ -1313,11 +1897,22 @@ static void tu_OpenWheel(int kind, int button, int bTapMode)
     int bMots = tu_IsMots();
     tu.wheelKind = kind;
     tu.wheelButton = button;
-    tu.pWheelMap = (kind == TOUCHUI_WHEEL_WEAPONS) ? (bMots ? &tu_motsWeaponWheel : &tu_jkWeaponWheel)
-                                                   : (bMots ? &tu_motsWheel : &tu_jkWheel);
+    if (kind == TOUCHUI_WHEEL_SABER) {
+        tu_SetupSaberWheel(); // (the game's own colour, as it is now)
+        tu.pWheelMap = &tu_saberWheel;
+    }
+    else
+        tu.pWheelMap = (kind == TOUCHUI_WHEEL_WEAPONS) ? (bMots ? &tu_motsWeaponWheel : &tu_jkWeaponWheel)
+                                                       : (bMots ? &tu_motsWheel : &tu_jkWheel);
     for (int i = 0; i < tu.pWheelMap->numSlices; i++) {
         int bin = tu.pWheelMap->aSlices[i].bin;
-        if (kind == TOUCHUI_WHEEL_WEAPONS) {
+        if (kind == TOUCHUI_WHEEL_SABER) {
+            // (every colour can be picked, saber or not: it is only how it looks)
+            tu.aWheelEarned[i] = tu.aWheelOwned[i] = 1;
+            tu.aWheelAmmo[i] = -1;
+            tu.aWheelLevel[i] = 0;
+        }
+        else if (kind == TOUCHUI_WHEEL_WEAPONS) {
             int ammo = -1, bSelectable = 0;
             tu.aWheelOwned[i] = G(GetWeapon) ? tu.game->GetWeapon(bin, &ammo, &bSelectable) != 0 : 0;
             tu.aWheelEarned[i] = tu.aWheelOwned[i] && bSelectable;
@@ -1338,8 +1933,8 @@ static void tu_OpenWheel(int kind, int button, int bTapMode)
         if (s->role == ROLE_STICK) tu_HideStick();
         s->role = ROLE_IGNORED;
     }
-    tu.aRing[BTN_QUICKSAVE] = tu.aRing[BTN_QUICKLOAD] = tu.aRing[BTN_MENU] = 0.0f;
-    tu.aRing[BTN_WHEEL] = tu.aRing[BTN_NEXTWPN] = 0.0f;
+    tu.aRing[BTN_QUICKSAVE] = tu.aRing[BTN_QUICKLOAD] = tu.aRing[BTN_MENU] = tu.aRing[BTN_TRAYCAM] = 0.0f;
+    tu.aRing[BTN_WHEEL] = tu.aRing[BTN_NEXTWPN] = tu.aRing[BTN_SABER] = 0.0f;
     // a tap on either wheel button not read yet would undo the pick
     tu.aPulseQueue[tu_aButtons[BTN_WHEEL].scancode] = 0;
     tu.aPulseQueue[tu_aButtons[BTN_NEXTWPN].scancode] = 0;
@@ -1354,6 +1949,7 @@ static void tu_OpenWheel(int kind, int button, int bTapMode)
 static void tu_OpenWheelFrom(tuSlot* s, int bHeld)
 {
     int button = s->button;
+    tu_EndBurst(); // (the game holds still: no more shots)
     if (tu_IsChatOpen() && G(ToggleChat)) tu.game->ToggleChat();
     tu_OpenWheel(tu_WheelKindOf(button), button, bHeld);
     s->role = ROLE_WHEEL;
@@ -1369,6 +1965,23 @@ static void tu_OpenWheelFrom(tuSlot* s, int bHeld)
 static void tu_CloseWheelSelecting(int slice)
 {
     const tuWheelMap* m = tu.pWheelMap;
+    if (m && tu.wheelKind == TOUCHUI_WHEEL_SABER && slice >= 0 && slice < m->numSlices) {
+        // The saber wheel stays open on a colour: set now, and open to tap
+        // more (the other blade, another colour) until the gap, a tap off the
+        // ring or EQUIP closes it
+        tu_SetSaberColour(m->aSlices[slice].bin);
+        tu.bWheelTapMode = 1;
+        for (int i = 0; i < TU_MAX_TOUCHES; i++) {
+            tuSlot* o = &tu.aSlots[i];
+            if (o->bUsed && o->role == ROLE_WHEEL) {
+                if (o->bWheelOpener) o->bWheelHeld = 1; // (lifted, it leaves the wheel open)
+                o->wheelSlot = -1;
+            }
+        }
+        tu_Haptic(TOUCHUI_HAPTIC_TICK);
+        tu_LayoutSaberChips();
+        return;
+    }
     if (m && slice >= 0 && slice < m->numSlices && tu.aWheelEarned[slice]) {
         int bin = m->aSlices[slice].bin;
         if (tu.wheelKind != TOUCHUI_WHEEL_WEAPONS) {
@@ -1383,6 +1996,7 @@ static void tu_CloseWheelSelecting(int slice)
     tu.bWheelOpen = 0;
     tu.bWheelTapMode = 0;
     tu_SetHold(0);
+    tu_LayoutSaberChips();
     tu_RecomputeKeys();
 }
 
@@ -1448,12 +2062,24 @@ static void tu_TouchDown(long long id, float px, float py, double t)
 
     if (tu.bOtherInput) {
         // hidden for a controller, keyboard or mouse: back now, and this touch
-        // does nothing else -- but on an open wheel it works the wheel
+        // does nothing else -- but on an open wheel it works the wheel (and a
+        // photo mode, worked by touch, never hid them)
         tu.bOtherInput = 0;
-        if (!tu.bWheelOpen) {
+        if (!tu.bWheelOpen && !tu_PhotoModeUp()) {
             s->role = ROLE_IGNORED;
             return;
         }
+    }
+    if (tu.bSelfie || tu.bCinema) {
+        s->role = ROLE_IGNORED; // nothing during a selfie or the cinematic burst
+        return;
+    }
+    if (tu.bFreezing) {
+        // Action Freeze: its X, CAMERA, or moving the camera
+        if (hypotf(px - tu.freezeX, py - tu.freezeY) <= TU_FREEZE_CLOSE_R + TU_TOUCH_SLOP) s->role = ROLE_FREEZECLOSE;
+        else if (tu_IsPointOnButton(px, py, BTN_CAMERA)) s->role = ROLE_FREEZESHOT;
+        else s->role = ROLE_FREEZE;
+        return;
     }
     if (tu.bWheelOpen) {
         s->role = ROLE_WHEEL;
@@ -1461,7 +2087,7 @@ static void tu_TouchDown(long long id, float px, float py, double t)
         return;
     }
     s->button = tu_ButtonAt(px, py);
-    if (tu.bGyroRow && !tu_IsOptButton(s->button)) tu_SetGyroRow(0);
+    if (tu.optRow != TU_ROW_NONE && !tu_IsOptButton(s->button)) tu_SetOptRow(TU_ROW_NONE);
     if (tu.bTrayOpen && !tu_IsTrayButton(s->button) && !tu_IsOptButton(s->button)) {
         tu_SetTrayOpen(0);
         if (s->button == BTN_MENU) {
@@ -1499,15 +2125,50 @@ static void tu_TouchDown(long long id, float px, float py, double t)
     }
 }
 
-static void tu_TouchMove(tuSlot* s, float px, float py)
+static void tu_TouchMove(tuSlot* s, float px, float py, double t)
 {
+    if (s->role == ROLE_FREEZE) {
+        tu_MoveFreeze(s, px, py);
+        s->lx = px;
+        s->ly = py;
+        return;
+    }
     // QUICK SAVE, QUICK LOAD: off the button even once, no save or load
     if (s->role == ROLE_BUTTON && tu_IsQuickHold(s->button) && !s->bFired && !tu_IsPointOnButton(px, py, s->button))
         s->bFired = 1;
-    // The tray's GYRO slid off isn't held any more
-    if (s->role == ROLE_BUTTON && s->button == BTN_TRAYGYRO && !s->bFired && hypotf(px - s->ox, py - s->oy) >= TU_WHEEL_OPEN_SLIDE) {
-        s->bFired = 1;
-        tu.aRing[BTN_TRAYGYRO] = 0.0f;
+    // CAMERA slid TU_WHEEL_OPEN_SLIDE (anywhere) before its hold was up: a
+    // burst until this finger lifts -- or, with FREEZE on, mostly up or down
+    // as far as TU_FREEZE_SWIPE: down, Action Freeze; up (CAMERA is at the
+    // top: up to near the edge counts), the cinematic burst. The tray's
+    // camera switch or GYRO slid off isn't held any more.
+    if (s->role == ROLE_BUTTON && !s->bFired && (s->button == BTN_CAMERA || tu_IsRowOpener(s->button))) {
+        const int bOut = hypotf(px - s->ox, py - s->oy) >= TU_WHEEL_OPEN_SLIDE;
+        const float dx = px - s->ox, dy = py - s->oy;
+        const int bDown = s->button == BTN_CAMERA && tu.bFreezeOn && fabsf(dy) >= fabsf(dx) && dy != 0.0f;
+        const float upFar = TU_MIN(TU_FREEZE_SWIPE, TU_MAX(s->oy - TU_FREEZE_EDGE, TU_FREEZE_SWIPE_MIN));
+        if (bDown && fabsf(dy) >= (dy > 0.0f ? TU_FREEZE_SWIPE : upFar)) {
+            s->bFired = 1;
+            tu.aRing[BTN_CAMERA] = 0.0f;
+            if (!tu_IsChatOpen() && t - s->tDown < TU_SELFIE_HOLD) {
+                if (dy > 0.0f) tu_StartFreeze();
+                else tu_StartCinema();
+                if (tu.bFreezing || tu.bCinema) return; // (every touch now belongs to it)
+            }
+        }
+        else if (bDown && bOut) {
+            s->bSwipe = 1; // (on its way: not a tap, nor a hold)
+            tu.aRing[BTN_CAMERA] = 0.0f;
+        }
+        else if (bOut && s->button == BTN_CAMERA) {
+            s->bFired = 1;
+            tu.aRing[BTN_CAMERA] = 0.0f;
+            // (not a finger already held long enough for the selfie, by its own clock)
+            if (!tu.bBurst && !tu_IsChatOpen() && t - s->tDown < TU_SELFIE_HOLD) tu_StartBurst(s->id);
+        }
+        else if (bOut) {
+            s->bFired = 1;
+            tu.aRing[s->button] = 0.0f;
+        }
     }
     // FORCE WHEEL, NEXT WPN: slid 10 points, the wheel opens at once
     if (tu_IsWheelPress(s) && hypotf(px - s->ox, py - s->oy) >= TU_WHEEL_OPEN_SLIDE) tu_OpenWheelFrom(s, 0);
@@ -1558,16 +2219,34 @@ static void tu_EndLevelPick(tuSlot* s)
 static void tu_TouchUp(tuSlot* s, float px, float py, double t, int bCancelled)
 {
     int bChat = tu_IsChatOpen();
+    if (tu.bBurst && s->id == tu.burstId) tu_EndBurst();
+    if (s->role == ROLE_FREEZE || s->role == ROLE_FREEZESHOT || s->role == ROLE_FREEZECLOSE) {
+        // Action Freeze: lifted on its X, back to the game; a tap on CAMERA, a photo
+        const int bClose = !bCancelled && s->role == ROLE_FREEZECLOSE
+                           && hypotf(px - tu.freezeX, py - tu.freezeY) <= TU_FREEZE_CLOSE_R + TU_TOUCH_SLOP;
+        if (!bCancelled && s->role == ROLE_FREEZESHOT && tu_IsPointOnButton(px, py, BTN_CAMERA) && t - s->tDown < TU_SELFIE_HOLD)
+            tu_TakeFreezePhoto();
+        memset(s, 0, sizeof(*s));
+        if (bClose) tu_EndFreeze();
+        return;
+    }
     if (s->role == ROLE_WHEEL && tu.bWheelOpen && bCancelled) {
         if (s->bWheelOpener) tu.bWheelTapMode = 1; // the opener taken away: open to tap
     }
     else if (s->role == ROLE_WHEEL && tu.bWheelOpen && s->bWheelOpener && s->bWheelHeld) {
         // opened by holding still, lifted without sliding: open to tap
     }
+    else if (s->role == ROLE_WHEEL && tu.bWheelOpen && s->bWheelOpener && !tu.bWheelTapMode
+             && tu_SaberChipAt(px, py) == TOUCHUI_CHIP_EQUIP) {
+        tu_UseSaberChip(TOUCHUI_CHIP_EQUIP); // (slid onto EQUIP and lifted there)
+    }
     else if (s->role == ROLE_WHEEL && tu.bWheelOpen && s->bWheelOpener && !tu.bWheelTapMode) {
         tu_AimWheel(s, px, py);
         if (!s->bArmed) tu.bWheelTapMode = 1;
         else tu_CloseWheelSelecting(s->wheelSlot);
+    }
+    else if (s->role == ROLE_WHEEL && tu.bWheelOpen && tu_SaberChipAt(px, py) >= 0) {
+        tu_UseSaberChip(tu_SaberChipAt(px, py)); // (the saber wheel's choices: set, the wheel open)
     }
     else if (s->role == ROLE_WHEEL && tu.bWheelOpen) {
         int slice = tu_WheelSliceAt(px, py, s->wheelSlot);
@@ -1590,6 +2269,9 @@ static void tu_TouchUp(tuSlot* s, float px, float py, double t, int bCancelled)
             tu_AimWheel(s, px, py);
             if (s->bArmed) tu_CloseWheelSelecting(s->wheelSlot);
             else tu.bWheelTapMode = 1;
+        }
+        else if (t - s->tDown < TU_WHEEL_HOLD && s->button == BTN_SABER) {
+            tu_OpenWheelFrom(s, 1); // SABER has no key: a tap opens its wheel, to tap a colour
         }
         else if (t - s->tDown < TU_WHEEL_HOLD) {
             // a quick tap: the next power (E) or weapon (G)
@@ -1626,11 +2308,15 @@ static void tu_TouchUp(tuSlot* s, float px, float py, double t, int bCancelled)
                 if (G(SelectItem)) tu.game->SelectItem(b->bin);
                 tu_QueuePress(b->scancode);
             }
-            else if (tu_IsTrayButton(s->button) && !(s->button == BTN_TRAYGYRO && s->bFired)) {
+            else if (tu_IsTrayButton(s->button) && !(tu_IsRowOpener(s->button) && s->bFired)) {
+                // (GYRO or the camera switch held until its row opened, or slid off: not a tap)
                 tu_UseTrayButton(s->button);
             }
             else if (tu_IsOptButton(s->button) && !tu_Hidden(s->button)) {
                 tu_UseOptButton(s->button);
+            }
+            else if (b->kind == KIND_CAMERA && !tu_Hidden(s->button) && !s->bFired && !s->bSwipe && t - s->tDown < TU_SELFIE_HOLD) {
+                tu_TakePhotos(); // a tap (by the touch's own clock); not after a burst or a hold
             }
             else if (b->kind == KIND_VIEW && !tu_Hidden(s->button)) {
                 tu_SetThirdPerson(!tu.bThirdPerson);
@@ -1645,7 +2331,7 @@ static void tu_TouchUp(tuSlot* s, float px, float py, double t, int bCancelled)
             if (tu_IsTrayButton(tb)) tu_UseTrayButton(tb);
         }
         if (s->button == BTN_QUICKSAVE || s->button == BTN_QUICKLOAD || s->button == BTN_MENU || s->button == BTN_BACTA
-            || s->button == BTN_TRAYGYRO)
+            || tu_IsRowOpener(s->button) || s->button == BTN_CAMERA)
             tu.aRing[s->button] = 0.0f;
     }
     else if (s->role == ROLE_STICK) {
@@ -1663,14 +2349,16 @@ void touchUi_Finger(long long id, int phase, float x, float y, double t)
     else {
         tuSlot* s = tu_FindSlot(id);
         if (!s) return;
-        if (phase == TOUCHUI_PHASE_MOVE) tu_TouchMove(s, x, y);
+        if (phase == TOUCHUI_PHASE_MOVE) tu_TouchMove(s, x, y, t);
         else if (phase == TOUCHUI_PHASE_CANCEL) {
             // taken by the system: let go where it last was, nothing fires
             tu_TouchUp(s, s->lx, s->ly, t, 1);
         }
         else {
             // a lift where the finger moved since its last move: that move first
-            if (s->role != ROLE_IGNORED && (x != s->lx || y != s->ly)) tu_TouchMove(s, x, y);
+            if (s->role != ROLE_IGNORED && (x != s->lx || y != s->ly)) tu_TouchMove(s, x, y, t);
+            s = tu_FindSlot(id); // (the move may have started a photo mode: still this finger's slot)
+            if (!s) return;
             tu_TouchUp(s, x, y, t, 0);
         }
     }
@@ -1687,8 +2375,13 @@ static void tu_ResetAll(void)
         tu.bWheelOpen = 0;
         tu.bWheelTapMode = 0;
         tu_SetHold(0);
+        tu_LayoutSaberChips();
     }
+    tu_EndSelfie(); // (all put back: the overlay is going, a menu or the background)
+    tu_EndFreeze();
+    tu_EndCinema();
     tu_SetTrayOpen(0);
+    tu_EndBurst();
     memset(tu.aSlots, 0, sizeof(tu.aSlots));
     memset(tu.aButtonHeld, 0, sizeof(tu.aButtonHeld));
     memset(tu.aPulseQueue, 0, sizeof(tu.aPulseQueue));
@@ -1714,9 +2407,25 @@ void touchUi_Reset(void)
 void touchUi_Tick(double known, double now)
 {
     if (!tu.bShown) return;
+    const double dt = tu.prevTickNow > 0.0 ? now - tu.prevTickNow : 0.0;
+    tu.prevTickNow = now;
     tu.lastNow = now;
     const int bChat = tu_IsChatOpen();
 
+    // Photos asked for that no frame took in time: dropped
+    if (tu.tCameraAsked > 0.0 && now - tu.tCameraAsked > TU_CAMERA_TIMEOUT) {
+        if (G(CaptureCancel)) tu.game->CaptureCancel();
+        tu.tCameraAsked = 0.0;
+    }
+    // SABER shown once the saber is had for real, or while sithewok is on (not
+    // hidden from under a finger or its open wheel)
+    {
+        const int bSaber = G(IsSaberButtonShown) ? (tu.game->IsSaberButtonShown() != 0) : 0;
+        if (bSaber != tu.bShowSaber && !tu.aButtonHeld[BTN_SABER] && !(tu.bWheelOpen && tu.wheelButton == BTN_SABER)) {
+            tu.bShowSaber = bSaber;
+            tu_Layout(); // (the burst's count makes room for it on the narrowest screens)
+        }
+    }
     // VIEW: the view picked by a keyboard's camera key, shown and remembered
     if (G(IsThirdPerson) && tu.game->IsThirdPerson() != tu.bThirdPerson) {
         tu.bThirdPerson = tu.game->IsThirdPerson() != 0;
@@ -1731,26 +2440,46 @@ void touchUi_Tick(double known, double now)
     if (tu.levelToLoad > 0) {
         const int level = tu.levelToLoad;
         tu.levelToLoad = 0;
-        if (!tu.bWheelOpen && !bChat && G(GoToLevel)) tu.game->GoToLevel(level);
+        if (!tu.bWheelOpen && !bChat && !tu_PhotoModeUp() && G(GoToLevel)) tu.game->GoToLevel(level);
     }
 
-    // FORCE WHEEL and NEXT WPN held still: the wheel opens to tap
-    float wheelProgress = 0.0f, weaponProgress = 0.0f;
+    // During a selfie or the cinematic burst nothing else goes on here (the
+    // engine runs them, enh_Tick, and says when they are over:
+    // touchUi_PhotoModeEnded; this only in case that was missed)
+    if (tu.bSelfie) {
+        if (G(SelfieIsActive) && !tu.game->SelfieIsActive()) tu_EndSelfie();
+        return;
+    }
+    if (tu.bCinema) {
+        if (G(CinemaIsActive) && !tu.game->CinemaIsActive()) tu_EndCinema();
+        return;
+    }
+    // ...or Action Freeze (its camera moves with the touches themselves)
+    if (tu.bFreezing) {
+        if (G(FreezeIsActive) && !tu.game->FreezeIsActive()) tu_EndFreeze();
+        else tu_TickFreeze(dt);
+        return;
+    }
+
+    // FORCE WHEEL, NEXT WPN and SABER held still: the wheel opens to tap
+    float wheelProgress = 0.0f, weaponProgress = 0.0f, saberProgress = 0.0f;
     for (int i = 0; i < TU_MAX_TOUCHES; i++) {
         tuSlot* s = &tu.aSlots[i];
         if (!tu_IsWheelPress(s)) continue;
         if (known - s->tDown >= TU_WHEEL_HOLD) {
             tu_OpenWheelFrom(s, 1);
-            wheelProgress = weaponProgress = 0.0f;
+            wheelProgress = weaponProgress = saberProgress = 0.0f;
             break;
         }
         float progress = (float)TU_MIN((now - s->tDown) / TU_WHEEL_HOLD, 1.0);
         if (s->button == BTN_NEXTWPN) weaponProgress = progress;
+        else if (s->button == BTN_SABER) saberProgress = progress;
         else wheelProgress = progress;
     }
     if (!tu.bWheelOpen) {
         tu.aRing[BTN_WHEEL] = wheelProgress;
         tu.aRing[BTN_NEXTWPN] = weaponProgress;
+        tu.aRing[BTN_SABER] = saberProgress;
     }
 
     // JUMP, ACT (sithewok's flight, noclip) and DUCK (its level pick) held still
@@ -1907,13 +2636,26 @@ void touchUi_Tick(double known, double now)
                 else loadProgress = TU_MAX(loadProgress, progress);
             }
         }
-        else if (s->button == BTN_TRAYGYRO && !s->bFired && tu.bTrayOpen && tu_GyroAvailable()) {
+        else if (tu_IsRowOpener(s->button) && !s->bFired && tu.bTrayOpen && (s->button != BTN_TRAYGYRO || tu_GyroAvailable())) {
+            // The tray's camera switch or GYRO held still: its row opens (the
+            // lift then doesn't switch it)
             if (known - s->tDown >= TU_MENU_HOLD) {
                 s->bFired = 1;
-                tu.aRing[BTN_TRAYGYRO] = 0.0f;
-                tu_SetGyroRow(1);
+                tu.aRing[s->button] = 0.0f;
+                tu_SetOptRow(s->button == BTN_TRAYGYRO ? TU_ROW_GYRO : TU_ROW_CAMERA);
             }
-            else tu.aRing[BTN_TRAYGYRO] = (float)TU_MIN((now - s->tDown) / TU_MENU_HOLD, 1.0);
+            else tu.aRing[s->button] = (float)TU_MIN((now - s->tDown) / TU_MENU_HOLD, 1.0);
+        }
+        else if (s->button == BTN_CAMERA && !s->bFired && !s->bSwipe && !bChat) {
+            // Held still: the ring fills, then the selfie (the lift takes no photos)
+            if (known - s->tDown >= TU_SELFIE_HOLD) {
+                s->bFired = 1;
+                tu.aRing[BTN_CAMERA] = 0.0f;
+                tu_StartSelfie();
+                if (tu.bSelfie) return; // everything else waits for the selfie to end
+                continue;
+            }
+            tu.aRing[BTN_CAMERA] = (float)TU_MIN((now - s->tDown) / TU_SELFIE_HOLD, 1.0);
         }
         else if (s->button == BTN_MENU && !s->bFired) {
             if (!tu_IsPointOnButton(s->lx, s->ly, BTN_MENU)) {
@@ -1929,6 +2671,8 @@ void touchUi_Tick(double known, double now)
             else tu.aRing[BTN_MENU] = (float)TU_MIN((now - s->tDown) / TU_MENU_HOLD, 1.0);
         }
     }
+    tu_TickBurst(now);
+
     if (done >= 0) {
         for (int i = 0; i < TU_MAX_TOUCHES; i++) {
             tuSlot* o = &tu.aSlots[i];
@@ -2050,6 +2794,12 @@ void touchUi_SetShown(int bShown)
     bShown = bShown != 0;
     if (bShown == tu.bShown) return;
     tu_ResetAll();
+    // (photos asked for and not taken yet are dropped once the overlay goes:
+    // a menu, a cutscene)
+    if (!bShown && tu.tCameraAsked > 0.0) {
+        if (G(CaptureCancel)) tu.game->CaptureCancel();
+        tu.tCameraAsked = 0.0;
+    }
     tu.bShown = bShown;
 }
 
@@ -2182,6 +2932,30 @@ int touchUi_IsCheatShown(void) { return tu.bShowCheat; }
 int touchUi_IsViewShown(void) { return tu.bShowView; }
 int touchUi_IsSwapped(void) { return tu.bSwapped; }
 int touchUi_GetJumpStyle(void) { return tu.jumpStyle; }
+int touchUi_IsCameraShown(void) { return tu.bShowCamera; }
+int touchUi_IsSaberShown(void) { return tu.bShowSaber; }
+int touchUi_GetOptRow(void) { return tu.optRow; }
+int touchUi_IsKindsRowOpen(void) { return tu.bKindsOpen; }
+int touchUi_GetCameraKinds(void) { return tu.cameraKinds; }
+int touchUi_GetSelfieShots(void) { return tu.selfieShots; }
+int touchUi_IsFreezeOn(void) { return tu.bFreezeOn; }
+int touchUi_GetBurstShots(void) { return tu.bBurst ? tu.burstShots : -1; }
+int touchUi_IsSelfieUp(void) { return tu.bSelfie; }
+int touchUi_IsFreezing(void) { return tu.bFreezing; }
+int touchUi_IsCinemaUp(void) { return tu.bCinema; }
+int touchUi_GetSaberTarget(void) { return tu.saberTarget; }
+int touchUi_GetSaberChip(int chip, float* pX, float* pY)
+{
+    if (chip < 0 || chip >= TOUCHUI_NUM_CHIPS) return 0;
+    if (pX) *pX = tu.aChip[chip][0];
+    if (pY) *pY = tu.aChip[chip][1];
+    return tu.aChipShown[chip];
+}
+void touchUi_GetFreezeClose(float* pX, float* pY)
+{
+    *pX = tu.freezeX;
+    *pY = tu.freezeY;
+}
 
 // ------------------------------------------------------------ drawing
 
@@ -2256,6 +3030,33 @@ static void tu_DrawCameraIcon(float cx, float cy, touchUiColor c)
     touchUiDraw_Circle(&tu_draw, cx, cy + 1.0f, 3.5f, touchUi_Clear(), 1.5f, c);
 }
 
+// The camera's picture filled (the CAMERA button)
+static void tu_DrawCameraFilled(float cx, float cy, touchUiColor c)
+{
+    touchUiDraw_RRect(&tu_draw, cx - 10.0f, cy - 5.5f, 20.0f, 13.5f, 3.0f, c, 0.0f, touchUi_Clear());
+    touchUiDraw_RRect(&tu_draw, cx - 4.5f, cy - 8.5f, 9.0f, 4.0f, 1.2f, c, 0.0f, touchUi_Clear());
+    touchUiDraw_Circle(&tu_draw, cx, cy + 1.2f, 4.6f, touchUi_Black(0.75f), 0.0f, touchUi_Clear());
+    touchUiDraw_Circle(&tu_draw, cx, cy + 1.2f, 2.8f, c, 0.0f, touchUi_Clear());
+}
+
+// A saber's picture (iosTouch.m's IOSTouch_AddSaberIcon): a short hilt and
+// the blade up to the right (bMirror: to the left) in the blade's colour,
+// glowing, a white core along it
+static void tu_DrawSaberIcon(float cx, float cy, float r, int bMirror, unsigned char cr, unsigned char cg, unsigned char cb)
+{
+    const float sx = bMirror ? -1.0f : 1.0f;
+    const float h0x = cx + sx * r * -0.42f, h0y = cy + r * 0.42f, h1x = cx + sx * r * -0.18f, h1y = cy + r * 0.18f;
+    const float tx = cx + sx * r * 0.46f, ty = cy - r * 0.46f;
+    const touchUiColor blade = touchUi_Rgba(cr / 255.0f, cg / 255.0f, cb / 255.0f, 1.0f);
+    touchUiColor glow = blade;
+    glow.a = 0.35f;
+    const float bw = TU_MAX(r * 0.17f, 3.0f);
+    touchUiDraw_Line(&tu_draw, h1x, h1y, tx, ty, bw + 4.0f, glow);
+    touchUiDraw_Line(&tu_draw, h1x, h1y, tx, ty, bw, blade);
+    touchUiDraw_Line(&tu_draw, h1x, h1y, tx, ty, TU_MAX(r * 0.06f, 1.2f), touchUi_White(0.9f));
+    touchUiDraw_Line(&tu_draw, h0x, h0y, h1x, h1y, TU_MAX(r * 0.2f, 3.5f), touchUi_Rgba(0.78f, 0.78f, 0.78f, 1.0f));
+}
+
 // Whether a thumb still on MENU after its tray opened is over this tray button
 static int tu_MenuThumbOver(int i)
 {
@@ -2277,12 +3078,16 @@ static void tu_DrawButton(int i)
                     || (i == BTN_TRAYFPS && tu.bShowFps)
                     || (i == BTN_TRAYCHEAT && tu.bShowCheat)
                     || (i == BTN_TRAYVIEW && tu.bShowView)
-                    || (i == BTN_TRAYGYRO && bGyro && tu.gyroMode != TOUCHUI_GYRO_OFF);
+                    || (i == BTN_TRAYGYRO && bGyro && tu.gyroMode != TOUCHUI_GYRO_OFF)
+                    || (i == BTN_TRAYCAM && tu.bShowCamera)
+                    || (tu_IsCamOptButton(i) && (tu.cameraKinds & tu_aButtons[i].bin))
+                    || (i == BTN_CAMROW_PHOTO && tu.bKindsOpen)
+                    || (i == BTN_CAMROW_FREEZE && tu.bFreezeOn)
+                    || (i == BTN_CAMERA && tu.bBurst);
     const int bTray = tu_IsTrayButton(i) || tu_IsOptButton(i);
     float alpha = (bHeld || bOn || bWheel || bTray) ? 1.0f : TU_IDLE_ALPHA;
     if (i == BTN_FORCE && tu.bForceNameSet && !tu.forceName) alpha *= 0.45f;
     if (i == BTN_TRAYGYRO && !bGyro) alpha *= 0.45f;
-    if (i == BTN_TRAYCAM) alpha *= 0.45f; // (no camera on Android yet)
     if ((i == BTN_GYROOPT_MODE || i == BTN_GYROOPT_SENS) && (!bGyro || tu.gyroMode == TOUCHUI_GYRO_OFF)) alpha *= 0.45f;
     tu_draw.alpha = alpha;
 
@@ -2333,11 +3138,28 @@ static void tu_DrawButton(int i)
         size = tu_FontSize("GYRO\nALWAYS", b->radius);
         xscale = TU_WHEEL_XSCALE;
     }
+    else if (i == BTN_CAMROW_SELFIES || i == BTN_CAMROW_FREEZE) {
+        if (i == BTN_CAMROW_SELFIES) snprintf(buf, sizeof(buf), "SELFIES\n%d", tu.selfieShots);
+        else snprintf(buf, sizeof(buf), "FREEZE\n%s", tu.bFreezeOn ? "ON" : "OFF");
+        label = buf;
+        size = tu_FontSize("GYRO\nALWAYS", b->radius);
+        xscale = TU_WHEEL_XSCALE;
+    }
     if (i == BTN_CHEAT) {
         tu_DrawSithEmblem(b->x, b->y, b->radius * 0.64f, tu.bCheatOn ? touchUi_Rgba(0.9f, 0.32f, 0.28f, 0.95f) : text);
     }
     else if (i == BTN_TRAYKEYS) tu_DrawKeyboardIcon(b->x, b->y, text);
     else if (i == BTN_TRAYCAM) tu_DrawCameraIcon(b->x, b->y, text);
+    else if (i == BTN_CAMERA) tu_DrawCameraFilled(b->x, b->y, text);
+    else if (i == BTN_SABER) {
+        // in the blades' colours, as picked (the game's own: its colour now)
+        const int st = tu_SaberStyle();
+        unsigned char aRgb[2][3] = { { 160, 160, 160 }, { 160, 160, 160 } };
+        for (int k = 0; k < 2 && G(SaberColourRGB) && G(SaberGetColour); k++)
+            tu.game->SaberColourRGB(tu.game->SaberGetColour(st, k), &aRgb[k][0], &aRgb[k][1], &aRgb[k][2]);
+        if (tu_SaberNumBlades(st) >= 2) tu_DrawSaberIcon(b->x, b->y, b->radius, 1, aRgb[1][0], aRgb[1][1], aRgb[1][2]);
+        tu_DrawSaberIcon(b->x, b->y, b->radius, 0, aRgb[0][0], aRgb[0][1], aRgb[0][2]);
+    }
     else if (label[0]) tu_DrawLabel(label, b->x, b->y, size, xscale, 2.0f * b->radius, text);
 
     // sithewok's own uses of JUMP, ACT and DUCK, named under their labels
@@ -2347,7 +3169,8 @@ static void tu_DrawButton(int i)
     }
     // the hold rings
     if (i == BTN_QUICKSAVE || i == BTN_QUICKLOAD || i == BTN_MENU || i == BTN_WHEEL || i == BTN_NEXTWPN || i == BTN_JUMP
-        || i == BTN_ACT || i == BTN_DUCK || i == BTN_CHEAT || i == BTN_BACTA || i == BTN_TRAYGYRO)
+        || i == BTN_ACT || i == BTN_DUCK || i == BTN_CHEAT || i == BTN_BACTA || i == BTN_TRAYGYRO || i == BTN_TRAYCAM
+        || i == BTN_CAMERA || i == BTN_SABER)
         tu_DrawHoldRing(b, tu.aRing[i], 2.5f, TU_BLUE(0.95f));
     if (i == BTN_FORCE) tu_DrawHoldRing(b, tu.fjumpRing, 7.5f, touchUi_Rgba(1.0f, 0.82f, 0.3f, 0.95f));
     tu_draw.alpha = 1.0f;
@@ -2454,7 +3277,9 @@ static void tu_DrawWheel(void)
     int bCancel = 0;
     tuSlot* pSlide = NULL;
     int hot = tu_WheelHot(&bCancel, &pSlide);
-    int cur = bWeapons ? (G(GetCurWeapon) ? tu.game->GetCurWeapon() : -1) : (G(GetCurPower) ? tu.game->GetCurPower() : -1);
+    const int bSaber = tu.wheelKind == TOUCHUI_WHEEL_SABER;
+    int cur = bSaber ? (G(SaberGetColour) ? tu.game->SaberGetColour(tu_SaberStyle(), tu_SaberBlade()) : -1)
+            : bWeapons ? (G(GetCurWeapon) ? tu.game->GetCurWeapon() : -1) : (G(GetCurPower) ? tu.game->GetCurPower() : -1);
     int curSlice = -1, bAnyEarned = 0;
     for (int i = 0; i < m->numSlices; i++) {
         if (tu.aWheelEarned[i]) bAnyEarned = 1;
@@ -2595,9 +3420,13 @@ static void tu_DrawWheel(void)
         hint = "none learned yet";
     }
     else {
-        name = (curSlice >= 0) ? tu_WheelSlotName(cur) : (bWeapons ? "WEAPONS" : "FORCE");
+        name = (curSlice >= 0) ? tu_WheelSlotName(cur) : (bSaber ? "SABER" : bWeapons ? "WEAPONS" : "FORCE");
         tc = (curSlice >= 0) ? tu_WheelColour(&m->aGroups[m->aSlices[curSlice].group], 1.0f, 1.0f) : touchUi_White(1.0f);
-        if (bWeapons) hint = tu.bWheelTapMode ? "tap a weapon" : "slide toward a weapon";
+        if (bSaber && tu_SaberNumBlades(tu_SaberStyle()) >= 2)
+            hint = tu.saberTarget == TOUCHUI_CHIP_LEFT ? "colour for the left saber"
+                 : tu.saberTarget == TOUCHUI_CHIP_RIGHT ? "colour for the right saber" : "colour for both sabers";
+        else if (bSaber) hint = tu.bWheelTapMode ? "tap a colour" : "slide toward a colour";
+        else if (bWeapons) hint = tu.bWheelTapMode ? "tap a weapon" : "slide toward a weapon";
         else hint = tu.bWheelTapMode ? "tap a power" : "slide toward a power";
     }
     {
@@ -2637,6 +3466,38 @@ static void tu_DrawWheel(void)
         touchUiDraw_Text(&tu_draw, hint, cx, cy + 13.0f, size, 1.0f, touchUi_Rgba(0.8f, 0.8f, 0.8f, 1.0f));
     }
     touchUiDraw_Text(&tu_draw, "cancel", cx, cy + R1 - 22.0f, 9.0f, 1.0f, touchUi_Rgba(0.59f, 0.59f, 0.59f, 1.0f));
+
+    // the saber wheel's choices, each lit if it is the one set (the blades'
+    // in their colours); EQUIP dim while the player has no saber to take
+    if (bSaber) {
+        static const char* aChipName[TOUCHUI_NUM_CHIPS] = { "SINGLE", "DUAL", "LEFT", "BOTH", "RIGHT", "EQUIP" };
+        const int st = tu_SaberStyle();
+        const int bTwo = tu_SaberNumBlades(st) >= 2;
+        for (int i = 0; i < TOUCHUI_NUM_CHIPS; i++) {
+            if (!tu.aChipShown[i]) continue;
+            int bOn = 0;
+            float a = 0.8f;
+            touchUiColor tcol = touchUi_White(1.0f);
+            if (i == TOUCHUI_CHIP_EQUIP) a = tu_CanEquipSaber() ? 1.0f : 0.35f;
+            else {
+                if (i == TOUCHUI_CHIP_SINGLE) bOn = !bTwo;
+                else if (i == TOUCHUI_CHIP_DUAL) bOn = bTwo;
+                else bOn = tu.saberTarget == i;
+                if (bOn) a = 1.0f;
+                if ((i == TOUCHUI_CHIP_LEFT || i == TOUCHUI_CHIP_RIGHT) && G(SaberColourRGB) && G(SaberGetColour)) {
+                    unsigned char r = 255, g = 255, b = 255;
+                    tu.game->SaberColourRGB(tu.game->SaberGetColour(st, i == TOUCHUI_CHIP_LEFT ? 1 : 0), &r, &g, &b);
+                    tcol = touchUi_Rgba((r * 0.7f + 255 * 0.3f) / 255.0f, (g * 0.7f + 255 * 0.3f) / 255.0f, (b * 0.7f + 255 * 0.3f) / 255.0f, 1.0f);
+                }
+            }
+            tu_draw.alpha = a;
+            touchUiDraw_RRect(&tu_draw, tu.aChip[i][0] - TU_SABER_CHIP_W * 0.5f, tu.aChip[i][1] - TU_SABER_CHIP_H * 0.5f, TU_SABER_CHIP_W,
+                              TU_SABER_CHIP_H, TU_SABER_CHIP_H * 0.5f, touchUi_Black(0.55f), bOn ? 2.0f : 1.5f,
+                              bOn ? TU_GOLD(0.95f) : touchUi_White(0.4f));
+            touchUiDraw_Text(&tu_draw, aChipName[i], tu.aChip[i][0], tu.aChip[i][1], 11.0f, 1.0f, tcol);
+            tu_draw.alpha = 1.0f;
+        }
+    }
 }
 
 static void tu_DrawFps(void)
@@ -2647,10 +3508,40 @@ static void tu_DrawFps(void)
     touchUiDraw_Text(&tu_draw, tu.fpsText, tu.fpsX, tu.fpsY, 11.0f, 1.0f, touchUi_White(0.85f));
 }
 
+// The camera's flash, over everything, fading (a burst's lighter and quicker)
+static void tu_DrawFlash(double now)
+{
+    if (tu.tFlash <= 0.0) return;
+    const double len = tu.bFlashLight ? 0.12 : 0.3;
+    const double age = now - tu.tFlash;
+    if (age >= len || age < -0.5) {
+        tu.tFlash = 0.0;
+        return;
+    }
+    const float k = (float)(1.0 - (age > 0.0 ? age : 0.0) / len);
+    const float a = (tu.bFlashLight ? 0.35f : 0.85f) * k * (2.0f - k); // (eased out)
+    touchUiDraw_RRect(&tu_draw, 0.0f, 0.0f, tu.W, tu.H, 0.0f, touchUi_White(a), 0.0f, touchUi_Clear());
+}
+
 const touchUiDrawList* touchUi_Draw(double now)
 {
     touchUiDraw_Begin(&tu_draw);
     if (!tu.bShown || !tu.bLaidOut) return &tu_draw;
+    // A selfie and the cinematic burst show nothing but the flash; Action
+    // Freeze only CAMERA and its X
+    if (tu.bSelfie || tu.bCinema) {
+        tu_DrawFlash(now);
+        return &tu_draw;
+    }
+    if (tu.bFreezing) {
+        if (!tu_Hidden(BTN_CAMERA)) tu_DrawButton(BTN_CAMERA);
+        touchUiDraw_Circle(&tu_draw, tu.freezeX, tu.freezeY, TU_FREEZE_CLOSE_R, touchUi_Black(0.45f), 1.5f, touchUi_White(0.6f));
+        const float d = 6.5f;
+        touchUiDraw_Line(&tu_draw, tu.freezeX - d, tu.freezeY - d, tu.freezeX + d, tu.freezeY + d, 2.5f, touchUi_White(1.0f));
+        touchUiDraw_Line(&tu_draw, tu.freezeX - d, tu.freezeY + d, tu.freezeX + d, tu.freezeY - d, 2.5f, touchUi_White(1.0f));
+        tu_DrawFlash(now);
+        return &tu_draw;
+    }
     if (tu.bOtherInput) {
         // hidden for another input: only an open wheel and the FPS readout
         tu_DrawFps();
@@ -2670,10 +3561,25 @@ const touchUiDrawList* touchUi_Draw(double now)
                           touchUi_White(0.4f));
         for (int i = BTN_TRAY_FIRST; i <= BTN_TRAY_LAST; i++) tu_DrawButton(i);
     }
-    if (tu.bGyroRow) {
-        touchUiDraw_RRect(&tu_draw, tu.gyroRowBack[0], tu.gyroRowBack[1], tu.gyroRowBack[2], tu.gyroRowBack[3], 26.0f,
-                          touchUi_Black(0.55f), 1.5f, touchUi_White(0.4f));
-        for (int i = BTN_GYROOPT_FIRST; i <= BTN_GYROOPT_LAST; i++) tu_DrawButton(i);
+    {
+        const int aFirst[3] = { BTN_GYROOPT_FIRST, BTN_CAMROW_FIRST, BTN_CAMOPT_FIRST };
+        const int aLast[3] = { BTN_GYROOPT_LAST, BTN_CAMROW_LAST, BTN_CAMOPT_LAST };
+        for (int k = 0; k < 3; k++) {
+            if (tu_Hidden(aFirst[k])) continue;
+            const float* r = tu.aRowBack[k];
+            touchUiDraw_RRect(&tu_draw, r[0], r[1], r[2], r[3], 26.0f, touchUi_Black(0.55f), 1.5f, touchUi_White(0.4f));
+            for (int i = aFirst[k]; i <= aLast[k]; i++) tu_DrawButton(i);
+        }
+    }
+    // the burst's count, beside CAMERA (or under it, where SABER needs the room)
+    if (tu.bBurst && !tu_Hidden(BTN_CAMERA)) {
+        const tuButton* c = &tu_aButtons[BTN_CAMERA];
+        const float bx = tu.bBurstUnder ? c->x : c->x + c->radius + 20.0f, by = tu.bBurstUnder ? c->y + c->radius + 12.0f : c->y;
+        char num[8];
+        snprintf(num, sizeof(num), "%d", tu.burstShots);
+        touchUiDraw_RRect(&tu_draw, bx - TU_BURST_LABEL_HALF, by - 9.0f, 2.0f * TU_BURST_LABEL_HALF, 18.0f, 9.0f, touchUi_Black(0.45f), 0.0f,
+                          touchUi_Clear());
+        touchUiDraw_Text(&tu_draw, num, bx, by, 12.0f, 1.0f, TU_GOLD(0.95f));
     }
     tu_DrawFps();
     tu_DrawStick();
@@ -2681,5 +3587,6 @@ const touchUiDrawList* touchUi_Draw(double now)
         tu_DrawWheel();
         tu_DrawButton(tu.wheelButton); // (lit, above the dimmed screen)
     }
+    tu_DrawFlash(now);
     return &tu_draw;
 }

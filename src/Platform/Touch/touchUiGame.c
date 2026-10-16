@@ -8,6 +8,13 @@
 
 #include "Platform/Touch/touchUiSdl.h"
 #include "Enhanced/iosGame.h"
+#include "Enhanced/iosSaber.h"
+#include "Enhanced/iosCapture.h"
+#include "Enhanced/iosSelfieShots.h"
+#include "Enhanced/iosFreeze.h"
+#include "Enhanced/iosCinema.h"
+#include "Enhanced/enhTick.h"
+#include "Platform/platServices.h"
 
 extern int jkHud_bChatOpen;
 extern int jkHud_IosGetRightGaugeRectPt(float* pX0, float* pY0, float* pX1, float* pY1);
@@ -28,6 +35,18 @@ static int touchUiGame_GetGaugeRect(int bLeft, float* pX0, float* pY0, float* pX
     *pX1 *= k;
     *pY1 *= k;
     return 1;
+}
+
+// The photo modes start on the engine's own clock (enh_Tick runs them)
+static int touchUiGame_SelfieStart(int numShots)
+{
+    int numPeople = 0;
+    return iosSelfieShots_Start(numShots, enh_Now(), &numPeople);
+}
+
+static int touchUiGame_CinemaStart(void)
+{
+    return iosCinema_Start(enh_Now());
 }
 
 const touchUiGame touchUiGame_engine = {
@@ -72,6 +91,42 @@ const touchUiGame touchUiGame_engine = {
     iosGame_ShowMessage,
     iosGame_ShowMessageInPlace,
     touchUiGame_GetGaugeRect,
+    iosGame_IsSaberButtonShown,
+    iosSaber_NumColours,
+    iosSaber_ColourName,
+    iosSaber_ColourKey,
+    iosSaber_ColourByKey,
+    iosSaber_ColourRGB,
+    iosSaber_StyleAvailable,
+    iosSaber_StyleName,
+    iosSaber_StyleNumBlades,
+    iosSaber_GetStyle,
+    iosSaber_SetStyle,
+    iosSaber_GetColour,
+    iosSaber_SetColour,
+    iosCapture_Request,
+    iosCapture_Cancel,
+    platServices_SetPhotoBatch,
+    touchUiGame_SelfieStart,
+    iosSelfieShots_Stop,
+    iosSelfieShots_IsActive,
+    iosFreeze_Begin,
+    iosFreeze_End,
+    iosFreeze_IsActive,
+    iosFreeze_SetSmooth,
+    iosFreeze_Orbit,
+    iosFreeze_Pan,
+    iosFreeze_Zoom,
+    touchUiGame_CinemaStart,
+    iosCinema_Stop,
+    iosCinema_IsActive,
 };
+
+// The numbers the overlay shares with the engine (touchUi.h keeps its own copy)
+typedef char touchUiGame_assertNumbers[(TOUCHUI_CAPTURE_CLEAN == IOSCAPTURE_CLEAN && TOUCHUI_CAPTURE_HUD == IOSCAPTURE_HUD
+                                        && TOUCHUI_CAPTURE_HUDBTNS == IOSCAPTURE_HUDBTNS && TOUCHUI_CAPTURE_BURST == IOSCAPTURE_MODE_BURST
+                                        && TOUCHUI_CAPTURE_SELFIE == IOSCAPTURE_MODE_SELFIE && TOUCHUI_PHOTOMODE_STARTED == IOSSELFIESHOTS_STARTED
+                                        && TOUCHUI_PHOTOMODE_BUSY == IOSCINEMA_BUSY && TOUCHUI_MODE_SELFIE == PLATSERVICES_MODE_SELFIE
+                                        && TOUCHUI_MODE_CINEMA == PLATSERVICES_MODE_CINEMA && TOUCHUI_SABER_DUAL == IOSSABER_STYLE_DUAL) ? 1 : -1];
 
 #endif // TOUCHUI_ENABLED

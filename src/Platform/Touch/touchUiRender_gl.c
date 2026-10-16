@@ -490,4 +490,42 @@ void touchUiRender_Draw(const touchUiDrawList* pList, unsigned int fbo, int pxW,
     glDepthMask(dmask);
 }
 
+unsigned char* touchUiRender_ReadRGBA(unsigned int fbo, int w, int h)
+{
+    if (w <= 0 || h <= 0) return NULL;
+    const size_t row = (size_t)w * 4;
+    unsigned char* p = (unsigned char*)malloc(row * h);
+    unsigned char* tmp = (unsigned char*)malloc(row);
+    if (!p || !tmp) {
+        free(p);
+        free(tmp);
+        return NULL;
+    }
+    while (glGetError() != GL_NO_ERROR) {} // (not ours)
+    GLint oldFbo = 0, oldPack = 4;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &oldFbo);
+    glGetIntegerv(GL_PACK_ALIGNMENT, &oldPack);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glPixelStorei(GL_PACK_ALIGNMENT, 4);
+    glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, p);
+    const int bOk = glGetError() == GL_NO_ERROR;
+    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)oldFbo);
+    glPixelStorei(GL_PACK_ALIGNMENT, oldPack);
+    if (!bOk) {
+        free(p);
+        free(tmp);
+        return NULL;
+    }
+    for (int y = 0; y < h / 2; y++) { // (GL's rows come bottom up)
+        unsigned char* a = p + row * y;
+        unsigned char* b = p + row * (h - 1 - y);
+        memcpy(tmp, a, row);
+        memcpy(a, b, row);
+        memcpy(b, tmp, row);
+    }
+    free(tmp);
+    for (size_t i = 3; i < row * h; i += 4) p[i] = 255;
+    return p;
+}
+
 #endif // TOUCHUI_ENABLED
