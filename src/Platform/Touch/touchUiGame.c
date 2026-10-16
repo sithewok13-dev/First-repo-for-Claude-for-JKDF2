@@ -95,7 +95,7 @@ const touchUiGame touchUiGame_engine = {
     iosSaber_NumColours,
     iosSaber_ColourName,
     iosSaber_ColourKey,
-    iosSaber_ColourByKey,
+    iosSaber_OwnColourByKey, // (the kept colours: one this game's wheel lacks is the game's own)
     iosSaber_ColourRGB,
     iosSaber_StyleAvailable,
     iosSaber_StyleName,

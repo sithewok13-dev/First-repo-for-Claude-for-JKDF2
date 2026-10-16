@@ -190,6 +190,8 @@ int iosGame_SelectWeapon(int bin) { return F_SelectWeapon(bin); }
 void iosGame_SetHold(int b) { F_SetHold(b); }
 int iosGame_IsSaberButtonShown(void) { return F_IsSaberButtonShown(); }
 int iosSaber_NumColours(void) { return F_SaberNumColours(); }
+// (as iosSaber.c: one colour, 7 here as GREEN is there, is off Jedi Knight's wheel)
+int iosSaber_ColourOnWheel(int id) { return id >= 0 && id < F_SaberNumColours() && !(id == 7 && !F_IsMots()); }
 const char* iosSaber_ColourName(int id) { return F_SaberColourName(id); }
 void iosSaber_ColourRGB(int id, unsigned char* r, unsigned char* g, unsigned char* b) { F_SaberColourRGB(id, r, g, b); }
 int iosSaber_StyleAvailable(int st) { return F_SaberStyleAvailable(st); }
@@ -1123,7 +1125,9 @@ static void test_saber(void)
     g_case = "SABER: a tap opens its wheel to tap a colour; the game holds still";
     down(1, sx, sy); wait(0.1); up(1, sx, sy);
     CHECK(touchUi_IsWheelOpen() && touchUi_GetWheelKind() == TOUCHUI_WHEEL_SABER && touchUi_IsWheelTapMode() && fg.bHold);
-    CHECK(touchUi_GetWheelSliceBin(16) == 16 && touchUi_GetWheelSliceBin(17) == -1);
+    // (Jedi Knight: 16, colour 7 -- GREEN -- left out; each slice keeps its colour's id)
+    CHECK(touchUi_GetWheelSliceBin(15) == 16 && touchUi_GetWheelSliceBin(16) == -1
+          && touchUi_GetWheelSliceBin(6) == 6 && touchUi_GetWheelSliceBin(7) == 8);
     CHECK(touchUi_GetSaberChip(TOUCHUI_CHIP_SINGLE, NULL, NULL) && touchUi_GetSaberChip(TOUCHUI_CHIP_DUAL, NULL, NULL)
           && touchUi_GetSaberChip(TOUCHUI_CHIP_EQUIP, NULL, NULL) && !touchUi_GetSaberChip(TOUCHUI_CHIP_LEFT, NULL, NULL));
     g_case = "saber wheel: a colour tapped is set, the wheel stays open, a tick felt";
@@ -1143,10 +1147,11 @@ static void test_saber(void)
     CHECK(touchUi_GetSaberChip(TOUCHUI_CHIP_LEFT, &qx, &qy) && touchUi_GetSaberChip(TOUCHUI_CHIP_RIGHT, NULL, NULL));
     down(2, qx, qy); up(2, qx, qy);
     CHECK(touchUi_GetSaberTarget() == TOUCHUI_CHIP_LEFT);
-    touchUi_GetWheelSlice(7, &deg);
+    CHECK(touchUi_GetWheelSlice(7, NULL) < 0); // (GREEN: not on Jedi Knight's wheel)
+    touchUi_GetWheelSlice(8, &deg);
     polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
     down(2, px, py); up(2, px, py);
-    CHECK(fg.aSaberColour[1][1] == 7 && fg.aSaberColour[1][0] == 0);
+    CHECK(fg.aSaberColour[1][1] == 8 && fg.aSaberColour[1][0] == 0);
     g_case = "saber wheel: BOTH: a colour goes to both blades";
     touchUi_GetSaberChip(TOUCHUI_CHIP_BOTH, &qx, &qy);
     down(2, qx, qy); up(2, qx, qy);
@@ -1159,6 +1164,17 @@ static void test_saber(void)
     polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
     down(2, px, py); up(2, px, py);
     CHECK(!touchUi_IsWheelOpen() && !fg.bHold);
+    g_case = "saber wheel in Mysteries of the Sith: all 17, GREEN (7) on it and picked";
+    fg.bMots = 1;
+    down(1, sx, sy); wait(0.1); up(1, sx, sy);
+    CHECK(touchUi_IsWheelOpen() && touchUi_GetWheelSliceBin(16) == 16 && touchUi_GetWheelSliceBin(17) == -1 && touchUi_GetWheelSlice(7, &deg) == 7);
+    polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    CHECK(fg.aSaberColour[1][1] == 7 && fg.aSaberColour[1][0] == 7 && touchUi_IsWheelOpen());
+    polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    CHECK(!touchUi_IsWheelOpen());
+    fg.bMots = 0;
 
     g_case = "SABER: a 10 pt slide opens it to slide; lifted on a colour: set, and open to tap";
     down(1, sx, sy);

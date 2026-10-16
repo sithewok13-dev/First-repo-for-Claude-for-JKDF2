@@ -53,7 +53,7 @@ static void enhSettings_FromCvars(enhSettingsState* p)
     for (int st = 0; st < IOSSABER_NUM_STYLES; st++)
         if (!strcmp(enhSettings_saberStyle, iosSaber_StyleName(st))) p->style = st;
     for (int i = 0; i < 3; i++) {
-        const int id = iosSaber_ColourByKey(enhSettings_aColour[i]);
+        const int id = iosSaber_OwnColourByKey(enhSettings_aColour[i]);
         p->aColour[i] = id >= 0 ? id : IOSSABER_COLOUR_GAME;
     }
     p->jumpStyle = (enhSettings_jumpStyle >= 0 && enhSettings_jumpStyle < IOSGAME_JUMP_NUM_STYLES) ? enhSettings_jumpStyle : IOSGAME_JUMP_CLASSIC;

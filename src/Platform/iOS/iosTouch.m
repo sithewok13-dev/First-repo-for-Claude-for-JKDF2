@@ -2664,7 +2664,7 @@ static void iosTouch_PhotosAsked(void)
         for (int b = 0; b < iosSaber_StyleNumBlades(st); b++) {
             NSString* key = [NSString stringWithFormat:@"%@.%s.%d", IOSTOUCH_SABERCOLOUR_DEFAULTS_KEY, iosSaber_StyleName(st), b];
             NSString* v = [d stringForKey:key];
-            int id = v ? iosSaber_ColourByKey([v UTF8String]) : -1;
+            int id = v ? iosSaber_OwnColourByKey([v UTF8String]) : -1;
             iosSaber_SetColour(st, b, id >= 0 ? id : IOSSABER_COLOUR_GAME);
         }
     }

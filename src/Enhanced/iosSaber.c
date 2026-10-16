@@ -90,6 +90,15 @@ int iosSaber_ColourOnWheel(int id)
     return !(iosSaber_aColours[id].hide & (Main_bMotsCompat ? IOSSABER_HIDE_MOTS : IOSSABER_HIDE_JK));
 }
 
+// One's own colour as it was kept (saved, or set before): a colour this game's
+// wheel doesn't offer is the game's own (Jedi Knight's green: ORIGINAL, its green)
+int iosSaber_OwnColourByKey(const char* key)
+{
+    const int id = iosSaber_ColourByKey(key);
+    if (id < 0) return -1;
+    return iosSaber_ColourOnWheel(id) ? id : IOSSABER_COLOUR_GAME;
+}
+
 const char* iosSaber_ColourName(int id)
 {
     return (id >= 0 && id < IOSSABER_NUM_COLOURS) ? iosSaber_aColours[id].name : NULL;
