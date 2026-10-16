@@ -44,6 +44,7 @@
 #include "SDL2_helper.h"
 #include "Platform/iOS/iosPad.h" // Added: game controllers (iOS)
 #include "Platform/iOS/iosKbMouse.h" // Added: keyboard and mouse (iOS)
+#include "Platform/Input/inputOverlay.h" // Added: the enhanced input's screen (desktops, Android)
 #ifdef TOUCHUI_ENABLED
 #include "Platform/Touch/touchUiSdl.h" // Added: on-screen touch controls (Android)
 #endif
@@ -858,6 +859,10 @@ void Window_SdlUpdate()
             bIsGamepad = 1;
         }
 
+#ifdef ENH_INPUT
+        // Added: a click on the controller options; the mouse in Action Freeze
+        if (inputOverlay_HandleEvent(&event)) continue;
+#endif
 #ifdef IOSPAD_ENABLED
         iosPad_HandleEvent(&event); // Added
 #endif
@@ -1235,6 +1240,9 @@ void Window_SdlUpdate()
 #ifdef IOSKBM_ENABLED
     iosKbMouse_Update(); // Added: the keyboard and mouse, likewise (Cmd-.'s Escape)
 #endif
+#ifdef ENH_INPUT
+    inputOverlay_Update(); // Added: their settings kept as cvars, the photo modes from the keys
+#endif
 #ifdef TARGET_IOS
     // Added: gyro aiming, now that this frame's touches are in
     iosTouch_UpdateGyro();
@@ -1394,6 +1402,9 @@ void Window_SdlUpdateModal()
 void Window_SdlVblank()
 {
     if (Main_bHeadless) return;
+#ifdef ENH_INPUT
+    inputOverlay_Render(); // Added: the pad's and the keyboard's wheels, prompts and options, over the game and its HUD
+#endif
 
     //static uint32_t roundtrip = 0;
     //uint32_t before = stdPlatform_GetTimeMsec();
@@ -1454,6 +1465,9 @@ void Window_RecreateSDL2Window()
         touchUiSdl_ContextLost(); // Added: the touch controls' GL objects go with the context
 #endif
         std3D_FreeResources();
+#ifdef ENH_INPUT
+        inputOverlay_ContextLost(); // Added: the enhanced input's GL objects go with the context
+#endif
         SDL_GL_DestroyContext(glWindowContext);
         SDL_DestroyWindow(displayWindow);
     }

@@ -466,6 +466,8 @@ int stdControl_Startup()
     // Bluetooth pad often connects after the game starts), so its stick
     // bindings load with the player's settings and are saved back with them,
     // rather than being dropped for an axis that isn't there
+    // (This only gives the axes their range: nothing is bound by it, and a
+    // joystick connected at the start has registered its own already)
     for (int j = 0; j < JK_JOYSTICK_AXIS_STRIDE; j++) {
         if (!(stdControl_aAxes[AXIS_JOY1_X + j].flags & 1))
             stdControl_RegisterAxis(AXIS_JOY1_X + j, -0x7FFF, 0x7FFF, 0.0);

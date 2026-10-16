@@ -339,6 +339,31 @@ if(TARGET_IOS)
     # there -- assets are dropped into the app's Documents dir instead.
 endif()
 
+# Added: the enhanced input everywhere but iOS (ENH_INPUT): game controllers
+# and a keyboard and mouse play as on iOS -- the Force, weapon and saber
+# wheels, the shortcuts, the controller options -- with what iOS draws in
+# UIKit drawn with the game's own GL (src/Platform/Input). The pad and
+# keyboard logic is iOS's own plain C (src/Platform/iOS/iosPad*.c,
+# iosKbMouse.c); the drawing uses the touch overlay's draw list and renderer
+# (src/Platform/Touch, shared with Android's touch controls; their renderer
+# is built here whether or not those are on). AUTO: on with the enhanced
+# gameplay, SDL and OpenGL.
+set(OPENJKDF2_ENH_INPUT "AUTO" CACHE STRING "Enhanced controller and keyboard input: AUTO, ON or OFF")
+if(NOT TARGET_IOS AND OPENJKDF2_ENHANCED AND TARGET_USE_SDL2 AND TARGET_USE_OPENGL AND NOT OPENJKDF2_ENH_INPUT STREQUAL "OFF")
+    message(STATUS "Enhanced input (wheels for pads, keyboard and mouse): on")
+    add_compile_definitions(ENH_INPUT)
+    file(GLOB TARGET_ENH_INPUT_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/Input/*.c)
+    list(APPEND ENGINE_SOURCE_FILES ${TARGET_ENH_INPUT_SRCS}
+         ${PROJECT_SOURCE_DIR}/src/Platform/iOS/iosPad.c
+         ${PROJECT_SOURCE_DIR}/src/Platform/iOS/iosPadBinds.c
+         ${PROJECT_SOURCE_DIR}/src/Platform/iOS/iosKbMouse.c
+         ${PROJECT_SOURCE_DIR}/src/Platform/Touch/touchUiDraw.c
+         ${PROJECT_SOURCE_DIR}/src/Platform/Touch/touchUiRender_gl.c)
+    # (the renderer is guarded by the touch overlay's define; it is wanted here too)
+    set_property(SOURCE ${PROJECT_SOURCE_DIR}/src/Platform/Touch/touchUiRender_gl.c APPEND PROPERTY COMPILE_DEFINITIONS TOUCHUI_ENABLED)
+    list(REMOVE_DUPLICATES ENGINE_SOURCE_FILES)
+endif()
+
 if(TARGET_MACOS)
     list(APPEND ENGINE_SOURCE_FILES ${PROJECT_SOURCE_DIR}/src/external/nativefiledialog-extended/nfd_cocoa.m)
     file(GLOB TARGET_MACOS_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/macOS/*.c)
