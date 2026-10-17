@@ -1787,6 +1787,28 @@ static void test_saber_cross(void)
     fg.saberStyle = 0; fg.aSaberColour[2][0] = 0;
     touchUi_Init(&fakeGame, g_settings);
     CHECK(fg.saberStyle == TOUCHUI_SABER_CROSS && fg.aSaberColour[2][0] == 1);
+    g_case = "cross: a colour, style and shape set from outside the overlay (a pad, the keys): remembered over a restart";
+    {
+        setup();
+        fg.saberStyle = TOUCHUI_SABER_CROSS;
+        tick(); tick(); // (the style saved)
+        fg.aSaberColour[2][0] = 7; // (then only CROSS's colour: picked with a pad's A, a click)
+        tick();
+        fg.saberStyle = 0; fg.aSaberColour[2][0] = 0;
+        touchUi_Init(&fakeGame, g_settings);
+        CHECK(fg.saberStyle == TOUCHUI_SABER_CROSS && fg.aSaberColour[2][0] == 7);
+        tick();
+        fg.saberShape = 1; // (then only the shape: a pad's D-pad up, the 5 key)
+        tick();
+        fg.saberShape = 0;
+        touchUi_Init(&fakeGame, g_settings);
+        CHECK(fg.saberShape == 1 && fg.aSaberColour[2][0] == 7);
+        fg.aSaberColour[1][1] = 9;
+        tick();
+        fg.aSaberColour[1][1] = 0;
+        touchUi_Init(&fakeGame, g_settings);
+        CHECK(fg.aSaberColour[1][1] == 9 && fg.aSaberColour[2][0] == 7);
+    }
     g_case = "cross: an unknown style's name in the settings: left as it was (SINGLE)";
     {
         FILE* f = fopen(g_settings, "w");
@@ -1839,6 +1861,22 @@ static void test_saber_cross(void)
         snprintf(name, sizeof(name), "cross: %s, two sabers: the seven in order, 8 pt apart (16 between the kinds) or, where they don't fit so, 6 pt and evenly; each touch its own", aScr[k].name);
         g_case = name;
         CHECK(bOk && bOwn && chipsClear(aScr[k].w, aScr[k].h, aScr[k].l, aScr[k].t, aScr[k].r, aScr[k].b, aScr[k].name));
+        if (bTight) {
+            // only the four (CROSS, then SINGLE): as far apart as ever, SINGLE where it was
+            for (int c = 0; c < 2; c++) {
+                float tx, ty;
+                touchUi_GetSaberChip(c ? TOUCHUI_CHIP_SINGLE : TOUCHUI_CHIP_CROSS, &tx, &ty);
+                down(2, tx, ty); up(2, tx, ty);
+                float bX[4], bY[4];
+                int bFour = 1;
+                for (int i = 0; i < 4; i++) bFour &= touchUi_GetSaberChip(aOrder[i], &bX[i], &bY[i]);
+                for (int i = 1; bFour && i < 4; i++) if (fabsf(bY[i] - bY[i - 1] - 36.0f) > 0.01f) bFour = 0;
+                snprintf(name, sizeof(name), "cross: %s, %s: the four 8 pt apart as ever (closer only with all seven), SINGLE where it was", aScr[k].name, c ? "SINGLE" : "CROSS");
+                g_case = name;
+                CHECK(bFour && fabsf(bY[0] - aY[0]) < 0.01f && !touchUi_GetSaberChip(TOUCHUI_CHIP_LEFT, NULL, NULL)
+                      && chipsClear(aScr[k].w, aScr[k].h, aScr[k].l, aScr[k].t, aScr[k].r, aScr[k].b, aScr[k].name));
+            }
+        }
         if (inputWheel_IsOpen()) inputWheel_Close(-1);
         tick();
     }

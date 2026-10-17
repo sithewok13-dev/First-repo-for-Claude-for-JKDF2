@@ -31,8 +31,9 @@
 //     (PHOTO, SELFIES 1/3/5, FREEZE ON/OFF); none of it in multiplayer (the
 //     engine says no, as on iOS);
 //   - SABER (once the saber is had, or with sithewok on): the saber wheel, every
-//     blade colour, SINGLE or DUAL, which blade a colour goes to (LEFT, BOTH,
-//     RIGHT) and EQUIP; a tap or a hold opens it to tap, a slide to slide.
+//     blade colour, SINGLE, DUAL or CROSS and the BEAM switch under them, which
+//     blade a colour goes to (LEFT, BOTH, RIGHT), the look (CLASSIC, REFORGED)
+//     and EQUIP; a tap or a hold opens it to tap, a slide to slide.
 //
 // Units: "points" throughout -- on Android, density-independent pixels
 // (dp), times a size factor for large tablets (touchUiSdl.c). Times are

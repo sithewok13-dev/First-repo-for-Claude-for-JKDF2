@@ -18,6 +18,7 @@
 #define TU_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define TU_MAX(a, b) ((a) > (b) ? (a) : (b))
 #define TU_COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
+#define TU_SABER_KEPT (3 + TOUCHUI_SABER_MAX_STYLES * 2) // (tu_SaberKept: style, look, shape, every style's two colours)
 
 // ------------------------------------------------------------ the numbers (iosTouch.m's)
 
@@ -309,7 +310,7 @@ static struct {
     double prevTickNow;
     // the saber
     int bShowSaber;
-    int aSaberKept[6]; // (the saber's style, look and colours as last saved: tu_SaberKeptChanged)
+    int aSaberKept[TU_SABER_KEPT]; // (the saber's style, look, shape and colours as last saved: tu_SaberKeptChanged)
 
     // the wheel
     // (opened by a finger: inputWheel.c's then; the pad's and the keys'
@@ -364,19 +365,24 @@ static int tu_SaberTargetToWheel(int t);
 
 // ------------------------------------------------------------ settings
 
-// The saber's choices as they are now (style, look, each blade's colour)
-static void tu_SaberKept(int a[6])
+// The saber's choices as they are now (style, look, shape, each style's
+// blades' colours: 3 + style * 2 + blade)
+static void tu_SaberKept(int a[TU_SABER_KEPT])
 {
     a[0] = G(SaberGetStyle) ? tu.game->SaberGetStyle() : 0;
     a[1] = G(SaberGetLook) ? tu.game->SaberGetLook() : 0;
-    for (int k = 0; k < 4; k++) a[2 + k] = G(SaberGetColour) ? tu.game->SaberGetColour(k >> 1, k & 1) : 0;
+    a[2] = G(SaberGetShape) ? tu.game->SaberGetShape() : 0;
+    for (int st = 0; st < TOUCHUI_SABER_MAX_STYLES; st++) {
+        const int bStyle = G(SaberStyleName) && tu.game->SaberStyleName(st);
+        for (int b = 0; b < 2; b++) a[3 + st * 2 + b] = (bStyle && G(SaberGetColour)) ? tu.game->SaberGetColour(st, b) : 0;
+    }
 }
 
 // Whether they changed since last saved: a pad or the keys (the shared wheel)
 // set them too, not only this overlay
 static int tu_SaberKeptChanged(void)
 {
-    int a[6];
+    int a[TU_SABER_KEPT];
     tu_SaberKept(a);
     return memcmp(a, tu.aSaberKept, sizeof(a)) != 0;
 }

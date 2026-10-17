@@ -359,7 +359,7 @@ never cover them, and long lines wrap between words.
 | **QUICK LOAD** | top right | **Hold** for about a third of a second: a ring fills, then your quick save loads. To cancel, lift or slide off before the ring fills. |
 | **MENU** | top right corner | **Tap** opens the game's menu (objectives, map, Jedi powers, save, load, setup and more). **Hold** opens a small tray just under it, see below. |
 | **CAMERA** (the camera symbol) | top, in the middle | **Hold still:** a selfie. **Tap:** a photo. **Slide sideways:** a burst. **Slide down:** Action Freeze. **Slide up:** the cinematic burst. See [The camera](#the-camera). |
-| **SABER** (a lightsaber) | top, right of CAMERA (once you have the lightsaber) | Opens the saber wheel: blade colours, one saber or two. See [The lightsaber: SABER](#the-lightsaber-saber). |
+| **SABER** (a lightsaber) | top, right of CAMERA (once you have the lightsaber) | Opens the saber wheel: blade colours, one saber, two, or one with a crossguard. See [The lightsaber: SABER](#the-lightsaber-saber). |
 | **CHEAT** (the red Sith emblem) | top, right of SABER (cheat mode only) | **Hold** for half a second: `sithewok` off or on. Red while it's on. See [Cheats](#cheats). |
 | **VIEW** (1P or 3P) | top, right of CHEAT (once switched on in MENU's tray) | **Tap:** first person or third person, at once. |
 
@@ -476,10 +476,10 @@ switch the controller off and they come back.
   the right stick at a power or weapon and let go of the button to pick it.
   Point at the gap at the bottom, or press B, to cancel. If you open it without
   pointing anywhere, it stays open: point and press A, or step round with the
-  D-pad. On the saber wheel, A sets the colour, X picks one saber or two, Y
-  which blade a colour goes to, L3 switches CLASSIC and REFORGED ("look" on
-  the screen), D-pad up turns BEAM on or off ("beam"), and R3 takes the saber
-  in hand ("equip").
+  D-pad. On the saber wheel, A sets the colour, X steps through SINGLE, DUAL
+  and CROSS ("style" on the screen), Y which blade a colour goes to, L3
+  switches CLASSIC and REFORGED ("look"), D-pad up turns BEAM on or off
+  ("beam"), and R3 takes the saber in hand ("equip").
 - **Quick save and quick load** need a short hold (a ring fills at the top of
   the screen), so a stray press never saves or loads.
 - **Controller options** (hold Start): look speed across and up and down,
@@ -547,10 +547,10 @@ Turn on FPS in MENU's tray to see what the app gets (below).
   Move the mouse toward a power or weapon and let go of the key to pick it.
   If you let go without pointing anywhere, the wheel stays open: point with
   the mouse or the scroll wheel and click. Right click or Esc cancels. On the
-  saber wheel, a click sets the colour, 1 picks one saber or two, 2 which
-  blade a colour goes to, 3 takes the saber in hand ("equip" on the screen),
-  4 switches CLASSIC and REFORGED ("look"), and 5 turns BEAM on or off
-  ("beam").
+  saber wheel, a click sets the colour, 1 steps through SINGLE, DUAL and CROSS
+  ("style" on the screen), 2 which blade a colour goes to, 3 takes the saber
+  in hand ("equip"), 4 switches CLASSIC and REFORGED ("look"), and 5 turns
+  BEAM on or off ("beam").
 - **Your own keys and buttons:** Setup > Controls > Keyboard and Setup >
   Controls > Mouse change any of them; the mouse sensitivity is there too.
   Whatever key you put on next/previous power or weapon gets the wheel when
@@ -881,9 +881,11 @@ cancels, and the game holds still while the wheel is open.
   - In Jedi Knight, a green you kept (picked in CLASSIC) shows as
     ORIGINAL while REFORGED is on, and is shown to other players as
     ORIGINAL too. Switch back to CLASSIC and it's green again.
-- **BEAM**, an on/off switch under SINGLE and DUAL, picks the blade's shape.
-  Tap it to switch. The wheel stays open, and the blade in your hand changes
-  at once. The app remembers it.
+- **BEAM**, an on/off switch under SINGLE, DUAL and CROSS, picks the blade's
+  shape. Tap it to switch. The wheel stays open, and the blade in your hand
+  changes at once. The app remembers it. CROSS keeps its own blade whatever
+  BEAM says, so the switch is dimmed while CROSS is picked (it still works,
+  for other players' blades and for SINGLE and DUAL).
   - **Off** (the default): the game's own blade, which narrows to a point.
   - **On:** a film-style beam, the same width all the way, with a round tip
     and a soft glow in the blade's colour. The glow is strong in the dark
@@ -893,9 +895,9 @@ cancels, and the game holds still while the wheel is open.
     and Action Freeze. In Mysteries of the Sith a thrown saber gets the glow
     too.
   - It's a setting for your own screen. It changes your blade, and in
-    multiplayer the blades of players whose game sends their saber choice.
-    Enemy Jedi (the bosses) and players on other builds keep the game's
-    blade.
+    multiplayer the blades of players whose game sends their saber choice
+    (except a CROSS, which keeps its own). Enemy Jedi (the bosses) and
+    players on other builds keep the game's blade.
   - Only the look changes: the blade's length, its reach and its damage stay
     as the game has them.
 - **The wheel stays open** after you pick a colour, so you can change both
@@ -903,9 +905,16 @@ cancels, and the game holds still while the wheel is open.
   the wheel.
 - **EQUIP**, in the middle of the wheel, closes it and puts the lightsaber in
   your hand. It's dim while you don't have the saber.
-- **SINGLE or DUAL**, beside the wheel: one saber, or one in each hand. With
-  DUAL, **LEFT**, **BOTH** and **RIGHT** choose which blade a colour goes to.
-  Each style keeps its own colours.
+- **SINGLE, DUAL or CROSS**, beside the wheel: one saber, one in each hand,
+  or one saber with a crossguard. With DUAL, **LEFT**, **BOTH** and **RIGHT**
+  choose which blade a colour goes to. Each style keeps its own colours.
+- **CROSS:** a jagged blade that crackles and comes to a point, two short
+  blades sticking out either side of the hilt, and a strong glow in the
+  blade's colour (on a bright wall it only tints). It works with every
+  colour, in both CLASSIC and REFORGED, and shows in first and third person
+  and in Action Freeze. In Mysteries of the Sith a saber thrown from CROSS
+  gets the glow and the two short blades too. Only the look changes: the
+  main blade hits as usual, and the short side blades don't hit anything.
 - **Two sabers fight for real:** the second blade strikes, deals damage and
   throws sparks like the first. In first person both arms move, and between
   swings he holds the two sabers casually, hands apart and a little low,
@@ -1077,8 +1086,10 @@ Things to know:
 ### Your lightsaber in multiplayer
 
 Other players see your saber as you set it on the SABER wheel: its colour,
-and two sabers if you chose them. CLASSIC or REFORGED changes how you see
-every saber on your screen, yours and theirs. BEAM is for your screen too:
+and two sabers or CROSS if you chose them. Players on a build from before
+CROSS (v0.8-beta2 and older) see a CROSS as one plain saber in its colour.
+CLASSIC or REFORGED changes how you see every saber on your screen, yours
+and theirs. BEAM is for your screen too:
 it changes your blade and theirs as you see them. One thing reaches other
 players: in Jedi Knight, a green you kept shows as ORIGINAL while REFORGED
 is on, and other players see it as ORIGINAL too. In multiplayer the second saber is only

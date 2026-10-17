@@ -151,8 +151,11 @@ Tick what works, note what doesn't (a photo of the screen helps).
       (1, 3 or 5), FREEZE (whether sliding down/up stops the action).
 - [ ] SABER (once you have the lightsaber, or with the cheat on): a tap opens
       the saber wheel: tap a colour (ORIGINAL is the game's own).
-      DUAL on the left gives two sabers; then LEFT / BOTH / RIGHT on the right
-      choose which blade a colour goes to. EQUIP puts the saber in your hand.
+      On the left: SINGLE (one saber), DUAL (two sabers; then LEFT / BOTH /
+      RIGHT on the right choose which blade a colour goes to) and CROSS (one
+      saber with a crossguard: a jagged, crackling blade that comes to a
+      point, two short blades either side of the hilt, a strong glow; only the
+      main blade hits). EQUIP puts the saber in your hand.
       The gap at the bottom (or a tap off the wheel) closes it. A slide from
       SABER opens it to slide to a colour.
 - [ ] CLASSIC / REFORGED (at the top of the saber wheel's middle): a tap
@@ -162,14 +165,16 @@ Tick what works, note what doesn't (a photo of the screen helps).
       you see every blade, yours and other players', and the blade in hand
       changes at once. In Jedi Knight a green you kept shows as ORIGINAL
       while REFORGED is on, and other players see it as ORIGINAL too.
-- [ ] BEAM (an on/off switch under SINGLE and DUAL): a tap turns the
+- [ ] BEAM (an on/off switch under SINGLE, DUAL and CROSS): a tap turns the
       film-style beam on or off, and the wheel stays open. Off (to start):
       the game's blade, narrowing to a point. On: an even beam with a round
       tip and a soft glow in the blade's colour, for every colour and both
       looks; the blade in hand changes at once. It's for your own screen:
       your blade, and players whose game sends their saber choice (not
-      enemy Jedi). A pad's D-pad up and the 5
-      key do the same while the saber wheel is open.
+      enemy Jedi). It doesn't change CROSS, which keeps its own blade: the
+      switch is dimmed while CROSS is picked. A pad's D-pad up and the 5
+      key do the same while the saber wheel is open; a pad's X and the 1 key
+      step through SINGLE, DUAL and CROSS.
 - [ ] Use a keyboard, mouse or controller: the buttons hide; touch the screen
       and they come back.
 - [ ] Quit and start again: GYRO, SENS, FPS, CHEAT, VIEW, CONTROLS, the

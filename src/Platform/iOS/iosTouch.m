@@ -3004,14 +3004,21 @@ static int iosTouch_SaberBlade(void)
         }
         if (bOneColumn) {
             // the one column: as near the middle as it fits between the top
-            // row and the bottom (closer, if it doesn't fit as it is)
-            if (6.0 * step + kindGap + IOSTOUCH_SABER_CHIP_H > bottom - (top + 52.0) + 0.5) {
+            // row and the bottom. Where all seven don't fit so: with all seven
+            // showing (two sabers), closer; with only the four, as far apart as
+            // ever from where the closer seven start (SINGLE stays put).
+            const int bFits = 6.0 * step + kindGap + IOSTOUCH_SABER_CHIP_H <= bottom - (top + 52.0) + 0.5;
+            const CGFloat tightStep = IOSTOUCH_SABER_CHIP_H + IOSTOUCH_SABER_CHIP_TIGHT_GAP;
+            const CGFloat tightHalf = 3.0 * tightStep + IOSTOUCH_SABER_CHIP_H * 0.5;
+            const CGFloat tightShift = MIN(MAX(0.0, top + 52.0 + tightHalf - c.y), bottom - tightHalf - c.y);
+            if (!bFits && bTwo) {
                 saberChipsTight = 1;
-                step = IOSTOUCH_SABER_CHIP_H + IOSTOUCH_SABER_CHIP_TIGHT_GAP;
+                step = tightStep;
                 kindGap = 0.0;
             }
             const CGFloat half = (6.0 * step + kindGap) * 0.5 + IOSTOUCH_SABER_CHIP_H * 0.5;
             aShift[0] = MIN(MAX(0.0, top + 52.0 + half - c.y), bottom - half - c.y);
+            if (!bFits && !bTwo) aShift[0] = tightShift - 3.0 * tightStep + (6.0 * step + kindGap) * 0.5;
         }
     }
     for (int i = 0; i < IOSTOUCH_NUM_CHIPS; i++) {

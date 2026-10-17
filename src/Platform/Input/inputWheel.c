@@ -714,14 +714,21 @@ static void inputWheel_LayoutChips(const inputWheelScreen* s)
             if (col == 1 && !bFound) bOneColumn = 1;
         }
         if (bOneColumn) {
+            // (where all seven don't fit so: with all seven showing, closer; with only
+            // the four, as far apart as ever from where the closer seven start)
             const float top1 = INPUTWHEEL_MAX_F(top, inputWheel_s.topClear);
-            if (6.0f * step + kindGap + INPUTWHEEL_CHIP_H > bottom - top1 + 0.5f) {
+            const int bFits = 6.0f * step + kindGap + INPUTWHEEL_CHIP_H <= bottom - top1 + 0.5f;
+            const float tightStep = INPUTWHEEL_CHIP_H + INPUTWHEEL_CHIP_TIGHT_GAP;
+            const float tightHalf = 3.0f * tightStep + INPUTWHEEL_CHIP_H * 0.5f;
+            const float tightShift = INPUTWHEEL_MIN(INPUTWHEEL_MAX_F(0.0f, top1 + tightHalf - cy), bottom - tightHalf - cy);
+            if (!bFits && bTwo) {
                 inputWheel_s.bChipsTight = 1;
-                step = INPUTWHEEL_CHIP_H + INPUTWHEEL_CHIP_TIGHT_GAP;
+                step = tightStep;
                 kindGap = 0.0f;
             }
             const float half = (6.0f * step + kindGap) * 0.5f + INPUTWHEEL_CHIP_H * 0.5f;
             aShift[0] = INPUTWHEEL_MIN(INPUTWHEEL_MAX_F(0.0f, top1 + half - cy), bottom - half - cy);
+            if (!bFits && !bTwo) aShift[0] = tightShift - 3.0f * tightStep + (6.0f * step + kindGap) * 0.5f;
         }
     }
     for (int i = 0; i < INPUTWHEEL_NUM_CHIPS; i++) {
