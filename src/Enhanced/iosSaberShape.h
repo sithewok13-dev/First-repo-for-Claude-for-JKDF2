@@ -3,20 +3,21 @@
 //
 //   SPIKE  the game's own: a blade that narrows to a point (the template's
 //          base and tip widths). Everything is drawn exactly as before.
-//   BEAM   the film blade: an even beam (the same width at the hilt and the
-//          tip, narrowing only with distance), closed by the round tip face
-//          centred on its end, with a soft outer glow in the blade's own
+//   BEAM   the film blade: a slim, even beam (the same width at the hilt and
+//          the tip, narrowing only with distance), drawn a little longer than
+//          the game's blade and closed by a rounded end of its own (not the
+//          game's round tip face), with a soft outer glow in the blade's own
 //          colour (its edge colour in the look; for the game's own blade, the
 //          game's colour). The glow is a few extra faces round the blade with
-//          a small glow texture made once per colour and level: it adds
-//          light over a dark scene and only tints a bright one.
+//          a small glow texture made once per colour and level, which only
+//          adds light: nothing behind it is ever darker.
 //
 // For the blades iosSaber draws (the local player's, and in multiplayer other
 // players' whose games sent their choice), every colour (the game's own
 // included: its colour never changes, only its shape), first and third
 // person, two sabers, selfies, Action Freeze; and a glow along a thrown saber
-// (Mysteries of the Sith). Only how it looks: the blade's length, the
-// template's widths, collisions and damage are left as they are.
+// (Mysteries of the Sith). Only how it looks: the game's blade length (which
+// strikes), the template's widths, collisions and damage are left as they are.
 //
 // Remembered by the platform by its name, as the look is (iOS: NSUserDefaults
 // iosTouchSaberShape; elsewhere the cvar enh_saberShape, enhSettings).

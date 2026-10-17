@@ -887,9 +887,11 @@ cancels, and the game holds still while the wheel is open.
   BEAM says, so the switch is dimmed while CROSS is picked (it still works,
   for other players' blades and for SINGLE and DUAL).
   - **Off** (the default): the game's own blade, which narrows to a point.
-  - **On:** a film-style beam, the same width all the way, with a round tip
-    and a soft glow in the blade's colour. The glow is strong in the dark
-    and only a faint tint on bright walls.
+  - **On:** a slim film-style beam, the same width all the way and a little
+    longer than the game's blade, with a rounded end and a soft glow in the
+    blade's colour. The glow only adds light: it's strong in the dark and
+    gentler on bright walls, and never darkens what's behind it. The blade
+    still reaches and hits as the game's does.
   - It works with every colour, ORIGINAL included, in both CLASSIC and
     REFORGED. It shows in first and third person, with two sabers, in selfies
     and Action Freeze. In Mysteries of the Sith a thrown saber gets the glow

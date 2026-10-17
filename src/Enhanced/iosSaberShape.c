@@ -58,16 +58,26 @@ int iosSaberShape_ByName(const char* name)
 // ------------------------------------------------------------ the look of it
 
 // The beam's radius at the hilt, of the template's base radius (the spike's
-// widest); the glow's, of the beam's (at each end)
-#define IOSSABERSHAPE_BEAM_WIDTH 0.9f
-#define IOSSABERSHAPE_GLOW_WIDTH 5.5f
+// widest); the glow's, of the beam's (at each end; its texels glow out to
+// IOSSABERSHAPE_GLOW_REACH of that: as wide as before the beam was narrowed);
+// a thrown saber's, of its beam's
+#define IOSSABERSHAPE_BEAM_WIDTH 0.62f
+#define IOSSABERSHAPE_BEAM_GLOW_WIDTH 9.6f
+#define IOSSABERSHAPE_GLOW_WIDTH 6.9f
 // The tip as wide as the hilt in the world; but nearer the far end than the
 // hilt is (in first person, about twice as far from the eye), it would look
 // half as wide on screen and come to a point again. So it is made wider in
 // the world as it is further off, to look this much of the hilt's width on
 // screen, up to this many times the hilt's in the world.
-#define IOSSABERSHAPE_TIP_ON_SCREEN 0.7f
+#define IOSSABERSHAPE_TIP_ON_SCREEN 0.55f
 #define IOSSABERSHAPE_TIP_MAX 2.6f
+// The beam drawn this much longer than the game's blade (only drawn: the
+// game's own length, which strikes, is left as it is), its last
+// IOSSABERSHAPE_BEAM_END of it closing in a rounded end (in slices round a
+// quarter of an ellipse) in its own colours, instead of the game's round tip
+#define IOSSABERSHAPE_BEAM_LENGTH 1.15f
+#define IOSSABERSHAPE_BEAM_END 0.07f
+#define IOSSABERSHAPE_BEAM_END_SLICES 4
 // (a thrown saber's beam, for its glow: of its blade's length, as a held one's)
 #define IOSSABERSHAPE_THROWN_BEAM 0.018f
 // How bright the glow is at the blade's middle (of its colour), and how much
@@ -93,7 +103,11 @@ static const float iosSaberShape_aWhite[IOSSABERSHAPE_NUM_GAINS] = { IOSSABERSHA
 // a 32x32 disc in both games, its texture's alpha on) with its texels a soft
 // round glow in the colour, at its strength; loaded privately, freed with
 // the level. The renderer blends them premultiplied (colour + what was there
-// times one less their alpha): a low alpha, so the glow mostly adds.
+// times one less their alpha), so the glow only adds light: its alpha is the
+// least the renderer draws (IOSSABERSHAPE_ADD_ALPHA) wherever it glows at
+// all, each colour at least that much, so nothing behind it is ever darker;
+// and none at all (not drawn) from IOSSABERSHAPE_GLOW_REACH of the way out,
+// well before the edges of its faces, so they never show.
 // (room for every colour of both looks, the game's own blades' and the thrown
 // ones', at all four strengths, on one level)
 #define IOSSABERSHAPE_MAX_GLOWS 192
@@ -107,37 +121,38 @@ typedef struct {
 static iosSaberShapeGlow iosSaberShape_aGlow[IOSSABERSHAPE_MAX_GLOWS];
 static int iosSaberShape_numGlows = 0;
 
-// (a glow texel's alpha: at least just over the renderer's discard; and how
-// much of what is behind it covers, of how bright it is)
+// (a glow texel's alpha: just over the renderer's discard, 0.01 of 255; how far
+// out, of the disc's radius, it glows at all; and the least it adds, under which
+// it isn't drawn)
 #define IOSSABERSHAPE_ADD_ALPHA 3
-#define IOSSABERSHAPE_GLOW_COVER 0.35f
-#define IOSSABERSHAPE_GLOW_COVER_MAX 0.25f
+#define IOSSABERSHAPE_GLOW_REACH 0.8f
+#define IOSSABERSHAPE_GLOW_LEAST 2.0f
 
 static void iosSaberShape_MakeTexels(uint8_t* pOut, int w, int h, const unsigned char rgb[3], float gain, float white)
 {
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
             const float dx = ((x + 0.5f) / w) * 2.0f - 1.0f, dy = ((y + 0.5f) / h) * 2.0f - 1.0f;
-            const float t = sqrtf(dx * dx + dy * dy);
+            const float t = sqrtf(dx * dx + dy * dy) / IOSSABERSHAPE_GLOW_REACH;
             uint8_t* o = &pOut[(y * w + x) * 4];
-            if (t >= 1.0f) {
-                o[0] = o[1] = o[2] = o[3] = 0;
-                continue;
-            }
+            o[0] = o[1] = o[2] = o[3] = 0;
+            if (t >= 1.0f) continue;
             const float f = powf(1.0f - t, IOSSABERSHAPE_GLOW_FALLOFF) * IOSSABERSHAPE_GLOW_PEAK * gain;
-            float c[3];
+            float c[3], m = 0.0f;
             for (int k = 0; k < 3; k++) {
                 c[k] = rgb[k] * f + white * f * f;
                 if (c[k] > 255.0f) c[k] = 255.0f;
+                if (c[k] > m) m = c[k];
             }
+            if (m < IOSSABERSHAPE_GLOW_LEAST) continue; // (too faint to add anything: not drawn)
+            // (each colour at least the alpha, so what is behind gains at least what the
+            // alpha takes from it, however bright it is)
+            for (int k = 0; k < 3; k++)
+                if (c[k] < IOSSABERSHAPE_ADD_ALPHA) c[k] = IOSSABERSHAPE_ADD_ALPHA;
             o[0] = (uint8_t)(c[2] + 0.5f); // (B, G, R, A: as TEX_MODE_16BPP reads them)
             o[1] = (uint8_t)(c[1] + 0.5f);
             o[2] = (uint8_t)(c[0] + 0.5f);
-            // (and covering a little of what is behind, as much as it glows: over a dark
-            // scene it adds, over a bright one it tints, rather than washing it out white: subtle there)
-            float a = 255.0f * f * IOSSABERSHAPE_GLOW_COVER;
-            if (a > 255.0f * IOSSABERSHAPE_GLOW_COVER_MAX) a = 255.0f * IOSSABERSHAPE_GLOW_COVER_MAX;
-            o[3] = a < IOSSABERSHAPE_ADD_ALPHA ? IOSSABERSHAPE_ADD_ALPHA : (uint8_t)(a + 0.5f);
+            o[3] = IOSSABERSHAPE_ADD_ALPHA;
         }
     }
 }
@@ -333,6 +348,18 @@ static void iosSaberShape_SetBack(rdVector3* p)
     p->z *= k;
 }
 
+// Where the depth isn't written (first person), what is drawn is sorted by
+// its nearest point, furthest first: a blade's glow is set back this far
+// (more than a slice's or a side blade's own depth) so it comes before every
+// part of the blade it lies under, and they are drawn over it. (Where depth
+// is written, the glow is drawn after the scene, against it: just behind.)
+#define IOSSABERSHAPE_FP_SET_BACK 0.02f
+static void iosSaberShape_GlowSetBack(int bOn)
+{
+    const int z = rdGetZBufferMethod();
+    iosSaberShape_setBack = (bOn && z != RD_ZBUFFER_READ_WRITE && z != RD_ZBUFFER_NOREAD_WRITE) ? IOSSABERSHAPE_FP_SET_BACK : IOSSABERSHAPE_SET_BACK;
+}
+
 static void iosSaberShape_Vert(int i, const rdVector3* c, flex_t ax, flex_t az, flex_t u, flex_t v)
 {
     iosSaberShape_aVerts[i].x = c->x + ax;
@@ -347,7 +374,8 @@ static void iosSaberShape_Vert(int i, const rdVector3* c, flex_t ax, flex_t az, 
 // its widths as they were, and its glow; with CROSS, whose it is (for its own
 // crackle)
 static rdThing* iosSaberShape_pLine = NULL;
-static flex_t iosSaberShape_savedBase, iosSaberShape_savedTip;
+static flex_t iosSaberShape_savedBase, iosSaberShape_savedTip, iosSaberShape_savedLength;
+static flex_t iosSaberShape_beamTip; // (BEAM: its tip's radius, fitted; the game's round tip face, drawn at the template's tip radius, left out)
 static iosSaberShapeGlow* iosSaberShape_pGlow = NULL;
 static int iosSaberShape_bCross = 0;
 static uint32_t iosSaberShape_crossId = 0;
@@ -374,9 +402,13 @@ void iosSaberShape_BeginBlade(SithThing* pThing, rdThing* pLine, const unsigned 
     iosSaberShape_pLine = pLine;
     iosSaberShape_savedBase = l->baseRadius;
     iosSaberShape_savedTip = l->tipRadius;
-    // (even: as wide at the tip as at the hilt; the tip face, a disc of the tip's
-    // radius centred on the end, closes it round)
-    l->baseRadius = l->tipRadius = l->baseRadius * IOSSABERSHAPE_BEAM_WIDTH;
+    iosSaberShape_savedLength = l->length;
+    // (even: as wide at the tip as at the hilt, and closed by its own rounded end
+    // (DrawBeam), not the round tip face, which is left out; drawn longer)
+    l->baseRadius = l->baseRadius * IOSSABERSHAPE_BEAM_WIDTH;
+    iosSaberShape_beamTip = l->baseRadius;
+    l->tipRadius = 0;
+    l->length = l->length * IOSSABERSHAPE_BEAM_LENGTH;
     iosSaberShape_pGlow = rgb ? iosSaberShape_Glow(rgb, IOSSABERSHAPE_GAIN_BLADE) : NULL;
 }
 
@@ -389,7 +421,7 @@ void iosSaberShape_FitTip(rdThing* pLine, float tipDepth, float baseDepth)
         k = IOSSABERSHAPE_TIP_ON_SCREEN * tipDepth / baseDepth;
     if (k < 1.0f) k = 1.0f;
     if (k > IOSSABERSHAPE_TIP_MAX) k = IOSSABERSHAPE_TIP_MAX;
-    l->tipRadius = l->baseRadius * k;
+    iosSaberShape_beamTip = l->baseRadius * k;
 }
 
 void iosSaberShape_EndBlade(void)
@@ -398,6 +430,7 @@ void iosSaberShape_EndBlade(void)
     if (iosSaberShape_pLine->polyline) {
         iosSaberShape_pLine->polyline->baseRadius = iosSaberShape_savedBase;
         iosSaberShape_pLine->polyline->tipRadius = iosSaberShape_savedTip;
+        if (!iosSaberShape_bCross) iosSaberShape_pLine->polyline->length = iosSaberShape_savedLength;
     }
     iosSaberShape_pLine = NULL;
     iosSaberShape_pGlow = NULL;
@@ -408,7 +441,8 @@ void iosSaberShape_EndBlade(void)
 // glow's length are not rectangles: drawn as one quad (two triangles), their
 // texture's middle line bends off the blade's along the diagonal, to one side
 // only. Each is drawn in this many slices along the blade instead, each its
-// own width, so the middle stays on the middle.
+// own width, so the middle stays on the middle (the beam's, from its rounded
+// end down; its end in IOSSABERSHAPE_BEAM_END_SLICES more).
 #define IOSSABERSHAPE_SLICES 8
 
 // The glow: square to the blade on screen, the base's half disc, the length
@@ -463,9 +497,14 @@ static void iosSaberShape_GlowQuads(rdThing* pLine, const iosSaberShapeGlow* g, 
 static void iosSaberShape_DrawGlow(rdThing* pLine, const rdVector3* pTip, const rdVector3* pBase, float angCos, float angSin)
 {
     if (!pLine || pLine != iosSaberShape_pLine || !iosSaberShape_pGlow || !pLine->polyline) return;
-    iosSaberShape_GlowQuads(pLine, iosSaberShape_pGlow, pLine->polyline->face.textureMode, pTip, pBase,
-                            pLine->polyline->tipRadius * IOSSABERSHAPE_GLOW_WIDTH, pLine->polyline->baseRadius * IOSSABERSHAPE_GLOW_WIDTH,
+    // (its brightest end where the rounded end begins, under the beam, not out past it as a ball of light)
+    const rdVector3 end = { pTip->x + (pBase->x - pTip->x) * IOSSABERSHAPE_BEAM_END, pTip->y + (pBase->y - pTip->y) * IOSSABERSHAPE_BEAM_END,
+                            pTip->z + (pBase->z - pTip->z) * IOSSABERSHAPE_BEAM_END };
+    iosSaberShape_GlowSetBack(1); // (under the beam's end too, in first person)
+    iosSaberShape_GlowQuads(pLine, iosSaberShape_pGlow, pLine->polyline->face.textureMode, &end, pBase,
+                            iosSaberShape_beamTip * IOSSABERSHAPE_BEAM_GLOW_WIDTH, pLine->polyline->baseRadius * IOSSABERSHAPE_BEAM_GLOW_WIDTH,
                             angCos, angSin, IOSSABERSHAPE_END_TIP | IOSSABERSHAPE_END_BASE);
+    iosSaberShape_GlowSetBack(0);
 }
 
 // The beam's side, as rdPolyline_Draw lays the blade (its corners, its
@@ -478,17 +517,28 @@ static int iosSaberShape_DrawBeam(rdThing* pLine, const rdVector3* pTip, const r
     rdPolyline* l = pLine->polyline;
     if (!l->extraUVTipMaybe || !l->face.vertexUVIdx) return 0; // (untextured: as the game draws it)
     const flex_t w = l->extraUVTipMaybe[0].x, h = l->extraUVTipMaybe[2].y;
-    const flex_t tx = l->tipRadius * angCos, tz = l->tipRadius * angSin, bx = l->baseRadius * angCos, bz = l->baseRadius * angSin;
+    const flex_t tx = iosSaberShape_beamTip * angCos, tz = iosSaberShape_beamTip * angSin, bx = l->baseRadius * angCos, bz = l->baseRadius * angSin;
     rdMeshinfo info;
     memset(&info, 0, sizeof(info));
     info.numVertices = 4;
     info.aVertices = iosSaberShape_aSideVerts;
     info.aTexVerticies = iosSaberShape_aSideUVs;
-    for (int i = 0; i < IOSSABERSHAPE_SLICES; i++) {
-        const flex_t s[2] = { (flex_t)i / IOSSABERSHAPE_SLICES, (flex_t)(i + 1) / IOSSABERSHAPE_SLICES };
+    for (int i = 0; i < IOSSABERSHAPE_BEAM_END_SLICES + IOSSABERSHAPE_SLICES; i++) {
+        // (along it from the tip, 0, to the hilt, 1; and how much of its width there: the
+        // rounded end's slices round a quarter ellipse, the rest the full width)
+        flex_t s[2], k[2] = { 1, 1 };
+        for (int e = 0; e < 2; e++) {
+            const int j = i + e;
+            if (j <= IOSSABERSHAPE_BEAM_END_SLICES) {
+                const float th = (float)j / IOSSABERSHAPE_BEAM_END_SLICES * (float)(M_PI * 0.5);
+                s[e] = IOSSABERSHAPE_BEAM_END * (flex_t)(1.0f - cosf(th));
+                k[e] = (flex_t)sinf(th);
+            }
+            else s[e] = IOSSABERSHAPE_BEAM_END + (1 - IOSSABERSHAPE_BEAM_END) * (flex_t)(j - IOSSABERSHAPE_BEAM_END_SLICES) / IOSSABERSHAPE_SLICES;
+        }
         for (int e = 0; e < 2; e++) {
             const rdVector3 p = { pTip->x + (pBase->x - pTip->x) * s[e], pTip->y + (pBase->y - pTip->y) * s[e], pTip->z + (pBase->z - pTip->z) * s[e] };
-            const flex_t ax = tx + (bx - tx) * s[e], az = tz + (bz - tz) * s[e];
+            const flex_t ax = (tx + (bx - tx) * s[e]) * k[e], az = (tz + (bz - tz) * s[e]) * k[e];
             // (0 and 1 the slice's tip side, + and - across; 2 and 3 its base side, - and +)
             rdVector3* a = &iosSaberShape_aSideVerts[e ? 3 : 0];
             rdVector3* b = &iosSaberShape_aSideVerts[e ? 2 : 1];
@@ -535,18 +585,12 @@ static int iosSaberShape_DrawBeam(rdThing* pLine, const rdVector3* pTip, const r
 #define IOSSABERSHAPE_CROSS_GUARD_TAPER 0.6f
 #define IOSSABERSHAPE_CROSS_GUARD_AT 0.0f
 #define IOSSABERSHAPE_CROSS_GUARD_SLICES 5
-// The glow: its radius at the hilt (of the blade's half width), and at a
+// The glow: its radius at the hilt (of the blade's half width; its texels glowing
+// out to IOSSABERSHAPE_GLOW_REACH of it), and at a
 // point (of that), a little wider or narrower each frame
-#define IOSSABERSHAPE_CROSS_GLOW_WIDTH 6.0f
+#define IOSSABERSHAPE_CROSS_GLOW_WIDTH 7.5f
 #define IOSSABERSHAPE_CROSS_GLOW_POINT 0.45f
 #define IOSSABERSHAPE_CROSS_GLOW_FLICKER 0.06f
-// Where the depth isn't written (first person), what is drawn is sorted by
-// its nearest point, furthest first: the glow is set back this far (more
-// than a slice's or a side blade's own depth) so it comes before every part
-// of the blade it lies under, and they are drawn over it. (Where depth is
-// written, the glow is drawn after the scene, against it: just behind, as
-// BEAM's.)
-#define IOSSABERSHAPE_CROSS_FP_SET_BACK 0.02f
 
 // The crackle's random numbers: its own (never the game's, which the game's
 // own play and the photo modes count on), from the game's clock and whose
@@ -716,15 +760,14 @@ static void iosSaberShape_Cross(rdThing* pLine, rdFace* pFace, flex_t uvW, flex_
 
     // the glow round them, a little wider or narrower each frame (the side blades' none at their roots, inside the blade's)
     if (!g) return;
-    const int z = rdGetZBufferMethod();
-    if (z != RD_ZBUFFER_READ_WRITE && z != RD_ZBUFFER_NOREAD_WRITE) iosSaberShape_setBack = IOSSABERSHAPE_CROSS_FP_SET_BACK;
+    iosSaberShape_GlowSetBack(1);
     const flex_t f = 1 + (iosSaberShape_Rand() * 2 - 1) * IOSSABERSHAPE_CROSS_GLOW_FLICKER;
     const flex_t rg = r * IOSSABERSHAPE_CROSS_GLOW_WIDTH * f;
     iosSaberShape_GlowQuads(pLine, g, texMode, pTip, pBase, rg * IOSSABERSHAPE_CROSS_GLOW_POINT, rg, c, sn, IOSSABERSHAPE_END_TIP | IOSSABERSHAPE_END_BASE);
     for (int k = 0; bGuards && k < 2; k++)
         iosSaberShape_GlowQuads(pLine, g, texMode, &aTip[k], &aRoot[k], gr * IOSSABERSHAPE_CROSS_GLOW_WIDTH * f * IOSSABERSHAPE_CROSS_GLOW_POINT,
                                 gr * IOSSABERSHAPE_CROSS_GLOW_WIDTH * f, aCos[k], aSin[k], IOSSABERSHAPE_END_TIP);
-    iosSaberShape_setBack = IOSSABERSHAPE_SET_BACK;
+    iosSaberShape_GlowSetBack(0);
 }
 
 int iosSaberShape_DrawBlade(rdThing* pLine, const rdMatrix34* pToCam, const rdVector3* pTip, const rdVector3* pBase, float angCos, float angSin)

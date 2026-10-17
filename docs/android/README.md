@@ -167,9 +167,9 @@ Tick what works, note what doesn't (a photo of the screen helps).
       while REFORGED is on, and other players see it as ORIGINAL too.
 - [ ] BEAM (an on/off switch under SINGLE, DUAL and CROSS): a tap turns the
       film-style beam on or off, and the wheel stays open. Off (to start):
-      the game's blade, narrowing to a point. On: an even beam with a round
-      tip and a soft glow in the blade's colour, for every colour and both
-      looks; the blade in hand changes at once. It's for your own screen:
+      the game's blade, narrowing to a point. On: a slim, even beam, a little
+      longer (only to look at), with a rounded end and a soft glow in the
+      blade's colour that only adds light, for every colour and both looks; the blade in hand changes at once. It's for your own screen:
       your blade, and players whose game sends their saber choice (not
       enemy Jedi). It doesn't change CROSS, which keeps its own blade: the
       switch is dimmed while CROSS is picked. A pad's D-pad up and the 5
