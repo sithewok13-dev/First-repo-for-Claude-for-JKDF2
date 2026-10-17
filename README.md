@@ -1,15 +1,39 @@
+# OpenJKDF2 for iOS (unofficial)
+
+**Star Wars Jedi Knight: Dark Forces II** and **Mysteries of the Sith** on iPhone and iPad: an unofficial fan port of [OpenJKDF2](https://github.com/shinyquagsire23/OpenJKDF2), with touch controls, game controllers, keyboard and mouse, and multiplayer.
+
+<!-- TODO: 3-4 iPhone screenshots from the owner go here, side by side, e.g.
+<p><img src="docs/images/ios-1.png" width="48%"> <img src="docs/images/ios-2.png" width="48%"></p>
+Own screenshots of the game running only: no logos, box art or film stills. -->
+
+### Download
+
+- **[Latest release](https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/latest)**: `OpenJKDF2-iOS-unsigned.ipa` is Jedi Knight (the OpenJKDF2 app), `OpenJKDF2-MotS-iOS-unsigned.ipa` is Mysteries of the Sith (the OpenMoTS app). Betas are on the [releases page](https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases).
+- **Easiest: add the source** in SideStore or AltStore, then install and update both apps from there: **[Add to SideStore](https://sithewok13-dev.github.io/OpenJKDF2-iOS/#add-sidestore)** · **[Add to AltStore](https://sithewok13-dev.github.io/OpenJKDF2-iOS/#add-altstore)**
+- Or add it by hand (in the app's *Sources*, tap **+**) with this address: `https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/packaging/ios/altstore-source.json`
+
+### What you need
+
+- **Your own copy of the game**, from [GOG](https://www.gog.com/game/star_wars_jedi_knight_dark_forces_ii) or [Steam](https://store.steampowered.com/app/32380/STAR_WARS_Jedi_Knight_Dark_Forces_II/) (and of Mysteries of the Sith, for OpenMoTS). No game files are included.
+- **An iPhone or iPad with iOS 18 or newer**, and a sideloading app: SideStore, AltStore (Classic, not AltStore PAL) or Sideloadly.
+- **It's a beta.** Expect bugs, and back up your saves.
+
+**[Setup guide](docs/ios/README.md)**: installing, copying your game files, every control, multiplayer, and more. Found a bug? [Report it here](https://github.com/sithewok13-dev/OpenJKDF2-iOS/issues), not to upstream OpenJKDF2.
+
+Not affiliated with or endorsed by Lucasfilm, Disney or LucasArts, and not an official OpenJKDF2 release.
+
+---
+
+*The rest of this page is upstream OpenJKDF2's README, by shinyquagsire23 (Max Thomas) and the OpenJKDF2 contributors, from [shinyquagsire23/OpenJKDF2](https://github.com/shinyquagsire23/OpenJKDF2). Its links point to upstream; for the iOS port, see above.*
+
 # OpenJKDF2
 
 ![MacOS Screenshot](docs/images/screenshot.png)
 
 ## [Latest Releases](https://github.com/shinyquagsire23/OpenJKDF2/releases) | [Report a crash or bug](https://github.com/shinyquagsire23/OpenJKDF2/issues)
 
-> **iOS:** this repository adds an unofficial, experimental iPhone and iPad build
-> with on-screen touch controls. You bring your own game files from GOG or Steam.
-> See the **[iOS setup guide](docs/ios/README.md)**, which covers installing it,
-> the controls, and reporting iOS bugs. Please report those on this repository's
-> issue tracker, not with the upstream links above. (The platform table below is
-> upstream's and predates upstream's own iOS support.)
+> **iOS:** for this repository's iPhone and iPad port, see the top of this page.
+> (The platform table below is upstream's and predates upstream's own iOS support.)
 
 OpenJKDF2 is a function-by-function reimplementation of DF2 in C, with 64-bit ports to Windows 7+, macOS 10.15+, and Linux. Files are organized as closely to the original game as possible, based on symbols from the Grim Fandango Remaster Android/Linux/macOS port, as well as scattered assertions from various other games. It also contains the original versions of `byacc` and `flex` used for COG script parsing.
 

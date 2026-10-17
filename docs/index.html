@@ -1,0 +1,91 @@
+<!doctype html>
+<!--
+  The GitHub Pages landing page for the unofficial iOS port (Pages serves the
+  docs/ folder of the default branch; docs/.nojekyll means no build step).
+  It's a plain page for search engines and for the "Add to SideStore / Add to
+  AltStore" links, which can't be links on GitHub itself: GitHub drops
+  sidestore:// and altstore:// links from Markdown. #add-sidestore and
+  #add-altstore at the end of this page's address open them straight away.
+  No game data, logos or official artwork here.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jedi Knight on iPhone and iPad: OpenJKDF2 for iOS (unofficial)</title>
+<meta name="description" content="Play Star Wars Jedi Knight: Dark Forces II and Mysteries of the Sith on iPhone and iPad: an unofficial fan port of OpenJKDF2 with touch controls, controllers and multiplayer. Bring your own copy of the game.">
+<link rel="canonical" href="https://sithewok13-dev.github.io/OpenJKDF2-iOS/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="OpenJKDF2 for iOS (unofficial)">
+<meta property="og:description" content="Star Wars Jedi Knight: Dark Forces II and Mysteries of the Sith on iPhone and iPad, with touch controls. An unofficial fan port of OpenJKDF2.">
+<meta property="og:url" content="https://sithewok13-dev.github.io/OpenJKDF2-iOS/">
+<meta property="og:image" content="https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/packaging/icon-256.png">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/packaging/icon-256.png">
+<style>
+  :root { --bg: #ffffff; --fg: #1d1d1f; --muted: #5f5f66; --accent: #8e3aa8; --on-accent: #ffffff; --line: #d9d9de; --code: #f2f2f5; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #141416; --fg: #f2f2f5; --muted: #a8a8b0; --accent: #c77ddf; --on-accent: #141416; --line: #34343a; --code: #232327; }
+  }
+  :root[data-theme="dark"] { --bg: #141416; --fg: #f2f2f5; --muted: #a8a8b0; --accent: #c77ddf; --on-accent: #141416; --line: #34343a; --code: #232327; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 1.6em; line-height: 1.2; margin: 0 0 8px; }
+  h2 { font-size: 1.15em; margin: 28px 0 8px; }
+  p, li { color: var(--fg); }
+  .lead { color: var(--muted); margin-top: 0; }
+  a { color: var(--accent); }
+  .buttons { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+  .button { display: inline-block; padding: 12px 18px; border-radius: 12px; background: var(--accent); color: var(--on-accent); text-decoration: none; font-weight: 600; }
+  .button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  code { background: var(--code); border-radius: 6px; padding: 2px 5px; font-size: 0.85em; overflow-wrap: anywhere; }
+  ul { padding-left: 1.2em; }
+  footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>OpenJKDF2 for iOS (unofficial)</h1>
+  <p class="lead">Star Wars Jedi Knight: Dark Forces II and Mysteries of the Sith on iPhone and iPad: an unofficial fan port of OpenJKDF2, with touch controls, game controllers, a keyboard and multiplayer.</p>
+
+  <h2>Install</h2>
+  <p>Easiest, in SideStore or AltStore (Classic): add the source, then install OpenJKDF2 (Jedi Knight), OpenMoTS (Mysteries of the Sith) or both from it.</p>
+  <div class="buttons">
+    <a class="button" href="sidestore://source?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsithewok13-dev%2FOpenJKDF2-iOS%2Fclaude%2Fopenjkdf2-ios-build-2gcr9s%2Fpackaging%2Fios%2Faltstore-source.json">Add to SideStore</a>
+    <a class="button" href="altstore://source?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsithewok13-dev%2FOpenJKDF2-iOS%2Fclaude%2Fopenjkdf2-ios-build-2gcr9s%2Fpackaging%2Fios%2Faltstore-source.json">Add to AltStore</a>
+  </div>
+  <p>If a button does nothing, add the source by hand (in the app's Sources, tap +) with this address:<br><code>https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/packaging/ios/altstore-source.json</code></p>
+  <p>Or download the .ipa files from the latest release and install them with any sideloading tool:</p>
+  <div class="buttons">
+    <a class="button secondary" href="https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/latest">Latest release</a>
+    <a class="button secondary" href="https://github.com/sithewok13-dev/OpenJKDF2-iOS/blob/HEAD/docs/ios/README.md">Setup guide</a>
+  </div>
+
+  <h2>What you need</h2>
+  <ul>
+    <li>Your own copy of the game, from GOG or Steam. No game files are included: you copy yours into the app with the Files app.</li>
+    <li>An iPhone or iPad with iOS 18 or newer, and a sideloading app such as SideStore, AltStore (Classic) or Sideloadly.</li>
+    <li>A little patience: it's a beta. Expect bugs, and back up your saves.</li>
+  </ul>
+
+  <h2>More</h2>
+  <ul>
+    <li><a href="https://github.com/sithewok13-dev/OpenJKDF2-iOS">Source code on GitHub</a></li>
+    <li><a href="https://github.com/sithewok13-dev/OpenJKDF2-iOS/issues">Report a bug</a> (here, not to the upstream OpenJKDF2 project)</li>
+  </ul>
+
+  <footer>
+    Based on <a href="https://github.com/shinyquagsire23/OpenJKDF2">OpenJKDF2</a> by shinyquagsire23 (Max Thomas) and the OpenJKDF2 contributors. This iOS port is an unofficial fan project, not an official OpenJKDF2 release, and is not affiliated with or endorsed by Lucasfilm, Disney or LucasArts. Star Wars and related names are trademarks of their owners.
+  </footer>
+</main>
+<script>
+  // #add-sidestore / #add-altstore: open that app's "add source" screen at once
+  (function () {
+    var target = { "#add-sidestore": 0, "#add-altstore": 1 }[location.hash];
+    if (target !== undefined) {
+      location.href = document.querySelectorAll(".buttons .button")[target].href;
+    }
+  })();
+</script>
+</body>
+</html>

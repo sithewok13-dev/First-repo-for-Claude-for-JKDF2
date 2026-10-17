@@ -20,6 +20,9 @@
 #     and isn't marked latest.
 #     The run stops before building if the notes have no "### What's in <tag>"
 #     heading line, so a release can't go out with missing or stale notes.
+#     After publishing, it adds the release to the AltStore / SideStore source
+#     (packaging/ios/altstore-source.json) and commits that to the default
+#     branch. If that part fails, the release is still out: add it by hand.
 #
 # ANGLE (GLES on Metal) is not built by OpenJKDF2's CMake, so this workflow
 # builds it with depot_tools and caches the result. The first run takes a long
@@ -45,10 +48,13 @@ on:
     # tags (such as ios-latest) don't start a run.
     tags:
       - 'v*'
-    # Branch pushes that only change Markdown or docs/ still don't build.
+    # Branch pushes that only change Markdown or docs/ still don't build, nor
+    # ones that only change the AltStore / SideStore source (a release run
+    # commits it; the apps don't include it).
     paths-ignore:
       - '**.md'
       - 'docs/**'
+      - 'packaging/ios/altstore-source.json'
   workflow_dispatch:
     inputs:
       release:
@@ -206,6 +212,9 @@ jobs:
         run: |
           set -e
           export ANGLE_ROOT="$GITHUB_WORKSPACE/angle-prebuilt"
+          # A new build number (CFBundleVersion) for every run, so AltStore and
+          # SideStore can tell releases apart (cmake_modules/target_ios_all.cmake)
+          export IOS_BUNDLE_VERSION="${{ github.run_number }}"
           ./build_ios.sh
           test -d OpenJKDF2-iOS.app
 
@@ -293,3 +302,50 @@ jobs:
             OpenJKDF2-iOS-unsigned.ipa
             OpenJKDF2-MotS-iOS-unsigned.ipa
           fail_on_unmatched_files: true
+
+      # Added: the AltStore / SideStore source (packaging/ios/altstore-source.json)
+      # gets the release just published: a new entry for each app, with the
+      # size, SHA-256, date, download link and a summary of the notes
+      # (packaging/ios/update_altstore_source.py), committed to the default
+      # branch. It's a commit by GITHUB_TOKEN marked [skip ci], and the file is
+      # in paths-ignore, so it starts no build. continue-on-error: if anything
+      # here fails, the release (already out) still counts as a success.
+      - name: Add the release to the AltStore / SideStore source
+        if: ${{ env.RELEASE_TAG != '' && !startsWith(github.ref, 'refs/heads/exp/') }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          trap 'echo "::warning::The AltStore / SideStore source was not updated for ${RELEASE_TAG}. The release itself is published; add it to packaging/ios/altstore-source.json by hand."' ERR
+          SRC="$RUNNER_TEMP/altstore-source"
+          rm -rf "$SRC"
+          git clone --quiet --depth 1 --branch "$SOURCE_BRANCH" \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$SRC"
+          git -C "$SRC" config user.name "github-actions[bot]"
+          git -C "$SRC" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            # The script and the notes come from the commit just built; the
+            # source file from the newest default branch
+            python3 -I packaging/ios/update_altstore_source.py \
+              --source "$SRC/packaging/ios/altstore-source.json" \
+              --tag "$RELEASE_TAG" --notes docs/ios/RELEASE_NOTES.md \
+              --ipa OpenJKDF2-iOS-unsigned.ipa --ipa OpenJKDF2-MotS-iOS-unsigned.ipa
+            if git -C "$SRC" diff --quiet; then
+              echo "The source already has ${RELEASE_TAG}"
+              break
+            fi
+            git -C "$SRC" commit --quiet -am "iOS: add ${RELEASE_TAG} to the AltStore / SideStore source [skip ci]"
+            if git -C "$SRC" push --quiet origin "HEAD:${SOURCE_BRANCH}"; then
+              echo "Added ${RELEASE_TAG} to the source on ${SOURCE_BRANCH}"
+              break
+            fi
+            if [ "$attempt" = 3 ]; then
+              false # gives up (the warning above)
+            fi
+            # Someone pushed in between: start again from the new branch head
+            git -C "$SRC" fetch --quiet --depth 1 origin "$SOURCE_BRANCH"
+            git -C "$SRC" reset --quiet --hard FETCH_HEAD
+          done
+          rm -rf "$SRC"

@@ -1,0 +1,86 @@
+{
+  "name": "OpenJKDF2 for iOS (unofficial)",
+  "identifier": "io.github.sithewok13-dev.openjkdf2-ios",
+  "subtitle": "Jedi Knight and Mysteries of the Sith on iPhone and iPad",
+  "description": "An unofficial fan port of OpenJKDF2, the open-source Jedi Knight engine, to iPhone and iPad, with touch controls. Two apps: OpenJKDF2 for Star Wars Jedi Knight: Dark Forces II, and OpenMoTS for Mysteries of the Sith.\n\nYou need your own copy of each game (GOG or Steam). No game files are included.\n\nIt's a beta. Setup guide and bug reports: https://github.com/sithewok13-dev/OpenJKDF2-iOS\n\nNot affiliated with or endorsed by Lucasfilm, Disney or LucasArts, or by the OpenJKDF2 developers.",
+  "iconURL": "https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/packaging/icon-256.png",
+  "website": "https://github.com/sithewok13-dev/OpenJKDF2-iOS",
+  "tintColor": "#8e3aa8",
+  "apps": [
+    {
+      "name": "OpenJKDF2",
+      "bundleIdentifier": "org.openjkdf2.openjkdf2",
+      "developerName": "OpenJKDF2 contributors, iOS port by sithewok13-dev",
+      "subtitle": "Jedi Knight: Dark Forces II, with touch controls",
+      "localizedDescription": "An unofficial fan port of OpenJKDF2 to iPhone and iPad: play Star Wars Jedi Knight: Dark Forces II (1997) with on-screen touch controls, a game controller or a keyboard, and multiplayer.\n\nYou need your own copy of the game (GOG or Steam); no game files are included. Open the app once, then copy the game's Episode, Resource and MUSIC folders into Files > On My iPhone > OpenJKDF2 > jk1.\n\nIt's a beta: expect bugs, and back up your saves.\n\nSetup guide: https://github.com/sithewok13-dev/OpenJKDF2-iOS/blob/HEAD/docs/ios/README.md\n\nNot affiliated with or endorsed by Lucasfilm, Disney or LucasArts, or by the OpenJKDF2 developers.",
+      "iconURL": "https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/packaging/icon-256.png",
+      "tintColor": "#a43fb0",
+      "category": "games",
+      "screenshots": [],
+      "versions": [
+        {
+          "version": "0.9.9",
+          "buildVersion": "0.9.9",
+          "marketingVersion": "v0.8-beta2",
+          "date": "2026-10-16T23:49:53Z",
+          "localizedDescription": "New since v0.8-beta1:\n- Join games hosted by the original 1997 Jedi Knight\n- Easier-to-read multiplayer menus\n- New lightsaber colours (REFORGED)\n- CLASSIC or REFORGED\n- The cheat's level pick has moved to a LEVEL button\n- Multiplayer stops its background work when you're not playing it\n- Fixes\n\nFull notes: https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/tag/v0.8-beta2",
+          "downloadURL": "https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/download/v0.8-beta2/OpenJKDF2-iOS-unsigned.ipa",
+          "size": 5962112,
+          "sha256": "1d358564dffc318beb6bfe2c8e2ff1793ca4cde34c5405d548567accd1d00746",
+          "minOSVersion": "18.0"
+        }
+      ],
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {
+          "NSLocalNetworkUsageDescription": "Multiplayer finds and connects to the other players' devices on your Wi-Fi network.",
+          "NSMotionUsageDescription": "Turning the device aims, while gyro aiming is on (hold MENU to set it).",
+          "NSPhotoLibraryAddUsageDescription": "The CAMERA button saves its photos to your library."
+        }
+      },
+      "version": "0.9.9",
+      "versionDate": "2026-10-16T23:49:53Z",
+      "versionDescription": "New since v0.8-beta1:\n- Join games hosted by the original 1997 Jedi Knight\n- Easier-to-read multiplayer menus\n- New lightsaber colours (REFORGED)\n- CLASSIC or REFORGED\n- The cheat's level pick has moved to a LEVEL button\n- Multiplayer stops its background work when you're not playing it\n- Fixes\n\nFull notes: https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/tag/v0.8-beta2",
+      "downloadURL": "https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/download/v0.8-beta2/OpenJKDF2-iOS-unsigned.ipa",
+      "size": 5962112
+    },
+    {
+      "name": "OpenMoTS",
+      "bundleIdentifier": "org.openjkdf2.openjkdf2.mots",
+      "developerName": "OpenJKDF2 contributors, iOS port by sithewok13-dev",
+      "subtitle": "Mysteries of the Sith, with touch controls",
+      "localizedDescription": "An unofficial fan port of OpenJKDF2 to iPhone and iPad, for the expansion Star Wars Jedi Knight: Mysteries of the Sith (1998). Same engine and touch controls as OpenJKDF2, in a separate app with its own files and saves. It has had less testing than OpenJKDF2.\n\nYou need your own copy of the game (GOG or Steam); no game files are included. Open the app once, then copy the game's Episode, Resource and MUSIC folders into Files > On My iPhone > OpenMoTS > mots.\n\nIt's a beta: expect bugs, and back up your saves.\n\nSetup guide: https://github.com/sithewok13-dev/OpenJKDF2-iOS/blob/HEAD/docs/ios/README.md#mysteries-of-the-sith\n\nNot affiliated with or endorsed by Lucasfilm, Disney or LucasArts, or by the OpenJKDF2 developers.",
+      "iconURL": "https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/packaging/mots_icon-256.png",
+      "tintColor": "#7d2d9a",
+      "category": "games",
+      "screenshots": [],
+      "versions": [
+        {
+          "version": "0.9.9",
+          "buildVersion": "0.9.9",
+          "marketingVersion": "v0.8-beta2",
+          "date": "2026-10-16T23:49:53Z",
+          "localizedDescription": "New since v0.8-beta1:\n- Join games hosted by the original 1997 Jedi Knight\n- Easier-to-read multiplayer menus\n- New lightsaber colours (REFORGED)\n- CLASSIC or REFORGED\n- The cheat's level pick has moved to a LEVEL button\n- Multiplayer stops its background work when you're not playing it\n- Fixes\n\nFull notes: https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/tag/v0.8-beta2",
+          "downloadURL": "https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/download/v0.8-beta2/OpenJKDF2-MotS-iOS-unsigned.ipa",
+          "size": 5948980,
+          "sha256": "f610e3e38299708fa8803387c0f6ec4ad4f155f2f42b258ac837ff298368d701",
+          "minOSVersion": "18.0"
+        }
+      ],
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {
+          "NSLocalNetworkUsageDescription": "Multiplayer finds and connects to the other players' devices on your Wi-Fi network.",
+          "NSMotionUsageDescription": "Turning the device aims, while gyro aiming is on (hold MENU to set it).",
+          "NSPhotoLibraryAddUsageDescription": "The CAMERA button saves its photos to your library."
+        }
+      },
+      "version": "0.9.9",
+      "versionDate": "2026-10-16T23:49:53Z",
+      "versionDescription": "New since v0.8-beta1:\n- Join games hosted by the original 1997 Jedi Knight\n- Easier-to-read multiplayer menus\n- New lightsaber colours (REFORGED)\n- CLASSIC or REFORGED\n- The cheat's level pick has moved to a LEVEL button\n- Multiplayer stops its background work when you're not playing it\n- Fixes\n\nFull notes: https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/tag/v0.8-beta2",
+      "downloadURL": "https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/download/v0.8-beta2/OpenJKDF2-MotS-iOS-unsigned.ipa",
+      "size": 5948980
+    }
+  ],
+  "news": []
+}

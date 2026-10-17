@@ -31,6 +31,9 @@ everything on a phone.
     and absolute links. Commit and push them only after the owner's go.
   - **Before any public release or public text,** build a preview (phone and desktop
     widths) and wait for the owner's explicit go, such as "Publish v0.4".
+  - A release run commits the updated SideStore/AltStore source
+    (`packaging/ios/altstore-source.json`) to the build branch: pull before
+    pushing again, and never force-push it.
   - After publishing, download the IPA and verify: bundle id, no game data, the new
     code present, Latest marked, the tag on the built commit.
 - **Game data:** never commit, upload, bundle or publish game files (installers,
