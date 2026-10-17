@@ -350,6 +350,13 @@ void iosSaberShape_FreeWorld(void)
 
 // ------------------------------------------------------------ drawing
 
+// (a length: exactly. Not stdMath_Dist3D1, the engine's quick estimate,
+// which comes to nothing when the third part is the largest)
+static flex_t iosSaberShape_Len(flex_t x, flex_t y, flex_t z)
+{
+    return stdMath_Sqrt(x * x + y * y + z * z);
+}
+
 // The glow's faces: quads, lit as they are, the blade's own geometry, light
 // and texture modes
 static int iosSaberShape_aIdx[4] = { 0, 1, 2, 3 };
@@ -1162,13 +1169,13 @@ void iosSaberShape_DrawThrownGlow(SithThing* pThing, const rdMaterial* pBlade, c
             uvH = (flex_t)(v ? v->format.height : 1) - (flex_t)0.01;
         }
         iosSaberShape_Seed((uint32_t)sithTime_g_msecGameTime, 0x8000u + pThing->idx);
-        const flex_t r = stdMath_Dist3D1(b.x - a.x, b.y - a.y, b.z - a.z) * IOSSABERSHAPE_THROWN_BEAM;
+        const flex_t r = iosSaberShape_Len(b.x - a.x, b.y - a.y, b.z - a.z) * IOSSABERSHAPE_THROWN_BEAM;
         iosSaberShape_Cross(&glowThing, bSide ? &face : NULL, uvW, uvH, g, glowThing.curTexMode, &guard, &tip, &base, r,
                             r / IOSSABERSHAPE_CROSS_WIDTH, 0);
         return;
     }
     // (as wide as a held blade's of that length: the model's blade is drawn wider, with its blur)
-    const flex_t r = stdMath_Dist3D1(b.x - a.x, b.y - a.y, b.z - a.z) * IOSSABERSHAPE_THROWN_BEAM * IOSSABERSHAPE_GLOW_WIDTH;
+    const flex_t r = iosSaberShape_Len(b.x - a.x, b.y - a.y, b.z - a.z) * IOSSABERSHAPE_THROWN_BEAM * IOSSABERSHAPE_GLOW_WIDTH;
     iosSaberShape_GlowQuads(&glowThing, g, glowThing.curTexMode, &tip, &base, r, r, angCos, angSin, IOSSABERSHAPE_END_TIP | IOSSABERSHAPE_END_BASE);
 }
 
