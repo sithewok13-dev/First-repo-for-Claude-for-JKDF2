@@ -2583,8 +2583,13 @@ int rdClip_Face3GS(const rdClipFrustum* NO_ALIAS pFrustrum, rdVector3 *aVertices
     flex_d_t v61; // st5
     rdVector3 *v63; // eax
     int v64; // ecx
-    int v65; // edi
-    int v66; // esi
+    // Added: pointer-sized. These hold two buffer pointers XORed together for
+    // the swap below. As int, a 64-bit build kept only their low 32 bits (and
+    // sign-extended those), so whenever the two buffers lay either side of a
+    // 2 GiB line in memory (ASLR puts them there now and then) the swapped
+    // pointer was garbage and the next write crashed.
+    intptr_t v65; // edi
+    intptr_t v66; // esi
     rdVector3 *v67; // ebx
     flex_t *v68; // eax
     rdVector3 *v69; // edi
@@ -2631,9 +2636,9 @@ int rdClip_Face3GS(const rdClipFrustum* NO_ALIAS pFrustrum, rdVector3 *aVertices
     flex_d_t v129; // st5
     flex_d_t v130; // st6
     rdVector3 *v132; // ecx
-    int v135; // edi
+    intptr_t v135; // edi (Added: pointer-sized, as v65)
     flex_t* v136; // esi
-    int v137; // edx
+    intptr_t v137; // edx (Added: pointer-sized, as v65)
     flex_t *v138; // edi
     int v139; // ecx
     rdVector3 *v140; // ebx
