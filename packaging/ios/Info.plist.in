@@ -17,7 +17,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@</string>
 	<key>CFBundleVersion</key>
-	<string>@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@</string>
+	<string>@IOS_BUNDLE_VERSION@</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon.png</string>
 	<key>CFBundleSupportedPlatforms</key>

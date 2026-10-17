@@ -88,6 +88,17 @@ macro(postcompile_ios)
         set(IOS_EMBED_PROFILE_CMD)
     endif()
 
+    # The build number (CFBundleVersion). CI sets IOS_BUNDLE_VERSION to its run
+    # number, so every build has a new one: AltStore and SideStore tell an
+    # app's versions apart by version plus build number, and the version
+    # (CFBundleShortVersionString) stays the engine's. Without it, the engine's
+    # version, as before.
+    if(DEFINED ENV{IOS_BUNDLE_VERSION} AND NOT "$ENV{IOS_BUNDLE_VERSION}" STREQUAL "")
+        set(IOS_BUNDLE_VERSION $ENV{IOS_BUNDLE_VERSION})
+    else()
+        set(IOS_BUNDLE_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
+    endif()
+
     # CFBundleSupportedPlatforms/MinimumOSVersion differ per slice, so the plist is
     # a template rather than a static file.
     configure_file(${PROJECT_SOURCE_DIR}/packaging/ios/Info.plist.in
