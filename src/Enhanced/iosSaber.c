@@ -547,6 +547,25 @@ void iosSaber_EndThrown(SithThing* pThing)
     iosSaber_pThrownModel = NULL;
 }
 
+// (the hilt just drawn the saber's: the blade lit, or the model the game's saber
+// hand or hilt (sabv.3do, sabv_m.3do in first person, sabg.3do in third); not
+// another weapon's, as the saber is chosen while the last one is put away)
+static int iosSaber_HiltInHand(SithThing* pThing, const rdModel3* pHilt)
+{
+    if (pThing->jkFlags & JKFLAG_SABERON) return 1;
+    return pHilt && (!__strnicmp(pHilt->filename, "sabv", 4) || !__strcmpi(pHilt->filename, "sabg.3do"));
+}
+
+static int iosSaber_LookOf(SithThing* pThing, int* pStyle, int aId[IOSSABER_MAX_BLADES]); // (below)
+
+void iosSaber_DrawHilt(SithThing* pThing, rdThing* pLine, rdMatrix34* pOrient, const rdModel3* pHilt)
+{
+    int style, aId[IOSSABER_MAX_BLADES];
+    if (!pThing || !pLine || !pLine->polyline || !pOrient || !iosSaber_LookOf(pThing, &style, aId)) return;
+    if (!iosSaber_StyleHasCrossguard(style) || !iosSaber_HiltInHand(pThing, pHilt)) return;
+    iosSaberShape_DrawVents(pLine, pOrient);
+}
+
 static void iosSaber_ForgetArms(void); // (below: the second saber's arm)
 
 void iosSaber_FreeWorld(void)

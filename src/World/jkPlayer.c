@@ -1192,6 +1192,13 @@ void jkPlayer_DrawPov()
         jkPlayer_PovStance(&orient, &orientR);
         rdThing_Draw(&playerThings[playerThingIdx].povModel, &orientR);
         jkPlayer_DrawPovMirrored(&orient, &orientR); // Added: the second saber's arm
+        // Added: CROSS's hilt vents (iosSaber), part of the hilt: with the hand, lit
+        // or not, writing depth as it does (the blade, after, never paints over them)
+        if (playerThings[playerThingIdx].povModel.model3 && playerThings[playerThingIdx].povModel.paJointMatrices
+            && playerThings[playerThingIdx].povModel.model3->numHNodes > 5)
+            iosSaber_DrawHilt(playerThings[playerThingIdx].actorThing, &playerThings[playerThingIdx].polylineThing,
+                              &playerThings[playerThingIdx].povModel.paJointMatrices[5], // (K_Rhand, as jkSaber_Draw)
+                              playerThings[playerThingIdx].povModel.model3);
 #else
         rdThing_Draw(&playerThings[playerThingIdx].povModel, &orient);
         jkPlayer_DrawPovMirrored(&orient, &orient); // Added: the second saber's arm
@@ -1286,6 +1293,9 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
                 rdThing_Draw(&playerInfo->rd_thing, primaryMat);
             if (playerInfo->rd_thing.model3 && bSecondHilt)
                 rdThing_Draw(&playerInfo->rd_thing, secondaryMat); // Added
+#ifdef JK_ENHANCED
+            iosSaber_DrawHilt(thing, &playerInfo->polylineThing, primaryMat, playerInfo->rd_thing.model3); // Added: CROSS's hilt vents, lit or not
+#endif
 
             if (thing->jkFlags & JKFLAG_SABERON)
             {
@@ -1308,6 +1318,9 @@ void jkPlayer_renderSaberWeaponMesh(SithThing *thing)
             rdThing_Draw(&playerInfo->rd_thing, primaryMat);
         if (playerInfo->rd_thing.model3 && bSecondHilt)
             rdThing_Draw(&playerInfo->rd_thing, secondaryMat); // Added
+#ifdef JK_ENHANCED
+        iosSaber_DrawHilt(thing, &playerInfo->polylineThing, primaryMat, playerInfo->rd_thing.model3); // Added: CROSS's hilt vents, lit or not
+#endif
         
         if (thing->jkFlags & JKFLAG_SABERON)
         {

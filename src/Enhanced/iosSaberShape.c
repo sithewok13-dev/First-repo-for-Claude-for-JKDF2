@@ -822,23 +822,26 @@ static int iosSaberShape_GuardAxis(const rdMatrix34* pToCam, const rdVector3* pA
 }
 
 // CROSS's hilt vents: the film hilt's two short metal tubes out either side
-// just below its emitter, each held to the hilt by a small clamp, its outer
-// end cut on a slant (its upper half reaching further, a half-pipe lip) and
-// open, the side blade coming out of it. In the hilt's radius (R): their
-// middle line this far below the blade's base; from inside the hilt out to
-// this far from its axis (about the hilt's width past its side), the lip
-// this much further; the tubes' radius; the clamps out to here, this far
-// either side of the middle line. Visual only: solid faces, shaded by which
-// way they face a light above and in front of the eye; the ones facing away
-// left out.
-#define IOSSABERSHAPE_VENT_DROP 0.9f
+// at its emitter, each held to the hilt by a small clamp, its outer end cut
+// on a slant (its upper half reaching further, a half-pipe lip) and open, the
+// side blade coming out of it. Part of the hilt: drawn with it, the blade lit
+// or not (iosSaberShape_DrawVents), but for a thrown saber's (with its glow).
+// In the hilt's radius (R): their middle line this far below the blade's
+// base (the game's first person hand grips the hilt from 0.9 R below it, its
+// thumb out to the side: the vents and clamps stay above it); from inside
+// the hilt out to this far from its axis (about the hilt's width past its
+// side), the lip this much further; the tubes' radius; the clamps out to
+// here, this far either side of the middle line. Visual only: solid faces,
+// shaded by which way they face a light above and in front of the eye; the
+// ones facing away left out.
+#define IOSSABERSHAPE_VENT_DROP 0.15f
 #define IOSSABERSHAPE_VENT_IN 0.6f
 #define IOSSABERSHAPE_VENT_OUT 3.0f
 #define IOSSABERSHAPE_VENT_LIP 0.7f
-#define IOSSABERSHAPE_VENT_RADIUS 0.58f
+#define IOSSABERSHAPE_VENT_RADIUS 0.5f
 #define IOSSABERSHAPE_VENT_SIDES 6
 #define IOSSABERSHAPE_CLAMP_OUT 1.4f
-#define IOSSABERSHAPE_CLAMP_HALF 0.72f
+#define IOSSABERSHAPE_CLAMP_HALF 0.6f
 
 static int iosSaberShape_aPolyIdx[IOSSABERSHAPE_VENT_SIDES] = { 0, 1, 2, 3, 4, 5 };
 static rdVector3 iosSaberShape_aPolyVerts[IOSSABERSHAPE_VENT_SIDES];
@@ -1000,12 +1003,13 @@ static void iosSaberShape_Cross(rdThing* pLine, rdFace* pFace, flex_t uvW, flex_
     }
     else iosSaberShape_Across(pTip, pBase, &c, &sn);
 
-    // the hilt's vents, either side across the hand, and the side blades out of them
+    // the side blades out of the hilt's vents, either side across the hand (the vents: a held
+    // saber's drawn with its hilt, iosSaberShape_DrawVents; a thrown one's here)
     rdVector3 axis, aRoot[2], aTip[2];
     flex_t aCos[2] = { 1, 1 }, aSin[2] = { 0, 0 };
     const int bGuards = pToCam && iosSaberShape_GuardAxis(pToCam, &along, &axis);
     const flex_t gl = len * IOSSABERSHAPE_CROSS_GUARD_LEN, gr = r * IOSSABERSHAPE_CROSS_GUARD_WIDTH;
-    if (bGuards) iosSaberShape_Vents(pLine, texMode, pBase, &along, &axis, R, iosSaberShape_Metals(), aRoot);
+    if (bGuards) iosSaberShape_Vents(pLine, texMode, pBase, &along, &axis, R, !bBlade && iosSaberShape_Metals(), aRoot);
     for (int k = 0; bGuards && k < 2; k++) {
         const flex_t side = k ? (flex_t)-1 : (flex_t)1;
         aTip[k].x = aRoot[k].x + axis.x * gl * side;
@@ -1028,6 +1032,22 @@ static void iosSaberShape_Cross(rdThing* pLine, rdFace* pFace, flex_t uvW, flex_
         iosSaberShape_GlowQuads(pLine, g, texMode, &aTip[k], &aRoot[k], gr * IOSSABERSHAPE_CROSS_GLOW_WIDTH * f * IOSSABERSHAPE_CROSS_GLOW_POINT,
                                 gr * IOSSABERSHAPE_CROSS_GLOW_WIDTH * f, aCos[k], aSin[k], IOSSABERSHAPE_END_TIP);
     iosSaberShape_GlowSetBack(0);
+}
+
+void iosSaberShape_DrawVents(rdThing* pLine, const rdMatrix34* pOrient)
+{
+    if (!pLine || !pLine->polyline || !pOrient || !rdCamera_g_pCurCamera || !iosSaberShape_Metals()) return;
+    // (the blade's frame, as rdPolyline_Draw lays it: up from its base, across the hand)
+    rdMatrix34 toCam;
+    rdMatrix_Multiply34(&toCam, &rdCamera_g_pCurCamera->orient, pOrient);
+    rdVector3 along = toCam.lvec, axis, aRoot[2];
+    const flex_t m = iosSaberShape_Len(along.x, along.y, along.z);
+    if (m <= (flex_t)0.000001) return;
+    along.x /= m;
+    along.y /= m;
+    along.z /= m;
+    if (!iosSaberShape_GuardAxis(&toCam, &along, &axis)) return;
+    iosSaberShape_Vents(pLine, pLine->polyline->face.textureMode, &toCam.scale, &along, &axis, pLine->polyline->baseRadius, 1, aRoot);
 }
 
 int iosSaberShape_DrawBlade(rdThing* pLine, const rdMatrix34* pToCam, const rdVector3* pTip, const rdVector3* pBase, float angCos, float angSin)

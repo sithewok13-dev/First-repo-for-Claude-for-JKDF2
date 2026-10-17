@@ -30,10 +30,13 @@
 //          few short sparks off its sides, narrowing to a point; and two short
 //          side blades (IOSSABERSHAPE_CROSS_GUARD_LEN of its length) straight
 //          out from it at the hilt, either way across the hand, jagged and
-//          pointed too; all with a glow in the blade's colour, stronger than
-//          BEAM's. Drawn with the blade's own side texture and colour. The
-//          side blades are only drawn: the game strikes with its blade alone.
-//          A thrown saber's blade (a model) gets the glow and the side blades.
+//          pointed too, out of two small metal vents on the hilt
+//          (iosSaberShape_DrawVents: part of the hilt, there lit or not); all
+//          with a glow in the blade's colour, stronger than BEAM's. Drawn with
+//          the blade's own side texture and colour. The vents and side blades
+//          are only drawn: the game strikes with its blade alone. A thrown
+//          saber's blade (a model) gets the glow, the vents and the side
+//          blades.
 
 #ifndef _ENHANCED_IOSSABERSHAPE_H
 #define _ENHANCED_IOSSABERSHAPE_H
@@ -87,6 +90,12 @@ void iosSaberShape_FlushGlows(void);
 // and its glow round it) or CROSS's; 1 if it was (the side not to be drawn
 // again), 0 for any other
 struct rdMatrix34;
+// CROSS's hilt vents (iosSaber_DrawHilt), as part of the hilt: drawn with it
+// (in first person, with the hand, so they hide what is behind them as the
+// hilt does), the blade lit or not; pOrient the blade's frame as
+// rdPolyline_Draw takes it, the template's widths as they are (not begun)
+void iosSaberShape_DrawVents(struct rdThing* pLine, const struct rdMatrix34* pOrient);
+
 int iosSaberShape_DrawBlade(struct rdThing* pLine, const struct rdMatrix34* pToCam, const struct rdVector3* pTip, const struct rdVector3* pBase,
                             float angCos, float angSin);
 

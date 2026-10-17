@@ -118,6 +118,14 @@ void iosSaber_FreeWorld(void);
 
 // A thing drawn (sithRender_RenderThing): a saber the player threw, in its
 // colour (iosSaberThrow_ThrownColour) just while it is drawn, between these
+// A player's saber hilt just drawn (jkPlayer: first person the hand, the point
+// of view model; third person the weapon mesh; pHilt that model, pOrient the
+// blade's frame there): with CROSS, its vents (iosSaberShape_DrawVents), the
+// blade lit or not, while the model is the saber's
+struct rdMatrix34;
+struct rdModel3;
+void iosSaber_DrawHilt(struct SithThing* pThing, struct rdThing* pLine, struct rdMatrix34* pOrient, const struct rdModel3* pHilt);
+
 void iosSaber_BeginThrown(struct SithThing* pThing);
 void iosSaber_EndThrown(struct SithThing* pThing);
 
