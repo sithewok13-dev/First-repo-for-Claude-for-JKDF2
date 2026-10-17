@@ -32,7 +32,8 @@
 //     with nothing pointed at, the wheel stays open: a click picks, the
 //     scroll wheel steps through it, a right click or Escape closes it.
 //     L opens the saber wheel (once there is a saber): a click sets a
-//     colour, 1 one saber or two, 2 which blade, 3 takes the saber.
+//     colour, 1 the next style (one saber, two, the crossguard), 2 which
+//     blade, 3 takes the saber.
 //   - Shortcuts for what is touch-only, where nothing else is bound to the
 //     key (Setup > Keyboard can take any of them): H first or third person
 //     (as VIEW; the game's own camera key F1 too), P a photo (as CAMERA;

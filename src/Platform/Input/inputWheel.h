@@ -21,8 +21,8 @@
 // Every power has a fixed slice of the Force wheel, learned or not (those
 // are dimmed); every weapon its slot on the weapon wheel, in the number key
 // order, with its ammo count; every blade colour its slice on the saber
-// wheel, with the choices beside it (one saber or two, which blade, take the
-// saber). The gap at the bottom cancels. A learned power's level shows as
+// wheel, with the choices beside it (one saber, two or the crossguard, which
+// blade, take the saber). The gap at the bottom cancels. A learned power's level shows as
 // four stars, filled one per level.
 //
 // Units: points (y down) for drawing; angles in degrees counter-clockwise
@@ -66,12 +66,13 @@ typedef struct {
     float gapDeg;   // between two groups (the gap at the bottom is what is left)
 } inputWheelMap;
 
-// The saber wheel's choices beside the ring: one saber or two, and under them
-// the blade's shape (an on/off switch: BEAM on, SPIKE off; iosSaberShape),
-// which of two blades a colour goes to; and in the middle, the saber in hand
-// and the colours' look (CLASSIC / REFORGED, iosSaber_GetLook)
+// The saber wheel's choices beside the ring: one saber, two or the
+// crossguard, and under them the blade's shape (an on/off switch: BEAM on,
+// SPIKE off; iosSaberShape; dim with CROSS, which has its own), which of two
+// blades a colour goes to; and in the middle, the saber in hand and the
+// colours' look (CLASSIC / REFORGED, iosSaber_GetLook)
 enum { INPUTWHEEL_CHIP_SINGLE = 0, INPUTWHEEL_CHIP_DUAL, INPUTWHEEL_CHIP_LEFT, INPUTWHEEL_CHIP_BOTH, INPUTWHEEL_CHIP_RIGHT,
-       INPUTWHEEL_CHIP_EQUIP, INPUTWHEEL_CHIP_LOOK, INPUTWHEEL_CHIP_SHAPE, INPUTWHEEL_NUM_CHIPS };
+       INPUTWHEEL_CHIP_EQUIP, INPUTWHEEL_CHIP_LOOK, INPUTWHEEL_CHIP_SHAPE, INPUTWHEEL_CHIP_CROSS, INPUTWHEEL_NUM_CHIPS };
 // With two blades, the one a colour goes to
 enum { INPUTWHEEL_SABER_RIGHT = 0, INPUTWHEEL_SABER_LEFT = 1, INPUTWHEEL_SABER_BOTH = 2 };
 
@@ -131,7 +132,7 @@ int inputWheel_IsPickable(int slice);
 // -1 closes the saber wheel too.
 int inputWheel_Close(int slice);
 
-// The saber wheel's choices (INPUTWHEEL_CHIP_*): SINGLE / DUAL, the blade a
+// The saber wheel's choices (INPUTWHEEL_CHIP_*): SINGLE / DUAL / CROSS, the blade a
 // colour goes to, EQUIP (the saber in hand: the wheel closes), the look (the
 // other one: the wheel made again in it, still open; remembered by the
 // platform around this, from iosSaber_GetLook), the shape (BEAM on or off, the

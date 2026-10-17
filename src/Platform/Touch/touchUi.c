@@ -406,7 +406,7 @@ static void tu_SaveSettings(void)
         if (name) fprintf(f, "saberShape=%s\n", name);
     }
     if (G(SaberStyleName) && G(SaberStyleNumBlades) && G(SaberGetColour) && G(SaberColourKey)) {
-        for (int st = TOUCHUI_SABER_SINGLE; st <= TOUCHUI_SABER_DUAL; st++) {
+        for (int st = TOUCHUI_SABER_SINGLE; st < TOUCHUI_SABER_MAX_STYLES && tu.game->SaberStyleName(st); st++) {
             const char* name = tu.game->SaberStyleName(st);
             for (int b = 0; name && b < tu.game->SaberStyleNumBlades(st); b++) {
                 const char* key = tu.game->SaberColourKey(tu.game->SaberGetColour(st, b));
@@ -463,7 +463,7 @@ static void tu_LoadSettings(void)
             char* v = eq + 1;
             v[strcspn(v, "\r\n")] = 0;
             if (!strcmp(k, "saberStyle") && G(SaberStyleName) && G(SaberSetStyle)) {
-                for (int st = TOUCHUI_SABER_SINGLE; st <= TOUCHUI_SABER_DUAL; st++) {
+                for (int st = TOUCHUI_SABER_SINGLE; st < TOUCHUI_SABER_MAX_STYLES && tu.game->SaberStyleName(st); st++) {
                     const char* name = tu.game->SaberStyleName(st);
                     if (name && !strcmp(name, v)) tu.game->SaberSetStyle(st);
                 }
@@ -478,7 +478,7 @@ static void tu_LoadSettings(void)
             }
             else if (!strncmp(k, "saberColour.", 12) && G(SaberStyleName) && G(SaberSetColour) && G(SaberColourByKey)) {
                 const char* dot = strrchr(k, '.');
-                for (int st = TOUCHUI_SABER_SINGLE; dot && st <= TOUCHUI_SABER_DUAL; st++) {
+                for (int st = TOUCHUI_SABER_SINGLE; dot && st < TOUCHUI_SABER_MAX_STYLES && tu.game->SaberStyleName(st); st++) {
                     const char* name = tu.game->SaberStyleName(st);
                     if (!name || strlen(name) != (size_t)(dot - (k + 12)) || strncmp(k + 12, name, dot - (k + 12))) continue;
                     const int id = tu.game->SaberColourByKey(v);
@@ -1593,14 +1593,14 @@ static void tu_SaberTargetFromShared(void)
     tu_SaveSettings();
 }
 
-// One of the saber wheel's choices tapped: one saber or two (each keeps its
-// own colours), which of the two a colour goes to, the colours' look (the
+// One of the saber wheel's choices tapped: one saber, two or the crossguard
+// (each keeps its own colours), which of the two a colour goes to, the colours' look (the
 // wheel made again in it), or the blade's shape (BEAM on or off) -- the wheel
 // stays open to tap a colour; or EQUIP:
 // the saber in hand, the wheel closed
 // (the overlay's choices are the shared wheel's, by number)
 typedef char tu_assertChips[((int)TOUCHUI_CHIP_EQUIP == (int)INPUTWHEEL_CHIP_EQUIP && (int)TOUCHUI_CHIP_LOOK == (int)INPUTWHEEL_CHIP_LOOK
-                             && (int)TOUCHUI_CHIP_SHAPE == (int)INPUTWHEEL_CHIP_SHAPE
+                             && (int)TOUCHUI_CHIP_SHAPE == (int)INPUTWHEEL_CHIP_SHAPE && (int)TOUCHUI_CHIP_CROSS == (int)INPUTWHEEL_CHIP_CROSS
                              && (int)TOUCHUI_NUM_CHIPS == (int)INPUTWHEEL_NUM_CHIPS) ? 1 : -1];
 static void tu_UseSaberChip(int chip)
 {

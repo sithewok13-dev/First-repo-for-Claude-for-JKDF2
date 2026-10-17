@@ -248,8 +248,13 @@ void inputUi_SaberChip(int chip)
 {
     if (!inputOverlay_OutsideWheelIsOpen() || inputWheel_GetKind() != INPUTWHEEL_SABER) return;
     if (chip == IOSPAD_CHIP_STYLE) {
-        const int bDual = iosSaber_GetStyle() == IOSSABER_STYLE_DUAL;
-        inputWheel_SaberChip(bDual ? INPUTWHEEL_CHIP_SINGLE : INPUTWHEEL_CHIP_DUAL);
+        // the next style, as they sit: SINGLE, DUAL, CROSS, round again (those that can be picked)
+        const int cur = iosSaber_GetStyle();
+        int next = cur;
+        for (int k = 1; k <= IOSSABER_NUM_STYLES && next == cur; k++)
+            if (iosSaber_StyleAvailable((cur + k) % IOSSABER_NUM_STYLES)) next = (cur + k) % IOSSABER_NUM_STYLES;
+        if (next != cur)
+            inputWheel_SaberChip(next == IOSSABER_STYLE_DUAL ? INPUTWHEEL_CHIP_DUAL : next == IOSSABER_STYLE_CROSS ? INPUTWHEEL_CHIP_CROSS : INPUTWHEEL_CHIP_SINGLE);
     }
     else if (chip == IOSPAD_CHIP_TARGET) {
         // LEFT, BOTH, RIGHT, as they sit

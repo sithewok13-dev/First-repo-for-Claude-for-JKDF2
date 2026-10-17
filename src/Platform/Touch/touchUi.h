@@ -153,8 +153,8 @@ enum { TOUCHUI_CAPTURE_PHOTO = 0, TOUCHUI_CAPTURE_BURST = 1, TOUCHUI_CAPTURE_SEL
 enum { TOUCHUI_PHOTOMODE_BUSY = -1, TOUCHUI_PHOTOMODE_CANT = 0, TOUCHUI_PHOTOMODE_STARTED = 1 };
 // The photo modes that end by themselves (platServices_PhotoModeEnded's)
 enum { TOUCHUI_MODE_SELFIE = 1, TOUCHUI_MODE_CINEMA = 2 };
-// The saber's styles (iosSaber's)
-enum { TOUCHUI_SABER_SINGLE = 0, TOUCHUI_SABER_DUAL = 1 };
+// The saber's styles (iosSaber's; SaberStyleName is NULL past the last)
+enum { TOUCHUI_SABER_SINGLE = 0, TOUCHUI_SABER_DUAL = 1, TOUCHUI_SABER_CROSS = 2, TOUCHUI_SABER_MAX_STYLES = 8 };
 
 // The buttons (for the tests, and the engine's queries)
 enum {
@@ -174,9 +174,9 @@ enum { TOUCHUI_GYRO_OFF = 0, TOUCHUI_GYRO_TOUCH, TOUCHUI_GYRO_ALWAYS };
 enum { TOUCHUI_HAPTIC_TICK = 1, TOUCHUI_HAPTIC_TAP = 2 };
 enum { TOUCHUI_WHEEL_FORCE = 0, TOUCHUI_WHEEL_WEAPONS, TOUCHUI_WHEEL_SABER };
 // The saber wheel's choices beside the ring (the blade's shape, BEAM on or
-// off, under SINGLE and DUAL), and in its middle (EQUIP, the colours' look)
+// off, under SINGLE, DUAL and CROSS), and in its middle (EQUIP, the colours' look)
 enum { TOUCHUI_CHIP_SINGLE = 0, TOUCHUI_CHIP_DUAL, TOUCHUI_CHIP_LEFT, TOUCHUI_CHIP_BOTH, TOUCHUI_CHIP_RIGHT, TOUCHUI_CHIP_EQUIP,
-       TOUCHUI_CHIP_LOOK, TOUCHUI_CHIP_SHAPE, TOUCHUI_NUM_CHIPS };
+       TOUCHUI_CHIP_LOOK, TOUCHUI_CHIP_SHAPE, TOUCHUI_CHIP_CROSS, TOUCHUI_NUM_CHIPS };
 
 // Once, before anything else. The settings file (key=value lines) is read
 // now, if there is one, and written whenever a remembered setting changes.

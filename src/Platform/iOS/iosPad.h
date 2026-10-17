@@ -27,7 +27,8 @@
 //         pointed at, the wheel stays open to pick with A (D-pad left and
 //         right step through it); B cancels. A tick and a short rumble for
 //         every slice. On the saber wheel: A sets the colour (it stays
-//         open), X one saber or two, Y which blade, R3 takes the saber.
+//         open), X the next style (one saber, two, the crossguard), Y which
+//         blade, R3 takes the saber.
 //       - Start (Menu, Options, +): a tap opens the game menu as MENU does;
 //         held 0.45 s, the controller options (iosPadPanel: LOOK X, LOOK Y,
 //         CURVE, INVERT, ACCEL, VIBRATION, FPS, TYPE), the game held still.
@@ -80,7 +81,7 @@ extern "C" {
 #define IOSPAD_WHEEL_SABER 2
 
 // The saber wheel's choices a pad can make (iosTouch_PadSaberChip)
-#define IOSPAD_CHIP_STYLE 0  // one saber or two
+#define IOSPAD_CHIP_STYLE 0  // the next style: one saber, two, the crossguard
 #define IOSPAD_CHIP_TARGET 1 // with two: the next of LEFT, BOTH, RIGHT
 #define IOSPAD_CHIP_EQUIP 2  // the saber in hand
 #define IOSPAD_CHIP_LOOK 3   // the colours' other look (CLASSIC / REFORGED)
