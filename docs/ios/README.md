@@ -5,7 +5,9 @@ with on-screen touch controls, using your own copy of the game. Its expansion,
 **Mysteries of the Sith**, has an app of its own.
 
 - **Download:** `OpenJKDF2-iOS-unsigned.ipa` from the
-  [latest release](https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/latest)
+  [latest release](https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/latest),
+  or, easiest, add the source in SideStore or AltStore (see
+  [2. Install the app](#2-install-the-app))
 - **Mysteries of the Sith:** a separate app, OpenMoTS
   (`OpenJKDF2-MotS-iOS-unsigned.ipa`, new in v0.4). See
   [Mysteries of the Sith](#mysteries-of-the-sith).
@@ -120,6 +122,29 @@ folders. You don't need `JK.EXE` or anything else from the game folder.
 
 ## 2. Install the app
 
+### Easiest: add the source in SideStore or AltStore
+
+If you use **SideStore** or **AltStore** (AltStore Classic), you don't have to
+download anything by hand. Add this project's *source* once, and you can
+install both apps from it, and later update them, inside SideStore or
+AltStore:
+
+1. Set up SideStore or AltStore first, with its own instructions (see
+   [Sign and install it](#sign-and-install-it) below).
+2. On your iPhone, tap **[Add to SideStore](https://sithewok13-dev.github.io/OpenJKDF2-iOS/#add-sidestore)** or
+   **[Add to AltStore](https://sithewok13-dev.github.io/OpenJKDF2-iOS/#add-altstore)**, and confirm. If that doesn't
+   open the app, open it yourself, go to *Sources*, tap **+**, and paste
+   this address:
+   `https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/packaging/ios/altstore-source.json`
+3. Open the new source, *OpenJKDF2 for iOS (unofficial)*. It lists
+   **OpenJKDF2** (Jedi Knight) and **OpenMoTS** (Mysteries of the Sith).
+   Install the one for the game you have, or both.
+4. Then copy your game files: [3. Copy the game files to your iPhone](#3-copy-the-game-files-to-your-iphone).
+
+The source always has the newest numbered release, betas included (not the
+"iOS latest build" below). The rest of this section is for installing the
+`.ipa` file yourself, with any tool.
+
 ### Download the .ipa
 
 Go to the [latest release](https://github.com/sithewok13-dev/OpenJKDF2-iOS/releases/latest)
@@ -178,7 +203,8 @@ The first time, iOS may ask for two more things:
 - **"Untrusted Developer":** go to *Settings > General > VPN & Device Management*,
   tap your Apple ID under *Developer App*, and tap *Trust*.
 
-**Updating:** to install a newer version, sideload the new `.ipa` with the same tool and
+**Updating:** if you installed from the source, update the app in SideStore or
+AltStore. Otherwise, sideload the new `.ipa` with the same tool and
 Apple ID. It replaces the app and keeps your game files and saves. If you
 switch to a different tool or Apple ID, iOS may install it as a separate
 app with an empty folder. If that happens, open the new app once, copy
