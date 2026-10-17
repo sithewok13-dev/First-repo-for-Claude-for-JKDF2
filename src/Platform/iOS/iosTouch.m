@@ -197,17 +197,24 @@ extern int jkHud_bChatOpen;
 #define IOSTOUCH_SABERTARGET_DEFAULTS_KEY @"iosTouchSaberTarget"
 #define IOSTOUCH_SABERLOOK_DEFAULTS_KEY @"iosTouchSaberLook" // (by its name: CLASSIC, REFORGED)
 #define IOSTOUCH_SABERSHAPE_DEFAULTS_KEY @"iosTouchSaberShape" // (by its name: SPIKE, BEAM; iosSaberShape)
-// The saber wheel's choices beside the ring: SINGLE and DUAL on its left;
-// with DUAL, which blade a colour goes to (LEFT, BOTH, RIGHT) on its right.
+// The saber wheel's choices beside the ring: SINGLE, DUAL and the blade's
+// shape (BEAM, an on/off switch) on its left; with DUAL, which blade a colour
+// goes to (LEFT, BOTH, RIGHT) on its right.
 // Each IOSTOUCH_SABER_CHIP_W by _H, this far out from the ring and apart.
 enum { IOSTOUCH_CHIP_SINGLE = 0, IOSTOUCH_CHIP_DUAL, IOSTOUCH_CHIP_LEFT, IOSTOUCH_CHIP_BOTH, IOSTOUCH_CHIP_RIGHT,
        IOSTOUCH_CHIP_EQUIP, // (in the middle: the saber in hand, as it is set; lit while the player has it)
        IOSTOUCH_CHIP_LOOK,  // (in the middle, over the colour's name: the colours' look, CLASSIC or REFORGED)
+       IOSTOUCH_CHIP_SHAPE, // (on the left, under DUAL: the blade's shape, BEAM on or off -- SPIKE, the game's)
        IOSTOUCH_NUM_CHIPS };
+// The shape's switch: a track this big at its right, its knob to the right
+// and gold when BEAM is on
+#define IOSTOUCH_SWITCH_W 20.0
+#define IOSTOUCH_SWITCH_H 12.0
 #define IOSTOUCH_SABER_CHIP_W 64.0
 #define IOSTOUCH_SABER_CHIP_H 28.0
 #define IOSTOUCH_SABER_CHIP_OUT 22.0
 #define IOSTOUCH_SABER_CHIP_GAP 8.0
+#define IOSTOUCH_SABER_CHIP_KIND_GAP 8.0 // (all six down the left: this much more between the two kinds)
 // The look's switch: this big at most, its middle this far over the wheel's,
 // smaller to keep it inside the middle on a small wheel (inputWheel.c's the same)
 #define IOSTOUCH_SABER_LOOK_W 76.0
@@ -1315,6 +1322,9 @@ typedef struct {
     CAShapeLayer* aSaberHilt2[1];
     int saberIconRGB, saberIconRGB2; // the colours they are in (-2: none yet; the second, -1: one blade)
     UILabel* aSaberChips[IOSTOUCH_NUM_CHIPS]; // the saber wheel's choices beside the ring
+    UILabel* shapeName;     // in the shape's switch (aSaberChips[IOSTOUCH_CHIP_SHAPE]): its name,
+    UIView* shapeTrack;     // its track
+    UIView* shapeKnob;      // and the track's knob
     UIView* trayBack;       // behind MENU's tray
     UIView* cameraFlash;    // the CAMERA button's white flash, over everything
     UIImpactFeedbackGenerator* cameraTap;
@@ -2000,7 +2010,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         wheelCancelLabel.text = @"cancel";
         wheelCancelLabel.layer.zPosition = 2.0;
         [wheelView addSubview:wheelCancelLabel];
-        const char* aChipName[IOSTOUCH_NUM_CHIPS] = { "SINGLE", "DUAL", "LEFT", "BOTH", "RIGHT", "EQUIP", "REFORGED" };
+        const char* aChipName[IOSTOUCH_NUM_CHIPS] = { "SINGLE", "DUAL", "LEFT", "BOTH", "RIGHT", "EQUIP", "REFORGED", "" };
         for (int i = 0; i < IOSTOUCH_NUM_CHIPS; i++) {
             UILabel* l = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, IOSTOUCH_SABER_CHIP_W, IOSTOUCH_SABER_CHIP_H)];
             l.text = [NSString stringWithUTF8String:aChipName[i]];
@@ -2014,6 +2024,24 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             l.hidden = YES;
             aSaberChips[i] = l;
             [wheelView addSubview:l];
+        }
+        {
+            // the shape's switch: its name on the left, a small on/off switch on the right
+            UILabel* c = aSaberChips[IOSTOUCH_CHIP_SHAPE];
+            shapeName = [[UILabel alloc] initWithFrame:CGRectMake(5.0, 0.0, IOSTOUCH_SABER_CHIP_W - 12.0 - IOSTOUCH_SWITCH_W, IOSTOUCH_SABER_CHIP_H)];
+            shapeName.text = @"BEAM";
+            shapeName.textAlignment = NSTextAlignmentCenter;
+            shapeName.font = [UIFont boldSystemFontOfSize:11];
+            shapeName.textColor = [UIColor whiteColor];
+            [c addSubview:shapeName];
+            shapeTrack = [[UIView alloc] initWithFrame:CGRectMake(IOSTOUCH_SABER_CHIP_W - 7.0 - IOSTOUCH_SWITCH_W, (IOSTOUCH_SABER_CHIP_H - IOSTOUCH_SWITCH_H) * 0.5,
+                                                                  IOSTOUCH_SWITCH_W, IOSTOUCH_SWITCH_H)];
+            shapeTrack.layer.cornerRadius = IOSTOUCH_SWITCH_H * 0.5;
+            shapeTrack.layer.borderWidth = 1.0;
+            [c addSubview:shapeTrack];
+            shapeKnob = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, IOSTOUCH_SWITCH_H - 4.0, IOSTOUCH_SWITCH_H - 4.0)];
+            shapeKnob.layer.cornerRadius = (IOSTOUCH_SWITCH_H - 4.0) * 0.5;
+            [shapeTrack addSubview:shapeKnob];
         }
         [self addSubview:wheelView];
         wheelLastHot = -1;
@@ -2875,6 +2903,11 @@ static int iosTouch_SaberBlade(void)
         [self layoutWheel];
         [self refreshSaberIcons];
     }
+    else if (chip == IOSTOUCH_CHIP_SHAPE) {
+        // the blade's shape, BEAM on or off, remembered: the blades drawn in it at once
+        iosSaberShape_Toggle();
+        [d setObject:[NSString stringWithUTF8String:iosSaberShape_Name(iosSaberShape_Get())] forKey:IOSTOUCH_SABERSHAPE_DEFAULTS_KEY];
+    }
     else if (chip == IOSTOUCH_CHIP_SINGLE || chip == IOSTOUCH_CHIP_DUAL) {
         iosSaber_SetStyle(chip == IOSTOUCH_CHIP_DUAL ? IOSSABER_STYLE_DUAL : IOSSABER_STYLE_SINGLE);
         [d setObject:[NSString stringWithUTF8String:iosSaber_StyleName(iosSaber_GetStyle())] forKey:IOSTOUCH_SABERSTYLE_DEFAULTS_KEY];
@@ -2909,8 +2942,9 @@ static int iosTouch_SaberBlade(void)
 }
 
 // The saber wheel's choices beside the ring (only on that wheel; the blades'
-// only with two), each lit if it is the one set: SINGLE and DUAL stacked on
-// the left, LEFT, BOTH and RIGHT on the right, each blade's in its colour
+// only with two), each lit if it is the one set: SINGLE, DUAL and the
+// shape's switch stacked on the left, LEFT, BOTH and RIGHT on the right, each
+// blade's in its colour
 - (void)layoutSaberChips
 {
     const int bSaber = iosTouch_bWheelOpen && iosTouch_wheelKind == IOSTOUCH_WHEEL_SABER;
@@ -2923,14 +2957,14 @@ static int iosTouch_SaberBlade(void)
     // every button showing (dimmed under the wheel, but a choice over one is
     // hard to read) and on screen. Where the right has no such place (the
     // smallest screens: JUMP and ACT), the blades' choices go on the left
-    // too, under SINGLE and DUAL.
+    // too, under SINGLE, DUAL and BEAM.
     CGFloat aShift[2] = { 0.0, 0.0 };
     int bOneColumn = 0;
     if (bSaber) {
         const UIEdgeInsets in = self.safeAreaInsets;
         const CGFloat top = MAX(in.top, 8.0), bottom = self.bounds.size.height - MAX(in.bottom, 8.0);
         for (int col = 0; col < 2; col++) {
-            const int n = col ? 3 : 2;
+            const int n = 3;
             const CGFloat x = c.x + (col ? R : -R);
             int bFound = 0;
             for (int k = 0; k <= 24 && !bFound; k++) {
@@ -2956,7 +2990,7 @@ static int iosTouch_SaberBlade(void)
         if (bOneColumn) {
             // the one column: as near the middle as it fits between the top
             // row and the bottom
-            const CGFloat half = 2.5 * step + IOSTOUCH_SABER_CHIP_H * 0.5;
+            const CGFloat half = (5.0 * step + IOSTOUCH_SABER_CHIP_KIND_GAP) * 0.5 + IOSTOUCH_SABER_CHIP_H * 0.5;
             aShift[0] = MIN(MAX(0.0, top + 52.0 + half - c.y), bottom - half - c.y);
         }
     }
@@ -2991,24 +3025,38 @@ static int iosTouch_SaberBlade(void)
             l.alpha = 1.0;
             continue;
         }
-        const int bStyle = i <= IOSTOUCH_CHIP_DUAL;
+        // (the left column: SINGLE, DUAL, the shape; the right: LEFT, BOTH, RIGHT)
+        const int bStyle = i <= IOSTOUCH_CHIP_DUAL || i == IOSTOUCH_CHIP_SHAPE;
         l.hidden = !bSaber || (!bStyle && !bTwo) || (i == IOSTOUCH_CHIP_DUAL && !iosSaber_StyleAvailable(IOSSABER_STYLE_DUAL));
         if (l.hidden) continue;
-        const int k = bStyle ? i - IOSTOUCH_CHIP_SINGLE : i - IOSTOUCH_CHIP_LEFT;
-        const int n = bStyle ? 2 : 3;
-        if (bOneColumn) // (all five down the left, a choice's gap between the two kinds, kept on screen)
-            l.center = CGPointMake(c.x - R, c.y + aShift[0] + (i + (bStyle ? 0 : 1) - 2.5) * step);
+        const int k = i == IOSTOUCH_CHIP_SHAPE ? 2 : bStyle ? i - IOSTOUCH_CHIP_SINGLE : i - IOSTOUCH_CHIP_LEFT;
+        const int n = 3;
+        const int slot = k + (bStyle ? 0 : 3);
+        if (bOneColumn) // (all six down the left, a little more apart between the two kinds, kept on screen)
+            l.center = CGPointMake(c.x - R, c.y + aShift[0] + slot * step + (slot >= 3 ? IOSTOUCH_SABER_CHIP_KIND_GAP : 0.0) - (5.0 * step + IOSTOUCH_SABER_CHIP_KIND_GAP) * 0.5);
         else
             l.center = CGPointMake(c.x + (bStyle ? -R : R), c.y + aShift[bStyle ? 0 : 1] + (k - (n - 1) * 0.5) * step);
         int bOn;
-        if (i == IOSTOUCH_CHIP_SINGLE) bOn = !bTwo;
+        if (i == IOSTOUCH_CHIP_SHAPE) {
+            // a switch: on (BEAM) its knob to the right, the track gold
+            bOn = iosSaberShape_Get() == IOSSABERSHAPE_BEAM;
+            const CGFloat kd = IOSTOUCH_SWITCH_H - 4.0;
+            shapeKnob.frame = CGRectMake(bOn ? IOSTOUCH_SWITCH_W - 2.0 - kd : 2.0, 2.0, kd, kd);
+            shapeKnob.backgroundColor = [UIColor colorWithWhite:1.0 alpha:bOn ? 1.0 : 0.7];
+            shapeTrack.backgroundColor = bOn ? [UIColor colorWithRed:1.0 green:0.85 blue:0.3 alpha:0.55] : [UIColor colorWithWhite:1.0 alpha:0.18];
+            shapeTrack.layer.borderColor = bOn ? [UIColor colorWithRed:1.0 green:0.85 blue:0.3 alpha:0.95].CGColor : [UIColor colorWithWhite:1.0 alpha:0.5].CGColor;
+            shapeName.alpha = bOn ? 1.0 : 0.75;
+        }
+        else if (i == IOSTOUCH_CHIP_SINGLE) bOn = !bTwo;
         else if (i == IOSTOUCH_CHIP_DUAL) bOn = bTwo;
         else bOn = (i == IOSTOUCH_CHIP_LEFT && iosTouch_saberTarget == IOSTOUCH_SABER_LEFT)
                    || (i == IOSTOUCH_CHIP_BOTH && iosTouch_saberTarget == IOSTOUCH_SABER_BOTH)
                    || (i == IOSTOUCH_CHIP_RIGHT && iosTouch_saberTarget == IOSTOUCH_SABER_RIGHT);
-        l.layer.borderColor = bOn ? [UIColor colorWithRed:1.0 green:0.85 blue:0.3 alpha:0.95].CGColor
-                                  : [UIColor colorWithWhite:1.0 alpha:0.4].CGColor;
-        l.layer.borderWidth = bOn ? 2.0 : 1.5;
+        // (the shape's switch shows its state on its own switch: its border as an unpicked choice's)
+        const int bLit = bOn && i != IOSTOUCH_CHIP_SHAPE;
+        l.layer.borderColor = bLit ? [UIColor colorWithRed:1.0 green:0.85 blue:0.3 alpha:0.95].CGColor
+                                   : [UIColor colorWithWhite:1.0 alpha:0.4].CGColor;
+        l.layer.borderWidth = bLit ? 2.0 : 1.5;
         l.alpha = bOn ? 1.0 : 0.8;
         if (i == IOSTOUCH_CHIP_LEFT || i == IOSTOUCH_CHIP_RIGHT) {
             unsigned char r, g, b;
@@ -5493,6 +5541,9 @@ void iosTouch_PadSaberChip(int chip)
     }
     else if (chip == IOSPAD_CHIP_LOOK) {
         [iosTouch_pOverlay useSaberChip:IOSTOUCH_CHIP_LOOK];
+    }
+    else if (chip == IOSPAD_CHIP_SHAPE) {
+        [iosTouch_pOverlay useSaberChip:IOSTOUCH_CHIP_SHAPE];
     }
     iosTouch_padSlot = -1;
     if (iosTouch_bWheelOpen) [iosTouch_pOverlay refreshWheelLooks];

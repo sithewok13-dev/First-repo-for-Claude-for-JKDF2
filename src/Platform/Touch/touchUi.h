@@ -120,6 +120,10 @@ typedef struct touchUiGame {
     const char* (*SaberLookName)(int look);
     int (*SaberGetLook)(void);
     void (*SaberSetLook)(int look);
+    // the blade's shape (iosSaberShape: SPIKE / BEAM, kept by its name; NULL past the last)
+    const char* (*SaberShapeName)(int shape);
+    int (*SaberGetShape)(void);
+    void (*SaberSetShape)(int shape);
 
     // The camera (Enhanced/iosCapture, iosSelfieShots, iosFreeze, iosCinema
     // and platServices): their answers as theirs (TOUCHUI_CAPTURE_*,
@@ -169,10 +173,10 @@ enum {
 enum { TOUCHUI_GYRO_OFF = 0, TOUCHUI_GYRO_TOUCH, TOUCHUI_GYRO_ALWAYS };
 enum { TOUCHUI_HAPTIC_TICK = 1, TOUCHUI_HAPTIC_TAP = 2 };
 enum { TOUCHUI_WHEEL_FORCE = 0, TOUCHUI_WHEEL_WEAPONS, TOUCHUI_WHEEL_SABER };
-// The saber wheel's choices beside the ring, and in its middle (EQUIP, the
-// colours' look)
+// The saber wheel's choices beside the ring (the blade's shape, BEAM on or
+// off, under SINGLE and DUAL), and in its middle (EQUIP, the colours' look)
 enum { TOUCHUI_CHIP_SINGLE = 0, TOUCHUI_CHIP_DUAL, TOUCHUI_CHIP_LEFT, TOUCHUI_CHIP_BOTH, TOUCHUI_CHIP_RIGHT, TOUCHUI_CHIP_EQUIP,
-       TOUCHUI_CHIP_LOOK, TOUCHUI_NUM_CHIPS };
+       TOUCHUI_CHIP_LOOK, TOUCHUI_CHIP_SHAPE, TOUCHUI_NUM_CHIPS };
 
 // Once, before anything else. The settings file (key=value lines) is read
 // now, if there is one, and written whenever a remembered setting changes.

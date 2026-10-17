@@ -401,6 +401,10 @@ static void tu_SaveSettings(void)
         const char* name = tu.game->SaberLookName(tu.game->SaberGetLook());
         if (name) fprintf(f, "saberLook=%s\n", name);
     }
+    if (G(SaberGetShape) && G(SaberShapeName)) {
+        const char* name = tu.game->SaberShapeName(tu.game->SaberGetShape());
+        if (name) fprintf(f, "saberShape=%s\n", name);
+    }
     if (G(SaberStyleName) && G(SaberStyleNumBlades) && G(SaberGetColour) && G(SaberColourKey)) {
         for (int st = TOUCHUI_SABER_SINGLE; st <= TOUCHUI_SABER_DUAL; st++) {
             const char* name = tu.game->SaberStyleName(st);
@@ -467,6 +471,10 @@ static void tu_LoadSettings(void)
             else if (!strcmp(k, "saberLook") && G(SaberLookName) && G(SaberSetLook)) {
                 for (int lk = 0; tu.game->SaberLookName(lk); lk++)
                     if (!strcmp(tu.game->SaberLookName(lk), v)) tu.game->SaberSetLook(lk);
+            }
+            else if (!strcmp(k, "saberShape") && G(SaberShapeName) && G(SaberSetShape)) {
+                for (int sh = 0; tu.game->SaberShapeName(sh); sh++)
+                    if (!strcmp(tu.game->SaberShapeName(sh), v)) tu.game->SaberSetShape(sh);
             }
             else if (!strncmp(k, "saberColour.", 12) && G(SaberStyleName) && G(SaberSetColour) && G(SaberColourByKey)) {
                 const char* dot = strrchr(k, '.');
@@ -1586,11 +1594,13 @@ static void tu_SaberTargetFromShared(void)
 }
 
 // One of the saber wheel's choices tapped: one saber or two (each keeps its
-// own colours), which of the two a colour goes to, or the colours' look (the
-// wheel made again in it) -- the wheel stays open to tap a colour; or EQUIP:
+// own colours), which of the two a colour goes to, the colours' look (the
+// wheel made again in it), or the blade's shape (BEAM on or off) -- the wheel
+// stays open to tap a colour; or EQUIP:
 // the saber in hand, the wheel closed
 // (the overlay's choices are the shared wheel's, by number)
 typedef char tu_assertChips[((int)TOUCHUI_CHIP_EQUIP == (int)INPUTWHEEL_CHIP_EQUIP && (int)TOUCHUI_CHIP_LOOK == (int)INPUTWHEEL_CHIP_LOOK
+                             && (int)TOUCHUI_CHIP_SHAPE == (int)INPUTWHEEL_CHIP_SHAPE
                              && (int)TOUCHUI_NUM_CHIPS == (int)INPUTWHEEL_NUM_CHIPS) ? 1 : -1];
 static void tu_UseSaberChip(int chip)
 {

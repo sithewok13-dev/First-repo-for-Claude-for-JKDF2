@@ -162,10 +162,16 @@ Tick what works, note what doesn't (a photo of the screen helps).
       you see every blade, yours and other players', and the blade in hand
       changes at once. In Jedi Knight a green you kept shows as ORIGINAL
       while REFORGED is on, and other players see it as ORIGINAL too.
+- [ ] BEAM (an on/off switch under SINGLE and DUAL): a tap turns the
+      film-style beam on or off, and the wheel stays open. Off (to start):
+      the game's blade, narrowing to a point. On: an even beam with a round
+      tip and a soft glow in the blade's colour, for every colour and both
+      looks; the blade in hand changes at once. A pad's D-pad up and the 5
+      key do the same while the saber wheel is open.
 - [ ] Use a keyboard, mouse or controller: the buttons hide; touch the screen
       and they come back.
 - [ ] Quit and start again: GYRO, SENS, FPS, CHEAT, VIEW, CONTROLS, the
-      camera options and the saber's colours, style and look are kept.
+      camera options and the saber's colours, style, look and BEAM are kept.
 
 **Start up**
 - [ ] Both icons appear; each starts its own game (Jedi Knight / MotS).

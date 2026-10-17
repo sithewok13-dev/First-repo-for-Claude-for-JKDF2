@@ -181,7 +181,7 @@ static void iosKbMouse_SetWheelPrompt(void)
 {
     char t[256];
     if (iosKbMouse_s.wheelKind == IOSPAD_WHEEL_SABER)
-        snprintf(t, sizeof(t), "Mouse: colour   Click: set   1: 1 or 2 sabers   2: blade   3: equip   4: look   Esc: close");
+        snprintf(t, sizeof(t), "Mouse: colour   Click: set   1: 1 or 2 sabers   2: blade   3: equip   4: look   5: beam   Esc: close");
     else if (iosKbMouse_s.wheelState == IOSKBM_WS_HELD)
         snprintf(t, sizeof(t), "Mouse: point   Let go of %s: pick   Right click or Esc: cancel", iosKbMouse_KeyName(iosKbMouse_s.wheelKey));
     else
@@ -330,6 +330,7 @@ static void iosKbMouse_WheelInput(void)
         if (iosKbMouse_Pressed(SDL_SCANCODE_2)) inputUi_SaberChip(IOSPAD_CHIP_TARGET);
         if (iosKbMouse_Pressed(SDL_SCANCODE_3)) inputUi_SaberChip(IOSPAD_CHIP_EQUIP);
         if (iosKbMouse_Pressed(SDL_SCANCODE_4)) inputUi_SaberChip(IOSPAD_CHIP_LOOK);
+        if (iosKbMouse_Pressed(SDL_SCANCODE_5)) inputUi_SaberChip(IOSPAD_CHIP_SHAPE);
         if (!inputUi_KbmWheelIsOpen()) {
             iosKbMouse_WheelReset();
             return;

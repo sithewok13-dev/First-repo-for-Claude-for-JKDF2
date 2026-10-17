@@ -41,6 +41,7 @@ static struct {
     // the saber
     int bSaberBtn, saberStyle, aSaberColour[2][2], bDualOk;
     int saberLook; // (0 CLASSIC, 1 REFORGED; the default, as setup leaves it)
+    int saberShape; // (0 SPIKE, the default; 1 BEAM)
     // the camera
     int bCaptureFull, captures, lastKinds, lastMode, captureCancels, batch, batchSets;
     int selfieResult, selfieShots, bSelfie, selfieStops;
@@ -142,6 +143,9 @@ static void F_SaberSetColour(int st, int b, int id) { fg.aSaberColour[st & 1][b 
 static const char* F_SaberLookName(int lk) { return lk == 0 ? "CLASSIC" : lk == 1 ? "REFORGED" : NULL; }
 static int F_SaberGetLook(void) { return fg.saberLook; }
 static void F_SaberSetLook(int lk) { if (lk == 0 || lk == 1) fg.saberLook = lk; }
+static const char* F_SaberShapeName(int sh) { return sh == 0 ? "SPIKE" : sh == 1 ? "BEAM" : NULL; }
+static int F_SaberGetShape(void) { return fg.saberShape; }
+static void F_SaberSetShape(int sh) { if (sh == 0 || sh == 1) fg.saberShape = sh; }
 static int F_CaptureRequest(int kinds, int mode)
 {
     if (fg.bCaptureFull) return 0;
@@ -175,7 +179,7 @@ static const touchUiGame fakeGame = {
     F_IsThirdPerson, F_SetForceJumpStyle, F_GetForceJumpRank, F_ShowMessage, F_ShowMessage, F_GetGaugeRect,
     F_IsSaberButtonShown, F_SaberNumColours, F_SaberColourName, F_SaberColourKey, F_SaberColourByKey, F_SaberColourRGB,
     F_SaberStyleAvailable, F_SaberStyleName, F_SaberStyleNumBlades, F_SaberGetStyle, F_SaberSetStyle, F_SaberGetColour,
-    F_SaberSetColour, F_SaberLookName, F_SaberGetLook, F_SaberSetLook, F_CaptureRequest, F_CaptureCancel, F_SetPhotoBatch, F_SelfieStart, F_SelfieStop, F_SelfieIsActive,
+    F_SaberSetColour, F_SaberLookName, F_SaberGetLook, F_SaberSetLook, F_SaberShapeName, F_SaberGetShape, F_SaberSetShape, F_CaptureRequest, F_CaptureCancel, F_SetPhotoBatch, F_SelfieStart, F_SelfieStop, F_SelfieIsActive,
     F_FreezeBegin, F_FreezeEnd, F_FreezeIsActive, F_FreezeSetSmooth, F_FreezeOrbit, F_FreezePan, F_FreezeZoom,
     F_CinemaStart, F_CinemaStop, F_CinemaIsActive,
 };
@@ -201,6 +205,9 @@ int iosSaber_GetLook(void) { return F_SaberGetLook(); }
 void iosSaber_SetLook(int lk) { F_SaberSetLook(lk); }
 void iosSaber_ToggleLook(void) { F_SaberSetLook(fg.saberLook ? 0 : 1); }
 const char* iosSaber_LookName(int lk) { return F_SaberLookName(lk); }
+// (iosSaberShape, as the shared wheel asks it)
+int iosSaberShape_Get(void) { return F_SaberGetShape(); }
+void iosSaberShape_Toggle(void) { F_SaberSetShape(fg.saberShape ? 0 : 1); }
 int iosSaber_GetShownColour(int st, int b) { const int id = F_SaberGetColour(st, b); return iosSaber_ColourOnWheel(id) ? id : 0; }
 const char* iosSaber_ColourName(int id) { return F_SaberColourName(id); }
 void iosSaber_ColourRGB(int id, unsigned char* r, unsigned char* g, unsigned char* b) { F_SaberColourRGB(id, r, g, b); if (!fg.saberLook) *g = 50; }
@@ -1551,6 +1558,179 @@ static void test_saber_look(void)
     CHECK(fg.saberLook == 1 && fg.saberStyle == 1 && fg.aSaberColour[1][0] == 16 && fg.aSaberColour[1][1] == 16);
 }
 
+static int drawnText(const char* t);
+// The saber wheel's shape switch (BEAM on or off), under SINGLE and DUAL
+static int chipsClear(float W, float H, float l, float t, float r, float b, const char* what)
+{
+    // every choice shown: inside the safe area (8 pt in from an edge with none),
+    // clear of the ring (and its pop-out), of each other and of every button
+    float cx, cy, r0, r1;
+    touchUi_GetWheelGeometry(&cx, &cy, &r0, &r1);
+    float aX[INPUTWHEEL_NUM_CHIPS], aY[INPUTWHEEL_NUM_CHIPS];
+    int aOn[INPUTWHEEL_NUM_CHIPS], bOk = 1, n = 0;
+    const float hw = 32.0f, hh = 14.0f;
+    for (int i = 0; i < INPUTWHEEL_NUM_CHIPS; i++) {
+        aOn[i] = touchUi_GetSaberChip(i, &aX[i], &aY[i]);
+        if (!aOn[i] || i == TOUCHUI_CHIP_EQUIP || i == TOUCHUI_CHIP_LOOK) { aOn[i] = 0; continue; } // (the middle's own)
+        n++;
+        if (aX[i] - hw < (l > 8 ? l : 8) - 0.5f || aX[i] + hw > W - (r > 8 ? r : 8) + 0.5f
+            || aY[i] - hh < (t > 8 ? t : 8) - 0.5f || aY[i] + hh > H - (b > 8 ? b : 8) + 0.5f) { printf("  %s: chip %d off the safe area (%.0f,%.0f)\n", what, i, aX[i], aY[i]); bOk = 0; }
+        const float ex = fmaxf(fabsf(aX[i] - cx) - hw, 0.0f), ey = fmaxf(fabsf(aY[i] - cy) - hh, 0.0f);
+        if (hypotf(ex, ey) < r1 + 10.0f) { printf("  %s: chip %d on the ring\n", what, i); bOk = 0; }
+        for (int j = 0; j < i; j++)
+            if (aOn[j] && fabsf(aX[i] - aX[j]) < 2.0f * hw && fabsf(aY[i] - aY[j]) < 2.0f * hh) { printf("  %s: chips %d and %d overlap\n", what, i, j); bOk = 0; }
+        for (int k = 0; k < TOUCHUI_BTN_TRAYGYRO; k++) {
+            float bx, by, br;
+            if (k == TOUCHUI_BTN_SABER || !touchUi_GetButton(k, &bx, &by, &br)) continue;
+            const float dx = fmaxf(fabsf(bx - aX[i]) - hw, 0.0f), dy = fmaxf(fabsf(by - aY[i]) - hh, 0.0f);
+            if (hypotf(dx, dy) < br) { printf("  %s: chip %d on button %d\n", what, i, k); bOk = 0; }
+        }
+    }
+    printf("  %s: %d choices beside the ring, shape at %.0f,%.0f (wheel %.0f,%.0f r1 %.0f)\n", what, n, aX[TOUCHUI_CHIP_SHAPE], aY[TOUCHUI_CHIP_SHAPE], cx, cy, r1);
+    return bOk && aOn[TOUCHUI_CHIP_SHAPE];
+}
+
+static void test_saber_shape(void)
+{
+    float sx, sy, cx, cy, r0, r1, deg, px, py, hx, hy, dx, dy, lx, ly;
+    setup();
+    fg.bSaberBtn = 1;
+    tick();
+    bxy(TOUCHUI_BTN_SABER, &sx, &sy);
+    g_case = "shape: the switch under SINGLE and DUAL, left of the ring; SPIKE (off) to start; drawn as BEAM with a switch";
+    down(1, sx, sy); wait(0.1); up(1, sx, sy);
+    touchUi_GetWheelGeometry(&cx, &cy, &r0, &r1);
+    CHECK(touchUi_IsWheelOpen() && touchUi_GetSaberChip(TOUCHUI_CHIP_SHAPE, &hx, &hy) && touchUi_GetSaberChip(TOUCHUI_CHIP_DUAL, &dx, &dy));
+    CHECK(fabsf(hx - dx) < 0.01f && hy > dy + 20.0f && hx < cx - r1 && fg.saberShape == 0 && drawnText("BEAM"));
+    g_case = "shape: tapped: BEAM, one tick, the wheel stays open (to tap), the game still held; again: SPIKE";
+    g_platTicks = 0;
+    down(2, hx, hy); up(2, hx, hy);
+    CHECK(fg.saberShape == 1 && g_platTicks == 1 && touchUi_IsWheelOpen() && touchUi_IsWheelTapMode() && fg.bHold);
+    down(2, hx, hy); up(2, hx, hy);
+    CHECK(fg.saberShape == 0 && touchUi_IsWheelOpen());
+    g_case = "shape: the look's switch leaves it; it leaves the look (both looks)";
+    touchUi_GetSaberChip(TOUCHUI_CHIP_LOOK, &lx, &ly);
+    {
+        int bOk = 1;
+        for (int k = 0; k < 4; k++) {
+            const int lk0 = fg.saberLook, sh0 = fg.saberShape;
+            down(2, hx, hy); up(2, hx, hy);
+            if (fg.saberShape == sh0 || fg.saberLook != lk0) bOk = 0;
+            down(2, lx, ly); up(2, lx, ly);
+            if (fg.saberLook == lk0 || fg.saberShape == sh0) bOk = 0;
+        }
+        CHECK(bOk && touchUi_IsWheelOpen());
+    }
+    g_case = "shape: every slice still taps its colour, the shape unchanged (both looks)";
+    {
+        int bOk = 1;
+        for (int lk = 0; lk < 2; lk++) {
+            if (fg.saberLook != lk) { down(2, lx, ly); up(2, lx, ly); }
+            const int sh0 = fg.saberShape;
+            for (int k = 0; touchUi_GetWheelSliceBin(k) >= 0; k++) {
+                touchUi_GetWheelSlice(touchUi_GetWheelSliceBin(k), &deg);
+                // (the middle of the slice, and its outer edge too, nearest the switch)
+                const float aR[2] = { (r0 + r1) * 0.5f, r1 - 2.0f };
+                for (int j = 0; j < 2; j++) {
+                    fg.aSaberColour[0][0] = -1;
+                    polar(cx, cy, deg, aR[j], &px, &py);
+                    down(2, px, py); up(2, px, py);
+                    if (fg.aSaberColour[0][0] != touchUi_GetWheelSliceBin(k) || fg.saberShape != sh0 || !touchUi_IsWheelOpen()) bOk = 0;
+                }
+            }
+        }
+        CHECK(bOk);
+    }
+    g_case = "shape: a tap just off the switch, toward the ring: nothing changes";
+    {
+        const int sh0 = fg.saberShape;
+        down(2, hx + 32.0f + 9.0f, hy); up(2, hx + 32.0f + 9.0f, hy);
+        CHECK(fg.saberShape == sh0);
+    }
+    g_case = "shape: a slide from SABER: one tick per slice; lifted in the gap: cancelled, the shape unchanged";
+    polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+    down(2, px, py); up(2, px, py);
+    CHECK(!touchUi_IsWheelOpen() && !fg.bHold);
+    {
+        const int sh0 = fg.saberShape, n = fg.saberLook ? 16 : 17;
+        down(1, sx, sy);
+        move(1, sx, sy + 10.5f);
+        g_platTicks = 0;
+        for (int k = 0; k < n; k++) {
+            touchUi_GetWheelSlice(touchUi_GetWheelSliceBin(k), &deg);
+            polar(cx, cy, deg, (r0 + r1) * 0.5f, &px, &py);
+            move(1, px, py);
+        }
+        const int nTicks = g_platTicks;
+        polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+        move(1, px, py); up(1, px, py);
+        CHECK(nTicks == n && !touchUi_IsWheelOpen() && fg.saberShape == sh0);
+    }
+    g_case = "shape: the shared wheel's own call (a pad's D-pad up, the 5 key) flips it, the wheel open";
+    {
+        down(1, sx, sy); wait(0.1); up(1, sx, sy);
+        const int sh0 = fg.saberShape;
+        inputWheel_SaberChip(INPUTWHEEL_CHIP_SHAPE);
+        CHECK(fg.saberShape == !sh0 && inputWheel_IsOpen());
+        polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+        down(2, px, py); up(2, px, py);
+    }
+    g_case = "shape: no switch on the Force wheel";
+    {
+        float wx, wy;
+        bxy(TOUCHUI_BTN_WHEEL, &wx, &wy);
+        down(1, wx, wy); wait(0.35); up(1, wx, wy);
+        CHECK(touchUi_IsWheelOpen() && !touchUi_GetSaberChip(TOUCHUI_CHIP_SHAPE, NULL, NULL) && inputWheel_ChipAt(hx, hy) < 0);
+        polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+        down(2, px, py); up(2, px, py);
+    }
+    g_case = "shape: remembered (by name) over a restart";
+    {
+        down(1, sx, sy); wait(0.1); up(1, sx, sy);
+        touchUi_GetSaberChip(TOUCHUI_CHIP_SHAPE, &hx, &hy);
+        down(2, hx, hy); up(2, hx, hy);
+        const int sh = fg.saberShape;
+        polar(cx, cy, 270.0f, (r0 + r1) * 0.5f, &px, &py);
+        down(2, px, py); up(2, px, py);
+        fg.saberShape = !sh;
+        touchUi_Init(&fakeGame, g_settings);
+        CHECK(fg.saberShape == sh);
+    }
+    // where it goes, two sabers (all six beside the ring), on phones and tablets
+    static const struct { const char* name; float w, h, l, t, r, b; } aScr[] = {
+        { "iPhone-sized (852x393, notch)", 852, 393, 59, 0, 59, 21 },
+        { "Android phone (873x393, cutout left)", 873, 393, 32, 0, 0, 0 },
+        { "Android phone (873x393, cutout right)", 873, 393, 0, 0, 32, 0 },
+        { "Android phone (732x360)", 732, 360, 0, 0, 0, 0 },
+        { "small phone (640x360)", 640, 360, 0, 0, 0, 0 },
+        { "SE-sized (568x320)", 568, 320, 0, 0, 0, 0 },
+        { "SE-sized (667x375)", 667, 375, 0, 0, 0, 0 },
+        { "tablet (1067x667, nav bar)", 1067, 667, 0, 0, 0, 40 },
+    };
+    for (int k = 0; k < (int)(sizeof(aScr) / sizeof(aScr[0])); k++) {
+        for (int st = 0; st < 2; st++) {
+            setup();
+            fg.bSaberBtn = 1;
+            fg.saberStyle = st;
+            tick();
+            touchUi_SetScreen(aScr[k].w, aScr[k].h, aScr[k].l, aScr[k].t, aScr[k].r, aScr[k].b);
+            tick();
+            bxy(TOUCHUI_BTN_SABER, &sx, &sy);
+            down(1, sx, sy); wait(0.1); up(1, sx, sy);
+            static char name[96];
+            snprintf(name, sizeof(name), "shape: %s, %s: the choices on screen, clear of the ring, each other and the buttons", aScr[k].name, st ? "two sabers" : "one");
+            g_case = name;
+            CHECK(touchUi_IsWheelOpen() && chipsClear(aScr[k].w, aScr[k].h, aScr[k].l, aScr[k].t, aScr[k].r, aScr[k].b, aScr[k].name));
+            touchUi_GetSaberChip(TOUCHUI_CHIP_SHAPE, &hx, &hy);
+            const int sh0 = fg.saberShape;
+            down(2, hx, hy); up(2, hx, hy);
+            CHECK(fg.saberShape == !sh0 && touchUi_IsWheelOpen());
+            if (inputWheel_IsOpen()) inputWheel_Close(-1);
+            tick();
+        }
+    }
+}
+
 static int g_layoutSaber = 1;
 static void check_layout(const char* name, float W, float H, float l, float t, float r, float b)
 {
@@ -1741,6 +1921,7 @@ int main(void)
     test_camera();
     test_saber();
     test_saber_look();
+    test_saber_shape();
     test_shared_wheel();
     test_other_photo_and_cancel();
     test_level_tray();

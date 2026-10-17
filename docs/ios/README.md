@@ -478,7 +478,8 @@ switch the controller off and they come back.
   pointing anywhere, it stays open: point and press A, or step round with the
   D-pad. On the saber wheel, A sets the colour, X picks one saber or two, Y
   which blade a colour goes to, L3 switches CLASSIC and REFORGED ("look" on
-  the screen), and R3 takes the saber in hand ("equip").
+  the screen), D-pad up turns BEAM on or off ("beam"), and R3 takes the saber
+  in hand ("equip").
 - **Quick save and quick load** need a short hold (a ring fills at the top of
   the screen), so a stray press never saves or loads.
 - **Controller options** (hold Start): look speed across and up and down,
@@ -548,7 +549,8 @@ Turn on FPS in MENU's tray to see what the app gets (below).
   the mouse or the scroll wheel and click. Right click or Esc cancels. On the
   saber wheel, a click sets the colour, 1 picks one saber or two, 2 which
   blade a colour goes to, 3 takes the saber in hand ("equip" on the screen),
-  and 4 switches CLASSIC and REFORGED ("look").
+  4 switches CLASSIC and REFORGED ("look"), and 5 turns BEAM on or off
+  ("beam").
 - **Your own keys and buttons:** Setup > Controls > Keyboard and Setup >
   Controls > Mouse change any of them; the mouse sensitivity is there too.
   Whatever key you put on next/previous power or weapon gets the wheel when
@@ -879,6 +881,19 @@ cancels, and the game holds still while the wheel is open.
   - In Jedi Knight, a green you kept (picked in CLASSIC) shows as
     ORIGINAL while REFORGED is on, and is shown to other players as
     ORIGINAL too. Switch back to CLASSIC and it's green again.
+- **BEAM**, an on/off switch under SINGLE and DUAL, picks the blade's shape.
+  Tap it to switch. The wheel stays open, and the blade in your hand changes
+  at once. The app remembers it.
+  - **Off** (the default): the game's own blade, which narrows to a point.
+  - **On:** a film-style beam, the same width all the way, with a round tip
+    and a soft glow in the blade's colour. The glow is strong in the dark
+    and only a faint tint on bright walls.
+  - It works with every colour, ORIGINAL included, in both CLASSIC and
+    REFORGED. It shows in first and third person, with two sabers, in selfies
+    and Action Freeze, and on other players' sabers. In Mysteries of the Sith
+    a thrown saber gets the glow too.
+  - Only the look changes: the blade's length, its reach and its damage stay
+    as the game has them.
 - **The wheel stays open** after you pick a colour, so you can change both
   blades in one go. Close it with the gap at the bottom, or by tapping outside
   the wheel.
@@ -1059,7 +1074,7 @@ Things to know:
 
 Other players see your saber as you set it on the SABER wheel: its colour,
 and two sabers if you chose them. CLASSIC or REFORGED changes how you see
-every saber on your screen, yours and theirs. One thing reaches other
+every saber on your screen, yours and theirs, and so does BEAM. One thing reaches other
 players: in Jedi Knight, a green you kept shows as ORIGINAL while REFORGED
 is on, and other players see it as ORIGINAL too. In multiplayer the second saber is only
 for looks. It doesn't hit, to keep things fair for players on other
