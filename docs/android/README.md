@@ -166,11 +166,16 @@ Tick what works, note what doesn't (a photo of the screen helps).
       you see every blade, yours and other players', and the blade in hand
       changes at once. In Jedi Knight a green you kept shows as ORIGINAL
       while REFORGED is on, and other players see it as ORIGINAL too.
-- [ ] BEAM (an on/off switch under SINGLE, DUAL and CROSS): a tap turns the
-      film-style beam on or off, and the wheel stays open. Off (to start):
-      the game's blade, narrowing to a point. On: a slim, even beam, a little
-      longer (only to look at), with a rounded end and a soft glow in the
-      blade's colour that only adds light, for every colour and both looks; the blade in hand changes at once. It's for your own screen:
+- [ ] FILM (it was called BEAM; an on/off switch under SINGLE, DUAL and
+      CROSS): a tap turns the film look on or off, and the wheel stays open.
+      Off (to start): the game's blade, narrowing to a point. On: a blade as
+      in the films, as long as the game's own and slim to the films'
+      proportions, even with a rounded end, a white-hot core, its colour at
+      the edges and in a soft glow that only adds light, and a faint
+      shimmer, for every colour and both looks; the blade in hand changes at
+      once. Hits stay the game's either way, and already reach past its own
+      blade (a normal swing a quarter further than the blade it draws, the
+      strongest attacks up to two and a half times as far). It's for your own screen:
       your blade, and players whose game sends their saber choice (not
       enemy Jedi). It doesn't change CROSS, which keeps its own blade: the
       switch is dimmed while CROSS is picked. A pad's D-pad up and the 5
@@ -179,7 +184,7 @@ Tick what works, note what doesn't (a photo of the screen helps).
 - [ ] Use a keyboard, mouse or controller: the buttons hide; touch the screen
       and they come back.
 - [ ] Quit and start again: GYRO, SENS, FPS, CHEAT, VIEW, CONTROLS, the
-      camera options and the saber's colours, style, look and BEAM are kept.
+      camera options and the saber's colours, style, look and FILM are kept.
 
 **Start up**
 - [ ] Both icons appear; each starts its own game (Jedi Knight / MotS).

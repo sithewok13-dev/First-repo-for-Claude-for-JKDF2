@@ -41,7 +41,7 @@ static struct {
     // the saber
     int bSaberBtn, saberStyle, aSaberColour[3][2], bDualOk, bCrossOk;
     int saberLook; // (0 CLASSIC, 1 REFORGED; the default, as setup leaves it)
-    int saberShape; // (0 SPIKE, the default; 1 BEAM)
+    int saberShape; // (0 SPIKE, the default; 1 FILM)
     // the camera
     int bCaptureFull, captures, lastKinds, lastMode, captureCancels, batch, batchSets;
     int selfieResult, selfieShots, bSelfie, selfieStops;
@@ -1561,7 +1561,7 @@ static void test_saber_look(void)
 }
 
 static int drawnText(const char* t);
-// The saber wheel's shape switch (BEAM on or off), under SINGLE and DUAL
+// The saber wheel's shape switch (FILM on or off), under SINGLE and DUAL
 static int chipsClear(float W, float H, float l, float t, float r, float b, const char* what)
 {
     // every choice shown: inside the safe area (8 pt in from an edge with none),
@@ -1603,7 +1603,7 @@ static void test_saber_shape(void)
     down(1, sx, sy); wait(0.1); up(1, sx, sy);
     touchUi_GetWheelGeometry(&cx, &cy, &r0, &r1);
     CHECK(touchUi_IsWheelOpen() && touchUi_GetSaberChip(TOUCHUI_CHIP_SHAPE, &hx, &hy) && touchUi_GetSaberChip(TOUCHUI_CHIP_DUAL, &dx, &dy));
-    CHECK(fabsf(hx - dx) < 0.01f && hy > dy + 20.0f && hx < cx - r1 && fg.saberShape == 0 && drawnText("BEAM"));
+    CHECK(fabsf(hx - dx) < 0.01f && hy > dy + 20.0f && hx < cx - r1 && fg.saberShape == 0 && drawnText("FILM"));
     g_case = "shape: tapped: BEAM, one tick, the wheel stays open (to tap), the game still held; again: SPIKE";
     g_platTicks = 0;
     down(2, hx, hy); up(2, hx, hy);

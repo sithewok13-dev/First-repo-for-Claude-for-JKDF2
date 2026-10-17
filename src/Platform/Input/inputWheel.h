@@ -67,7 +67,7 @@ typedef struct {
 } inputWheelMap;
 
 // The saber wheel's choices beside the ring: one saber, two or the
-// crossguard, and under them the blade's shape (an on/off switch: BEAM on,
+// crossguard, and under them the blade's shape (an on/off switch: FILM on,
 // SPIKE off; iosSaberShape; dim with CROSS, which has its own), which of two
 // blades a colour goes to; and in the middle, the saber in hand and the
 // colours' look (CLASSIC / REFORGED, iosSaber_GetLook)
@@ -135,7 +135,7 @@ int inputWheel_Close(int slice);
 // The saber wheel's choices (INPUTWHEEL_CHIP_*): SINGLE / DUAL / CROSS, the blade a
 // colour goes to, EQUIP (the saber in hand: the wheel closes), the look (the
 // other one: the wheel made again in it, still open; remembered by the
-// platform around this, from iosSaber_GetLook), the shape (BEAM on or off, the
+// platform around this, from iosSaber_GetLook), the shape (FILM on or off, the
 // wheel open; remembered the same way, from iosSaberShape_Get). Nothing for
 // one that can't be chosen now.
 void inputWheel_SaberChip(int chip);

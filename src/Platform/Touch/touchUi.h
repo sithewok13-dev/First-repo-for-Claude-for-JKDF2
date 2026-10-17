@@ -31,7 +31,7 @@
 //     (PHOTO, SELFIES 1/3/5, FREEZE ON/OFF); none of it in multiplayer (the
 //     engine says no, as on iOS);
 //   - SABER (once the saber is had, or with sithewok on): the saber wheel, every
-//     blade colour, SINGLE, DUAL or CROSS and the BEAM switch under them, which
+//     blade colour, SINGLE, DUAL or CROSS and the FILM switch under them, which
 //     blade a colour goes to (LEFT, BOTH, RIGHT), the look (CLASSIC, REFORGED)
 //     and EQUIP; a tap or a hold opens it to tap, a slide to slide.
 //
@@ -121,7 +121,7 @@ typedef struct touchUiGame {
     const char* (*SaberLookName)(int look);
     int (*SaberGetLook)(void);
     void (*SaberSetLook)(int look);
-    // the blade's shape (iosSaberShape: SPIKE / BEAM, kept by its name; NULL past the last)
+    // the blade's shape (iosSaberShape: SPIKE / FILM, kept by its name, SPIKE / BEAM; NULL past the last)
     const char* (*SaberShapeName)(int shape);
     int (*SaberGetShape)(void);
     void (*SaberSetShape)(int shape);
@@ -174,7 +174,7 @@ enum {
 enum { TOUCHUI_GYRO_OFF = 0, TOUCHUI_GYRO_TOUCH, TOUCHUI_GYRO_ALWAYS };
 enum { TOUCHUI_HAPTIC_TICK = 1, TOUCHUI_HAPTIC_TAP = 2 };
 enum { TOUCHUI_WHEEL_FORCE = 0, TOUCHUI_WHEEL_WEAPONS, TOUCHUI_WHEEL_SABER };
-// The saber wheel's choices beside the ring (the blade's shape, BEAM on or
+// The saber wheel's choices beside the ring (the blade's shape, FILM on or
 // off, under SINGLE, DUAL and CROSS), and in its middle (EQUIP, the colours' look)
 enum { TOUCHUI_CHIP_SINGLE = 0, TOUCHUI_CHIP_DUAL, TOUCHUI_CHIP_LEFT, TOUCHUI_CHIP_BOTH, TOUCHUI_CHIP_RIGHT, TOUCHUI_CHIP_EQUIP,
        TOUCHUI_CHIP_LOOK, TOUCHUI_CHIP_SHAPE, TOUCHUI_CHIP_CROSS, TOUCHUI_NUM_CHIPS };

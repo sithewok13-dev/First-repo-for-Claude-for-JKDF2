@@ -665,7 +665,7 @@ void iosSaber_BeginBlade(SithThing* pThing, rdThing* pLine, int blade)
     // its shape (iosSaberShape), whatever the colour: its glow in the blade's own colour (the
     // look's edge colour; the game's own blade's, by its material); the crossguard's, CROSS
     const unsigned char* rgb = aMat ? iosSaber_Row(iosSaber_look, id)->edge : iosSaber_SwatchOf(pLine->polyline->face.material);
-    iosSaberShape_BeginBlade(pThing, pLine, rgb ? rgb : iosSaber_aColours[IOSSABER_COLOUR_GAME].edge,
+    iosSaberShape_BeginBlade(pThing, pLine, rgb ? rgb : iosSaber_aColours[IOSSABER_COLOUR_GAME].edge, aMat ? iosSaber_Row(iosSaber_look, id)->core : NULL,
                              st->bCrossguard ? IOSSABERSHAPE_FORM_CROSS : IOSSABERSHAPE_FORM_CHOSEN);
     if (!aMat) return;
     rdPolyline* l = pLine->polyline;

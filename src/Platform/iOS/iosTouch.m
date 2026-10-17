@@ -196,20 +196,20 @@ extern int jkHud_bChatOpen;
 #define IOSTOUCH_SABERCOLOUR_DEFAULTS_KEY @"iosTouchSaberColour" // + style name + blade number
 #define IOSTOUCH_SABERTARGET_DEFAULTS_KEY @"iosTouchSaberTarget"
 #define IOSTOUCH_SABERLOOK_DEFAULTS_KEY @"iosTouchSaberLook" // (by its name: CLASSIC, REFORGED)
-#define IOSTOUCH_SABERSHAPE_DEFAULTS_KEY @"iosTouchSaberShape" // (by its name: SPIKE, BEAM; iosSaberShape)
+#define IOSTOUCH_SABERSHAPE_DEFAULTS_KEY @"iosTouchSaberShape" // (by its name as kept: SPIKE, BEAM (FILM on the screen); iosSaberShape)
 // The saber wheel's choices beside the ring: SINGLE, DUAL, CROSS and the
-// blade's shape (BEAM, an on/off switch) on its left; with DUAL, which blade a
+// blade's shape (FILM, an on/off switch) on its left; with DUAL, which blade a
 // colour goes to (LEFT, BOTH, RIGHT) on its right.
 // Each IOSTOUCH_SABER_CHIP_W by _H, this far out from the ring and apart.
 enum { IOSTOUCH_CHIP_SINGLE = 0, IOSTOUCH_CHIP_DUAL, IOSTOUCH_CHIP_LEFT, IOSTOUCH_CHIP_BOTH, IOSTOUCH_CHIP_RIGHT,
        IOSTOUCH_CHIP_EQUIP, // (in the middle: the saber in hand, as it is set; lit while the player has it)
        IOSTOUCH_CHIP_LOOK,  // (in the middle, over the colour's name: the colours' look, CLASSIC or REFORGED)
-       IOSTOUCH_CHIP_SHAPE, // (on the left, under CROSS: the blade's shape, BEAM on or off -- SPIKE, the game's;
+       IOSTOUCH_CHIP_SHAPE, // (on the left, under CROSS: the blade's shape, FILM on or off -- SPIKE, the game's;
                             // dim while CROSS is picked, which has a shape of its own)
        IOSTOUCH_CHIP_CROSS, // (on the left, under DUAL: one saber with a crossguard)
        IOSTOUCH_NUM_CHIPS };
 // The shape's switch: a track this big at its right, its knob to the right
-// and gold when BEAM is on
+// and gold when FILM is on
 #define IOSTOUCH_SWITCH_W 20.0
 #define IOSTOUCH_SWITCH_H 12.0
 #define IOSTOUCH_SABER_CHIP_W 64.0
@@ -2037,7 +2037,7 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
             // the shape's switch: its name on the left, a small on/off switch on the right
             UILabel* c = aSaberChips[IOSTOUCH_CHIP_SHAPE];
             shapeName = [[UILabel alloc] initWithFrame:CGRectMake(4.0, 0.0, IOSTOUCH_SABER_CHIP_W - 13.0 - IOSTOUCH_SWITCH_W, IOSTOUCH_SABER_CHIP_H)];
-            shapeName.text = @"BEAM";
+            shapeName.text = @"FILM";
             shapeName.textAlignment = NSTextAlignmentCenter;
             shapeName.font = [UIFont boldSystemFontOfSize:10];
             shapeName.adjustsFontSizeToFitWidth = YES;
@@ -2915,7 +2915,7 @@ static int iosTouch_SaberBlade(void)
         [self refreshSaberIcons];
     }
     else if (chip == IOSTOUCH_CHIP_SHAPE) {
-        // the blade's shape, BEAM on or off, remembered: the blades drawn in it at once
+        // the blade's shape, FILM on or off, remembered: the blades drawn in it at once
         iosSaberShape_Toggle();
         [d setObject:[NSString stringWithUTF8String:iosSaberShape_Name(iosSaberShape_Get())] forKey:IOSTOUCH_SABERSHAPE_DEFAULTS_KEY];
     }
@@ -2970,7 +2970,7 @@ static int iosTouch_SaberBlade(void)
     // every button showing (dimmed under the wheel, but a choice over one is
     // hard to read) and on screen. Where the right has no such place (the
     // smallest screens: JUMP and ACT), the blades' choices go on the left
-    // too, under SINGLE, DUAL, CROSS and BEAM; where all seven don't fit so
+    // too, under SINGLE, DUAL, CROSS and FILM; where all seven don't fit so
     // between the top row and the bottom, closer together.
     CGFloat aShift[2] = { 0.0, 0.0 };
     int bOneColumn = 0;
@@ -3066,7 +3066,7 @@ static int iosTouch_SaberBlade(void)
             l.center = CGPointMake(c.x + (bStyle ? -R : R), c.y + aShift[bStyle ? 0 : 1] + (k - (n - 1) * 0.5) * step);
         int bOn;
         if (i == IOSTOUCH_CHIP_SHAPE) {
-            // a switch: on (BEAM) its knob to the right, the track gold; dim with CROSS
+            // a switch: on (FILM) its knob to the right, the track gold; dim with CROSS
             // (its blade has its own shape: the switch still works, for the others' blades)
             bOn = iosSaberShape_Get() == IOSSABERSHAPE_BEAM;
             const CGFloat kd = IOSTOUCH_SWITCH_H - 4.0;

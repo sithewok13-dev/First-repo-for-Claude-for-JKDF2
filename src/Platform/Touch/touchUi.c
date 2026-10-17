@@ -1601,7 +1601,7 @@ static void tu_SaberTargetFromShared(void)
 
 // One of the saber wheel's choices tapped: one saber, two or the crossguard
 // (each keeps its own colours), which of the two a colour goes to, the colours' look (the
-// wheel made again in it), or the blade's shape (BEAM on or off) -- the wheel
+// wheel made again in it), or the blade's shape (FILM on or off) -- the wheel
 // stays open to tap a colour; or EQUIP:
 // the saber in hand, the wheel closed
 // (the overlay's choices are the shared wheel's, by number)

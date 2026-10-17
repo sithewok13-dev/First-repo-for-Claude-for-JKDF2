@@ -85,7 +85,7 @@ extern "C" {
 #define IOSPAD_CHIP_TARGET 1 // with two: the next of LEFT, BOTH, RIGHT
 #define IOSPAD_CHIP_EQUIP 2  // the saber in hand
 #define IOSPAD_CHIP_LOOK 3   // the colours' other look (CLASSIC / REFORGED)
-#define IOSPAD_CHIP_SHAPE 4  // the blade's shape: BEAM on or off (iosSaberShape)
+#define IOSPAD_CHIP_SHAPE 4  // the blade's shape: FILM on or off (iosSaberShape)
 
 // Hold rings (iosPadPanel_HoldRing)
 #define IOSPAD_RING_NONE 0

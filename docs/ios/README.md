@@ -478,8 +478,8 @@ switch the controller off and they come back.
   pointing anywhere, it stays open: point and press A, or step round with the
   D-pad. On the saber wheel, A sets the colour, X steps through SINGLE, DUAL
   and CROSS ("style" on the screen), Y which blade a colour goes to, L3
-  switches CLASSIC and REFORGED ("look"), D-pad up turns BEAM on or off
-  ("beam"), and R3 takes the saber in hand ("equip").
+  switches CLASSIC and REFORGED ("look"), D-pad up turns FILM on or off
+  ("film"), and R3 takes the saber in hand ("equip").
 - **Quick save and quick load** need a short hold (a ring fills at the top of
   the screen), so a stray press never saves or loads.
 - **Controller options** (hold Start): look speed across and up and down,
@@ -550,7 +550,7 @@ Turn on FPS in MENU's tray to see what the app gets (below).
   saber wheel, a click sets the colour, 1 steps through SINGLE, DUAL and CROSS
   ("style" on the screen), 2 which blade a colour goes to, 3 takes the saber
   in hand ("equip"), 4 switches CLASSIC and REFORGED ("look"), and 5 turns
-  BEAM on or off ("beam").
+  FILM on or off ("film").
 - **Your own keys and buttons:** Setup > Controls > Keyboard and Setup >
   Controls > Mouse change any of them; the mouse sensitivity is there too.
   Whatever key you put on next/previous power or weapon gets the wheel when
@@ -881,17 +881,24 @@ cancels, and the game holds still while the wheel is open.
   - In Jedi Knight, a green you kept (picked in CLASSIC) shows as
     ORIGINAL while REFORGED is on, and is shown to other players as
     ORIGINAL too. Switch back to CLASSIC and it's green again.
-- **BEAM**, an on/off switch under SINGLE, DUAL and CROSS, picks the blade's
-  shape. Tap it to switch. The wheel stays open, and the blade in your hand
-  changes at once. The app remembers it. CROSS keeps its own blade whatever
-  BEAM says, so the switch is dimmed while CROSS is picked (it still works,
-  for other players' blades and for SINGLE and DUAL).
+- **FILM** (it was called BEAM), an on/off switch under SINGLE, DUAL and
+  CROSS, picks the blade's look. Tap it to switch. The wheel stays open, and
+  the blade in your hand changes at once. The app remembers it (a BEAM you
+  set before stays on). CROSS keeps its own blade whatever FILM says, so the
+  switch is dimmed while CROSS is picked (it still works, for other players'
+  blades and for SINGLE and DUAL).
   - **Off** (the default): the game's own blade, which narrows to a point.
-  - **On:** a slim film-style beam, the same width all the way and a little
-    longer than the game's blade, with a rounded end and a soft glow in the
-    blade's colour. The glow only adds light: it's strong in the dark and
-    gentler on bright walls, and never darkens what's behind it. The blade
-    still reaches and hits as the game's does.
+  - **On:** a blade as in the films, as long as the game's own (switching
+    doesn't change the length) and slim to the films' proportions, the same
+    width all the way, with a rounded end. Its core is white hot, its colour
+    is at the edges and in a soft glow close round it, and it shimmers very
+    faintly (still while the game is held). The glow only adds light: it's
+    strong in the dark and gentler on bright walls, and never darkens what's
+    behind it.
+  - Hits work as the game's always have, and the game's hits already reach
+    past its own blade: a normal swing hits a quarter further than the blade
+    it draws, the strongest attacks up to two and a half times as far, and
+    the sparks show where a hit lands. That's the same with FILM on or off.
   - It works with every colour, ORIGINAL included, in both CLASSIC and
     REFORGED. It shows in first and third person, with two sabers, in selfies
     and Action Freeze. In Mysteries of the Sith a thrown saber gets the glow
@@ -900,8 +907,8 @@ cancels, and the game holds still while the wheel is open.
     multiplayer the blades of players whose game sends their saber choice
     (except a CROSS, which keeps its own). Enemy Jedi (the bosses) and
     players on other builds keep the game's blade.
-  - Only the look changes: the blade's length, its reach and its damage stay
-    as the game has them.
+  - Only the look changes: the reach and damage of every attack stay as the
+    game has them.
 - **The wheel stays open** after you pick a colour, so you can change both
   blades in one go. Close it with the gap at the bottom, or by tapping outside
   the wheel.
@@ -1092,7 +1099,7 @@ Other players see your saber as you set it on the SABER wheel: its colour,
 and two sabers or CROSS if you chose them. Players on a build from before
 CROSS (v0.8-beta2 and older) see a CROSS as one plain saber in its colour.
 CLASSIC or REFORGED changes how you see every saber on your screen, yours
-and theirs. BEAM is for your screen too:
+and theirs. FILM is for your screen too:
 it changes your blade and theirs as you see them. One thing reaches other
 players: in Jedi Knight, a green you kept shows as ORIGINAL while REFORGED
 is on, and other players see it as ORIGINAL too. In multiplayer the second saber is only
