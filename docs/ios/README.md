@@ -911,12 +911,13 @@ cancels, and the game holds still while the wheel is open.
   or one saber with a crossguard. With DUAL, **LEFT**, **BOTH** and **RIGHT**
   choose which blade a colour goes to. Each style keeps its own colours.
 - **CROSS:** a jagged blade that crackles and comes to a point, two short
-  blades sticking out either side of the hilt, and a strong glow in the
-  blade's colour (on a bright wall it only tints). It works with every
-  colour, in both CLASSIC and REFORGED, and shows in first and third person
-  and in Action Freeze. In Mysteries of the Sith a saber thrown from CROSS
-  gets the glow and the two short blades too. Only the look changes: the
-  main blade hits as usual, and the short side blades don't hit anything.
+  blades coming out of two small dark metal vents either side of the top of
+  the hilt, and a strong glow in the blade's colour (on a bright wall it only
+  tints). It works with every colour, in both CLASSIC and REFORGED, and shows
+  in first and third person and in Action Freeze. In Mysteries of the Sith a
+  saber thrown from CROSS gets the glow, the vents and the two short blades
+  too. Only the look changes: the main blade hits as usual, and the vents and
+  the short side blades don't hit anything.
 - **Two sabers fight for real:** the second blade strikes, deals damage and
   throws sparks like the first. In first person both arms move, and between
   swings he holds the two sabers casually, hands apart and a little low,

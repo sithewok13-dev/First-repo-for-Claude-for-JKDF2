@@ -154,8 +154,9 @@ Tick what works, note what doesn't (a photo of the screen helps).
       On the left: SINGLE (one saber), DUAL (two sabers; then LEFT / BOTH /
       RIGHT on the right choose which blade a colour goes to) and CROSS (one
       saber with a crossguard: a jagged, crackling blade that comes to a
-      point, two short blades either side of the hilt, a strong glow; only the
-      main blade hits). EQUIP puts the saber in your hand.
+      point, two short blades out of small metal vents either side of the
+      hilt, a strong glow; only the main blade hits). EQUIP puts the saber in
+      your hand.
       The gap at the bottom (or a tap off the wheel) closes it. A slide from
       SABER opens it to slide to a colour.
 - [ ] CLASSIC / REFORGED (at the top of the saber wheel's middle): a tap

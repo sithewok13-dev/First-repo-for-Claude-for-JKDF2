@@ -157,9 +157,9 @@ static void iosSaberShape_MakeTexels(uint8_t* pOut, int w, int h, const unsigned
     }
 }
 
-static void iosSaberShape_FreeGlow(iosSaberShapeGlow* g)
+// (a material made here: its texels too)
+static void iosSaberShape_FreeMat(rdMaterial* pMat)
 {
-    rdMaterial* pMat = &g->mat;
     for (uint32_t i = 0; i < pMat->num_texinfo; i++) {
         rdTexture* pTex = pMat->texinfos[i] ? pMat->texinfos[i]->texture_ptr : NULL;
         for (uint32_t j = 0; pTex && j < pTex->num_mipmaps; j++) {
@@ -172,6 +172,11 @@ static void iosSaberShape_FreeGlow(iosSaberShapeGlow* g)
     }
     rdMaterial_FreeEntry(pMat);
     memset(pMat, 0, sizeof(*pMat));
+}
+
+static void iosSaberShape_FreeGlow(iosSaberShapeGlow* g)
+{
+    iosSaberShape_FreeMat(&g->mat);
 }
 
 static int iosSaberShape_MakeGlow(iosSaberShapeGlow* g)
@@ -231,11 +236,116 @@ static iosSaberShapeGlow* iosSaberShape_Glow(const unsigned char rgb[3], int gai
     return g->loaded > 0 ? g : NULL;
 }
 
+// CROSS's hilt vents' metal (see iosSaberShape_Vents): each part's texture
+// at each of IOSSABERSHAPE_METAL_LEVELS shades, made from the same disc as
+// the glows, opaque, filled with its colour; loaded with the first CROSS
+// drawn, freed with the level. The tubes are dark gunmetal with a faint
+// heat-blued sheen in bands along them (blue, purple, gold); the clamps that
+// hold them to the hilt black; their open ends darker still.
+enum { IOSSABERSHAPE_METAL_TUBE = 0, IOSSABERSHAPE_METAL_CLAMP, IOSSABERSHAPE_METAL_HOLE, IOSSABERSHAPE_NUM_METALS };
+#define IOSSABERSHAPE_METAL_LEVELS 6
+static rdMaterial iosSaberShape_aMetal[IOSSABERSHAPE_NUM_METALS][IOSSABERSHAPE_METAL_LEVELS];
+static int iosSaberShape_metalLoaded = 0; // 1: loaded; -1: tried, and couldn't be
+static flex_t iosSaberShape_metalW = 1, iosSaberShape_metalH = 1;
+
+static void iosSaberShape_MetalTexels(uint8_t* pOut, int w, int h, int kind, int level)
+{
+    // (the shade: from the side away from the light to the side facing it)
+    const float shade = 0.42f + 0.58f * (float)level / (IOSSABERSHAPE_METAL_LEVELS - 1);
+    static const float aBand[3][4] = { // (where along the tube, and the tint there)
+        { 0.32f, -6.0f, 4.0f, 30.0f }, { 0.47f, 20.0f, -4.0f, 26.0f }, { 0.62f, 30.0f, 20.0f, -8.0f } };
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            uint8_t* o = &pOut[(y * w + x) * 4];
+            float c[3];
+            if (kind == IOSSABERSHAPE_METAL_HOLE) {
+                c[0] = 7; c[1] = 7; c[2] = 9;
+            }
+            else if (kind == IOSSABERSHAPE_METAL_CLAMP) {
+                c[0] = 34 * shade; c[1] = 34 * shade; c[2] = 38 * shade;
+            }
+            else {
+                const float t = (y + 0.5f) / h;
+                c[0] = 66; c[1] = 68; c[2] = 76;
+                for (int k = 0; k < 3; k++) {
+                    const float d = (t - aBand[k][0]) / 0.075f, f = expf(-d * d);
+                    c[0] += aBand[k][1] * f; c[1] += aBand[k][2] * f; c[2] += aBand[k][3] * f;
+                }
+                for (int k = 0; k < 3; k++) c[k] *= shade;
+            }
+            o[0] = (uint8_t)(c[2] + 0.5f); // (B, G, R, A: as TEX_MODE_16BPP reads them)
+            o[1] = (uint8_t)(c[1] + 0.5f);
+            o[2] = (uint8_t)(c[0] + 0.5f);
+            o[3] = 255;
+        }
+    }
+}
+
+static void iosSaberShape_FreeMetals(void)
+{
+    if (iosSaberShape_metalLoaded > 0)
+        for (int k = 0; k < IOSSABERSHAPE_NUM_METALS; k++)
+            for (int l = 0; l < IOSSABERSHAPE_METAL_LEVELS; l++) iosSaberShape_FreeMat(&iosSaberShape_aMetal[k][l]);
+    iosSaberShape_metalLoaded = 0;
+}
+
+static int iosSaberShape_MakeMetal(rdMaterial* pMat, int kind, int level)
+{
+    if (!rdMaterial_LoadEntry("mat\\saberblue0.mat", pMat, 0, 0)) return 0;
+    int bAny = 0;
+    for (uint32_t i = 0; i < pMat->num_texinfo; i++) {
+        rdTexture* pTex = pMat->texinfos[i] ? pMat->texinfos[i]->texture_ptr : NULL;
+        for (uint32_t j = 0; pTex && j < pTex->num_mipmaps; j++) {
+            tVBuffer* v = pTex->texture_struct[j];
+            if (!v) continue;
+            const int w = v->format.width, h = v->format.height;
+            uint8_t* pOut = (uint8_t*)malloc((size_t)w * h * 4);
+            if (!pOut) {
+                iosSaberShape_FreeMat(pMat);
+                return 0;
+            }
+            iosSaberShape_MetalTexels(pOut, w, h, kind, level);
+            free(v->pTrueColour);
+            v->pTrueColour = pOut;
+            std3D_PurgeSurfaceRefs(&pTex->alphaMats[j]);
+            std3D_PurgeSurfaceRefs(&pTex->opaqueMats[j]);
+            pTex->alphaMats[j].texture_loaded = 0;
+            pTex->opaqueMats[j].texture_loaded = 0;
+            if (i == 0 && j == 0) {
+                iosSaberShape_metalW = (flex_t)w;
+                iosSaberShape_metalH = (flex_t)h;
+            }
+            bAny = 1;
+        }
+    }
+    if (!bAny) iosSaberShape_FreeMat(pMat);
+    return bAny;
+}
+
+// (the metals, made if need be; 0 if they can't be)
+static int iosSaberShape_Metals(void)
+{
+    if (iosSaberShape_metalLoaded) return iosSaberShape_metalLoaded > 0;
+    iosSaberShape_metalLoaded = -1;
+    for (int k = 0; k < IOSSABERSHAPE_NUM_METALS; k++) {
+        for (int l = 0; l < IOSSABERSHAPE_METAL_LEVELS; l++) {
+            if (!iosSaberShape_MakeMetal(&iosSaberShape_aMetal[k][l], k, l)) {
+                for (int q = 0; q <= k; q++)
+                    for (int m = 0; m < (q < k ? IOSSABERSHAPE_METAL_LEVELS : l); m++) iosSaberShape_FreeMat(&iosSaberShape_aMetal[q][m]);
+                return 0;
+            }
+        }
+    }
+    iosSaberShape_metalLoaded = 1;
+    return 1;
+}
+
 void iosSaberShape_FreeWorld(void)
 {
     for (int i = 0; i < iosSaberShape_numGlows; i++)
         if (iosSaberShape_aGlow[i].loaded > 0) iosSaberShape_FreeGlow(&iosSaberShape_aGlow[i]);
     iosSaberShape_numGlows = 0;
+    iosSaberShape_FreeMetals();
 }
 
 // ------------------------------------------------------------ drawing
@@ -576,14 +686,13 @@ static int iosSaberShape_DrawBeam(rdThing* pLine, const rdVector3* pTip, const r
 #define IOSSABERSHAPE_CROSS_SPARK_MIN 1.2f
 #define IOSSABERSHAPE_CROSS_SPARK_MAX 3.4f
 #define IOSSABERSHAPE_CROSS_SPARK_WIDTH 0.28f
-// The side blades: this long (of the blade's length), as wide at the hilt
-// (of the blade's), the whole of their outer IOSSABERSHAPE_CROSS_GUARD_TAPER
-// narrowing to their points; out from this far up the blade (of its length);
-// in this many slices
+// The side blades: this long (of the blade's length) out from the hilt's
+// vents (iosSaberShape_Vents), as wide there (of the blade's), the whole of
+// their outer IOSSABERSHAPE_CROSS_GUARD_TAPER narrowing to their points; in
+// this many slices
 #define IOSSABERSHAPE_CROSS_GUARD_LEN 0.13f
 #define IOSSABERSHAPE_CROSS_GUARD_WIDTH 0.8f
 #define IOSSABERSHAPE_CROSS_GUARD_TAPER 0.6f
-#define IOSSABERSHAPE_CROSS_GUARD_AT 0.0f
 #define IOSSABERSHAPE_CROSS_GUARD_SLICES 5
 // The glow: its radius at the hilt (of the blade's half width; its texels glowing
 // out to IOSSABERSHAPE_GLOW_REACH of it), and at a
@@ -705,12 +814,158 @@ static int iosSaberShape_GuardAxis(const rdMatrix34* pToCam, const rdVector3* pA
     return 1;
 }
 
+// CROSS's hilt vents: the film hilt's two short metal tubes out either side
+// just below its emitter, each held to the hilt by a small clamp, its outer
+// end cut on a slant (its upper half reaching further, a half-pipe lip) and
+// open, the side blade coming out of it. In the hilt's radius (R): their
+// middle line this far below the blade's base; from inside the hilt out to
+// this far from its axis (about the hilt's width past its side), the lip
+// this much further; the tubes' radius; the clamps out to here, this far
+// either side of the middle line. Visual only: solid faces, shaded by which
+// way they face a light above and in front of the eye; the ones facing away
+// left out.
+#define IOSSABERSHAPE_VENT_DROP 0.9f
+#define IOSSABERSHAPE_VENT_IN 0.6f
+#define IOSSABERSHAPE_VENT_OUT 3.0f
+#define IOSSABERSHAPE_VENT_LIP 0.7f
+#define IOSSABERSHAPE_VENT_RADIUS 0.58f
+#define IOSSABERSHAPE_VENT_SIDES 6
+#define IOSSABERSHAPE_CLAMP_OUT 1.4f
+#define IOSSABERSHAPE_CLAMP_HALF 0.72f
+
+static int iosSaberShape_aPolyIdx[IOSSABERSHAPE_VENT_SIDES] = { 0, 1, 2, 3, 4, 5 };
+static rdVector3 iosSaberShape_aPolyVerts[IOSSABERSHAPE_VENT_SIDES];
+static rdVector2 iosSaberShape_aPolyUVs[IOSSABERSHAPE_VENT_SIDES];
+
+// (one face of a vent, camera space, n corners round its outside; its UVs: 0..1)
+static void iosSaberShape_MetalFace(rdThing* pLine, int kind, rdTexMode_t texMode, const rdVector3* aCorner, const rdVector2* aUV, int n)
+{
+    // (facing away: left out)
+    rdVector3 c = { 0, 0, 0 };
+    for (int i = 0; i < n; i++) {
+        c.x += aCorner[i].x / n;
+        c.y += aCorner[i].y / n;
+        c.z += aCorner[i].z / n;
+    }
+    const rdVector3 e1 = { aCorner[1].x - aCorner[0].x, aCorner[1].y - aCorner[0].y, aCorner[1].z - aCorner[0].z };
+    const rdVector3 e2 = { aCorner[n - 1].x - aCorner[0].x, aCorner[n - 1].y - aCorner[0].y, aCorner[n - 1].z - aCorner[0].z };
+    rdVector3 nrm = { e1.y * e2.z - e1.z * e2.y, e1.z * e2.x - e1.x * e2.z, e1.x * e2.y - e1.y * e2.x };
+    const flex_t m = stdMath_Sqrt(nrm.x * nrm.x + nrm.y * nrm.y + nrm.z * nrm.z);
+    if (m <= (flex_t)0.0000000001) return;
+    nrm.x /= m;
+    nrm.y /= m;
+    nrm.z /= m;
+    if (nrm.x * c.x + nrm.y * c.y + nrm.z * c.z >= 0) return;
+    // (its shade: toward the light, up and back toward the eye)
+    const flex_t lx = -0.3f, ly = -0.55f, lz = 0.78f;
+    flex_t lit = nrm.x * lx + nrm.y * ly + nrm.z * lz;
+    if (lit < 0) lit = 0;
+    int level = (int)(lit * (IOSSABERSHAPE_METAL_LEVELS - 1) + (flex_t)0.5);
+    if (level >= IOSSABERSHAPE_METAL_LEVELS) level = IOSSABERSHAPE_METAL_LEVELS - 1;
+    for (int i = 0; i < n; i++) {
+        iosSaberShape_aPolyVerts[i] = aCorner[i];
+        iosSaberShape_aPolyUVs[i].x = aUV[i].x * (iosSaberShape_metalW - (flex_t)0.01);
+        iosSaberShape_aPolyUVs[i].y = aUV[i].y * (iosSaberShape_metalH - (flex_t)0.01);
+    }
+    rdFace face;
+    memset(&face, 0, sizeof(face));
+    face.geometryMode = RD_GEOMETRY_FULL;
+    face.lightingMode = RD_LIGHTMODE_FULLYLIT;
+    face.textureMode = texMode;
+    face.numVertices = n;
+    face.vertexPosIdx = iosSaberShape_aPolyIdx;
+    face.vertexUVIdx = iosSaberShape_aPolyIdx;
+    face.material = &iosSaberShape_aMetal[kind][level];
+    face.wallCel = 0xFFFFFFFF;
+    rdMeshinfo info;
+    memset(&info, 0, sizeof(info));
+    info.numVertices = n;
+    info.aVertices = iosSaberShape_aPolyVerts;
+    info.aTexVerticies = iosSaberShape_aPolyUVs;
+    rdPolyline_DrawFace(pLine, &face, iosSaberShape_aPolyVerts, &info);
+}
+
+// The vents (camera space: the blade's base, its way along, and the way out
+// to one side, unit; the hilt's radius), and where each side blade comes out
+// (aRoot: +side first, then -side)
+static void iosSaberShape_Vents(rdThing* pLine, rdTexMode_t texMode, const rdVector3* pBase, const rdVector3* pAlong, const rdVector3* pSide,
+                                flex_t R, int bDraw, rdVector3 aRoot[2])
+{
+    // (the third way: square to both)
+    const rdVector3 q = { pAlong->y * pSide->z - pAlong->z * pSide->y, pAlong->z * pSide->x - pAlong->x * pSide->z,
+                          pAlong->x * pSide->y - pAlong->y * pSide->x };
+    const rdVector3 o = { pBase->x - pAlong->x * R * IOSSABERSHAPE_VENT_DROP, pBase->y - pAlong->y * R * IOSSABERSHAPE_VENT_DROP,
+                          pBase->z - pAlong->z * R * IOSSABERSHAPE_VENT_DROP };
+    const flex_t rt = R * IOSSABERSHAPE_VENT_RADIUS;
+    for (int k = 0; k < 2; k++) {
+        const flex_t sd = k ? (flex_t)-1 : (flex_t)1;
+        const rdVector3 s = { pSide->x * sd, pSide->y * sd, pSide->z * sd };
+        // (the side blade: out of the middle of the open end)
+        const flex_t root = R * (IOSSABERSHAPE_VENT_OUT + IOSSABERSHAPE_VENT_LIP * (flex_t)0.4);
+        aRoot[k].x = o.x + s.x * root;
+        aRoot[k].y = o.y + s.y * root;
+        aRoot[k].z = o.z + s.z * root;
+        if (!bDraw) continue;
+        // the tube: its rings round it, 0 the side toward the blade's tip; inner end, then outer (with the lip)
+        rdVector3 aIn[IOSSABERSHAPE_VENT_SIDES], aOut[IOSSABERSHAPE_VENT_SIDES];
+        for (int i = 0; i < IOSSABERSHAPE_VENT_SIDES; i++) {
+            const float th = (float)i / IOSSABERSHAPE_VENT_SIDES * (float)(2.0 * M_PI);
+            // (each side round the same way, seen from its open end)
+            const flex_t ca = (flex_t)cosf(th), sa = (flex_t)sinf(th) * sd;
+            const rdVector3 dir = { pAlong->x * ca + q.x * sa, pAlong->y * ca + q.y * sa, pAlong->z * ca + q.z * sa };
+            const flex_t out = R * IOSSABERSHAPE_VENT_OUT + R * IOSSABERSHAPE_VENT_LIP * (ca > 0 ? ca : 0);
+            aIn[i].x = o.x + s.x * R * IOSSABERSHAPE_VENT_IN + dir.x * rt;
+            aIn[i].y = o.y + s.y * R * IOSSABERSHAPE_VENT_IN + dir.y * rt;
+            aIn[i].z = o.z + s.z * R * IOSSABERSHAPE_VENT_IN + dir.z * rt;
+            aOut[i].x = o.x + s.x * out + dir.x * rt;
+            aOut[i].y = o.y + s.y * out + dir.y * rt;
+            aOut[i].z = o.z + s.z * out + dir.z * rt;
+        }
+        for (int i = 0; i < IOSSABERSHAPE_VENT_SIDES; i++) {
+            const int j = (i + 1) % IOSSABERSHAPE_VENT_SIDES;
+            // (round its outside: its normal out)
+            const rdVector3 aC[4] = { aIn[i], aOut[i], aOut[j], aIn[j] };
+            const rdVector2 aUV[4] = { { (flex_t)i / IOSSABERSHAPE_VENT_SIDES, 0 }, { (flex_t)i / IOSSABERSHAPE_VENT_SIDES, 1 },
+                                       { (flex_t)(i + 1) / IOSSABERSHAPE_VENT_SIDES, 1 }, { (flex_t)(i + 1) / IOSSABERSHAPE_VENT_SIDES, 0 } };
+            iosSaberShape_MetalFace(pLine, IOSSABERSHAPE_METAL_TUBE, texMode, aC, aUV, 4);
+        }
+        // its open end (dark inside), round the other way: facing out
+        rdVector3 aEnd[IOSSABERSHAPE_VENT_SIDES];
+        rdVector2 aEndUV[IOSSABERSHAPE_VENT_SIDES];
+        for (int i = 0; i < IOSSABERSHAPE_VENT_SIDES; i++) {
+            aEnd[i] = aOut[IOSSABERSHAPE_VENT_SIDES - 1 - i];
+            aEndUV[i].x = (flex_t)0.5;
+            aEndUV[i].y = (flex_t)0.5;
+        }
+        iosSaberShape_MetalFace(pLine, IOSSABERSHAPE_METAL_HOLE, texMode, aEnd, aEndUV, IOSSABERSHAPE_VENT_SIDES);
+        // the clamp: a box round the tube's inner part, against the hilt
+        const flex_t c0 = R * IOSSABERSHAPE_VENT_IN, c1 = R * IOSSABERSHAPE_CLAMP_OUT, ch = R * IOSSABERSHAPE_CLAMP_HALF;
+        rdVector3 aBox[8]; // (inner end then outer; round: +along+q, +along-q, -along-q, -along+q)
+        for (int i = 0; i < 8; i++) {
+            const flex_t d = i < 4 ? c0 : c1;
+            const flex_t fa = (i % 4) < 2 ? ch : -ch, fq = ((i % 4) == 0 || (i % 4) == 3) ? ch * sd : -ch * sd;
+            aBox[i].x = o.x + s.x * d + pAlong->x * fa + q.x * fq;
+            aBox[i].y = o.y + s.y * d + pAlong->y * fa + q.y * fq;
+            aBox[i].z = o.z + s.z * d + pAlong->z * fa + q.z * fq;
+        }
+        // (its outer face and its four sides, each round its outside: the one inside the hilt left out)
+        static const int aSide[5][4] = { { 4, 5, 6, 7 }, { 0, 1, 5, 4 }, { 1, 2, 6, 5 }, { 2, 3, 7, 6 }, { 3, 0, 4, 7 } };
+        static const rdVector2 aBoxUV[4] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+        for (int f = 0; f < 5; f++) {
+            rdVector3 aC[4];
+            for (int i = 0; i < 4; i++) aC[i] = aBox[aSide[f][i]];
+            iosSaberShape_MetalFace(pLine, IOSSABERSHAPE_METAL_CLAMP, texMode, aC, aBoxUV, 4);
+        }
+    }
+}
+
 // The whole of CROSS (camera space: the hilt's matrix, if known; the blade's
-// tip and base; r, its half width at the hilt): the blade and its sparks, the
-// side blades, and the glow round all three (g; none, NULL). pFace and the UVs
-// the blade's side.
+// tip and base; r, its half width at the hilt; R, the hilt's radius): the
+// blade and its sparks, the hilt's vents and the side blades out of them,
+// and the glow round all three (g; none, NULL). pFace and the UVs the
+// blade's side.
 static void iosSaberShape_Cross(rdThing* pLine, rdFace* pFace, flex_t uvW, flex_t uvH, const iosSaberShapeGlow* g, rdTexMode_t texMode,
-                                const rdMatrix34* pToCam, const rdVector3* pTip, const rdVector3* pBase, flex_t r, int bBlade)
+                                const rdMatrix34* pToCam, const rdVector3* pTip, const rdVector3* pBase, flex_t r, flex_t R, int bBlade)
 {
     const rdVector3 d = { pTip->x - pBase->x, pTip->y - pBase->y, pTip->z - pBase->z };
     const flex_t len = stdMath_Sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
@@ -738,16 +993,14 @@ static void iosSaberShape_Cross(rdThing* pLine, rdFace* pFace, flex_t uvW, flex_
     }
     else iosSaberShape_Across(pTip, pBase, &c, &sn);
 
-    // the side blades, from the hilt out across the hand, either way
+    // the hilt's vents, either side across the hand, and the side blades out of them
     rdVector3 axis, aRoot[2], aTip[2];
     flex_t aCos[2] = { 1, 1 }, aSin[2] = { 0, 0 };
     const int bGuards = pToCam && iosSaberShape_GuardAxis(pToCam, &along, &axis);
     const flex_t gl = len * IOSSABERSHAPE_CROSS_GUARD_LEN, gr = r * IOSSABERSHAPE_CROSS_GUARD_WIDTH;
+    if (bGuards) iosSaberShape_Vents(pLine, texMode, pBase, &along, &axis, R, iosSaberShape_Metals(), aRoot);
     for (int k = 0; bGuards && k < 2; k++) {
         const flex_t side = k ? (flex_t)-1 : (flex_t)1;
-        aRoot[k].x = pBase->x + d.x * IOSSABERSHAPE_CROSS_GUARD_AT;
-        aRoot[k].y = pBase->y + d.y * IOSSABERSHAPE_CROSS_GUARD_AT;
-        aRoot[k].z = pBase->z + d.z * IOSSABERSHAPE_CROSS_GUARD_AT;
         aTip[k].x = aRoot[k].x + axis.x * gl * side;
         aTip[k].y = aRoot[k].y + axis.y * gl * side;
         aTip[k].z = aRoot[k].z + axis.z * gl * side;
@@ -779,7 +1032,7 @@ int iosSaberShape_DrawBlade(rdThing* pLine, const rdMatrix34* pToCam, const rdVe
     // (this frame's crackle, this blade's own)
     iosSaberShape_Seed((uint32_t)sithTime_g_msecGameTime, iosSaberShape_crossId);
     iosSaberShape_Cross(pLine, &l->face, l->extraUVTipMaybe[0].x, l->extraUVTipMaybe[2].y, iosSaberShape_pGlow, l->face.textureMode, pToCam, pTip, pBase,
-                        iosSaberShape_savedBase * IOSSABERSHAPE_CROSS_WIDTH, 1);
+                        iosSaberShape_savedBase * IOSSABERSHAPE_CROSS_WIDTH, iosSaberShape_savedBase, 1);
     return 1;
 }
 
@@ -909,8 +1162,9 @@ void iosSaberShape_DrawThrownGlow(SithThing* pThing, const rdMaterial* pBlade, c
             uvH = (flex_t)(v ? v->format.height : 1) - (flex_t)0.01;
         }
         iosSaberShape_Seed((uint32_t)sithTime_g_msecGameTime, 0x8000u + pThing->idx);
-        iosSaberShape_Cross(&glowThing, bSide ? &face : NULL, uvW, uvH, g, glowThing.curTexMode, &guard, &tip, &base,
-                            stdMath_Dist3D1(b.x - a.x, b.y - a.y, b.z - a.z) * IOSSABERSHAPE_THROWN_BEAM, 0);
+        const flex_t r = stdMath_Dist3D1(b.x - a.x, b.y - a.y, b.z - a.z) * IOSSABERSHAPE_THROWN_BEAM;
+        iosSaberShape_Cross(&glowThing, bSide ? &face : NULL, uvW, uvH, g, glowThing.curTexMode, &guard, &tip, &base, r,
+                            r / IOSSABERSHAPE_CROSS_WIDTH, 0);
         return;
     }
     // (as wide as a held blade's of that length: the model's blade is drawn wider, with its blur)
