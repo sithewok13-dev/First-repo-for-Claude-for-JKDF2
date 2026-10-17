@@ -78,6 +78,7 @@ int iosSaber_GetShownColour(int style, int blade);
 // the left's): its colour put on, then the game's put back. Nothing changes
 // for anyone but the local player (and, in multiplayer, the other players
 // whose games sent their choice), or for the game's own colour.
+// Its shape, spike or beam, is put on here too (iosSaberShape), whatever the colour.
 struct SithThing;
 struct rdThing;
 void iosSaber_BeginBlade(struct SithThing* pThing, struct rdThing* pLine, int blade);

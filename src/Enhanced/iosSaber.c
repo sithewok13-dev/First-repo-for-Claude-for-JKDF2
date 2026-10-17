@@ -3,6 +3,7 @@
 #include "Enhanced/iosSaber.h"
 #include "Enhanced/iosStance.h"
 #include "Enhanced/iosSaberThrow.h"
+#include "Enhanced/iosSaberShape.h"
 #include "Primitives/rdModel3.h"
 
 #ifdef JK_ENHANCED
@@ -189,14 +190,12 @@ static const struct { const char* side; unsigned char rgb[3]; } iosSaber_aGameSw
     { "saberpurple1", { 160,  60, 255 } },
 };
 
-// The game's own colour's swatch, as near as can be told: that of the game's
-// blade whose side material the local player's blade has now, or NULL
-static const unsigned char* iosSaber_GameSwatch(void)
+// The swatch of the game's blade a material is (by its name), or NULL
+static const unsigned char* iosSaber_SwatchOf(const rdMaterial* pMat)
 {
-    SithThing* p = sithPlayer_g_pLocalPlayerThing;
-    if (!p || !p->playerInfo || !p->playerInfo->polyline.face.material) return NULL;
+    if (!pMat) return NULL;
     char name[64];
-    stdString_SafeStrCopy(name, p->playerInfo->polyline.face.material->mat_fpath, sizeof(name));
+    stdString_SafeStrCopy(name, pMat->mat_fpath, sizeof(name));
     for (char* q = name; *q; q++) {
         if (*q >= 'A' && *q <= 'Z') *q += 'a' - 'A';
     }
@@ -204,6 +203,15 @@ static const unsigned char* iosSaber_GameSwatch(void)
         if (strstr(name, iosSaber_aGameSwatches[i].side)) return iosSaber_aGameSwatches[i].rgb;
     }
     return NULL;
+}
+
+// The game's own colour's swatch, as near as can be told: that of the game's
+// blade whose side material the local player's blade has now, or NULL
+static const unsigned char* iosSaber_GameSwatch(void)
+{
+    SithThing* p = sithPlayer_g_pLocalPlayerThing;
+    if (!p || !p->playerInfo) return NULL;
+    return iosSaber_SwatchOf(p->playerInfo->polyline.face.material);
 }
 
 void iosSaber_ColourRGB(int id, unsigned char* pR, unsigned char* pG, unsigned char* pB)
@@ -474,9 +482,47 @@ void iosSaber_BeginThrown(SithThing* pThing)
     iosSaber_SwapThrownBlade(m, iosSaber_pThrownBlade, pMat);
 }
 
+// The swatch of the game's thrown saber a blade material is (3do\mat\sab0<name>.mat), or NULL
+static const unsigned char* iosSaber_ThrownSwatchOf(const rdMaterial* pMat)
+{
+    static const char* aKey[] = { "dred", "red", "orange", "yellow", "green", "blue", "purple" };
+    if (!pMat) return NULL;
+    char name[64];
+    stdString_SafeStrCopy(name, pMat->mat_fpath, sizeof(name));
+    for (char* q = name; *q; q++) {
+        if (*q >= 'A' && *q <= 'Z') *q += 'a' - 'A';
+    }
+    for (int i = 0; i < (int)(sizeof(aKey) / sizeof(aKey[0])); i++) {
+        char thrown[32], side[32];
+        snprintf(thrown, sizeof(thrown), "sab0%s", iosSaber_ThrownName(aKey[i]));
+        if (!strstr(name, thrown)) continue;
+        snprintf(side, sizeof(side), "saber%s1", aKey[i]);
+        for (int k = 0; k < (int)(sizeof(iosSaber_aGameSwatches) / sizeof(iosSaber_aGameSwatches[0])); k++)
+            if (!strcmp(iosSaber_aGameSwatches[k].side, side)) return iosSaber_aGameSwatches[k].rgb;
+    }
+    return NULL;
+}
+
 void iosSaber_EndThrown(SithThing* pThing)
 {
-    (void)pThing;
+    // its glow (iosSaberShape), in the colour it is drawn in: the one put on, or the game's own
+    if (pThing && iosSaberShape_Get() == IOSSABERSHAPE_BEAM) {
+        const int id = iosSaberThrow_ThrownColour(pThing);
+        if (id >= IOSSABER_COLOUR_GAME && id < IOSSABER_NUM_COLOURS) {
+            const unsigned char* rgb = NULL;
+            const rdMaterial* pBlade = NULL;
+            if (iosSaber_pThrownModel) {
+                rgb = iosSaber_Row(iosSaber_look, id)->edge;
+                pBlade = iosSaber_pThrownDrawn;
+            }
+            else if (pThing->renderData.type == RD_THING_MODEL3 && pThing->renderData.model3
+                     && pThing->renderData.model3->sizeMaterials >= 1 && pThing->renderData.model3->aMaterials) {
+                pBlade = pThing->renderData.model3->aMaterials[0];
+                rgb = iosSaber_ThrownSwatchOf(pBlade);
+            }
+            iosSaberShape_DrawThrownGlow(pThing, pBlade, rgb ? rgb : iosSaber_aColours[IOSSABER_COLOUR_GAME].edge);
+        }
+    }
     if (!iosSaber_pThrownModel) return;
     iosSaber_SwapThrownBlade(iosSaber_pThrownModel, iosSaber_pThrownDrawn, iosSaber_pThrownBlade);
     iosSaber_pThrownModel = NULL;
@@ -496,6 +542,7 @@ void iosSaber_FreeWorld(void)
             iosSaber_aThrownLoaded[look][id] = 0;
         }
     }
+    iosSaberShape_FreeWorld();
     // (the arms' joints found again for the next level's model, even one at the same address)
     iosSaber_ForgetArms();
 }
@@ -549,6 +596,7 @@ static flex_t iosSaber_savedBase, iosSaber_savedTip;
 
 void iosSaber_BeginBlade(SithThing* pThing, rdThing* pLine, int blade)
 {
+    iosSaberShape_EndBlade(); // (begun twice with no end between: its shape's widths put back first)
     iosSaber_pSavedSide = iosSaber_pSavedTip = NULL;
     if (iosSaber_pWidthLine) { // (begun twice with no end between: its width put back first)
         iosSaber_pWidthLine->baseRadius = iosSaber_savedBase;
@@ -576,6 +624,10 @@ void iosSaber_BeginBlade(SithThing* pThing, rdThing* pLine, int blade)
     if (style == IOSSABER_STYLE_DUAL && blade == 0 && iosSaber_IsPlayers(pThing) && iosSaberThrow_HandsInHand() == 2)
         id = aId[1];
     rdMaterial* aMat = id == IOSSABER_COLOUR_GAME ? NULL : iosSaber_Load(id);
+    // its shape (iosSaberShape), whatever the colour: its glow in the blade's own colour (the
+    // look's edge colour; the game's own blade's, by its material)
+    const unsigned char* rgb = aMat ? iosSaber_Row(iosSaber_look, id)->edge : iosSaber_SwatchOf(pLine->polyline->face.material);
+    iosSaberShape_BeginBlade(pThing, pLine, rgb ? rgb : iosSaber_aColours[IOSSABER_COLOUR_GAME].edge);
     if (!aMat) return;
     rdPolyline* l = pLine->polyline;
     iosSaber_pSavedSide = l->face.material;
@@ -586,6 +638,7 @@ void iosSaber_BeginBlade(SithThing* pThing, rdThing* pLine, int blade)
 
 void iosSaber_EndBlade(rdThing* pLine)
 {
+    iosSaberShape_EndBlade(); // (first: it put its widths on over the shimmer's)
     if (iosSaber_pWidthLine) {
         iosSaber_pWidthLine->baseRadius = iosSaber_savedBase;
         iosSaber_pWidthLine->tipRadius = iosSaber_savedTip;

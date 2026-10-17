@@ -16,6 +16,8 @@
 //       enh_saberStyle            SINGLE or DUAL
 //       enh_saberLook             REFORGED (the default) or CLASSIC: how the
 //                                 blades' colours are drawn (iosSaber)
+//       enh_saberShape            SPIKE (the default) or BEAM: the blades'
+//                                 shape (iosSaberShape)
 //       enh_saberColourSingle     a colour key (iosSaber: "red", "lightblue"...),
 //       enh_saberColourDualRight  "game" for the game's own
 //       enh_saberColourDualLeft

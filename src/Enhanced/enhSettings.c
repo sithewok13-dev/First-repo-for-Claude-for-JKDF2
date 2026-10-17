@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "Enhanced/iosSaber.h"
+#include "Enhanced/iosSaberShape.h"
 #include "Enhanced/iosGame.h"
 #include "Main/sithCvar.h"
 #include "General/stdString.h"
@@ -16,6 +17,7 @@
 // The cvars' own copies (linked)
 static char enhSettings_saberStyle[SITHCVAR_MAX_STRLEN];
 static char enhSettings_saberLook[SITHCVAR_MAX_STRLEN];
+static char enhSettings_saberShape[SITHCVAR_MAX_STRLEN];
 static char enhSettings_aColour[3][SITHCVAR_MAX_STRLEN]; // single; dual right, left
 static int32_t enhSettings_jumpStyle = IOSGAME_JUMP_CLASSIC; // (the desktops' own jump, as before; iOS: STEPS)
 static int32_t enhSettings_bThirdPerson = 0;
@@ -26,6 +28,7 @@ static const char* enhSettings_aColourName[3] = { "enh_saberColourSingle", "enh_
 typedef struct {
     int style;
     int look;
+    int shape;
     int aColour[3];
     int jumpStyle;
     int bThirdPerson;
@@ -43,6 +46,7 @@ void enhSettings_StartupCvars(void)
 {
     sithCvar_RegisterStr("enh_saberStyle", "SINGLE", enhSettings_saberStyle, CVARFLAG_GLOBAL);
     sithCvar_RegisterStr("enh_saberLook", iosSaber_LookName(IOSSABER_LOOK_REFORGED), enhSettings_saberLook, CVARFLAG_GLOBAL);
+    sithCvar_RegisterStr("enh_saberShape", iosSaberShape_Name(IOSSABERSHAPE_DEFAULT), enhSettings_saberShape, CVARFLAG_GLOBAL);
     for (int i = 0; i < 3; i++)
         sithCvar_RegisterStr(enhSettings_aColourName[i], "game", enhSettings_aColour[i], CVARFLAG_GLOBAL);
     sithCvar_RegisterInt("enh_forceJumpStyle", IOSGAME_JUMP_CLASSIC, &enhSettings_jumpStyle, CVARFLAG_GLOBAL);
@@ -57,6 +61,8 @@ static void enhSettings_FromCvars(enhSettingsState* p)
         if (!strcmp(enhSettings_saberStyle, iosSaber_StyleName(st))) p->style = st;
     const int look = iosSaber_LookByName(enhSettings_saberLook);
     p->look = look >= 0 ? look : IOSSABER_LOOK_REFORGED;
+    const int shape = iosSaberShape_ByName(enhSettings_saberShape);
+    p->shape = shape >= 0 ? shape : IOSSABERSHAPE_DEFAULT;
     for (int i = 0; i < 3; i++) {
         const int id = iosSaber_ColourByKey(enhSettings_aColour[i]);
         p->aColour[i] = id >= 0 ? id : IOSSABER_COLOUR_GAME;
@@ -69,6 +75,7 @@ static void enhSettings_FromGameplay(enhSettingsState* p)
 {
     p->style = iosSaber_GetStyle();
     p->look = iosSaber_GetLook();
+    p->shape = iosSaberShape_Get();
     for (int i = 0; i < 3; i++) {
         int st, blade;
         enhSettings_ColourSlot(i, &st, &blade);
@@ -110,6 +117,10 @@ void enhSettings_Sync(void)
         iosSaber_SetLook(c.look);
         s->look = g.look = c.look;
     }
+    if (c.shape != s->shape) {
+        iosSaberShape_Set(c.shape);
+        s->shape = g.shape = c.shape;
+    }
     if (c.jumpStyle != s->jumpStyle) {
         iosGame_SetForceJumpStyle(c.jumpStyle);
         s->jumpStyle = g.jumpStyle = c.jumpStyle;
@@ -134,6 +145,10 @@ void enhSettings_Sync(void)
     if (g.look != s->look) {
         sithCvar_SetStr("enh_saberLook", iosSaber_LookName(g.look));
         s->look = g.look;
+    }
+    if (g.shape != s->shape) {
+        sithCvar_SetStr("enh_saberShape", iosSaberShape_Name(g.shape));
+        s->shape = g.shape;
     }
     if (g.jumpStyle != s->jumpStyle) {
         sithCvar_SetInt("enh_forceJumpStyle", g.jumpStyle);

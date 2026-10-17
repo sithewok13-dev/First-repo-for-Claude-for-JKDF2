@@ -23,6 +23,7 @@
 #include "Platform/iOS/iosFreeze.h"
 #include "Platform/iOS/iosCinema.h"
 #include "Platform/iOS/iosSaber.h"
+#include "Enhanced/iosSaberShape.h"
 #include "Enhanced/enhTick.h"
 #include "Platform/platServices.h"
 #include "Platform/iOS/iosPad.h"
@@ -195,6 +196,7 @@ extern int jkHud_bChatOpen;
 #define IOSTOUCH_SABERCOLOUR_DEFAULTS_KEY @"iosTouchSaberColour" // + style name + blade number
 #define IOSTOUCH_SABERTARGET_DEFAULTS_KEY @"iosTouchSaberTarget"
 #define IOSTOUCH_SABERLOOK_DEFAULTS_KEY @"iosTouchSaberLook" // (by its name: CLASSIC, REFORGED)
+#define IOSTOUCH_SABERSHAPE_DEFAULTS_KEY @"iosTouchSaberShape" // (by its name: SPIKE, BEAM; iosSaberShape)
 // The saber wheel's choices beside the ring: SINGLE and DUAL on its left;
 // with DUAL, which blade a colour goes to (LEFT, BOTH, RIGHT) on its right.
 // Each IOSTOUCH_SABER_CHIP_W by _H, this far out from the ring and apart.
@@ -2798,6 +2800,9 @@ static void iosTouch_PhotosAsked(void)
     NSString* look = [d stringForKey:IOSTOUCH_SABERLOOK_DEFAULTS_KEY];
     const int lk = look ? iosSaber_LookByName([look UTF8String]) : -1;
     iosSaber_SetLook(lk >= 0 ? lk : IOSSABER_LOOK_REFORGED);
+    NSString* shape = [d stringForKey:IOSTOUCH_SABERSHAPE_DEFAULTS_KEY];
+    const int sh = shape ? iosSaberShape_ByName([shape UTF8String]) : -1;
+    iosSaberShape_Set(sh >= 0 ? sh : IOSSABERSHAPE_DEFAULT);
     NSString* style = [d stringForKey:IOSTOUCH_SABERSTYLE_DEFAULTS_KEY];
     for (int st = 0; style && st < IOSSABER_NUM_STYLES; st++) {
         if (!strcmp([style UTF8String], iosSaber_StyleName(st))) iosSaber_SetStyle(st);

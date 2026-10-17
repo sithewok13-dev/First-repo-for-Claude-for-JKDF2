@@ -11,6 +11,9 @@
 #include "Primitives/rdPrimit3.h"
 #include "Primitives/rdDebug.h"
 #include <math.h>
+#ifdef JK_ENHANCED
+#include "Enhanced/iosSaberShape.h" // Added
+#endif
 
 // Added: below this camera depth a point isn't projected to find where it is
 // on screen (rdPolyline_Draw)
@@ -354,6 +357,10 @@ int rdPolyline_Draw(rdThing *pLine, rdMatrix34 *pOrient)
         polylineVerts[3].z = out.scale.z + (polyline->baseRadius * angSin);
         idxInfo.aTexVerticies = polyline->extraUVTipMaybe;
         rdPolyline_DrawFace(pLine, &polyline->face, polylineVerts, &idxInfo);
+#ifdef JK_ENHANCED
+        // Added: a saber drawn as a beam, its glow round it (iosSaberShape; nothing for any other)
+        iosSaberShape_DrawGlow(pLine, &vertex_out, &out.scale, angCos, angSin);
+#endif
     }
     return 1;
 }
