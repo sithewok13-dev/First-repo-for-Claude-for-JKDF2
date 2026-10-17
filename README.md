@@ -2,9 +2,14 @@
 
 **Star Wars Jedi Knight: Dark Forces II** and **Mysteries of the Sith** on iPhone and iPad: an unofficial fan port of [OpenJKDF2](https://github.com/shinyquagsire23/OpenJKDF2), with touch controls, game controllers, keyboard and mouse, and multiplayer.
 
-<!-- TODO: 3-4 iPhone screenshots from the owner go here, side by side, e.g.
-<p><img src="docs/images/ios-1.png" width="48%"> <img src="docs/images/ios-2.png" width="48%"></p>
-Own screenshots of the game running only: no logos, box art or film stills. -->
+<p>
+<img src="docs/ios/screenshots/dual-sabers-touch.jpg" width="49%" alt="Two lightsabers in first person, with the touch controls">
+<img src="docs/ios/screenshots/selfie-surrender.jpg" width="49%" alt="A selfie with the camera: Kyle and two Imperials, hands up">
+<img src="docs/ios/screenshots/selfie-probes.jpg" width="49%" alt="A selfie with three probe droids">
+<img src="docs/ios/screenshots/mots-duel.jpg" width="49%" alt="Mysteries of the Sith: a lightsaber duel with Force lightning">
+</p>
+
+*Screenshots from an iPhone.*
 
 ### Download
 

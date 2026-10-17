@@ -41,12 +41,20 @@
   code { background: var(--code); border-radius: 6px; padding: 2px 5px; font-size: 0.85em; overflow-wrap: anywhere; }
   ul { padding-left: 1.2em; }
   footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85em; }
+.shots{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin:16px 0}@media(min-width:700px){.shots{grid-template-columns:repeat(2,minmax(0,1fr))}}.shots img{width:100%;max-width:100%;height:auto;border-radius:8px;display:block}
 </style>
 </head>
 <body>
 <main>
   <h1>OpenJKDF2 for iOS (unofficial)</h1>
   <p class="lead">Star Wars Jedi Knight: Dark Forces II and Mysteries of the Sith on iPhone and iPad: an unofficial fan port of OpenJKDF2, with touch controls, game controllers, a keyboard and multiplayer.</p>
+
+  <div class="shots">
+    <img src="ios/screenshots/dual-sabers-touch.jpg" alt="Two lightsabers in first person, with the touch controls" loading="lazy">
+    <img src="ios/screenshots/selfie-surrender.jpg" alt="A selfie with the camera: Kyle and two Imperials, hands up" loading="lazy">
+    <img src="ios/screenshots/selfie-probes.jpg" alt="A selfie with three probe droids" loading="lazy">
+    <img src="ios/screenshots/mots-duel.jpg" alt="Mysteries of the Sith: a lightsaber duel with Force lightning" loading="lazy">
+  </div>
 
   <h2>Install</h2>
   <p>Easiest, in SideStore or AltStore (Classic): add the source, then install OpenJKDF2 (Jedi Knight), OpenMoTS (Mysteries of the Sith) or both from it.</p>

@@ -16,7 +16,23 @@
       "iconURL": "https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/packaging/icon-256.png",
       "tintColor": "#a43fb0",
       "category": "games",
-      "screenshots": [],
+      "screenshots": [
+        {
+          "imageURL": "https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/docs/ios/screenshots/dual-sabers-touch.jpg",
+          "width": 1600,
+          "height": 736
+        },
+        {
+          "imageURL": "https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/docs/ios/screenshots/selfie-surrender.jpg",
+          "width": 1600,
+          "height": 736
+        },
+        {
+          "imageURL": "https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/docs/ios/screenshots/selfie-probes.jpg",
+          "width": 1600,
+          "height": 736
+        }
+      ],
       "versions": [
         {
           "version": "0.9.9",
@@ -53,7 +69,18 @@
       "iconURL": "https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/packaging/mots_icon-256.png",
       "tintColor": "#7d2d9a",
       "category": "games",
-      "screenshots": [],
+      "screenshots": [
+        {
+          "imageURL": "https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/docs/ios/screenshots/mots-duel.jpg",
+          "width": 1600,
+          "height": 736
+        },
+        {
+          "imageURL": "https://raw.githubusercontent.com/sithewok13-dev/OpenJKDF2-iOS/claude/openjkdf2-ios-build-2gcr9s/docs/ios/screenshots/dual-sabers-touch.jpg",
+          "width": 1600,
+          "height": 736
+        }
+      ],
       "versions": [
         {
           "version": "0.9.9",
