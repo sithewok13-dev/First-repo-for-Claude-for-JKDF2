@@ -63,9 +63,10 @@ void iosSaberShape_BeginScene(void);
 void iosSaberShape_FlushGlows(void);
 
 // rdPolyline_Draw, once the blade is laid out (camera space: its tip and
-// base, and (cos, sin) across it on screen): the glow, if this is a blade
-// begun above
-void iosSaberShape_DrawGlow(struct rdThing* pLine, const struct rdVector3* pTip, const struct rdVector3* pBase, float angCos, float angSin);
+// base, and (cos, sin) across it on screen): a blade begun above drawn as the
+// beam, its side in slices along it and its glow round it; 1 if it was (the
+// side not to be drawn again), 0 for any other
+int iosSaberShape_DrawBeam(struct rdThing* pLine, const struct rdVector3* pTip, const struct rdVector3* pBase, float angCos, float angSin);
 
 // A thrown saber just drawn (iosSaber_EndThrown; pBlade: its blade's material
 // as drawn): with BEAM, a glow in that colour along its blade

@@ -345,6 +345,14 @@ int rdPolyline_Draw(rdThing *pLine, rdMatrix34 *pOrient)
             angSin = -dirX / mag;
         }
 
+#ifdef JK_ENHANCED
+        // Added: a saber drawn as a beam: its side in slices along it (its
+        // middle kept on the blade's as it widens to the tip) and its glow round
+        // it (iosSaberShape); any other blade as ever, below
+        if (iosSaberShape_DrawBeam(pLine, &vertex_out, &out.scale, angCos, angSin))
+            return 1;
+#endif
+
         polylineVerts[0].x = vertex_out.x + (polyline->tipRadius * angCos);
         polylineVerts[0].y = vertex_out.y;
         polylineVerts[0].z = vertex_out.z + (polyline->tipRadius * angSin);
@@ -362,10 +370,6 @@ int rdPolyline_Draw(rdThing *pLine, rdMatrix34 *pOrient)
         polylineVerts[3].z = out.scale.z + (polyline->baseRadius * angSin);
         idxInfo.aTexVerticies = polyline->extraUVTipMaybe;
         rdPolyline_DrawFace(pLine, &polyline->face, polylineVerts, &idxInfo);
-#ifdef JK_ENHANCED
-        // Added: a saber drawn as a beam, its glow round it (iosSaberShape; nothing for any other)
-        iosSaberShape_DrawGlow(pLine, &vertex_out, &out.scale, angCos, angSin);
-#endif
     }
     return 1;
 }

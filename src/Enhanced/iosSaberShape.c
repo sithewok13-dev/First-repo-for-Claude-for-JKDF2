@@ -253,8 +253,10 @@ static void iosSaberShape_DrawQuad(rdThing* pLine, rdMaterial* pMat, rdTexMode_t
 // what is drawn after them, but never hide it, as they would if they wrote
 // their depth across their whole area (a band cut out round the blade from
 // water, glass, the other blade or someone behind it). The first person
-// blade's are drawn at once: that pass never writes depth.
-#define IOSSABERSHAPE_MAX_QUEUED 192
+// blade's are drawn at once: that pass never writes depth. (The trade: the
+// translucent surfaces write no depth either, so the glow of a blade behind
+// water or glass is drawn over it at its full strength.)
+#define IOSSABERSHAPE_MAX_QUEUED 384
 typedef struct {
     rdVector3 aVerts[4];
     rdVector2 aUVs[4];
@@ -379,12 +381,19 @@ void iosSaberShape_EndBlade(void)
     iosSaberShape_pGlow = NULL;
 }
 
-// Three quads, square to the blade on screen: the base's half disc, the
-// length, the tip's half disc (camera space: tip, base, the glow's radius,
-// (cos, sin) across the blade on screen). The glow texture's middle row runs
-// along the length (across it, the glow's profile) and its top and bottom
-// halves make the round ends, so the three meet with no seam and nothing is
-// drawn twice.
+// The beam widens toward its tip (iosSaberShape_FitTip), so its side and the
+// glow's length are not rectangles: drawn as one quad (two triangles), their
+// texture's middle line bends off the blade's along the diagonal, to one side
+// only. Each is drawn in this many slices along the blade instead, each its
+// own width, so the middle stays on the middle.
+#define IOSSABERSHAPE_SLICES 8
+
+// The glow: square to the blade on screen, the base's half disc, the length
+// (in slices) and the tip's half disc (camera space: tip, base, the glow's
+// radius at each, (cos, sin) across the blade on screen). The glow texture's
+// middle row runs along the length (across it, the glow's profile) and its
+// top and bottom halves make the round ends, so they meet with no seam and
+// nothing is drawn twice.
 static void iosSaberShape_GlowQuads(rdThing* pLine, const iosSaberShapeGlow* g, rdTexMode_t texMode, const rdVector3* pTip,
                                     const rdVector3* pBase, flex_t rTip, flex_t rBase, flex_t angCos, flex_t angSin)
 {
@@ -395,12 +404,18 @@ static void iosSaberShape_GlowQuads(rdThing* pLine, const iosSaberShapeGlow* g, 
     rdVector3 tipOut = { pTip->x - tz, pTip->y, pTip->z + tx };
     rdVector3 baseOut = { pBase->x + bz, pBase->y, pBase->z - bx };
 
-    // the length
-    iosSaberShape_Vert(0, pTip, tx, tz, w, mid);
-    iosSaberShape_Vert(1, pTip, -tx, -tz, 0, mid);
-    iosSaberShape_Vert(2, pBase, -bx, -bz, 0, mid);
-    iosSaberShape_Vert(3, pBase, bx, bz, w, mid);
-    iosSaberShape_Quad(pLine, pMat, texMode);
+    // the length, from the tip down
+    for (int i = 0; i < IOSSABERSHAPE_SLICES; i++) {
+        const flex_t s0 = (flex_t)i / IOSSABERSHAPE_SLICES, s1 = (flex_t)(i + 1) / IOSSABERSHAPE_SLICES;
+        const rdVector3 p0 = { pTip->x + (pBase->x - pTip->x) * s0, pTip->y + (pBase->y - pTip->y) * s0, pTip->z + (pBase->z - pTip->z) * s0 };
+        const rdVector3 p1 = { pTip->x + (pBase->x - pTip->x) * s1, pTip->y + (pBase->y - pTip->y) * s1, pTip->z + (pBase->z - pTip->z) * s1 };
+        const flex_t x0 = tx + (bx - tx) * s0, z0 = tz + (bz - tz) * s0, x1 = tx + (bx - tx) * s1, z1 = tz + (bz - tz) * s1;
+        iosSaberShape_Vert(0, &p0, x0, z0, w, mid);
+        iosSaberShape_Vert(1, &p0, -x0, -z0, 0, mid);
+        iosSaberShape_Vert(2, &p1, -x1, -z1, 0, mid);
+        iosSaberShape_Vert(3, &p1, x1, z1, w, mid);
+        iosSaberShape_Quad(pLine, pMat, texMode);
+    }
     // the tip's end
     iosSaberShape_Vert(0, &tipOut, tx, tz, w, 0);
     iosSaberShape_Vert(1, &tipOut, -tx, -tz, 0, 0);
@@ -415,12 +430,50 @@ static void iosSaberShape_GlowQuads(rdThing* pLine, const iosSaberShapeGlow* g, 
     iosSaberShape_Quad(pLine, pMat, texMode);
 }
 
-void iosSaberShape_DrawGlow(rdThing* pLine, const rdVector3* pTip, const rdVector3* pBase, float angCos, float angSin)
+static void iosSaberShape_DrawGlow(rdThing* pLine, const rdVector3* pTip, const rdVector3* pBase, float angCos, float angSin)
 {
     if (!pLine || pLine != iosSaberShape_pLine || !iosSaberShape_pGlow || !pLine->polyline) return;
     iosSaberShape_GlowQuads(pLine, iosSaberShape_pGlow, pLine->polyline->face.textureMode, pTip, pBase,
                             pLine->polyline->tipRadius * IOSSABERSHAPE_GLOW_WIDTH, pLine->polyline->baseRadius * IOSSABERSHAPE_GLOW_WIDTH,
                             angCos, angSin);
+}
+
+// The beam's side, as rdPolyline_Draw lays the blade (its corners, its
+// texture's corners), but in slices from the tip down, each its own width
+static rdVector3 iosSaberShape_aSideVerts[4];
+static rdVector2 iosSaberShape_aSideUVs[4];
+
+int iosSaberShape_DrawBeam(rdThing* pLine, const rdVector3* pTip, const rdVector3* pBase, float angCos, float angSin)
+{
+    if (!pLine || pLine != iosSaberShape_pLine || !pLine->polyline) return 0;
+    rdPolyline* l = pLine->polyline;
+    if (!l->extraUVTipMaybe || !l->face.vertexUVIdx) return 0; // (untextured: as the game draws it)
+    const flex_t w = l->extraUVTipMaybe[0].x, h = l->extraUVTipMaybe[2].y;
+    const flex_t tx = l->tipRadius * angCos, tz = l->tipRadius * angSin, bx = l->baseRadius * angCos, bz = l->baseRadius * angSin;
+    rdMeshinfo info;
+    memset(&info, 0, sizeof(info));
+    info.numVertices = 4;
+    info.aVertices = iosSaberShape_aSideVerts;
+    info.aTexVerticies = iosSaberShape_aSideUVs;
+    for (int i = 0; i < IOSSABERSHAPE_SLICES; i++) {
+        const flex_t s[2] = { (flex_t)i / IOSSABERSHAPE_SLICES, (flex_t)(i + 1) / IOSSABERSHAPE_SLICES };
+        for (int e = 0; e < 2; e++) {
+            const rdVector3 p = { pTip->x + (pBase->x - pTip->x) * s[e], pTip->y + (pBase->y - pTip->y) * s[e], pTip->z + (pBase->z - pTip->z) * s[e] };
+            const flex_t ax = tx + (bx - tx) * s[e], az = tz + (bz - tz) * s[e];
+            // (0 and 1 the slice's tip side, + and - across; 2 and 3 its base side, - and +)
+            rdVector3* a = &iosSaberShape_aSideVerts[e ? 3 : 0];
+            rdVector3* b = &iosSaberShape_aSideVerts[e ? 2 : 1];
+            a->x = p.x + ax; a->y = p.y; a->z = p.z + az;
+            b->x = p.x - ax; b->y = p.y; b->z = p.z - az;
+            iosSaberShape_aSideUVs[e ? 3 : 0].x = w;
+            iosSaberShape_aSideUVs[e ? 3 : 0].y = h * s[e];
+            iosSaberShape_aSideUVs[e ? 2 : 1].x = 0;
+            iosSaberShape_aSideUVs[e ? 2 : 1].y = h * s[e];
+        }
+        rdPolyline_DrawFace(pLine, &l->face, iosSaberShape_aSideVerts, &info);
+    }
+    iosSaberShape_DrawGlow(pLine, pTip, pBase, angCos, angSin);
+    return 1;
 }
 
 // A thrown saber's blade: the mesh whose faces have its material (the first
