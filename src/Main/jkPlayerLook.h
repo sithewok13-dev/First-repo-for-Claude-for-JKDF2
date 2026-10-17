@@ -1,5 +1,5 @@
 // Added: entire file. In multiplayer, each player's saber as they chose it
-// (the iOS overlay's SABER wheel: one or two blades, each blade's colour), so
+// (the iOS overlay's SABER wheel: one or two blades or the crossguard, each blade's colour), so
 // the others see it: each game sends its own player's every few seconds
 // (jkNetExt, JKNETEXT_LOOK), and keeps the others' as they come. Colours go
 // by their keys ("lightblue"), not their places in a list, so builds with
@@ -28,7 +28,8 @@ extern "C" {
 
 typedef struct jkPlayerLook
 {
-    int style;                                                   // (the wheel's: 0 one blade, 1 two)
+    int style;                                                   // (the wheel's, iosSaber's: 0 one blade, 1 two, 2 the crossguard;
+                                                                 // one a game doesn't know it draws as one blade)
     char aColourKey[JKPLAYERLOOK_MAX_BLADES][JKPLAYERLOOK_KEY_LEN]; // ("" the game's own)
 } jkPlayerLook;
 

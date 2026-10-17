@@ -355,6 +355,13 @@ void iosSaberThrow_Tick(void)
     }
 }
 
+// (the game's own throw: the saber in hand, of the one-blade style picked -- SINGLE or CROSS)
+static int iosSaberThrow_OneBladeStyle(void)
+{
+    const int st = iosSaber_GetStyle();
+    return iosSaber_StyleNumBlades(st) == 1 ? st : IOSSABER_STYLE_SINGLE;
+}
+
 int iosSaberThrow_ThrownColour(SithThing* pThing)
 {
     if (!pThing || pThing->type != SITH_THING_WEAPON) return -1;
@@ -369,9 +376,19 @@ int iosSaberThrow_ThrownColour(SithThing* pThing)
     static const char* aTpl[7] = { "+fsab_blue", "+fsab_green", "+fsab_yellow", "+fsab_orange", "+fsab_red", "+fsab_dred", "+fsab_purple" };
     for (int i = 0; i < 7; i++) {
         if (pThing->pTemplate == sithTemplate_GetTemplate(aTpl[i]))
-            return iosSaber_GetShownColour(IOSSABER_STYLE_SINGLE, 0);
+            return iosSaber_GetShownColour(iosSaberThrow_OneBladeStyle(), 0);
     }
     return -1;
+}
+
+int iosSaberThrow_ThrownStyle(SithThing* pThing)
+{
+    if (iosSaberThrow_ThrownColour(pThing) < 0) return -1;
+    for (int k = 0; k < 2; k++) {
+        if (iosSaberThrow_aFlyColour[k].thingIdx == pThing->idx && iosSaberThrow_aFlyColour[k].signature == pThing->signature)
+            return IOSSABER_STYLE_DUAL;
+    }
+    return iosSaberThrow_OneBladeStyle();
 }
 
 #endif // JK_ENHANCED

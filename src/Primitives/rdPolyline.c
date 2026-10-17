@@ -348,8 +348,9 @@ int rdPolyline_Draw(rdThing *pLine, rdMatrix34 *pOrient)
 #ifdef JK_ENHANCED
         // Added: a saber drawn as a beam: its side in slices along it (its
         // middle kept on the blade's as it widens to the tip) and its glow round
-        // it (iosSaberShape); any other blade as ever, below
-        if (iosSaberShape_DrawBeam(pLine, &vertex_out, &out.scale, angCos, angSin))
+        // it; or with a crossguard, jagged, its side blades out across the hilt
+        // (iosSaberShape); any other blade as ever, below
+        if (iosSaberShape_DrawBlade(pLine, &out, &vertex_out, &out.scale, angCos, angSin))
             return 1;
 #endif
 

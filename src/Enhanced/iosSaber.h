@@ -1,6 +1,6 @@
 // Added: entire file. The player's lightsaber as they choose it: its style
-// (one blade; later two, a crossguard...) and each blade's colour, picked on
-// the touch overlay's SABER wheel.
+// (one blade, two, or one with a crossguard) and each blade's colour, picked
+// on the touch overlay's SABER wheel.
 //
 // Only how it looks changes, for the local player (and, in multiplayer, for
 // each other player as their game sends it: jkPlayerLook): the game's own
@@ -59,11 +59,21 @@ int iosSaber_LookByName(const char* name);  // -1 if none
 // ---- styles: how many blades, and where. Only the ones that work can be
 // picked (iosSaber_StyleAvailable); each keeps its own blade colours, so
 // going from one style to another and back finds them as they were.
-enum { IOSSABER_STYLE_SINGLE = 0, IOSSABER_STYLE_DUAL, IOSSABER_NUM_STYLES };
+//   SINGLE  the game's one saber
+//   DUAL    a saber in each hand
+//   CROSS   one saber with a crossguard: its blade jagged, crackling and
+//           pointed, and two short blades out from either side of the hilt,
+//           all in its one colour (iosSaberShape). Only how it looks: the
+//           blade strikes as the game's own, the crossguard's not at all.
+// The order is the one other players' games are sent (jkPlayerLook): a style
+// a game doesn't know it draws as SINGLE (as builds before CROSS do), so new
+// ones go at the end.
+enum { IOSSABER_STYLE_SINGLE = 0, IOSSABER_STYLE_DUAL, IOSSABER_STYLE_CROSS, IOSSABER_NUM_STYLES };
 #define IOSSABER_MAX_BLADES 2
 int iosSaber_StyleAvailable(int style);
-const char* iosSaber_StyleName(int style);
+const char* iosSaber_StyleName(int style);  // "SINGLE", "DUAL", "CROSS": as the wheel shows it and it is kept; NULL for no such style
 int iosSaber_StyleNumBlades(int style);
+int iosSaber_StyleHasCrossguard(int style); // (CROSS: its own blade shape, whatever the shape's switch, iosSaberShape)
 int iosSaber_GetStyle(void);
 void iosSaber_SetStyle(int style);
 int iosSaber_GetColour(int style, int blade);  // as picked and kept
@@ -78,7 +88,8 @@ int iosSaber_GetShownColour(int style, int blade);
 // the left's): its colour put on, then the game's put back. Nothing changes
 // for anyone but the local player (and, in multiplayer, the other players
 // whose games sent their choice), or for the game's own colour.
-// Its shape, spike or beam, is put on here too (iosSaberShape), whatever the colour.
+// Its shape, spike or beam (or the crossguard's, CROSS), is put on here too
+// (iosSaberShape), whatever the colour.
 struct SithThing;
 struct rdThing;
 void iosSaber_BeginBlade(struct SithThing* pThing, struct rdThing* pLine, int blade);

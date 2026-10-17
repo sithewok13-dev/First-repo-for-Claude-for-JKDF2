@@ -18,18 +18,20 @@
 static char enhSettings_saberStyle[SITHCVAR_MAX_STRLEN];
 static char enhSettings_saberLook[SITHCVAR_MAX_STRLEN];
 static char enhSettings_saberShape[SITHCVAR_MAX_STRLEN];
-static char enhSettings_aColour[3][SITHCVAR_MAX_STRLEN]; // single; dual right, left
+#define ENHSETTINGS_NUM_COLOURS 4
+static char enhSettings_aColour[ENHSETTINGS_NUM_COLOURS][SITHCVAR_MAX_STRLEN]; // single; dual right, left; cross
 static int32_t enhSettings_jumpStyle = IOSGAME_JUMP_CLASSIC; // (the desktops' own jump, as before; iOS: STEPS)
 static int32_t enhSettings_bThirdPerson = 0;
 
-static const char* enhSettings_aColourName[3] = { "enh_saberColourSingle", "enh_saberColourDualRight", "enh_saberColourDualLeft" };
+static const char* enhSettings_aColourName[ENHSETTINGS_NUM_COLOURS] = { "enh_saberColourSingle", "enh_saberColourDualRight", "enh_saberColourDualLeft",
+                                                                     "enh_saberColourCross" };
 
 // What was last made the same both ways (cvars and gameplay), to tell which changed
 typedef struct {
     int style;
     int look;
     int shape;
-    int aColour[3];
+    int aColour[ENHSETTINGS_NUM_COLOURS];
     int jumpStyle;
     int bThirdPerson;
 } enhSettingsState;
@@ -38,7 +40,7 @@ static int enhSettings_bSynced = 0;
 
 static void enhSettings_ColourSlot(int i, int* pStyle, int* pBlade)
 {
-    *pStyle = i == 0 ? IOSSABER_STYLE_SINGLE : IOSSABER_STYLE_DUAL;
+    *pStyle = i == 0 ? IOSSABER_STYLE_SINGLE : i == 3 ? IOSSABER_STYLE_CROSS : IOSSABER_STYLE_DUAL;
     *pBlade = i == 2 ? 1 : 0;
 }
 
@@ -47,7 +49,7 @@ void enhSettings_StartupCvars(void)
     sithCvar_RegisterStr("enh_saberStyle", "SINGLE", enhSettings_saberStyle, CVARFLAG_GLOBAL);
     sithCvar_RegisterStr("enh_saberLook", iosSaber_LookName(IOSSABER_LOOK_REFORGED), enhSettings_saberLook, CVARFLAG_GLOBAL);
     sithCvar_RegisterStr("enh_saberShape", iosSaberShape_Name(IOSSABERSHAPE_DEFAULT), enhSettings_saberShape, CVARFLAG_GLOBAL);
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < ENHSETTINGS_NUM_COLOURS; i++)
         sithCvar_RegisterStr(enhSettings_aColourName[i], "game", enhSettings_aColour[i], CVARFLAG_GLOBAL);
     sithCvar_RegisterInt("enh_forceJumpStyle", IOSGAME_JUMP_CLASSIC, &enhSettings_jumpStyle, CVARFLAG_GLOBAL);
     sithCvar_RegisterBool("enh_thirdPerson", 0, &enhSettings_bThirdPerson, CVARFLAG_GLOBAL);
@@ -63,7 +65,7 @@ static void enhSettings_FromCvars(enhSettingsState* p)
     p->look = look >= 0 ? look : IOSSABER_LOOK_REFORGED;
     const int shape = iosSaberShape_ByName(enhSettings_saberShape);
     p->shape = shape >= 0 ? shape : IOSSABERSHAPE_DEFAULT;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < ENHSETTINGS_NUM_COLOURS; i++) {
         const int id = iosSaber_ColourByKey(enhSettings_aColour[i]);
         p->aColour[i] = id >= 0 ? id : IOSSABER_COLOUR_GAME;
     }
@@ -76,7 +78,7 @@ static void enhSettings_FromGameplay(enhSettingsState* p)
     p->style = iosSaber_GetStyle();
     p->look = iosSaber_GetLook();
     p->shape = iosSaberShape_Get();
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < ENHSETTINGS_NUM_COLOURS; i++) {
         int st, blade;
         enhSettings_ColourSlot(i, &st, &blade);
         p->aColour[i] = iosSaber_GetColour(st, blade);
@@ -101,7 +103,7 @@ void enhSettings_Sync(void)
     enhSettingsState* s = &enhSettings_synced;
 
     // A cvar changed: into the gameplay
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < ENHSETTINGS_NUM_COLOURS; i++) {
         if (c.aColour[i] != s->aColour[i]) {
             int st, blade;
             enhSettings_ColourSlot(i, &st, &blade);
@@ -131,7 +133,7 @@ void enhSettings_Sync(void)
     }
 
     // The gameplay changed (the camera key, a pick made in the game): into the cvar
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < ENHSETTINGS_NUM_COLOURS; i++) {
         if (g.aColour[i] != s->aColour[i]) {
             const char* key = iosSaber_ColourKey(g.aColour[i]);
             sithCvar_SetStr(enhSettings_aColourName[i], key ? key : "game");
