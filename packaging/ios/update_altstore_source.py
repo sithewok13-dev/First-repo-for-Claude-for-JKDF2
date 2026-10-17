@@ -137,11 +137,19 @@ def main():
             entry["minOSVersion"] = info["MinimumOSVersion"]
         same = lambda v: (v.get("marketingVersion") == a.tag or
                           (v.get("version"), v.get("buildVersion")) == (entry["version"], entry["buildVersion"]))
-        app["versions"] = [entry] + [v for v in app.get("versions", []) if not same(v)]
-        # The same, for older AltStore and SideStore versions that only read
+        # Newest first, by build number (each CI run's own, rising): a re-run of
+        # an older release goes back in its place, not on top
+        def build(v):
+            try: return int(v.get("buildVersion", 0))
+            except (TypeError, ValueError): return 0
+        app["versions"] = sorted([entry] + [v for v in app.get("versions", []) if not same(v)],
+                                 key=build, reverse=True)
+        # The newest, for older AltStore and SideStore versions that only read
         # these app-level keys
-        app.update(version=entry["version"], versionDate=date, versionDescription=notes,
-                   downloadURL=entry["downloadURL"], size=size)
+        top = app["versions"][0]
+        app.update(version=top["version"], versionDate=top["date"],
+                   versionDescription=top["localizedDescription"],
+                   downloadURL=top["downloadURL"], size=top["size"])
         print(f"{bundle_id}: {a.tag} = {entry['version']} ({entry['buildVersion']}), {size} bytes")
 
     tmp = tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False,
