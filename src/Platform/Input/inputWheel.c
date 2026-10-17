@@ -824,7 +824,7 @@ static void inputWheel_DrawStar(float cx, float cy, float k, int bFilled, int bP
 static void inputWheel_DrawShapeSwitch(touchUiDrawList* l, float x, float y, float w, int bOn)
 {
     const float tx = x + w * 0.5f - 7.0f - INPUTWHEEL_SWITCH_W; // (the track's left)
-    touchUiDraw_Text(l, "BEAM", x - INPUTWHEEL_SWITCH_W * 0.5f - 3.0f, y, 11.0f, 1.0f, touchUi_White(bOn ? 1.0f : 0.75f));
+    touchUiDraw_Text(l, "BEAM", x - INPUTWHEEL_SWITCH_W * 0.5f - 5.0f, y, 10.0f, 1.0f, touchUi_White(bOn ? 1.0f : 0.75f));
     const touchUiColor gold = touchUi_Rgba(1.0f, 0.85f, 0.3f, 0.95f);
     touchUiDraw_RRect(l, tx, y - INPUTWHEEL_SWITCH_H * 0.5f, INPUTWHEEL_SWITCH_W, INPUTWHEEL_SWITCH_H, INPUTWHEEL_SWITCH_H * 0.5f,
                       bOn ? touchUi_Rgba(1.0f, 0.85f, 0.3f, 0.55f) : touchUi_White(0.18f), 1.0f, bOn ? gold : touchUi_White(0.5f));

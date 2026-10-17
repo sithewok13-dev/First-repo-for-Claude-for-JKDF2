@@ -245,6 +245,11 @@ int rdPolyline_Draw(rdThing *pLine, rdMatrix34 *pOrient)
 
     flex_t epislon = -0.001;
 
+#ifdef JK_ENHANCED
+    // Added: a saber drawn as a beam, its tip as wide on screen as near its hilt (iosSaberShape)
+    iosSaberShape_FitTip(pLine, vertex_out.y, out.scale.y);
+#endif
+
     // Added: the round tip and base faces are set back by epislon so that the
     // blade is drawn over them. Set back straight along the camera's depth axis,
     // as the original did, they also slid toward the middle of the screen, by

@@ -51,6 +51,17 @@ struct rdMaterial;
 void iosSaberShape_BeginBlade(struct SithThing* pThing, struct rdThing* pLine, const unsigned char rgb[3]);
 void iosSaberShape_EndBlade(void);
 
+// rdPolyline_Draw, once its ends are placed (their depths from the eye): a
+// blade begun above made wider at the tip as far as it is further off, so it
+// looks even on screen (not a point again in first person)
+void iosSaberShape_FitTip(struct rdThing* pLine, float tipDepth, float baseDepth);
+
+// sithRender_Draw: at its start, and once the scene is drawn (after the
+// translucent surfaces): the glows kept from the passes that write depth,
+// drawn now without writing it (see iosSaberShape.c)
+void iosSaberShape_BeginScene(void);
+void iosSaberShape_FlushGlows(void);
+
 // rdPolyline_Draw, once the blade is laid out (camera space: its tip and
 // base, and (cos, sin) across it on screen): the glow, if this is a blade
 // begun above

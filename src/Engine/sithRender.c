@@ -38,6 +38,7 @@
 #include "Enhanced/iosPhotoCam.h" // Added
 #include "Enhanced/iosFreeze.h" // Added
 #include "Enhanced/iosSaber.h" // Added
+#include "Enhanced/iosSaberShape.h" // Added
 // Added: the photo camera (the selfie, Action Freeze) only looks: what it sees
 // isn't sighted, seen on the map, marked as on screen, or flashed (iosPhotoCam)
 #define SITHRENDER_PHOTO_LOOKING() iosPhotoCam_IsActive()
@@ -326,6 +327,9 @@ void sithRender_Draw()
     //printf("%x %x %x\n", sithRender_texMode, rdroid_curTextureMode, sithRender_lightMode);
 
     //lightDebugNum = 0; // Added
+#ifdef JK_ENHANCED
+    iosSaberShape_BeginScene(); // Added: no glows kept from another scene (iosSaberShape)
+#endif
 
 #ifdef TARGET_TWL
     //sithRender_geoMode = RD_GEOMETRY_SOLID;
@@ -626,6 +630,9 @@ void sithRender_Draw()
     // TWL: 0ms
     if ( sithRender_numAlphaAdjoins )
         sithRender_RenderAlphaAdjoins();
+#ifdef JK_ENHANCED
+    iosSaberShape_FlushGlows(); // Added: the sabers' glows, over everything drawn, writing no depth
+#endif
 
     rdSetCullFlags(3);
 #ifdef QOL_IMPROVEMENTS

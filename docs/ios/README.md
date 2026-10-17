@@ -890,8 +890,12 @@ cancels, and the game holds still while the wheel is open.
     and only a faint tint on bright walls.
   - It works with every colour, ORIGINAL included, in both CLASSIC and
     REFORGED. It shows in first and third person, with two sabers, in selfies
-    and Action Freeze, and on other players' sabers. In Mysteries of the Sith
-    a thrown saber gets the glow too.
+    and Action Freeze. In Mysteries of the Sith a thrown saber gets the glow
+    too.
+  - It's a setting for your own screen. It changes your blade, and in
+    multiplayer the blades of players whose game sends their saber choice.
+    Enemy Jedi (the bosses) and players on other builds keep the game's
+    blade.
   - Only the look changes: the blade's length, its reach and its damage stay
     as the game has them.
 - **The wheel stays open** after you pick a colour, so you can change both
@@ -1074,7 +1078,8 @@ Things to know:
 
 Other players see your saber as you set it on the SABER wheel: its colour,
 and two sabers if you chose them. CLASSIC or REFORGED changes how you see
-every saber on your screen, yours and theirs, and so does BEAM. One thing reaches other
+every saber on your screen, yours and theirs. BEAM is for your screen too:
+it changes your blade and theirs as you see them. One thing reaches other
 players: in Jedi Knight, a green you kept shows as ORIGINAL while REFORGED
 is on, and other players see it as ORIGINAL too. In multiplayer the second saber is only
 for looks. It doesn't hit, to keep things fair for players on other

@@ -166,7 +166,9 @@ Tick what works, note what doesn't (a photo of the screen helps).
       film-style beam on or off, and the wheel stays open. Off (to start):
       the game's blade, narrowing to a point. On: an even beam with a round
       tip and a soft glow in the blade's colour, for every colour and both
-      looks; the blade in hand changes at once. A pad's D-pad up and the 5
+      looks; the blade in hand changes at once. It's for your own screen:
+      your blade, and players whose game sends their saber choice (not
+      enemy Jedi). A pad's D-pad up and the 5
       key do the same while the saber wheel is open.
 - [ ] Use a keyboard, mouse or controller: the buttons hide; touch the screen
       and they come back.

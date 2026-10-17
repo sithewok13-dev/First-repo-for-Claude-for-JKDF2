@@ -2028,10 +2028,12 @@ static void IOSTouch_AddStar(UIBezierPath* p, CGPoint c, CGFloat k)
         {
             // the shape's switch: its name on the left, a small on/off switch on the right
             UILabel* c = aSaberChips[IOSTOUCH_CHIP_SHAPE];
-            shapeName = [[UILabel alloc] initWithFrame:CGRectMake(5.0, 0.0, IOSTOUCH_SABER_CHIP_W - 12.0 - IOSTOUCH_SWITCH_W, IOSTOUCH_SABER_CHIP_H)];
+            shapeName = [[UILabel alloc] initWithFrame:CGRectMake(4.0, 0.0, IOSTOUCH_SABER_CHIP_W - 13.0 - IOSTOUCH_SWITCH_W, IOSTOUCH_SABER_CHIP_H)];
             shapeName.text = @"BEAM";
             shapeName.textAlignment = NSTextAlignmentCenter;
-            shapeName.font = [UIFont boldSystemFontOfSize:11];
+            shapeName.font = [UIFont boldSystemFontOfSize:10];
+            shapeName.adjustsFontSizeToFitWidth = YES;
+            shapeName.minimumScaleFactor = 0.8;
             shapeName.textColor = [UIColor whiteColor];
             [c addSubview:shapeName];
             shapeTrack = [[UIView alloc] initWithFrame:CGRectMake(IOSTOUCH_SABER_CHIP_W - 7.0 - IOSTOUCH_SWITCH_W, (IOSTOUCH_SABER_CHIP_H - IOSTOUCH_SWITCH_H) * 0.5,
